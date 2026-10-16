@@ -22,6 +22,8 @@ For v0.1, these apply to conventional UI/API actions and local workflow tools; A
 
 Portable .runnir contains declarative non-secret config only and is read-only during normal open. Session/registry/SQLite/private overrides use resolved Application Support with scoped access; local repository/window identifiers, paths, cached GitHub data and environment values are excluded from analytics/crash summaries. Repository config cannot authorize Keychain reads, automatic execution or bypass confirmation. No secrets in DB/snapshots/preset files. Clear Cache/repair must preserve unique user-authored state; registry removal never silently deletes the repository. No new broad home-folder/diagnostic access is authorized by persistence.
 
+The desktop workflow reader pins an opened repository directory for the grant lifetime. Reads traverse relative to that descriptor without following child symlinks, including links whose targets are inside the repository. Moving the root or replacing its old pathname does not redirect an existing reader. This is a read-boundary defense, not proof of production-signed sandbox enforcement or isolation for workflow execution.
+
 ## Review Checklist
 
 - Filesystem permissions remain restricted and documented.

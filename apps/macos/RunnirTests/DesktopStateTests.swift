@@ -5,6 +5,24 @@ import Testing
 
 @MainActor
 struct CodePreviewLayoutTests {
+    @Test func highlightingMaximumSizeScalarIsBounded() {
+        let source = "value: " + String(repeating: "a", count: 512 * 1024 - 7)
+        let start = Date()
+        let styled = YAMLSyntaxHighlighting.highlight(source)
+        #expect(Date().timeIntervalSince(start) < 2)
+        #expect(String(styled.characters) == source)
+        #expect(styled.runs.contains { $0.foregroundColor == RunnirTheme.syntaxKey })
+    }
+
+    @Test func anchoredHighlightingPreservesTokensAfterPlainText() {
+        let source = "value: plain # comment"
+        let styled = YAMLSyntaxHighlighting.highlight(source)
+        #expect(String(styled.characters) == source)
+        #expect(styled.runs.contains { $0.foregroundColor == RunnirTheme.mutedForeground })
+        let numeric = YAMLSyntaxHighlighting.highlight("timeout: 30")
+        #expect(numeric.runs.contains { $0.foregroundColor == RunnirTheme.syntaxLiteral })
+    }
+
     @Test func wrappingKeepsLogicalLinesIntact() {
         let long = CodePreviewLayout(source: "name: CI\n" + String(repeating: "x", count: 200))
         #expect(long.lines.count == 2)
@@ -160,14 +178,280 @@ struct DesktopStateTests {
     }
 }
 
+@MainActor
+struct DesktopCoordinatorTests {
+    @Test func quittingBeforeLoadDoesNotOverwritePersistedSession() throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let coordinator = DesktopCoordinator(store: fixture.store)
+        #expect(coordinator.isLoading)
+        #expect(coordinator.prepareToQuit())
+        #expect(try fixture.store.load().workspaces == [fixture.original])
+    }
+
+    @Test func quittingDuringLoadDoesNotSaveOrRestoreLateResult() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let delayed = ControlledDesktopStore(backing: fixture.store, delayLoad: true)
+        defer { delayed.releaseLoad.signal() }
+        let coordinator = DesktopCoordinator(store: delayed)
+        let loading = Task { await coordinator.loadSession() }
+        let started = await Task.detached { delayed.waitUntilLoadStarted() }.value
+        #expect(started)
+        #expect(coordinator.prepareToQuit())
+        delayed.releaseLoad.signal()
+        await loading.value
+        #expect(coordinator.snapshot.workspaces.isEmpty)
+        #expect(try fixture.store.load().workspaces == [fixture.original])
+    }
+
+    @Test func loadedSessionSurvivesNormalQuitAndBlocksEarlyMutations() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let coordinator = DesktopCoordinator(store: fixture.store)
+        #expect(throws: (any Error).self) { try coordinator.relinkWorkspace(fixture.relocated) }
+        await coordinator.loadSession()
+        #expect(!coordinator.isLoading)
+        #expect(coordinator.prepareToQuit())
+        #expect(try fixture.store.load().workspaces == [fixture.original])
+    }
+
+    @Test func relinkRebindsEveryOpenWindowAndPreservesIdentityAndNavigation() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant,
+                                             makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        coordinator.openRegistered(fixture.original)
+        #expect(factory.windows.count == 2)
+        let first = try #require(factory.windows.first)
+        let second = try #require(factory.windows.last)
+        coordinator.selectSection(.workspace, windowID: first.record.id)
+        coordinator.selectSection(.runs, windowID: second.record.id)
+        let records = coordinator.snapshot.windows
+        let oldGrants = factory.grants
+        try coordinator.relinkWorkspace(fixture.relocated)
+        #expect(coordinator.snapshot.windows == records)
+        #expect(coordinator.openCount(fixture.original.id) == 2)
+        #expect(oldGrants.allSatisfy { $0.stopped })
+        for window in factory.windows {
+            #expect(window.workspace.path == fixture.relocated.path)
+            let reader = try #require(window.grant?.reader)
+            #expect(try reader.source(for: LocalWorkflowFile(relativePath: ".github/workflows/probe.yml")) == "new")
+        }
+        #expect(try fixture.store.load().workspaces == [fixture.relocated])
+    }
+
+    @Test func failedGrantPreparationRollsBackAllWindowsAndRegistry() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant,
+                                             makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        coordinator.openRegistered(fixture.original)
+        let before = coordinator.snapshot
+        factory.failGrantOnCall = 4
+        #expect(throws: (any Error).self) { try coordinator.relinkWorkspace(fixture.relocated) }
+        #expect(coordinator.snapshot == before)
+        #expect(try fixture.store.load() == before)
+        #expect(factory.windows.allSatisfy { $0.workspace.path == fixture.original.path })
+        #expect(factory.grants.prefix(2).allSatisfy { !$0.stopped })
+        #expect(factory.grants.last?.stopped == true)
+    }
+
+    @Test func failedRelinkCommitReleasesPreparedGrantsWithoutSwitchingWindows() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let controlled = ControlledDesktopStore(backing: fixture.store)
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: controlled, makeGrant: factory.makeGrant,
+                                             makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        let before = coordinator.snapshot
+        controlled.failWrites = true
+        #expect(throws: (any Error).self) { try coordinator.relinkWorkspace(fixture.relocated) }
+        #expect(coordinator.snapshot == before)
+        #expect(try fixture.store.load() == before)
+        #expect(factory.windows.first?.workspace.path == fixture.original.path)
+        #expect(factory.grants.first?.stopped == false)
+        #expect(factory.grants.last?.stopped == true)
+    }
+}
+
+private struct CoordinatorFixture {
+    let directory: URL
+    let store: FileDesktopStateStore
+    let original: WorkspaceRecord
+    let relocated: WorkspaceRecord
+
+    init() throws {
+        directory = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
+        let a = directory.appendingPathComponent("old")
+        let b = directory.appendingPathComponent("new")
+        for (root, contents) in [(a, "old"), (b, "new")] {
+            try FileManager.default.createDirectory(at: root.appendingPathComponent(".github/workflows"), withIntermediateDirectories: true)
+            try Data(contents.utf8).write(to: root.appendingPathComponent(".github/workflows/probe.yml"))
+        }
+        original = WorkspaceRecord(id: UUID(), path: a.path, name: "fixture", bookmark: Data(), lastOpenedAt: Date())
+        var updated = original
+        updated.path = b.path
+        relocated = updated
+        store = FileDesktopStateStore(directory: directory.appendingPathComponent("state"))
+        try store.save(DesktopSnapshot(workspaces: [original]))
+    }
+
+    func remove() { try? FileManager.default.removeItem(at: directory) }
+}
+
+private final class ControlledDesktopStore: DesktopStateStoring, @unchecked Sendable {
+    let backing: FileDesktopStateStore
+    let delayLoad: Bool
+    let loadStarted = DispatchSemaphore(value: 0)
+    let releaseLoad = DispatchSemaphore(value: 0)
+    private let lock = NSLock()
+    private var shouldFailWrites = false
+    var failWrites: Bool {
+        get { lock.withLock { shouldFailWrites } }
+        set { lock.withLock { shouldFailWrites = newValue } }
+    }
+
+    init(backing: FileDesktopStateStore, delayLoad: Bool = false) {
+        self.backing = backing
+        self.delayLoad = delayLoad
+    }
+
+    func load() throws -> DesktopSnapshot {
+        loadStarted.signal()
+        if delayLoad { releaseLoad.wait() }
+        return try backing.load()
+    }
+
+    func waitUntilLoadStarted() -> Bool { loadStarted.wait(timeout: .now() + 5) == .success }
+
+    func save(_ snapshot: DesktopSnapshot) throws {
+        if failWrites { throw DesktopStoreError.ioFailure }
+        try backing.save(snapshot)
+    }
+}
+
+@MainActor
+private final class TestRepositoryGrant: RepositoryGranting {
+    let url: URL
+    let reader: RepositoryReader
+    var stopped = false
+    init(_ workspace: WorkspaceRecord) throws {
+        url = URL(fileURLWithPath: workspace.path)
+        reader = try RepositoryReader(root: url)
+    }
+    func stop() { stopped = true }
+}
+
+@MainActor
+private final class TestWorkspaceWindow: WorkspaceWindowManaging {
+    var record: WorkspaceWindowRecord
+    var workspace: WorkspaceRecord
+    var grant: (any RepositoryGranting)?
+    var window: NSWindow? { nil }
+    init(_ record: WorkspaceWindowRecord, _ workspace: WorkspaceRecord, _ grant: (any RepositoryGranting)?) {
+        self.record = record
+        self.workspace = workspace
+        self.grant = grant
+    }
+    func attach(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: any RepositoryGranting) {
+        self.grant?.stop()
+        self.record = record
+        self.workspace = workspace
+        self.grant = grant
+    }
+    func showWindow(_ sender: Any?) {}
+}
+
+@MainActor
+private final class TestWindowFactory {
+    var windows: [TestWorkspaceWindow] = []
+    var grants: [TestRepositoryGrant] = []
+    var calls = 0
+    var failGrantOnCall: Int?
+    func makeGrant(_ workspace: WorkspaceRecord) throws -> any RepositoryGranting {
+        calls += 1
+        if calls == failGrantOnCall { throw RepositoryAccessError.unavailable }
+        let grant = try TestRepositoryGrant(workspace)
+        grants.append(grant)
+        return grant
+    }
+    func makeWindow(_ record: WorkspaceWindowRecord, _ workspace: WorkspaceRecord,
+                    _ grant: (any RepositoryGranting)?, _ desktop: DesktopCoordinator) -> any WorkspaceWindowManaging {
+        let window = TestWorkspaceWindow(record, workspace, grant)
+        windows.append(window)
+        return window
+    }
+}
+
 struct RepositoryReaderTests {
+    @Test func missingWorkflowDirectoryIsEmpty() throws {
+        let root = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let reader = try RepositoryReader(root: root)
+        try FileManager.default.removeItem(at: root.appendingPathComponent(".github"))
+        #expect(try reader.workflows().isEmpty)
+    }
+
+    @Test func pinsRootWhenSelectedPathIsReplacedWithSymlink() throws {
+        let root = try fixture()
+        let external = try fixture()
+        let moved = root.appendingPathExtension("moved")
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: moved)
+            try? FileManager.default.removeItem(at: external)
+        }
+        let file = LocalWorkflowFile(relativePath: ".github/workflows/probe.yml")
+        try Data("original".utf8).write(to: root.appendingPathComponent(file.relativePath))
+        try Data("outside".utf8).write(to: external.appendingPathComponent(file.relativePath))
+        let reader = try RepositoryReader(root: root)
+        try FileManager.default.moveItem(at: root, to: moved)
+        try FileManager.default.createSymbolicLink(at: root, withDestinationURL: external)
+        #expect(try reader.source(for: file) == "original")
+        #expect(throws: (any Error).self) { try RepositoryReader(root: root) }
+    }
+
+    @Test func rejectsIntermediateAndFinalSymlinks() throws {
+        let root = try fixture()
+        let external = try fixture()
+        defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: external) }
+        let file = LocalWorkflowFile(relativePath: ".github/workflows/probe.yml")
+        try Data("outside".utf8).write(to: external.appendingPathComponent(file.relativePath))
+        let reader = try RepositoryReader(root: root)
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent(file.relativePath),
+                                                  withDestinationURL: external.appendingPathComponent(file.relativePath))
+        #expect(throws: (any Error).self) { try reader.source(for: file) }
+        try FileManager.default.removeItem(at: root.appendingPathComponent(".github/workflows"))
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent(".github/workflows"),
+                                                  withDestinationURL: external.appendingPathComponent(".github/workflows"))
+        #expect(throws: (any Error).self) { try reader.source(for: file) }
+        #expect(throws: (any Error).self) { try reader.workflows() }
+    }
+
+    @Test func rejectsNulAndNonRegularFiles() throws {
+        let root = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let reader = try RepositoryReader(root: root)
+        #expect(throws: (any Error).self) { try reader.source(for: LocalWorkflowFile(relativePath: ".github/workflows/a\0.yml")) }
+        #expect(throws: (any Error).self) { try reader.source(for: LocalWorkflowFile(relativePath: ".github/workflows")) }
+    }
+
     @Test func readsOnlyWorkflowFilesWithoutCreatingConfig() throws {
         let root = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
         let directory = root.appendingPathComponent(".github/workflows")
         try Data("name: Build\non: push\n".utf8).write(to: directory.appendingPathComponent("build.yml"))
         try Data("ignored".utf8).write(to: directory.appendingPathComponent("notes.txt"))
-        let reader = RepositoryReader(root: root)
+        let reader = try RepositoryReader(root: root)
         #expect(try RepositoryReader.canonicalRepository(root).path == root.path)
         let files = try reader.workflows()
         #expect(files.map(\.name) == ["build.yml"])
@@ -178,9 +462,9 @@ struct RepositoryReaderTests {
     @Test func rejectsTraversalAndSymlinkEscape() throws {
         let root = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
-        let reader = RepositoryReader(root: root)
-        #expect(throws: (any Error).self) { try reader.scopedURL("../private.txt") }
-        #expect(throws: (any Error).self) { try reader.scopedURL("/etc/passwd") }
+        let reader = try RepositoryReader(root: root)
+        #expect(throws: (any Error).self) { try reader.source(for: LocalWorkflowFile(relativePath: "../private.txt")) }
+        #expect(throws: (any Error).self) { try reader.source(for: LocalWorkflowFile(relativePath: "/etc/passwd")) }
         try FileManager.default.createSymbolicLink(atPath: root.appendingPathComponent(".github/workflows/escape.yml").path,
                                                    withDestinationPath: "/etc/passwd")
         #expect(throws: (any Error).self) { try reader.workflows() }

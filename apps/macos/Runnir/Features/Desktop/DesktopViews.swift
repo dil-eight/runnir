@@ -172,7 +172,7 @@ private struct WorkspaceRegistryRow: View {
 
 enum YAMLSyntaxHighlighting {
     private static let expression = try? NSRegularExpression(pattern:
-        #"(?<comment>(?<!\S)[#].*$)|(?<string>"(?:\\.|[^"\\])*"|'(?:''|[^'])*')|(?<key>[A-Za-z_][A-Za-z0-9_.-]*(?=\s*:(?:\s|$)))|(?<literal>(?<![\w.-])(?:true|false|null|~|[-+]?\d+(?:\.\d+)?)(?![\w.-]))"#)
+        #"\G(?:(?<comment>(?<!\S)[#].*$)|(?<string>"(?:\\.|[^"\\])*"|'(?:''|[^'])*')|(?<key>[A-Za-z_][A-Za-z0-9_.-]*(?=\s*:(?:\s|$)))|(?<literal>(?<![\w.-])(?:true|false|null|~|[-+]?\d+(?:\.\d+)?)(?![\w.-]))|[^\s]+|\s+)"#)
 
     static func highlight(_ line: String) -> AttributedString {
         var result = AttributedString(line)
@@ -219,25 +219,25 @@ final class WorkspaceFilesModel {
     var error: String?
     private var sourceTask: Task<Void, Never>?
 
-    func load(_ root: URL) async {
+    func load(_ reader: RepositoryReader) async {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
         do {
-            files = try await Task.detached { try RepositoryReader(root: root).workflows() }.value
+            files = try await Task.detached { try reader.workflows() }.value
             error = nil
-            if let selected, files.contains(selected) { select(selected, root: root) }
-            else { selected = files.first; if let selected { select(selected, root: root) } }
+            if let selected, files.contains(selected) { select(selected, reader: reader) }
+            else { selected = files.first; if let selected { select(selected, reader: reader) } }
         } catch { self.error = "Workflow files could not be read. Check access and keep files inside this repository." }
     }
 
-    func select(_ file: LocalWorkflowFile, root: URL) {
+    func select(_ file: LocalWorkflowFile, reader: RepositoryReader) {
         selected = file
         source = ""
         sourceTask?.cancel()
         sourceTask = Task {
             do {
-                let text = try await Task.detached { try RepositoryReader(root: root).source(for: file) }.value
+                let text = try await Task.detached { try reader.source(for: file) }.value
                 guard !Task.isCancelled else { return }
                 source = text
                 error = nil
@@ -254,7 +254,7 @@ struct DesktopWorkspaceView: View {
     let desktop: DesktopCoordinator
     let workspace: WorkspaceRecord
     let windowID: UUID
-    let root: URL?
+    let reader: RepositoryReader?
     @State private var files = WorkspaceFilesModel()
 
     var body: some View {
@@ -264,7 +264,7 @@ struct DesktopWorkspaceView: View {
             VStack(spacing: 0) {
                 toolbar
                 DesignDivider()
-                if root == nil {
+                if reader == nil {
                     ContentUnavailableView {
                         Label("Locate this repository", systemImage: "folder.badge.questionmark")
                     } description: {
@@ -279,7 +279,7 @@ struct DesktopWorkspaceView: View {
         }
         .background(RunnirTheme.background).foregroundStyle(RunnirTheme.foreground).tint(RunnirTheme.primary)
         .ignoresSafeArea()
-        .task(id: root) { if let root { await files.load(root) } }
+        .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
     }
 
@@ -289,7 +289,7 @@ struct DesktopWorkspaceView: View {
             if state.selectedSection == .workspace {
                 Menu {
                     ForEach(files.files) { file in
-                        Button(file.name) { if let root { files.select(file, root: root) } }
+                        Button(file.name) { if let reader { files.select(file, reader: reader) } }
                     }
                 } label: {
                     HStack(spacing: 6) {
@@ -311,8 +311,8 @@ struct DesktopWorkspaceView: View {
             } else {
                 Label("Working tree", systemImage: "arrow.triangle.branch")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                Button("Refresh") { if let root { Task { await files.load(root) } } }
-                    .disabled(root == nil || files.isLoading).help("Refresh local workflows")
+                Button("Refresh") { if let reader { Task { await files.load(reader) } } }
+                    .disabled(reader == nil || files.isLoading).help("Refresh local workflows")
                 Button {} label: { Label("Run Workflow...", systemImage: "play") }
                     .buttonStyle(DesignButtonStyle(primary: true)).disabled(true).help("GitHub dispatch is not implemented")
             }
@@ -389,7 +389,7 @@ struct DesktopWorkspaceView: View {
         case .dashboard:
             overview
         case .workspace:
-            LocalWorkflowBrowser(model: files, root: root!)
+            LocalWorkflowBrowser(model: files)
         case .repositories: RepositoriesView()
         case .workflows: WorkflowsView()
         case .runs: RunsView()
@@ -404,7 +404,7 @@ struct DesktopWorkspaceView: View {
                     ScrollView(.horizontal) {
                         HStack(spacing: 4) {
                             ForEach(files.files) { file in
-                                Button(file.name) { if let root { files.select(file, root: root) } }
+                                Button(file.name) { if let reader { files.select(file, reader: reader) } }
                                     .buttonStyle(WorkflowTabStyle(selected: files.selected == file))
                             }
                         }
@@ -424,7 +424,7 @@ struct DesktopWorkspaceView: View {
                         DesignDivider()
                         ForEach(files.files) { file in
                             Button {
-                                if let root { files.select(file, root: root) }
+                                if let reader { files.select(file, reader: reader) }
                                 state.selectedSection = .workspace
                             } label: {
                                 HStack {
@@ -449,7 +449,6 @@ struct DesktopWorkspaceView: View {
 
 private struct LocalWorkflowBrowser: View {
     @Bindable var model: WorkspaceFilesModel
-    let root: URL
 
     var body: some View {
         HSplitView {

@@ -34,12 +34,26 @@ Native screenshots confirm the minimum-width workspace shell and populated 900 x
 
 Alignment build passed and the follow-up unit run passed all 21 tests, including a new sidebar-order/legacy-destination regression test. The mechanical UI detector reported no findings.
 
-## Outstanding Verification
+## Viewer And Token Follow-Ups
 
 YAML-viewer follow-up: removed horizontal scrolling in favor of soft wrapping. One number remains attached to each logical line; wrapped rows grow without adding line numbers, and the gutter accommodates large line counts. Added local lexical syntax styling through semantic tokens, without modifying source or claiming parser/validation completeness. Native inspection at a 300-point YAML pane confirmed wrapping, numbering, visible syntax colors and a vertical-only scroll area. Build and the updated unit suite passed, including source-preservation, quoted-comment and large-gutter coverage. Icons were unchanged.
 
 Color-token follow-up: introduced a typed primitive palette, exhaustive semantic light/dark mappings and adaptive SwiftUI accessors, following Fintropy's layering while preserving Runnir's Pen colors. Components no longer contain direct RGB/status-color values. Added debug-only Light/Dark token catalogs and three mapping/contrast tests. Native build and all 24 unit tests passed; the dark Manager was visually checked after restart. Light appearance is covered by deterministic color-resolution/contrast tests, not a new full-app screenshot review.
 
-Signed sandbox and helper permissions; hostile concurrent symlink replacement; crash/power-loss injection; failed-write/cancelled-quit integration tests; missing monitors and stale-bookmark/relink scenarios; shared account propagation; full populated preview catalog and light-mode visual review.
+## PR Review Fixes
+
+Verified on 2026-10-16:
+
+- Quit before session loading completes no longer writes the initial empty snapshot. Late load completion cannot restore windows after termination begins.
+- Repository reads retain the granted directory descriptor instead of resolving the root again. Descriptor-relative traversal refuses symlinks at every child component; source reads use the opened regular-file descriptor and retain their size bound.
+- YAML lexical highlighting consumes contiguous tokens rather than retrying a key match at every suffix of a long scalar. A maximum-size 512 KiB scalar has a regression time bound and preserves source content.
+- The production REST decoder honors explicit DTO CodingKeys, including full_name and default_branch.
+- Relink prepares new grants for every open workspace window, persists once, then replaces their readers without changing window identities or navigation. Preparation or persistence failure leaves old windows and registry intact and releases prepared grants.
+
+Required macOS build, all 41 unit tests and the static analyzer passed. The suite adds 13 regression tests for these fixes, including delayed startup/quit, relink rollback, root replacement, child symlinks, malformed paths and production REST decoding. Native restart restored the existing workspace window and displayed real local YAML with wrapping, line numbers and syntax colors intact.
+
+## Remaining Verification
+
+Signed sandbox and helper permissions; exhaustive hostile filesystem-race testing beyond the descriptor/root-replacement fixtures; crash/power-loss injection; native failed-write/cancelled-quit alert interaction; missing monitors and real stale-bookmark recovery; shared account propagation; full populated preview catalog and light-mode visual review. Relink rollback is covered with injected grants and storage failures, not a production-signed bookmark integration test.
 
 No workflow editing, actionlint, execution, SQLite, remote sync, Device Flow, AI, MCP, analytics, crash collection, signing/notarization or updater was implemented in this slice. Local file readers are presentation bridges, not a duplicate workflow domain engine. The next bounded feature is offline validation, following lifecycle hardening.

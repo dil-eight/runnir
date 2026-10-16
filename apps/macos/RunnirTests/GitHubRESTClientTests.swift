@@ -4,6 +4,16 @@ import Testing
 
 @Suite(.serialized)
 struct GitHubRESTClientTests {
+    @Test func listsRepositoriesWithProductionDecoder() async throws {
+        let session = URLSession.mock(statusCode: 200, body: #"[{"id":42,"name":"example","full_name":"owner/example","private":false,"visibility":"public","default_branch":"main","owner":{"login":"owner"}}]"#)
+        let client = GitHubRESTClient(baseURL: URL(string: "https://api.github.test")!,
+                                      credentialStore: InMemoryCredentialStore(token: "fixture"), urlSession: session)
+        let repositories = try await client.listRepositories()
+        #expect(repositories.count == 1)
+        #expect(repositories.first?.fullName == "owner/example")
+        #expect(repositories.first?.defaultBranch == "main")
+    }
+
     @Test
     func mapsUnauthorizedResponse() async throws {
         let session = URLSession.mock(statusCode: 401, body: #"{"message":"Bad credentials"}"#)

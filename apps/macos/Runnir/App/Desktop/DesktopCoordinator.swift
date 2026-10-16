@@ -3,6 +3,15 @@ import SwiftUI
 import Observation
 
 @MainActor
+protocol WorkspaceWindowManaging: AnyObject {
+    var record: WorkspaceWindowRecord { get set }
+    var grant: (any RepositoryGranting)? { get }
+    var window: NSWindow? { get }
+    func attach(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: any RepositoryGranting)
+    func showWindow(_ sender: Any?)
+}
+
+@MainActor
 @Observable
 final class DesktopCoordinator {
     private(set) var snapshot = DesktopSnapshot()
@@ -12,11 +21,39 @@ final class DesktopCoordinator {
     @ObservationIgnored private var store: (any DesktopStateStoring)?
     @ObservationIgnored private var manager: NSWindow?
     @ObservationIgnored private var splash: NSWindow?
-    @ObservationIgnored private var windows: [UUID: WorkspaceWindowController] = [:]
+    @ObservationIgnored private var windows: [UUID: any WorkspaceWindowManaging] = [:]
+    @ObservationIgnored private let makeGrant: (WorkspaceRecord) throws -> any RepositoryGranting
+    @ObservationIgnored private let makeWorkspaceWindow: (WorkspaceWindowRecord, WorkspaceRecord, (any RepositoryGranting)?, DesktopCoordinator) -> any WorkspaceWindowManaging
     @ObservationIgnored private var geometryTask: Task<Void, Never>?
     @ObservationIgnored private var bootTask: Task<Void, Never>?
     @ObservationIgnored var terminationInProgress = false
     let accountState = AppState()
+
+    init(store: (any DesktopStateStoring)? = nil,
+         makeGrant: @escaping (WorkspaceRecord) throws -> any RepositoryGranting = { try RepositoryGrant(record: $0) },
+         makeWorkspaceWindow: @escaping (WorkspaceWindowRecord, WorkspaceRecord, (any RepositoryGranting)?, DesktopCoordinator) -> any WorkspaceWindowManaging = {
+             WorkspaceWindowController(record: $0, workspace: $1, grant: $2, desktop: $3)
+         }) {
+        self.store = store
+        self.makeGrant = makeGrant
+        self.makeWorkspaceWindow = makeWorkspaceWindow
+    }
+
+    func loadSession() async {
+        do {
+            let storage: any DesktopStateStoring
+            if let store { storage = store } else { storage = try FileDesktopStateStore.live() }
+            store = storage
+            let loaded = try await Task.detached { try storage.load() }.value
+            guard !Task.isCancelled, !terminationInProgress else { return }
+            snapshot = loaded
+        } catch {
+            guard !terminationInProgress else { return }
+            persistenceBlocked = true
+            message = "Local session could not be read. Your repository files have not been changed."
+        }
+        isLoading = false
+    }
 
     func start() {
         guard bootTask == nil else { return }
@@ -24,18 +61,8 @@ final class DesktopCoordinator {
         splash?.contentViewController = NSHostingController(rootView: StartupSplashView())
         splash?.makeKeyAndOrderFront(nil)
         bootTask = Task {
-            do {
-                let fileStore = try FileDesktopStateStore.live()
-                store = fileStore
-                let loaded = try await Task.detached { try fileStore.load() }.value
-                guard !Task.isCancelled else { return }
-                snapshot = loaded
-            } catch {
-                persistenceBlocked = true
-                message = "Local session could not be read. Your repository files have not been changed."
-            }
-            guard !Task.isCancelled else { return }
-            isLoading = false
+            await loadSession()
+            guard !Task.isCancelled, !terminationInProgress else { return }
             for record in snapshot.windows { restore(record) }
             if windows.isEmpty { showManager() }
             splash?.close()
@@ -70,7 +97,7 @@ final class DesktopCoordinator {
     }
 
     func importRepository(relinkID: UUID? = nil, reuseWindowID: UUID? = nil) {
-        guard !persistenceBlocked else { return }
+        guard !isLoading, !persistenceBlocked else { return }
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
@@ -93,18 +120,42 @@ final class DesktopCoordinator {
             let identity = relinkID ?? candidate.workspaces.first(where: { $0.path == root.path })?.id ?? UUID()
             let record = WorkspaceRecord(id: identity, path: root.path, name: root.lastPathComponent,
                                          bookmark: bookmark, lastOpenedAt: Date())
-            candidate.workspaces.removeAll { $0.id == identity }
-            candidate.workspaces.append(record)
-            try commit(candidate)
-            try open(record, reuseWindowID: reuseWindowID)
-            // Relinking repairs existing shells without changing their identities.
-            for controller in windows.values where controller.record.workspaceID == identity && controller.grant == nil {
-                try controller.rebind(record: controller.record, workspace: record)
+            if relinkID != nil {
+                try relinkWorkspace(record)
+                if openCount(identity) > 0 { focus(identity) }
+                else { try open(record, reuseWindowID: reuseWindowID) }
+            } else {
+                candidate.workspaces.removeAll { $0.id == identity }
+                candidate.workspaces.append(record)
+                try commit(candidate)
+                try open(record, reuseWindowID: reuseWindowID)
             }
         } catch RepositoryAccessError.notRepository {
             message = "This folder is not a Git working tree. Choose a folder containing a .git marker."
         } catch {
             message = "The repository could not be opened. Check folder access or choose Locate to grant access again."
+        }
+    }
+
+    func relinkWorkspace(_ workspace: WorkspaceRecord) throws {
+        guard !isLoading, snapshot.workspaces.contains(where: { $0.id == workspace.id }) else {
+            throw DesktopStoreError.invalidState
+        }
+        var prepared: [(any WorkspaceWindowManaging, any RepositoryGranting)] = []
+        do {
+            for controller in windows.values where controller.record.workspaceID == workspace.id {
+                prepared.append((controller, try makeGrant(workspace)))
+            }
+            var candidate = snapshot
+            candidate.workspaces.removeAll { $0.id == workspace.id }
+            candidate.workspaces.append(workspace)
+            try commit(candidate)
+        } catch {
+            for (_, grant) in prepared { grant.stop() }
+            throw error
+        }
+        for (controller, grant) in prepared {
+            controller.attach(record: controller.record, workspace: workspace, grant: grant)
         }
     }
 
@@ -114,7 +165,8 @@ final class DesktopCoordinator {
     }
 
     private func open(_ workspace: WorkspaceRecord, reuseWindowID: UUID? = nil) throws {
-        let grant = try RepositoryGrant(record: workspace)
+        guard !isLoading else { throw DesktopStoreError.invalidState }
+        let grant = try makeGrant(workspace)
         var candidate = snapshot
         if let index = candidate.workspaces.firstIndex(where: { $0.id == workspace.id }) {
             candidate.workspaces[index].lastOpenedAt = Date()
@@ -132,7 +184,7 @@ final class DesktopCoordinator {
             let record = WorkspaceWindowRecord(id: UUID(), workspaceID: workspace.id)
             candidate.windows.append(record)
             do { try commit(candidate) } catch { grant.stop(); throw error }
-            let controller = WorkspaceWindowController(record: record, workspace: workspace, grant: grant, desktop: self)
+            let controller = makeWorkspaceWindow(record, workspace, grant, self)
             windows[record.id] = controller
             controller.showWindow(nil)
         }
@@ -142,8 +194,8 @@ final class DesktopCoordinator {
 
     private func restore(_ record: WorkspaceWindowRecord) {
         guard let workspace = snapshot.workspaces.first(where: { $0.id == record.workspaceID }) else { return }
-        let grant = try? RepositoryGrant(record: workspace)
-        let controller = WorkspaceWindowController(record: record, workspace: workspace, grant: grant, desktop: self)
+        let grant = try? makeGrant(workspace)
+        let controller = makeWorkspaceWindow(record, workspace, grant, self)
         windows[record.id] = controller
         controller.showWindow(nil)
     }
@@ -186,27 +238,26 @@ final class DesktopCoordinator {
         geometryTask = Task {
             try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled else { return }
-            saveGeometry()
+            do { try saveGeometry() } catch { message = "Window positions could not be saved." }
         }
     }
 
-    private func saveGeometry() {
+    private func saveGeometry() throws {
         var candidate = snapshot
         for index in candidate.windows.indices {
             if let frame = windows[candidate.windows[index].id]?.window?.frame {
                 candidate.windows[index].frame = WindowGeometry(x: frame.minX, y: frame.minY, width: frame.width, height: frame.height)
             }
         }
-        do { try commit(candidate) } catch { message = "Window positions could not be saved." }
+        try commit(candidate)
     }
 
     func prepareToQuit() -> Bool {
         bootTask?.cancel()
         geometryTask?.cancel()
-        guard !persistenceBlocked else { terminationInProgress = true; return true }
-        saveGeometry()
+        guard !isLoading, !persistenceBlocked else { terminationInProgress = true; return true }
         do {
-            try store?.save(snapshot)
+            try saveGeometry()
             terminationInProgress = true
             return true
         } catch {
@@ -216,7 +267,7 @@ final class DesktopCoordinator {
     }
 
     private func commit(_ candidate: DesktopSnapshot) throws {
-        guard !persistenceBlocked, let store else { throw DesktopStoreError.ioFailure }
+        guard !isLoading, !persistenceBlocked, let store else { throw DesktopStoreError.ioFailure }
         try store.save(candidate)
         snapshot = candidate
     }
@@ -264,12 +315,12 @@ final class DesktopCoordinator {
 }
 
 @MainActor
-final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
+final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, WorkspaceWindowManaging {
     var record: WorkspaceWindowRecord
-    var grant: RepositoryGrant?
+    var grant: (any RepositoryGranting)?
     private let desktop: DesktopCoordinator
 
-    init(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: RepositoryGrant?, desktop: DesktopCoordinator) {
+    init(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: (any RepositoryGranting)?, desktop: DesktopCoordinator) {
         self.record = record
         self.grant = grant
         self.desktop = desktop
@@ -299,15 +350,11 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
 
     required init?(coder: NSCoder) { nil }
 
-    func attach(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: RepositoryGrant) {
+    func attach(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: any RepositoryGranting) {
         self.grant?.stop()
         self.grant = grant
         self.record = record
         installContent(workspace)
-    }
-
-    func rebind(record: WorkspaceWindowRecord, workspace: WorkspaceRecord) throws {
-        attach(record: record, workspace: workspace, grant: try RepositoryGrant(record: workspace))
     }
 
     private func installContent(_ workspace: WorkspaceRecord) {
@@ -316,7 +363,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
         state.selectedSection = record.section
         window?.title = workspace.name + " - Runnir"
         window?.contentViewController = NSHostingController(rootView:
-            DesktopWorkspaceView(desktop: desktop, workspace: workspace, windowID: record.id, root: grant?.url)
+            DesktopWorkspaceView(desktop: desktop, workspace: workspace, windowID: record.id, reader: grant?.reader)
                 .environment(state).environment(\.appEnvironment, AppEnvironment.live))
         if let frame { window?.setFrame(frame, display: false) }
     }
