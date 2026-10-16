@@ -1,0 +1,275 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00000000000000000000001 /* RunnirApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010001 /* RunnirApp.swift */; };
+		A00000000000000000000002 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010002 /* AppEnvironment.swift */; };
+		A00000000000000000000003 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010003 /* AppState.swift */; };
+		A00000000000000000000004 /* AppSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010004 /* AppSection.swift */; };
+		A00000000000000000000005 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010005 /* RootView.swift */; };
+		A00000000000000000000006 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010006 /* EmptyStateView.swift */; };
+		A00000000000000000000007 /* RunnirTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010007 /* RunnirTheme.swift */; };
+		A00000000000000000000008 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010008 /* DashboardView.swift */; };
+		A00000000000000000000009 /* HeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010009 /* HeaderView.swift */; };
+		A0000000000000000000000A /* AuthenticationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001000A /* AuthenticationView.swift */; };
+		A0000000000000000000000B /* RepositoriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001000B /* RepositoriesView.swift */; };
+		A0000000000000000000000C /* WorkflowsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001000C /* WorkflowsView.swift */; };
+		A0000000000000000000000D /* RunsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001000D /* RunsView.swift */; };
+		A0000000000000000000000E /* ArtifactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001000E /* ArtifactsView.swift */; };
+		A0000000000000000000000F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001000F /* SettingsView.swift */; };
+		A00000000000000000000010 /* Repository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010010 /* Repository.swift */; };
+		A00000000000000000000011 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010011 /* Workflow.swift */; };
+		A00000000000000000000012 /* WorkflowRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010012 /* WorkflowRun.swift */; };
+		A00000000000000000000013 /* Artifact.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010013 /* Artifact.swift */; };
+		A00000000000000000000014 /* GitHubUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010014 /* GitHubUser.swift */; };
+		A00000000000000000000015 /* GitHubDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010015 /* GitHubDTOs.swift */; };
+		A00000000000000000000016 /* GitHubService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010016 /* GitHubService.swift */; };
+		A00000000000000000000017 /* GitHubEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010017 /* GitHubEndpoint.swift */; };
+		A00000000000000000000018 /* GitHubAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010018 /* GitHubAPIError.swift */; };
+		A00000000000000000000019 /* GitHubRESTClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010019 /* GitHubRESTClient.swift */; };
+		A0000000000000000000001A /* CredentialStoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001001A /* CredentialStoring.swift */; };
+		A0000000000000000000001B /* KeychainCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001001B /* KeychainCredentialStore.swift */; };
+		A0000000000000000000001C /* InMemoryCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001001C /* InMemoryCredentialStore.swift */; };
+		A0000000000000000000001D /* URLSessionConfiguration+Runnir.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001001D /* URLSessionConfiguration+Runnir.swift */; };
+		A0000000000000000000001E /* Runnir.entitlements in Resources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001001E /* Runnir.entitlements */; };
+		A00000000000000000000031 /* GitHubDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010031 /* GitHubDecodingTests.swift */; };
+		A00000000000000000000032 /* GitHubEndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010032 /* GitHubEndpointTests.swift */; };
+		A00000000000000000000033 /* GitHubRESTClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010033 /* GitHubRESTClientTests.swift */; };
+		A00000000000000000000034 /* CredentialStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010034 /* CredentialStoreTests.swift */; };
+		A00000000000000000000035 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010035 /* AppStateTests.swift */; };
+		A00000000000000000000041 /* RunnirUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010041 /* RunnirUITests.swift */; };
+		B00000000000000000000001 = {isa = PBXBuildFile; fileRef = B00000000000000000000011; };
+		B00000000000000000000002 = {isa = PBXBuildFile; fileRef = B00000000000000000000012; };
+		B00000000000000000000003 = {isa = PBXBuildFile; fileRef = B00000000000000000000013; };
+		D00000000000000000000001 = {isa = PBXBuildFile; fileRef = D00000000000000000000010; };
+		D00000000000000000000002 = {isa = PBXBuildFile; fileRef = D00000000000000000000011; };
+		D00000000000000000000003 = {isa = PBXBuildFile; fileRef = D00000000000000000000012; };
+		D00000000000000000000004 = {isa = PBXBuildFile; fileRef = D00000000000000000000013; };
+		D00000000000000000000005 = {isa = PBXBuildFile; fileRef = D00000000000000000000014; };
+		D00000000000000000000006 = {isa = PBXBuildFile; fileRef = D00000000000000000000015; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A00000000000000000020031 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A000000000000000000000AA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A000000000000000000000A1;
+			remoteInfo = Runnir;
+		};
+		A00000000000000000020041 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A000000000000000000000AA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A000000000000000000000A1;
+			remoteInfo = Runnir;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		A00000000000000000010001 /* RunnirApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnirApp.swift; sourceTree = "<group>"; };
+		A00000000000000000010002 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		A00000000000000000010003 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		A00000000000000000010004 /* AppSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSection.swift; sourceTree = "<group>"; };
+		A00000000000000000010005 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		A00000000000000000010006 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		A00000000000000000010007 /* RunnirTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnirTheme.swift; sourceTree = "<group>"; };
+		A00000000000000000010008 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		A00000000000000000010009 /* HeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderView.swift; sourceTree = "<group>"; };
+		A0000000000000000001000A /* AuthenticationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationView.swift; sourceTree = "<group>"; };
+		A0000000000000000001000B /* RepositoriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoriesView.swift; sourceTree = "<group>"; };
+		A0000000000000000001000C /* WorkflowsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowsView.swift; sourceTree = "<group>"; };
+		A0000000000000000001000D /* RunsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunsView.swift; sourceTree = "<group>"; };
+		A0000000000000000001000E /* ArtifactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactsView.swift; sourceTree = "<group>"; };
+		A0000000000000000001000F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A00000000000000000010010 /* Repository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repository.swift; sourceTree = "<group>"; };
+		A00000000000000000010011 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
+		A00000000000000000010012 /* WorkflowRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowRun.swift; sourceTree = "<group>"; };
+		A00000000000000000010013 /* Artifact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artifact.swift; sourceTree = "<group>"; };
+		A00000000000000000010014 /* GitHubUser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubUser.swift; sourceTree = "<group>"; };
+		A00000000000000000010015 /* GitHubDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubDTOs.swift; sourceTree = "<group>"; };
+		A00000000000000000010016 /* GitHubService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubService.swift; sourceTree = "<group>"; };
+		A00000000000000000010017 /* GitHubEndpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubEndpoint.swift; sourceTree = "<group>"; };
+		A00000000000000000010018 /* GitHubAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubAPIError.swift; sourceTree = "<group>"; };
+		A00000000000000000010019 /* GitHubRESTClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubRESTClient.swift; sourceTree = "<group>"; };
+		A0000000000000000001001A /* CredentialStoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialStoring.swift; sourceTree = "<group>"; };
+		A0000000000000000001001B /* KeychainCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainCredentialStore.swift; sourceTree = "<group>"; };
+		A0000000000000000001001C /* InMemoryCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InMemoryCredentialStore.swift; sourceTree = "<group>"; };
+		A0000000000000000001001D /* URLSessionConfiguration+Runnir.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "URLSessionConfiguration+Runnir.swift"; sourceTree = "<group>"; };
+		A0000000000000000001001E /* Runnir.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runnir.entitlements; sourceTree = "<group>"; };
+		A00000000000000000010031 /* GitHubDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubDecodingTests.swift; sourceTree = "<group>"; };
+		A00000000000000000010032 /* GitHubEndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubEndpointTests.swift; sourceTree = "<group>"; };
+		A00000000000000000010033 /* GitHubRESTClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubRESTClientTests.swift; sourceTree = "<group>"; };
+		A00000000000000000010034 /* CredentialStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialStoreTests.swift; sourceTree = "<group>"; };
+		A00000000000000000010035 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
+		A00000000000000000010041 /* RunnirUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnirUITests.swift; sourceTree = "<group>"; };
+		A00000000000000000030001 /* Runnir.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runnir.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000030002 /* RunnirTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnirTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000030003 /* RunnirUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnirUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000011 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runnir/IPC/CoreClient.swift; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000012 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runnir/IPC/StdioCoreTransport.swift; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000013 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnirTests/CoreClientTests.swift; sourceTree = SOURCE_ROOT; };
+		D00000000000000000000010 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runnir/App/Desktop/DesktopStateStore.swift; sourceTree = SOURCE_ROOT; };
+		D00000000000000000000011 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runnir/App/Desktop/RepositoryAccess.swift; sourceTree = SOURCE_ROOT; };
+		D00000000000000000000012 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runnir/App/Desktop/DesktopCoordinator.swift; sourceTree = SOURCE_ROOT; };
+		D00000000000000000000013 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runnir/Features/Desktop/DesktopViews.swift; sourceTree = SOURCE_ROOT; };
+		D00000000000000000000014 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnirTests/DesktopStateTests.swift; sourceTree = SOURCE_ROOT; };
+		D00000000000000000000015 = {isa = PBXFileReference; lastKnownFileType = folder; path = ../../docs/design/assets; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A00000000000000000040001 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000040002 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000040003 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A00000000000000000050000 = {isa = PBXGroup; children = (D00000000000000000000020, A00000000000000000050001, A00000000000000000050031, A00000000000000000050041, B00000000000000000000021, A00000000000000000050099); sourceTree = "<group>"; };
+		B00000000000000000000021 = {isa = PBXGroup; children = (B00000000000000000000011, B00000000000000000000012, B00000000000000000000013); name = "Core IPC"; sourceTree = "<group>"; };
+		A00000000000000000050099 /* Products */ = {isa = PBXGroup; children = (A00000000000000000030001, A00000000000000000030002, A00000000000000000030003); name = Products; sourceTree = "<group>"; };
+		A00000000000000000050001 /* Runnir */ = {isa = PBXGroup; children = (A00000000000000000051001, A00000000000000000051002, A00000000000000000051003, A00000000000000000051004, A00000000000000000051005, A0000000000000000001001E); path = Runnir; sourceTree = "<group>"; };
+		A00000000000000000051001 /* App */ = {isa = PBXGroup; children = (A00000000000000000010001, A00000000000000000010002, A00000000000000000010003, A00000000000000000051011); path = App; sourceTree = "<group>"; };
+		A00000000000000000051011 /* Navigation */ = {isa = PBXGroup; children = (A00000000000000000010004, A00000000000000000010005); path = Navigation; sourceTree = "<group>"; };
+		A00000000000000000051002 /* Features */ = {isa = PBXGroup; children = (A00000000000000000052001, A00000000000000000052002, A00000000000000000052003, A00000000000000000052004, A00000000000000000052005, A00000000000000000052006); path = Features; sourceTree = "<group>"; };
+		A00000000000000000052001 /* Authentication */ = {isa = PBXGroup; children = (A0000000000000000001000A); path = Authentication; sourceTree = "<group>"; };
+		A00000000000000000052002 /* Dashboard */ = {isa = PBXGroup; children = (A00000000000000000010008, A00000000000000000010009); path = Dashboard; sourceTree = "<group>"; };
+		A00000000000000000052003 /* Repositories */ = {isa = PBXGroup; children = (A0000000000000000001000B); path = Repositories; sourceTree = "<group>"; };
+		A00000000000000000052004 /* Workflows */ = {isa = PBXGroup; children = (A0000000000000000001000C); path = Workflows; sourceTree = "<group>"; };
+		A00000000000000000052005 /* Runs */ = {isa = PBXGroup; children = (A0000000000000000001000D); path = Runs; sourceTree = "<group>"; };
+		A00000000000000000052006 /* Artifacts */ = {isa = PBXGroup; children = (A0000000000000000001000E); path = Artifacts; sourceTree = "<group>"; };
+		A00000000000000000051003 /* Core */ = {isa = PBXGroup; children = (A00000000000000000053001, A00000000000000000053002, A00000000000000000053003, A00000000000000000053004); path = Core; sourceTree = "<group>"; };
+		A00000000000000000053001 /* Models */ = {isa = PBXGroup; children = (A00000000000000000010010, A00000000000000000010011, A00000000000000000010012, A00000000000000000010013); path = Models; sourceTree = "<group>"; };
+		A00000000000000000053002 /* GitHub */ = {isa = PBXGroup; children = (A00000000000000000053101, A00000000000000000053102, A00000000000000000053103); path = GitHub; sourceTree = "<group>"; };
+		A00000000000000000053101 /* Models */ = {isa = PBXGroup; children = (A00000000000000000010014, A00000000000000000010015); path = Models; sourceTree = "<group>"; };
+		A00000000000000000053102 /* Services */ = {isa = PBXGroup; children = (A00000000000000000010016); path = Services; sourceTree = "<group>"; };
+		A00000000000000000053103 /* API */ = {isa = PBXGroup; children = (A00000000000000000010017, A00000000000000000010018, A00000000000000000010019); path = API; sourceTree = "<group>"; };
+		A00000000000000000053003 /* Security */ = {isa = PBXGroup; children = (A0000000000000000001001A, A0000000000000000001001B, A0000000000000000001001C); path = Security; sourceTree = "<group>"; };
+		A00000000000000000053004 /* Networking */ = {isa = PBXGroup; children = (A0000000000000000001001D); path = Networking; sourceTree = "<group>"; };
+		A00000000000000000051004 /* DesignSystem */ = {isa = PBXGroup; children = (A00000000000000000054001, A00000000000000000054002); path = DesignSystem; sourceTree = "<group>"; };
+		A00000000000000000054001 /* Components */ = {isa = PBXGroup; children = (A00000000000000000010006); path = Components; sourceTree = "<group>"; };
+		A00000000000000000054002 /* Theme */ = {isa = PBXGroup; children = (A00000000000000000010007); path = Theme; sourceTree = "<group>"; };
+		A00000000000000000051005 /* Settings */ = {isa = PBXGroup; children = (A0000000000000000001000F); path = Features/Settings; sourceTree = "<group>"; };
+		A00000000000000000050031 /* RunnirTests */ = {isa = PBXGroup; children = (A00000000000000000010031, A00000000000000000010032, A00000000000000000010033, A00000000000000000010034, A00000000000000000010035); path = RunnirTests; sourceTree = "<group>"; };
+		A00000000000000000050041 /* RunnirUITests */ = {isa = PBXGroup; children = (A00000000000000000010041); path = RunnirUITests; sourceTree = "<group>"; };
+		D00000000000000000000020 = {isa = PBXGroup; children = (D00000000000000000000010, D00000000000000000000011, D00000000000000000000012, D00000000000000000000013, D00000000000000000000014, D00000000000000000000015); name = Desktop; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A000000000000000000000A1 /* Runnir */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000060001 /* Build configuration list for PBXNativeTarget "Runnir" */;
+			buildPhases = (B00000000000000000000031, A00000000000000000070001, A00000000000000000040001, A00000000000000000080001);
+			buildRules = ();
+			dependencies = ();
+			name = Runnir;
+			productName = Runnir;
+			productReference = A00000000000000000030001 /* Runnir.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A000000000000000000000A2 /* RunnirTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000060002 /* Build configuration list for PBXNativeTarget "RunnirTests" */;
+			buildPhases = (A00000000000000000070002, A00000000000000000040002, A00000000000000000080002);
+			buildRules = ();
+			dependencies = (A00000000000000000021031 /* PBXTargetDependency */);
+			name = RunnirTests;
+			productName = RunnirTests;
+			productReference = A00000000000000000030002 /* RunnirTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		A000000000000000000000A3 /* RunnirUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000060003 /* Build configuration list for PBXNativeTarget "RunnirUITests" */;
+			buildPhases = (A00000000000000000070003, A00000000000000000040003, A00000000000000000080003);
+			buildRules = ();
+			dependencies = (A00000000000000000021041 /* PBXTargetDependency */);
+			name = RunnirUITests;
+			productName = RunnirUITests;
+			productReference = A00000000000000000030003 /* RunnirUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A000000000000000000000AA /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					A000000000000000000000A1 = {CreatedOnToolsVersion = 27.0;};
+					A000000000000000000000A2 = {CreatedOnToolsVersion = 27.0; TestTargetID = A000000000000000000000A1;};
+					A000000000000000000000A3 = {CreatedOnToolsVersion = 27.0; TestTargetID = A000000000000000000000A1;};
+				};
+			};
+			buildConfigurationList = A00000000000000000060000 /* Build configuration list for PBXProject "Runnir" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = A00000000000000000050000;
+			productRefGroup = A00000000000000000050099 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (A000000000000000000000A1, A000000000000000000000A2, A000000000000000000000A3);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A00000000000000000080001 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (D00000000000000000000006); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000080002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000080003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A00000000000000000070001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (D00000000000000000000001, D00000000000000000000002, D00000000000000000000003, D00000000000000000000004, B00000000000000000000001, B00000000000000000000002, A00000000000000000000001, A00000000000000000000002, A00000000000000000000003, A00000000000000000000004, A00000000000000000000005, A00000000000000000000006, A00000000000000000000007, A00000000000000000000008, A00000000000000000000009, A0000000000000000000000A, A0000000000000000000000B, A0000000000000000000000C, A0000000000000000000000D, A0000000000000000000000E, A0000000000000000000000F, A00000000000000000000010, A00000000000000000000011, A00000000000000000000012, A00000000000000000000013, A00000000000000000000014, A00000000000000000000015, A00000000000000000000016, A00000000000000000000017, A00000000000000000000018, A00000000000000000000019, A0000000000000000000001A, A0000000000000000000001B, A0000000000000000000001C, A0000000000000000000001D); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000070002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (D00000000000000000000005, B00000000000000000000003, A00000000000000000000031, A00000000000000000000032, A00000000000000000000033, A00000000000000000000034, A00000000000000000000035); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000070003 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000041); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		B00000000000000000000031 = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ();
+			outputPaths = ("$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/runnir-core");
+			name = "Build Go Core";
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/bin/sh \"${SRCROOT}/../../scripts/build-core-macos.sh\"";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A00000000000000000021031 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A000000000000000000000A1 /* Runnir */; targetProxy = A00000000000000000020031 /* PBXContainerItemProxy */; };
+		A00000000000000000021041 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A000000000000000000000A1 /* Runnir */; targetProxy = A00000000000000000020041 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A00000000000000000061001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CODE_SIGNING_ALLOWED = NO; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_TESTABILITY = YES; GCC_OPTIMIZATION_LEVEL = 0; MACOSX_DEPLOYMENT_TARGET = 14.0; ONLY_ACTIVE_ARCH = YES; SDKROOT = macosx; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; }; name = Debug; };
+		A00000000000000000061002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CODE_SIGNING_ALLOWED = NO; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; }; name = Release; };
+		A00000000000000000062001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_ENTITLEMENTS = Runnir/Runnir.entitlements; CODE_SIGNING_ALLOWED = NO; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = Runnir; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools"; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.dileight.runnir; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; }; name = Debug; };
+		A00000000000000000062002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_ENTITLEMENTS = Runnir/Runnir.entitlements; CODE_SIGNING_ALLOWED = NO; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = Runnir; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools"; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.dileight.runnir; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; }; name = Release; };
+		A00000000000000000063001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGNING_ALLOWED = NO; GENERATE_INFOPLIST_FILE = YES; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks"; PRODUCT_BUNDLE_IDENTIFIER = com.dileight.runnir.tests; PRODUCT_NAME = "$(TARGET_NAME)"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Runnir.app/Contents/MacOS/Runnir"; }; name = Debug; };
+		A00000000000000000063002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGNING_ALLOWED = NO; GENERATE_INFOPLIST_FILE = YES; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks"; PRODUCT_BUNDLE_IDENTIFIER = com.dileight.runnir.tests; PRODUCT_NAME = "$(TARGET_NAME)"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Runnir.app/Contents/MacOS/Runnir"; }; name = Release; };
+		A00000000000000000064001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGNING_ALLOWED = NO; GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = com.dileight.runnir.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; TEST_TARGET_NAME = Runnir; }; name = Debug; };
+		A00000000000000000064002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGNING_ALLOWED = NO; GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = com.dileight.runnir.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; TEST_TARGET_NAME = Runnir; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A00000000000000000060000 /* Build configuration list for PBXProject "Runnir" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000061001, A00000000000000000061002); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000000000000000060001 /* Build configuration list for PBXNativeTarget "Runnir" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000062001, A00000000000000000062002); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000000000000000060002 /* Build configuration list for PBXNativeTarget "RunnirTests" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000063001, A00000000000000000063002); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000000000000000060003 /* Build configuration list for PBXNativeTarget "RunnirUITests" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000064001, A00000000000000000064002); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = A000000000000000000000AA /* Project object */;
+}

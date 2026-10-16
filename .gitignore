@@ -1,0 +1,38 @@
+# Local agent skills copied from design/source projects.
+/.agents/
+/.claude/
+/.codex/
+/.cursor/
+/.gemini/
+/.mcp.json
+/CLAUDE.md
+/skills-lock.json
+
+# Local environment and secrets.
+.env
+.env.*
+!.env.example
+*.local
+
+# Xcode and Swift build output.
+.build/
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+
+# Local leftovers from experiments or editor tooling. Runnir itself does not use Node.
+node_modules/
+dist/
+
+# macOS/editor noise.
+.DS_Store
+.idea/
+.vscode/
+
+# Release artifacts generated locally.
+*.dmg
+*.app.tar.gz
+*.app.tar.gz.sig

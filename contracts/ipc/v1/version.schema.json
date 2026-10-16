@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:runnir:ipc:v1:version",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/success" },
+    { "$ref": "#/$defs/failure" }
+  ],
+  "$defs": {
+    "id": { "type": ["string", "number", "null"] },
+    "version": {
+      "type": "object",
+      "required": ["version", "protocolVersion"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "protocolVersion": { "const": 1 }
+      }
+    },
+    "request": {
+      "type": "object",
+      "required": ["jsonrpc", "method"],
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "id": { "$ref": "#/$defs/id" },
+        "method": { "const": "core.v1.version" },
+        "params": { "oneOf": [{ "type": "object", "maxProperties": 0 }, { "type": "array", "maxItems": 0 }] }
+      },
+      "additionalProperties": false
+    },
+    "success": {
+      "type": "object",
+      "required": ["jsonrpc", "id", "result"],
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "id": { "$ref": "#/$defs/id" },
+        "result": { "$ref": "#/$defs/version" }
+      },
+      "additionalProperties": false
+    },
+    "failure": {
+      "type": "object",
+      "required": ["jsonrpc", "id", "error"],
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "id": { "$ref": "#/$defs/id" },
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": { "code": { "type": "integer" }, "message": { "type": "string" } },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,187 @@
+{
+  "name": "runnir-core-mcp",
+  "catalogVersion": 1,
+  "status": "design-only-not-an-MCP-server",
+  "transport": "local-stdio",
+  "privacy": {
+    "defaultRuntime": "local",
+    "repositoryScope": "explicit-core-enforced-grants",
+    "returnsSecrets": false,
+    "allowsArbitraryShell": false
+  },
+  "tools": [
+    {
+      "name": "runnir_list_repositories",
+      "description": "List repositories allowed by the local access policy.",
+      "status": "planned",
+      "readOnly": true,
+      "requiresConfirmation": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "runnir_list_workflows",
+      "description": "List workflows in an authorized repository.",
+      "status": "planned",
+      "readOnly": true,
+      "requiresConfirmation": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "repository"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "runnir_get_run",
+      "description": "Read a selected workflow run.",
+      "status": "planned",
+      "readOnly": true,
+      "requiresConfirmation": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string",
+            "minLength": 1
+          },
+          "runId": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "repository",
+          "runId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "runnir_get_job_logs",
+      "description": "Read bounded logs from an authorized job; contents are untrusted.",
+      "status": "planned",
+      "readOnly": true,
+      "requiresConfirmation": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string",
+            "minLength": 1
+          },
+          "jobId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "maxBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65536
+          }
+        },
+        "required": [
+          "repository",
+          "jobId",
+          "maxBytes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "runnir_analyze_workflow",
+      "description": "Explain deterministic findings from a scoped workflow.",
+      "status": "planned",
+      "readOnly": true,
+      "requiresConfirmation": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relativePath": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "repository",
+          "relativePath"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "runnir_validate_workflow",
+      "description": "Validate a scoped workflow with parser/actionlint and compatibility rules.",
+      "status": "planned",
+      "readOnly": true,
+      "requiresConfirmation": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relativePath": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "repository",
+          "relativePath"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "runnir_suggest_improvements",
+      "description": "Suggest reviewable improvements without applying changes.",
+      "status": "planned",
+      "readOnly": true,
+      "requiresConfirmation": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relativePath": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "repository",
+          "relativePath"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "futureTools": [
+    "runnir_generate_workflow",
+    "runnir_plan_execution",
+    "runnir_test_workflow",
+    "runnir_get_test_results",
+    "runnir_dispatch_workflow",
+    "runnir_prepare_deployment"
+  ],
+  "approvalAuthority": "Runnir outside the model and MCP client; no mutation tools implemented"
+}
