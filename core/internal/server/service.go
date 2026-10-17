@@ -12,6 +12,7 @@ import (
 
 	"runnir/core/internal/buildinfo"
 	"runnir/core/internal/events"
+	"runnir/core/internal/execution"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/repository"
 )
@@ -22,6 +23,7 @@ type service struct {
 	corev1.UnimplementedRunnirCoreServer
 	repositories *repository.Manager
 	events       *events.Bus
+	executions   *execution.Coordinator
 }
 
 func (s *service) HealthCheck(context.Context, *corev1.HealthCheckRequest) (*corev1.HealthCheckResponse, error) {
@@ -74,6 +76,33 @@ func (s *service) ListWorkflows(_ context.Context, request *corev1.ListWorkflows
 		out.Workflows = append(out.Workflows, item)
 	}
 	return out, nil
+}
+
+// StartWorkflow starts or queues an execution of the latest scanned workflow.
+// The execution works on a copy taken now; refreshes do not change it.
+func (s *service) StartWorkflow(_ context.Context, request *corev1.StartWorkflowRequest) (*corev1.ExecutionResponse, error) {
+	info, err := s.repositories.Get(request.GetRepositoryId())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	workflows, err := s.repositories.Workflows(info.ID)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	for _, w := range workflows {
+		if w.ID != request.GetWorkflowId() {
+			continue
+		}
+		if w.ParseError != "" {
+			return nil, status.Error(codes.FailedPrecondition, "workflow has a parse error and cannot run")
+		}
+		started, err := s.executions.Start(info.ID, info.Path, w, request.GetRef())
+		if err != nil {
+			return nil, rpcError(err)
+		}
+		return &corev1.ExecutionResponse{ExecutionId: started.ID, RepositoryId: started.RepositoryID, State: started.State}, nil
+	}
+	return nil, status.Error(codes.NotFound, "workflow not found")
 }
 
 // SubscribeEvents streams events until the client goes away, the Core shuts
@@ -154,6 +183,10 @@ func rpcError(err error) error {
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, repository.ErrNotFound):
 		return status.Error(codes.NotFound, "repository not found")
+	case errors.Is(err, execution.ErrQueueFull):
+		return status.Error(codes.ResourceExhausted, "execution queue is full")
+	case errors.Is(err, execution.ErrShutdown):
+		return status.Error(codes.Unavailable, "core is shutting down")
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return status.FromContextError(err).Err()
 	default:

@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 
 	"runnir/core/internal/events"
+	"runnir/core/internal/execution"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/repository"
 	"runnir/core/internal/scanner"
@@ -27,6 +28,10 @@ const shutdownGrace = 5 * time.Second
 type Options struct {
 	// EventBuffer is the per-subscriber event queue length.
 	EventBuffer int
+	// MaxExecutions is the number of concurrent workflow executions (default 3).
+	MaxExecutions int
+	// Runner executes workflows; nil uses the stub that fails honestly.
+	Runner execution.Runner
 }
 
 // Run serves gRPC on a Unix domain socket until ctx is cancelled, then stops
@@ -66,10 +71,20 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 	}
 
 	bus := events.New(options.EventBuffer)
-	repositories := repository.New(scanner.New(), func(e repository.Event) { bus.Publish(fromRepository(e)) })
+	runner := options.Runner
+	if runner == nil {
+		runner = execution.StubRunner{}
+	}
+	executions := execution.New(runner, execution.Options{Limit: options.MaxExecutions}, bus.Publish)
+	repositories := repository.New(scanner.New(), func(e repository.Event) {
+		if e.Type == repository.RepositoryClosed {
+			executions.CancelRepository(e.RepositoryID)
+		}
+		bus.Publish(fromRepository(e))
+	})
 	defer repositories.Shutdown()
 	grpcServer := grpc.NewServer()
-	corev1.RegisterRunnirCoreServer(grpcServer, &service{repositories: repositories, events: bus})
+	corev1.RegisterRunnirCoreServer(grpcServer, &service{repositories: repositories, events: bus, executions: executions})
 
 	done := make(chan error, 1)
 	go func() { done <- grpcServer.Serve(listener) }()
@@ -79,8 +94,12 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 		return err
 	case <-ctx.Done():
 	}
-	// Event streams never end on their own; close them so the graceful stop
-	// is not left waiting for subscribers.
+	// Running executions are cancelled first so their final events reach
+	// subscribers; then event streams are closed, because they never end on
+	// their own and would hold up the graceful stop.
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), shutdownGrace)
+	executions.Shutdown(stopCtx)
+	stopCancel()
 	bus.Close()
 	stopped := make(chan struct{})
 	go func() { grpcServer.GracefulStop(); close(stopped) }()
