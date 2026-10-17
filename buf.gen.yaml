@@ -1,0 +1,13 @@
+version: v2
+clean: false
+plugins:
+  - local: protoc-gen-go
+    out: core/internal/gen
+    opt: paths=source_relative
+  - local: protoc-gen-go-grpc
+    out: core/internal/gen
+    opt: paths=source_relative
+  - local: protoc-gen-swift
+    out: apps/macos/Runnir/IPC/Generated
+  - local: protoc-gen-grpc-swift-2
+    out: apps/macos/Runnir/IPC/Generated

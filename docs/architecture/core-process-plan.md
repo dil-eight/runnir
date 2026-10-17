@@ -13,7 +13,7 @@ Status: proposed, 2026-10-17. Decision: [ADR 0004](../decisions/0004-single-core
 | # | Outcome | Main work | Done when |
 | --- | --- | --- | --- |
 | 0 | Decisions settled | Review ADR 0004; pick gRPC-Swift version, Go YAML library; confirm UDS works in the sandbox with a spike | Open decisions in the ADR are closed or recorded |
-| 1 | Contract | `contracts/grpc/v1/runnir_core.proto`, generated Go and Swift committed, README on regeneration | `go build ./...` and Xcode build pass with generated code |
+| 1 | Contract | `contracts/grpc/runnir/core/v1/runnir_core.proto`, generated Go and Swift committed, README on regeneration | `go build ./...` and Xcode build pass with generated code |
 | 2 | Core server | `core/internal/server` gRPC over UDS, `HealthCheck`, lock file, parent-death exit, graceful shutdown; `runnir-core serve` command | Second start refuses; killing parent ends Core; `go test -race ./...` |
 | 3 | Repository Manager | `core/internal/repository`: contexts keyed by `repository_id`, idempotent Open, Close, Refresh, per-context locking | Reopening yields one context; refresh of A does not block B (race tests) |
 | 4 | Workflows | Read `.github/workflows`, resolve branch, parse YAML into a graph; bounded file sizes; no execution | Fixtures: no files, malformed, oversize, worktree `.git` file, both extensions |
