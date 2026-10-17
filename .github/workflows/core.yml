@@ -1,0 +1,80 @@
+name: Go Core
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Native tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: core/go.mod
+          cache: false
+      - run: go version
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: go build ./...
+      - run: go run ./cmd/runnir version
+
+  cross-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [darwin, linux, windows]
+        goarch: [arm64, amd64]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: core/go.mod
+          cache: false
+      - name: Cross-compile
+        working-directory: core
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          suffix=""
+          if [ "$GOOS" = windows ]; then suffix=".exe"; fi
+          go build -trimpath -o "../build/runnir-${GOOS}-${GOARCH}${suffix}" ./cmd/runnir
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runnir-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: build/runnir-*
+
+  lint-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: core/go.mod
+          cache: false
+      - name: Formatting
+        working-directory: core
+        run: test -z "$(gofmt -l cmd internal)"
+      - name: Vulnerability scan
+        working-directory: core
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          govulncheck ./...

@@ -1,0 +1,95 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  core-binaries:
+    name: Core ${{ matrix.goos }}/${{ matrix.goarch }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        goos: [darwin, linux, windows]
+        goarch: [arm64, amd64]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: core/go.mod
+          cache: false
+      - name: Build tagged binary
+        working-directory: core
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          suffix=""
+          if [ "$GOOS" = windows ]; then suffix=".exe"; fi
+          go build -trimpath -ldflags "-X runnir/core/internal/buildinfo.Version=${GITHUB_REF_NAME#v}" \
+            -o "../build/runnir-${GITHUB_REF_NAME}-${GOOS}-${GOARCH}${suffix}" ./cmd/runnir
+      - uses: actions/upload-artifact@v4
+        with:
+          name: core-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: build/runnir-*
+
+  build-release:
+    needs: core-binaries
+    name: Build unsigned release artifact
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: core/go.mod
+          cache: false
+
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: core-*
+          merge-multiple: true
+          path: build/export
+
+      - name: Build archive
+        run: |
+          xcodebuild archive \
+            -project apps/macos/Runnir.xcodeproj \
+            -scheme Runnir \
+            -destination 'generic/platform=macOS' \
+            -archivePath "$PWD/build/Runnir.xcarchive" \
+            MARKETING_VERSION="${GITHUB_REF_NAME#v}" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package app artifact
+        run: |
+          mkdir -p build/export
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/Runnir.xcarchive/Products/Applications/Runnir.app \
+            build/export/Runnir-${GITHUB_REF_NAME}-unsigned.zip
+
+      - name: Publish draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          prerelease_flag=""
+          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+            prerelease_flag="--prerelease"
+          fi
+
+          gh release create "${GITHUB_REF_NAME}" \
+            build/export/Runnir-${GITHUB_REF_NAME}-unsigned.zip \
+            build/export/runnir-* \
+            --draft \
+            ${prerelease_flag} \
+            --title "Runnir ${GITHUB_REF_NAME}" \
+            --notes "Unsigned bootstrap build. Production releases require Developer ID signing and notarization."

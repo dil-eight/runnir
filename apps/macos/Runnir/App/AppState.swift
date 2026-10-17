@@ -1,0 +1,31 @@
+import Foundation
+import Observation
+
+@MainActor
+@Observable
+final class AppState {
+    var selectedSection: AppSection = .dashboard
+    var authenticationState: AuthenticationState = .unknown
+    var lastError: AppError?
+    var coreVersion: CoreVersion?
+    var coreConnectionFailed = false
+}
+
+enum AuthenticationState: Equatable, Sendable {
+    case unknown
+    case unauthenticated
+    case authenticated(GitHubUser)
+}
+
+enum AppError: Error, Equatable, Sendable, Identifiable {
+    case message(String)
+
+    var id: String { localizedDescription }
+
+    var localizedDescription: String {
+        switch self {
+        case .message(let message):
+            message
+        }
+    }
+}
