@@ -340,6 +340,7 @@ final class CoreHub {
             switch error {
             case .unavailable: "The Core is not available."
             case .notFound: "The repository is not open in the Core."
+            case .accessDenied: "The Core cannot read this folder. Use Locate / Grant Access to renew access."
             case .invalidArgument, .failedPrecondition: "The Core could not use this folder."
             case .resourceExhausted: "The Core is busy. Try again."
             case .incompatibleProtocol(let version): "The Core speaks protocol \(version), which this app does not support."

@@ -20,6 +20,9 @@ var (
 	ErrInvalidPath = errors.New("path is not an absolute existing directory")
 	// ErrNotFound means no open repository has the given id.
 	ErrNotFound = errors.New("repository not found")
+	// ErrAccessDenied means the operating system refuses the Core read access
+	// to the folder, for example because a sandbox grant covers the app only.
+	ErrAccessDenied = errors.New("folder is not readable by the Core")
 )
 
 // Scanner reads a repository's workflow state from disk. It must honor ctx

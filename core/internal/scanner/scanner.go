@@ -6,8 +6,10 @@ package scanner
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -38,11 +40,37 @@ func (Scanner) Scan(ctx context.Context, root string) (repository.Snapshot, erro
 	if err := ctx.Err(); err != nil {
 		return repository.Snapshot{}, err
 	}
+	if err := probeReadable(root); err != nil {
+		return repository.Snapshot{}, err
+	}
 	workflows, err := readWorkflows(ctx, root)
 	if err != nil {
 		return repository.Snapshot{}, err
 	}
 	return repository.Snapshot{Branch: readBranch(root), Workflows: workflows}, nil
+}
+
+// probeReadable tells "the folder is unreadable" apart from "the folder has no
+// workflows". Without it a denied folder (for example under an App Sandbox that
+// granted access to the app but not to this process) would look like an empty
+// repository, because later steps treat unreadable parts as absent.
+func probeReadable(root string) error {
+	dir, err := os.Open(root)
+	if err == nil {
+		defer dir.Close()
+		_, err = dir.Readdirnames(1)
+		if err == io.EOF {
+			return nil
+		}
+	}
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, fs.ErrPermission):
+		return repository.ErrAccessDenied
+	default:
+		return fmt.Errorf("read repository folder: %w", err)
+	}
 }
 
 // readBranch returns the branch HEAD points to, or "" when HEAD is detached,

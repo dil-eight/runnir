@@ -67,6 +67,8 @@ enum CoreServiceError: Error, Equatable, Sendable {
     case notFound
     case invalidArgument(String)
     case failedPrecondition(String)
+    /// The operating system denies the Core read access to the folder.
+    case accessDenied
     /// The Core queue or an event subscriber limit was hit; retry or resync.
     case resourceExhausted
     case incompatibleProtocol(Int)

@@ -183,6 +183,8 @@ func rpcError(err error) error {
 	switch {
 	case errors.Is(err, repository.ErrInvalidPath):
 		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, repository.ErrAccessDenied):
+		return status.Error(codes.PermissionDenied, "the Core cannot read this folder")
 	case errors.Is(err, repository.ErrNotFound):
 		return status.Error(codes.NotFound, "repository not found")
 	case errors.Is(err, execution.ErrQueueFull):

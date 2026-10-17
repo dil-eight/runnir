@@ -137,6 +137,7 @@ struct GRPCCoreService: CoreServicing {
         case .invalidArgument: return .invalidArgument(rpc.message)
         case .failedPrecondition: return .failedPrecondition(rpc.message)
         case .resourceExhausted: return .resourceExhausted
+        case .permissionDenied: return .accessDenied
         case .unavailable, .cancelled, .deadlineExceeded: return .unavailable
         default: return .remote(code: rpc.code.rawValue, message: rpc.message)
         }

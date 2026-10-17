@@ -265,3 +265,29 @@ func TestListWorkflowsAndBranchOverGRPC(t *testing.T) {
 		t.Fatalf("unknown id = %v", err)
 	}
 }
+
+func TestOpenRepositoryReportsAnUnreadableFolder(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("permission bits are not enforced for root")
+	}
+	path := socketPath(t)
+	stop := start(t, path)
+	defer stop()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(root, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(root, 0o755)
+	client := connect(t, path)
+	_, err = client.OpenRepository(context.Background(), &corev1.OpenRepositoryRequest{Path: root})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("err = %v, want PermissionDenied", err)
+	}
+	health, err := client.HealthCheck(context.Background(), &corev1.HealthCheckRequest{})
+	if err != nil || health.OpenRepositoryCount != 0 {
+		t.Fatalf("a denied open must not register a repository: %v, %v", health, err)
+	}
+}

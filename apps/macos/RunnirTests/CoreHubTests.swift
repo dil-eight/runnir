@@ -13,7 +13,7 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     private var _subscriptions = 0
     private var branches: [String: String] = [:]
     private var workflows: [String: [CoreWorkflow]] = [:]
-    private var failingPaths: Set<String> = []
+    private var failingPaths: [String: CoreServiceError] = [:]
     private var continuations: [AsyncThrowingStream<CoreEvent, any Error>.Continuation] = []
 
     var openCalls: [String] { lock.withLock { _openCalls } }
@@ -26,7 +26,9 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
 
     func setBranch(_ branch: String, for path: String) { lock.withLock { branches[Self.id(for: path)] = branch } }
     func setWorkflows(_ list: [CoreWorkflow], for path: String) { lock.withLock { workflows[Self.id(for: path)] = list } }
-    func failOpen(for path: String) { lock.withLock { _ = failingPaths.insert(path) } }
+    func failOpen(for path: String, with error: CoreServiceError = .invalidArgument("no")) {
+        lock.withLock { failingPaths[path] = error }
+    }
 
     func push(_ event: CoreEvent) { lock.withLock { continuations }.forEach { $0.yield(event) } }
     func endEvents(throwing error: any Error) {
@@ -45,7 +47,7 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     func openRepository(path: String) async throws -> CoreRepository {
         try lock.withLock {
             _openCalls.append(path)
-            if failingPaths.contains(path) { throw CoreServiceError.invalidArgument("no") }
+            if let error = failingPaths[path] { throw error }
         }
         let id = Self.id(for: path)
         return CoreRepository(id: id, path: path, branch: lock.withLock { branches[id] } ?? "main", workflowCount: 0, lastRefresh: nil)
@@ -271,6 +273,19 @@ struct CoreHubTests {
         hub.attach(windowID: UUID(), workspaceID: bad, path: "/repo/bad")
         #expect(await eventually { hub.session(for: good)?.phase == .ready })
         #expect(await eventually { if case .failed = hub.session(for: bad)?.phase { true } else { false } })
+    }
+
+    @Test
+    func anUnreadableFolderIsReportedAsSuchAndOtherRepositoriesStayReady() async {
+        let (hub, provider) = await readyHub()
+        provider.core.failOpen(for: "/repo/denied", with: .accessDenied)
+        let good = UUID(), denied = UUID()
+        hub.attach(windowID: UUID(), workspaceID: good, path: "/repo/good")
+        hub.attach(windowID: UUID(), workspaceID: denied, path: "/repo/denied")
+        #expect(await eventually { hub.session(for: good)?.phase == .ready })
+        #expect(await eventually {
+            if case .failed(let message) = hub.session(for: denied)?.phase { message.contains("cannot read") } else { false }
+        })
     }
 
     @Test

@@ -2,8 +2,10 @@ package scanner
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -261,5 +263,27 @@ func TestAliasBombIsNotExpanded(t *testing.T) {
 	w := byID(snapshot, ".github/workflows/bomb.yml")
 	if w == nil || strings.Join(w.Triggers, ",") != "push" || len(w.Jobs) != 1 {
 		t.Fatalf("bomb workflow = %+v", w)
+	}
+}
+
+func TestUnreadableFolderIsAnErrorNotAnEmptyRepository(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("permission bits are not enforced here")
+	}
+	root := t.TempDir()
+	write(t, root, ".github/workflows/ci.yml", "on: push\njobs: {}\n")
+	if err := os.Chmod(root, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(root, 0o755)
+	_, err := New().Scan(context.Background(), root)
+	if !errors.Is(err, repository.ErrAccessDenied) {
+		t.Fatalf("err = %v, want ErrAccessDenied", err)
+	}
+}
+
+func TestEmptyReadableFolderIsNotAnError(t *testing.T) {
+	if _, err := New().Scan(context.Background(), t.TempDir()); err != nil {
+		t.Fatal(err)
 	}
 }
