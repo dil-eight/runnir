@@ -198,8 +198,11 @@ type HealthCheckResponse struct {
 	OpenRepositoryCount uint32                 `protobuf:"varint,3,opt,name=open_repository_count,json=openRepositoryCount,proto3" json:"open_repository_count,omitempty"`
 	// Resident memory of the Core process in bytes, for diagnostics.
 	ResidentMemoryBytes uint64 `protobuf:"varint,4,opt,name=resident_memory_bytes,json=residentMemoryBytes,proto3" json:"resident_memory_bytes,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Operating-system process id of the Core, so a supervisor can tell that
+	// the Core answering is the child it launched and not another instance.
+	ProcessId     uint32 `protobuf:"varint,5,opt,name=process_id,json=processId,proto3" json:"process_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *HealthCheckResponse) Reset() {
@@ -256,6 +259,13 @@ func (x *HealthCheckResponse) GetOpenRepositoryCount() uint32 {
 func (x *HealthCheckResponse) GetResidentMemoryBytes() uint64 {
 	if x != nil {
 		return x.ResidentMemoryBytes
+	}
+	return 0
+}
+
+func (x *HealthCheckResponse) GetProcessId() uint32 {
+	if x != nil {
+		return x.ProcessId
 	}
 	return 0
 }
@@ -1042,12 +1052,14 @@ var File_runnir_core_v1_runnir_core_proto protoreflect.FileDescriptor
 const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\n" +
 	" runnir/core/v1/runnir_core.proto\x12\x0erunnir.core.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x14\n" +
-	"\x12HealthCheckRequest\"\xcb\x01\n" +
+	"\x12HealthCheckRequest\"\xea\x01\n" +
 	"\x13HealthCheckResponse\x12!\n" +
 	"\fcore_version\x18\x01 \x01(\tR\vcoreVersion\x12)\n" +
 	"\x10protocol_version\x18\x02 \x01(\rR\x0fprotocolVersion\x122\n" +
 	"\x15open_repository_count\x18\x03 \x01(\rR\x13openRepositoryCount\x122\n" +
-	"\x15resident_memory_bytes\x18\x04 \x01(\x04R\x13residentMemoryBytes\"+\n" +
+	"\x15resident_memory_bytes\x18\x04 \x01(\x04R\x13residentMemoryBytes\x12\x1d\n" +
+	"\n" +
+	"process_id\x18\x05 \x01(\rR\tprocessId\"+\n" +
 	"\x15OpenRepositoryRequest\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\"=\n" +
 	"\x16CloseRepositoryRequest\x12#\n" +

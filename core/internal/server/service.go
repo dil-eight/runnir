@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"os"
 	"runtime"
 	"time"
 
@@ -33,6 +34,7 @@ func (s *service) HealthCheck(context.Context, *corev1.HealthCheckRequest) (*cor
 		CoreVersion:         buildinfo.Version,
 		ProtocolVersion:     buildinfo.ProtocolVersion,
 		OpenRepositoryCount: uint32(s.repositories.Count()),
+		ProcessId:           uint32(os.Getpid()),
 		// Go runtime's total memory obtained from the OS; a coarse stand-in
 		// for resident size until the diagnostics phase.
 		ResidentMemoryBytes: memory.Sys,

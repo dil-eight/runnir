@@ -1,0 +1,299 @@
+import Foundation
+import Testing
+@testable import Runnir
+
+// MARK: Fakes
+
+private actor FakeHealth {
+    var failuresBeforeSuccess: Int
+    var protocolVersion: Int
+    var calls = 0
+    let processID: Int32
+    init(failuresBeforeSuccess: Int = 0, protocolVersion: Int = 1, processID: Int32 = 0) {
+        self.failuresBeforeSuccess = failuresBeforeSuccess
+        self.protocolVersion = protocolVersion
+        self.processID = processID
+    }
+    func next() throws -> CoreHealth {
+        calls += 1
+        if failuresBeforeSuccess > 0 {
+            failuresBeforeSuccess -= 1
+            throw CoreServiceError.unavailable
+        }
+        return CoreHealth(coreVersion: "test", protocolVersion: protocolVersion, openRepositoryCount: 0, residentMemoryBytes: 1, processID: processID)
+    }
+}
+
+private struct FakeService: CoreServicing {
+    let health: FakeHealth
+    func healthCheck() async throws -> CoreHealth { try await health.next() }
+    func openRepository(path: String) async throws -> CoreRepository { throw CoreServiceError.unavailable }
+    func refreshRepository(id: String) async throws -> CoreRepository { throw CoreServiceError.unavailable }
+    func closeRepository(id: String) async throws { throw CoreServiceError.unavailable }
+    func listWorkflows(repositoryID: String) async throws -> [CoreWorkflow] { throw CoreServiceError.unavailable }
+    func startWorkflow(repositoryID: String, workflowID: String, ref: String?) async throws -> CoreExecution { throw CoreServiceError.unavailable }
+    func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error> {
+        AsyncThrowingStream { $0.finish(throwing: CoreServiceError.unavailable) }
+    }
+}
+
+private final class FakeConnection: CoreConnection, @unchecked Sendable {
+    let service: any CoreServicing
+    init(health: FakeHealth) { service = FakeService(health: health) }
+    func close() async {}
+}
+
+private final class FakeConnector: CoreConnecting, @unchecked Sendable {
+    private let lock = NSLock()
+    private let health: FakeHealth
+    private(set) var connects = 0
+    init(health: FakeHealth) { self.health = health }
+    func connect(socketPath: String) async throws -> any CoreConnection {
+        lock.withLock { connects += 1 }
+        return FakeConnection(health: health)
+    }
+}
+
+private final class FakeHandle: CoreProcessHandle, @unchecked Sendable {
+    let processIdentifier: Int32
+    private let lock = NSLock()
+    private var status: Int32?
+    private var waiters: [CheckedContinuation<Int32, Never>] = []
+    private(set) var terminated = false
+    private(set) var terminatedNow = false
+
+    init(pid: Int32) { processIdentifier = pid }
+
+    func exit(_ code: Int32) {
+        lock.lock()
+        status = code
+        let pending = waiters
+        waiters = []
+        lock.unlock()
+        for waiter in pending { waiter.resume(returning: code) }
+    }
+
+    func waitForExit() async -> Int32 {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if let status { lock.unlock(); continuation.resume(returning: status) }
+            else { waiters.append(continuation); lock.unlock() }
+        }
+    }
+
+    func terminate() async {
+        lock.withLock { terminated = true }
+        exit(0)
+    }
+
+    func terminateNow() { lock.lock(); terminatedNow = true; lock.unlock() }
+}
+
+private final class FakeLauncher: CoreProcessLaunching, @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var handles: [FakeHandle] = []
+    var launchError: CoreSupervisorError?
+    var createsSocket = true
+    var exitImmediately: Int32?
+    var launches: Int { lock.lock(); defer { lock.unlock() }; return handles.count }
+
+    func launch(socketPath: String) throws -> any CoreProcessHandle {
+        if let launchError { throw launchError }
+        lock.lock()
+        let handle = FakeHandle(pid: Int32(1000 + handles.count))
+        handles.append(handle)
+        lock.unlock()
+        if createsSocket { FileManager.default.createFile(atPath: socketPath, contents: nil) }
+        if let code = exitImmediately { handle.exit(code) }
+        return handle
+    }
+}
+
+private func makeSocketPath() -> String {
+    let dir = "/tmp/rn" + String(UUID().uuidString.prefix(8))
+    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    return dir + "/core.sock"
+}
+
+private struct Rig {
+    let supervisor: CoreProcessSupervisor
+    let launcher: FakeLauncher
+    let connector: FakeConnector
+    let health: FakeHealth
+    let socketPath: String
+
+    init(failures: Int = 0, protocolVersion: Int = 1, processID: Int32 = 0, timeout: Duration = .seconds(2)) {
+        health = FakeHealth(failuresBeforeSuccess: failures, protocolVersion: protocolVersion, processID: processID)
+        launcher = FakeLauncher()
+        connector = FakeConnector(health: health)
+        socketPath = makeSocketPath()
+        supervisor = CoreProcessSupervisor(
+            launcher: launcher, connector: connector, socketPath: socketPath,
+            healthTimeout: timeout, pollInterval: .milliseconds(5)
+        )
+    }
+}
+
+private func eventually(_ what: String = "condition", _ condition: @Sendable () async -> Bool) async -> Bool {
+    for _ in 0..<400 {
+        if await condition() { return true }
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+    return false
+}
+
+// MARK: Tests
+
+@Suite(.timeLimit(.minutes(1)))
+struct CoreProcessSupervisorTests {
+    @Test
+    func startLaunchesOnceAndReportsHealth() async throws {
+        let rig = Rig()
+        let health = try await rig.supervisor.start()
+        #expect(health.protocolVersion == 1)
+        #expect(await rig.supervisor.state == .running(health))
+        #expect(rig.launcher.launches == 1)
+        _ = try await rig.supervisor.service()
+        await rig.supervisor.stop()
+    }
+
+    @Test
+    func concurrentAndRepeatedStartsShareOneProcess() async throws {
+        let rig = Rig()
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for _ in 0..<8 { group.addTask { try await rig.supervisor.start() } }
+            try await group.waitForAll()
+        }
+        try await rig.supervisor.start()
+        #expect(rig.launcher.launches == 1)
+        await rig.supervisor.stop()
+    }
+
+    @Test
+    func retriesHealthCheckUntilReady() async throws {
+        let rig = Rig(failures: 3)
+        try await rig.supervisor.start()
+        #expect(await rig.health.calls == 4)
+        await rig.supervisor.stop()
+    }
+
+    @Test
+    func timesOutAndStopsTheProcessWhenNeverHealthy() async {
+        let rig = Rig(failures: .max, timeout: .milliseconds(150))
+        await #expect(throws: CoreSupervisorError.timedOut) { try await rig.supervisor.start() }
+        #expect(await rig.supervisor.state == .failed(.timedOut))
+        #expect(rig.launcher.handles.first?.terminated == true)
+    }
+
+    @Test
+    func rejectsIncompatibleProtocol() async {
+        let rig = Rig(protocolVersion: 2)
+        await #expect(throws: CoreSupervisorError.incompatibleProtocol(2)) { try await rig.supervisor.start() }
+        #expect(rig.launcher.handles.first?.terminated == true)
+    }
+
+    @Test
+    func missingHelperFails() async {
+        let rig = Rig()
+        rig.launcher.launchError = .helperUnavailable
+        await #expect(throws: CoreSupervisorError.helperUnavailable) { try await rig.supervisor.start() }
+        #expect(await rig.supervisor.state == .failed(.helperUnavailable))
+    }
+
+    @Test
+    func duplicateInstanceIsReportedAndItsSocketIsLeftAlone() async throws {
+        let rig = Rig(failures: .max)
+        rig.launcher.exitImmediately = 3
+        await #expect(throws: CoreSupervisorError.alreadyRunning) { try await rig.supervisor.start() }
+        #expect(await rig.supervisor.state == .failed(.alreadyRunning))
+        // The socket belongs to the other, live Core; the refused attempt must not remove it.
+        #expect(FileManager.default.fileExists(atPath: rig.socketPath))
+    }
+
+    @Test
+    func aCoreThatIsNotOurChildDoesNotCount() async {
+        // Something else answers on the socket (another instance's Core).
+        let rig = Rig(processID: 4242, timeout: .milliseconds(150))
+        await #expect(throws: CoreSupervisorError.timedOut) { try await rig.supervisor.start() }
+        #expect(await rig.supervisor.state == .failed(.timedOut))
+    }
+
+    @Test
+    func acceptsTheCoreWhosePidMatchesOurChild() async throws {
+        let rig = Rig(processID: 1000) // FakeLauncher's first child
+        let health = try await rig.supervisor.start()
+        #expect(health.processID == 1000)
+        await rig.supervisor.stop()
+    }
+
+    @Test
+    func detectsLossAndRecovers() async throws {
+        let rig = Rig()
+        try await rig.supervisor.start()
+        rig.launcher.handles[0].exit(137)
+
+        #expect(await eventually { await rig.supervisor.state == .lost(.processExited(137)) })
+        await #expect(throws: CoreServiceError.unavailable) { _ = try await rig.supervisor.service() }
+
+        let health = try await rig.supervisor.recover()
+        #expect(await rig.supervisor.state == .running(health))
+        #expect(rig.launcher.launches == 2)
+        await rig.supervisor.stop()
+    }
+
+    @Test
+    func stopTerminatesAndAllowsRestart() async throws {
+        let rig = Rig()
+        try await rig.supervisor.start()
+        await rig.supervisor.stop()
+        #expect(await rig.supervisor.state == .stopped)
+        #expect(rig.launcher.handles[0].terminated)
+        await #expect(throws: CoreServiceError.unavailable) { _ = try await rig.supervisor.service() }
+
+        try await rig.supervisor.start()
+        #expect(rig.launcher.launches == 2)
+        await rig.supervisor.stop()
+    }
+
+    @Test
+    func stoppingDuringStartCancelsIt() async {
+        let rig = Rig(failures: .max, timeout: .seconds(30))
+        let starting = Task { try await rig.supervisor.start() }
+        #expect(await eventually { rig.launcher.launches == 1 })
+        await rig.supervisor.stop()
+        _ = try? await starting.value
+        #expect(await rig.supervisor.state == .stopped)
+        #expect(rig.launcher.handles[0].terminated)
+    }
+
+    @Test
+    func publishesStateChanges() async throws {
+        let rig = Rig()
+        let stream = await rig.supervisor.states()
+        let collector = Task { () -> [String] in
+            var seen: [String] = []
+            for await state in stream {
+                switch state {
+                case .stopped: seen.append("stopped")
+                case .starting: seen.append("starting")
+                case .running: seen.append("running")
+                case .lost: seen.append("lost"); return seen
+                case .failed: seen.append("failed"); return seen
+                }
+            }
+            return seen
+        }
+        try await rig.supervisor.start()
+        rig.launcher.handles[0].exit(9)
+        #expect(await collector.value == ["stopped", "starting", "running", "lost"])
+    }
+
+    @Test
+    func terminateImmediatelyReachesTheRunningProcess() async throws {
+        let rig = Rig()
+        try await rig.supervisor.start()
+        rig.supervisor.terminateImmediately()
+        #expect(rig.launcher.handles[0].terminatedNow)
+        await rig.supervisor.stop()
+    }
+}

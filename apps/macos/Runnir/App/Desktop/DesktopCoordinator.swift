@@ -377,11 +377,19 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
 @MainActor
 final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
     let desktop = DesktopCoordinator()
+    /// The app's single Core process. Closing windows never stops it; quitting does.
+    let core = CoreProcessSupervisor.bundled()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil,
               NSClassFromString("XCTestCase") == nil else { return }
         desktop.start()
+        // A failed start is visible in the supervisor's state; recovery UI comes with the window integration.
+        Task { [core] in _ = try? await core.start() }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        core.terminateImmediately()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

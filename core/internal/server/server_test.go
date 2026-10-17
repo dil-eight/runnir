@@ -74,6 +74,9 @@ func TestHealthCheckOverUnixSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if response.ProcessId != uint32(os.Getpid()) {
+		t.Fatalf("process id = %d, want %d", response.ProcessId, os.Getpid())
+	}
 	if response.CoreVersion != buildinfo.Version || response.ProtocolVersion != buildinfo.ProtocolVersion {
 		t.Fatalf("unexpected response: %v", response)
 	}

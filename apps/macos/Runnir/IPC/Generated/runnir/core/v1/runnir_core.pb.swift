@@ -165,6 +165,10 @@ nonisolated struct Runnir_Core_V1_HealthCheckResponse: Sendable {
   /// Resident memory of the Core process in bytes, for diagnostics.
   var residentMemoryBytes: UInt64 = 0
 
+  /// Operating-system process id of the Core, so a supervisor can tell that
+  /// the Core answering is the child it launched and not another instance.
+  var processID: UInt32 = 0
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -445,7 +449,7 @@ nonisolated extension Runnir_Core_V1_HealthCheckRequest: SwiftProtobuf.Message, 
 
 nonisolated extension Runnir_Core_V1_HealthCheckResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".HealthCheckResponse"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}core_version\0\u{3}protocol_version\0\u{3}open_repository_count\0\u{3}resident_memory_bytes\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}core_version\0\u{3}protocol_version\0\u{3}open_repository_count\0\u{3}resident_memory_bytes\0\u{3}process_id\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -457,6 +461,7 @@ nonisolated extension Runnir_Core_V1_HealthCheckResponse: SwiftProtobuf.Message,
       case 2: try { try decoder.decodeSingularUInt32Field(value: &self.protocolVersion) }()
       case 3: try { try decoder.decodeSingularUInt32Field(value: &self.openRepositoryCount) }()
       case 4: try { try decoder.decodeSingularUInt64Field(value: &self.residentMemoryBytes) }()
+      case 5: try { try decoder.decodeSingularUInt32Field(value: &self.processID) }()
       default: break
       }
     }
@@ -475,6 +480,9 @@ nonisolated extension Runnir_Core_V1_HealthCheckResponse: SwiftProtobuf.Message,
     if self.residentMemoryBytes != 0 {
       try visitor.visitSingularUInt64Field(value: self.residentMemoryBytes, fieldNumber: 4)
     }
+    if self.processID != 0 {
+      try visitor.visitSingularUInt32Field(value: self.processID, fieldNumber: 5)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -483,6 +491,7 @@ nonisolated extension Runnir_Core_V1_HealthCheckResponse: SwiftProtobuf.Message,
     if lhs.protocolVersion != rhs.protocolVersion {return false}
     if lhs.openRepositoryCount != rhs.openRepositoryCount {return false}
     if lhs.residentMemoryBytes != rhs.residentMemoryBytes {return false}
+    if lhs.processID != rhs.processID {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -34,6 +34,9 @@ message HealthCheckResponse {
   uint32 open_repository_count = 3;
   // Resident memory of the Core process in bytes, for diagnostics.
   uint64 resident_memory_bytes = 4;
+  // Operating-system process id of the Core, so a supervisor can tell that
+  // the Core answering is the child it launched and not another instance.
+  uint32 process_id = 5;
 }
 
 message OpenRepositoryRequest {
