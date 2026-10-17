@@ -82,3 +82,12 @@ Proposed bridge, in order of preference:
 2. If a signed build shows the access is not shared, the fallback for direct distribution is a Core outside the App Sandbox (Developer ID, hardened runtime) with the Core enforcing granted roots itself, as ADR 0002 already requires. The app would pass only roots the user chose.
 3. Reading through the app (Swift sends file contents to the Core) works under any sandbox, but moves workflow reading back into Swift and defeats the Core's purpose; use it only if option 2 is not acceptable.
 Issuing extension tokens to the helper with private sandbox APIs is not recommended: it is unsupported and likely a distribution problem.
+- Phase 9: done. `scripts/measure-resources.sh` measures the idle physical footprint (`footprint`, the figure Activity Monitor shows as Memory) and CPU of the app and its Core with 1, 3 and 10 repositories. For each count it builds fixture repositories (six workflow files each), launches the Debug app on an empty isolated session, has it open one window per repository through a Debug-only import hook (`--ui-testing` with `RUNNIR_UI_TEST_IMPORT_PATHS`; bookmarks must be created by the app itself, a bookmark made by another process did not restore), waits until the Core reports every repository open, settles 30 s, then samples. It refuses to run while another Core exists, needs `footprint` and `grpcurl`, and cleans up after itself. Result on 2026-10-17 (this Mac, macOS 27.0.1, arm64, Debug build, app on the Dashboard section, 30 s settle, 30 s CPU interval):
+
+  | Repos | App MB | Core MB | Total MB | App CPU % | Core CPU % | Core processes |
+  | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+  | 1 | 33.0 | 6.9 | 39.9 | 0.0 | 0.0 | 1 |
+  | 3 | 44.0 | 7.8 | 51.8 | 0.0 | 0.0 | 1 |
+  | 10 | 85.0 | 9.2 | 94.2 | 0.0 | 0.0 | 1 |
+
+  Against the internal 300 MB target at 10 repositories the measured total is 94 MB. The Core grows by about 0.3 MB per repository; the app grows by about 6 MB per window and is the larger share. Read these numbers with care: one machine, a Debug build (a Release build should be measured before quoting figures), small fixture repositories, windows left on the Dashboard with no file opened, CPU resolution of about 0.03 percentage points (so "0.0" means below that), and no sandbox. `HealthCheck.resident_memory_bytes` is still the Go runtime's total, not the process footprint. There was no measurement of executions, event streams under load or large repositories.

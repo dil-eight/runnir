@@ -68,6 +68,9 @@ final class DesktopCoordinator {
             await loadSession()
             guard !Task.isCancelled, !terminationInProgress else { return }
             for record in snapshot.windows { restore(record) }
+            #if DEBUG
+            importFoldersFromTestEnvironment()
+            #endif
             if windows.isEmpty { showManager() }
             splash?.close()
             splash = nil
@@ -77,6 +80,21 @@ final class DesktopCoordinator {
             }
         }
     }
+
+    #if DEBUG
+    /// Debug-only hook for UI tests and the resource measurement script: with
+    /// `--ui-testing`, folders listed in RUNNIR_UI_TEST_IMPORT_PATHS (colon
+    /// separated) are registered and opened as if chosen in the open panel, so
+    /// their bookmarks belong to this app.
+    private func importFoldersFromTestEnvironment() {
+        let environment = ProcessInfo.processInfo.environment
+        guard ProcessInfo.processInfo.arguments.contains("--ui-testing"),
+              let list = environment["RUNNIR_UI_TEST_IMPORT_PATHS"] else { return }
+        for path in list.split(separator: ":") where !path.isEmpty {
+            register(selected: URL(fileURLWithPath: String(path), isDirectory: true))
+        }
+    }
+    #endif
 
     func showManager() {
         if manager == nil {
@@ -109,6 +127,12 @@ final class DesktopCoordinator {
         panel.prompt = relinkID == nil ? "Import Repository" : "Locate Repository"
         panel.message = "Choose a local Git working tree. Repository files will only be read."
         guard panel.runModal() == .OK, let selected = panel.url else { return }
+        register(selected: selected, relinkID: relinkID, reuseWindowID: reuseWindowID)
+    }
+
+    /// Registers a chosen folder and opens it in a window. The open panel and the
+    /// debug import hook both end here.
+    private func register(selected: URL, relinkID: UUID? = nil, reuseWindowID: UUID? = nil) {
         let accessing = selected.startAccessingSecurityScopedResource()
         defer { if accessing { selected.stopAccessingSecurityScopedResource() } }
         do {
