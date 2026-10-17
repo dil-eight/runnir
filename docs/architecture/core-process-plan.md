@@ -34,3 +34,14 @@ Core: `go test ./...`, `go vet ./...`, `go build ./...` from `core/`, plus `-rac
 - New dependencies conflict with the stdlib-first rule and add binary size.
 - Stale socket or lock after a crash can block restart; the lock file must use an OS advisory lock, not mere existence.
 - Dual paths (stdio and gRPC) can drift; keep the stdio path limited to version until retired.
+
+## Phase 0 Spike Results (2026-10-17)
+
+Setup: ad-hoc signed `.app` with `app-sandbox` + `network.client` only (same as `Runnir.entitlements`), a pure Go helper (`CGO_ENABLED=0`, grpc-go 1.84.0, standard health service, about 14.7 MB) signed with `app-sandbox` + `inherit` (as `macos-helper.entitlements`), and a Swift client on grpc-swift-2 2.4.4 + grpc-swift-nio-transport 2.11.0. Run on macOS 27.0.1, Swift 6.4, with the code in a scratch directory outside the repository.
+
+- The sandboxed app launched the inherited helper with `Process`; the helper bound a Unix socket in the app container (`~/Library/Containers/<bundle id>/Data/Library/Caches`); the client connected and `grpc.health.v1.Health/Check` returned SERVING. No `network.server` entitlement was needed.
+- Not run outside an app launch: a sandboxed binary started from a shell traps (exit 133) because it has no container.
+- **Deployment target:** grpc-swift 2 requires macOS 15; the Xcode project targets macOS 14.0. Adopting it means raising the target (a product decision) or choosing another client. grpc-swift 1.x (macOS 10.15+, SwiftNIO, `swift-protobuf`) is the fallback to evaluate.
+- **Socket path length:** `sun_path` holds 103 bytes. The container path is already about 83 characters with a short bundle id, so the socket name must be short and the length checked at startup; fall back to a shorter directory if needed.
+- Stale socket after an unclean exit was left in place; the server must remove it only under the lock (plan phase 2).
+- Not verified: a Developer ID signed and notarized build, a real Xcode-built app, grpc-swift 1.x, the Swift gRPC dependency's effect on app size and CI time, helper behavior when the parent dies.

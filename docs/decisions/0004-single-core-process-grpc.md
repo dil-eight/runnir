@@ -41,4 +41,4 @@ Internal targets, not guarantees: at most 300 MB combined idle footprint with 10
 
 ## Open Decisions
 
-gRPC-Swift version and minimum macOS; UDS support in the chosen Swift client under the sandbox; YAML parser for Go (the standard library has none, so a dependency must be chosen); event-buffer overflow policy; `repository_id` derivation and its relation to the ADR 0003 registry; whether the one-shot `rpc` handshake is retired.
+gRPC-Swift version: the [phase 0 spike](../architecture/core-process-plan.md) showed UDS works under the App Sandbox with grpc-swift 2, which needs macOS 15 while the project targets 14.0 (raise the target or evaluate grpc-swift 1.x); YAML parser for Go (the standard library has none, so a dependency must be chosen); event-buffer overflow policy; `repository_id` derivation and its relation to the ADR 0003 registry; whether the one-shot `rpc` handshake is retired.
