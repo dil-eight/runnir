@@ -23,7 +23,7 @@ Restore window shells independently, clamp frames to connected displays and reco
 
 DesktopCoordinator now owns AppKit windows with independent AppState/navigation. Registry and restore eligibility use a single versioned desktop-state.json transaction: validate, write/fsync a private temporary file, rename, then fsync the directory. Combining registry and session avoids a partial reassociation across two files. Manual close commits removal before allowing closure; quit preserves eligible entries before teardown. Corrupt state blocks mutations until an explicit backup-and-reset; backups are never automatically replayed. Real power-loss/crash-injection verification remains outstanding.
 
-The Core handshake remains one-shot. Shared DB/sync is not implemented. The transport must evolve through explicit versioned contracts before persistent services/events are offered; retain core.v1.version compatibility.
+The version handshake remains one-shot. ADR 0004 added the persistent transport with shared repository contexts and events, keeping core.v1.version compatibility. Shared DB/sync is not implemented.
 
 Workspace startup/config phases can ship incrementally, but they do not remove FR-06's local-execution gate for a complete v0.1. Basic app use still needs no Runnir account, backend or analytics consent. Keychain remains the only implemented/approved credential storage; external credential providers mentioned in the incoming proposal are deferred.
 

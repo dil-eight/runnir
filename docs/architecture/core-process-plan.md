@@ -91,3 +91,22 @@ Issuing extension tokens to the helper with private sandbox APIs is not recommen
   | 10 | 85.0 | 9.2 | 94.2 | 0.0 | 0.0 | 1 |
 
   Against the internal 300 MB target at 10 repositories the measured total is 94 MB. The Core grows by about 0.3 MB per repository; the app grows by about 6 MB per window and is the larger share. Read these numbers with care: one machine, a Debug build (a Release build should be measured before quoting figures), small fixture repositories, windows left on the Dashboard with no file opened, CPU resolution of about 0.03 percentage points (so "0.0" means below that), and no sandbox. `HealthCheck.resident_memory_bytes` is still the Go runtime's total, not the process footprint. There was no measurement of executions, event streams under load or large repositories.
+
+## Acceptance Criteria Status (2026-10-17)
+
+Phase 10 reconciled the documentation with the behavior above. This is the state of the ten criteria from the proposal, with the evidence and its limits.
+
+| # | Criterion | Status | Evidence and limits |
+| --- | --- | --- | --- |
+| 1 | Exactly one Core | Verified | Supervisor tests; real helper tests count processes by command line; the real app and the measurement script show one process; a second app instance did not start another |
+| 2 | Ten repositories without more Core processes | Verified | Integration test opens ten repositories on one process; the measurement script reports one process at 10 |
+| 3 | Two or three windows request different repositories at once | Partly verified | Core concurrency and per-workspace session tests; not exercised with several real windows by hand |
+| 4 | Refresh of one does not block others | Verified | Go race tests with a blocked scan; hub test |
+| 5 | Closing a window leaves other repositories running | Partly verified | Coordinator and hub tests; Cmd+W on a real window not exercised |
+| 6 | Connection re-established after the Core is restarted | Partly verified | Real Core killed with SIGKILL, then `recover()` gives a new process and working calls; the banner and its button were not seen on screen, and the real app survived a killed Core without a restart |
+| 7 | Repeated open creates no duplicate | Verified | Race tests, gRPC tests and the ten-repository integration test |
+| 8 | UI stays responsive during long operations | Not verified | No long operation exists yet (the runner is a stub), and responsiveness was not measured |
+| 9 | Full quit ends the Core | Partly verified | The Core ends when its parent dies (SIGKILL tested) and when the app is terminated; the Cmd+Q path is unit-tested only through `terminateImmediately` |
+| 10 | MCP attaches without changing the base API | Compatible, not ready | No change to existing calls is needed, but access control, per-client leases, approval and discovery must be added first; see [MCP readiness](mcp.md#readiness-against-the-grpc-core-api) |
+
+Not part of any criterion but still open: a real execution engine, a sandbox check of the folder grant through `NSOpenPanel` in a signed build, Release-build measurements, and retiring or keeping the stdio handshake.

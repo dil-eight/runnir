@@ -21,7 +21,7 @@ The current foundation builds unsigned; no production signing keys are required 
 ## Architecture And Code
 
 - Preserve Swift 6/SwiftUI/Observation for native UI, Keychain and system integration; use pure Go for new portable domain services. Read [ADR 0002](docs/decisions/0002-swiftui-go-core.md) and [ADR 0003](docs/decisions/0003-workspaces-sessions-offline-storage.md).
-- Keep versioned stdio IPC separate from business logic. Document changed contracts and add compatibility/error tests; the current Core RPC implements version metadata only.
+- Keep versioned IPC (gRPC over a Unix socket, plus the JSON-RPC version handshake) separate from business logic. Document changed contracts, regenerate code with `scripts/generate-contracts.sh`, and add compatibility/error tests.
 - Preserve existing Swift services until feature-level migrations are tested. Avoid unrelated file moves/refactors and duplicate GitHub implementations.
 - Prefer small protocol-backed services, deterministic tests and standard libraries. Do not introduce Node/npm/pnpm, React, Electron, Tauri, Rust, CocoaPods or Carthage.
 - Explain new dependency need, pinned version, license, data access, subprocess/network behavior and maintenance cost in the PR. Do not silently add an SDK with autocollection.

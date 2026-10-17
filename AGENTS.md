@@ -6,7 +6,7 @@ Runnir combines a native macOS desktop app with a portable Go Core. Keep impleme
 
 - Use Swift 6, SwiftUI, Observation, Foundation, and Security before adding dependencies.
 - Use pure Go for portable domain services, CLI and the future MCP server. Prefer CGO_ENABLED=0.
-- Keep Swift-to-Go IPC separate from domain logic; version contracts and use local stdio.
+- Keep Swift-to-Go IPC separate from domain logic; version contracts and use local IPC only (gRPC over a Unix socket per ADR 0004; JSON-RPC over stdio for the version handshake).
 - Preserve existing Swift services until feature-level migrations are tested. Do not duplicate new GitHub domain logic across runtimes.
 - Do not introduce Node.js, npm, pnpm, React, Electron, Tauri, Rust, CocoaPods, or Carthage.
 - Store credentials only in macOS Keychain.

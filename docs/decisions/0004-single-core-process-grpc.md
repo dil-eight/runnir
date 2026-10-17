@@ -1,6 +1,6 @@
 # 0004 Single App-Owned Core Process With Local gRPC
 
-Status: proposed for MVP, 2026-10-17. Amends the transport decision in [ADR 0002](0002-swiftui-go-core.md) and realizes the shared-runtime direction of [ADR 0003](0003-workspaces-sessions-offline-storage.md). Nothing here is implemented yet.
+Status: accepted and implemented for the MVP scope, 2026-10-17 (see the [API reference](../architecture/grpc-api.md) and the [plan](../architecture/core-process-plan.md) for what was verified and what was not). Amends the transport decision in [ADR 0002](0002-swiftui-go-core.md) and realizes the shared-runtime direction of [ADR 0003](0003-workspaces-sessions-offline-storage.md). Not done: a real execution engine, MCP, a per-client access model, and a sandbox check of the folder grant through `NSOpenPanel`.
 
 ## Decision
 
@@ -41,4 +41,4 @@ Internal targets, not guarantees: at most 300 MB combined idle footprint with 10
 
 ## Open Decisions
 
-gRPC-Swift version: the [phase 0 spike](../architecture/core-process-plan.md) showed UDS works under the App Sandbox with grpc-swift 2, which needs macOS 15, so the deployment target is raised from 14.0 to 15.0 (decided 2026-10-17); YAML parser for Go (the standard library has none, so a dependency must be chosen); `repository_id` derivation and its relation to the ADR 0003 registry; whether the one-shot `rpc` handshake is retired.
+gRPC-Swift version: the [phase 0 spike](../architecture/core-process-plan.md) showed UDS works under the App Sandbox with grpc-swift 2, which needs macOS 15, so the deployment target is raised from 14.0 to 15.0 (decided 2026-10-17). Decided during implementation: YAML parsing uses `go.yaml.in/yaml/v3`; `repository_id` is derived from the first resolved path, and the Swift registry keeps its own `workspaceId` and maps to the Core id through the open call. Still open: whether the one-shot `rpc` handshake is retired; how other clients (MCP) are identified and restricted; where a discoverable socket lives for clients outside the app's sandbox container.

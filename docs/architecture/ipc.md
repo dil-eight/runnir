@@ -1,6 +1,6 @@
 # IPC Contract v1
 
-> A persistent single-process gRPC transport is proposed in [ADR 0004](../decisions/0004-single-core-process-grpc.md) and [the plan](core-process-plan.md). It is not implemented; this document describes the current one-shot stdio transport.
+> The app's runtime transport is the persistent local gRPC API described in [Core gRPC API v1](grpc-api.md) ([ADR 0004](../decisions/0004-single-core-process-grpc.md)). This document describes the earlier one-shot JSON-RPC stdio transport, which is kept for the version handshake (`runnir rpc`, `core.v1.version`; the app still uses it once at launch to read the Core version) and is not extended.
 
 Status: implemented for version metadata only.
 
@@ -28,10 +28,10 @@ Product version and IPC version are independent. Unknown methods return -32601; 
 
 The machine-readable version envelopes are in `contracts/ipc/v1/version.schema.json`. CLI `version` returns the result object directly, without an RPC envelope.
 
-## Future Session Contracts
+## Session Contracts
 
-Desktop window restoration sessions and Core credential/process sessions are separate concepts. [ADR 0003](../decisions/0003-workspaces-sessions-offline-storage.md) requires future shared workspace services/events behind versioned IPC: one logical runtime/database writer/sync per workspace, independent of window identity. The current one-shot transport must not be reused as a claimed streaming/shared-runtime implementation. Core stays app-owned with no permanent daemon; no process is resumed from session.json.
+Desktop window restoration sessions and Core credential/process sessions are separate concepts. [ADR 0003](../decisions/0003-workspaces-sessions-offline-storage.md) requires shared workspace services/events behind versioned IPC, independent of window identity. The shared repository contexts and event stream now live in the [gRPC API](grpc-api.md); the shared database and sync writer are still not implemented. The one-shot transport here must not be described as a streaming or shared-runtime implementation. Core stays app-owned with no permanent daemon; no process is resumed from session.json.
 
 Repository capability grants, credential lifetimes, request cancellation and action approval are not implemented. Define and test these before adding domain operations. A path or boolean supplied by an AI/client cannot grant access or approve an action. Scope grants must resolve symlinks and prevent traversal; consequential approvals bind repository, operation, inputs, artifact identity, expiry and single-use action ID through a trusted local authority. Keep tokens out of JSON tool results and audit data.
 
-MCP will be a separate stdio entry point with its own initialization and protocol contracts, reusing Core services. `runnir rpc` is not an MCP server.
+MCP will be a separate stdio entry point with its own initialization and protocol contracts, reusing Core services. `runnir rpc` is not an MCP server. What an MCP adapter would still need from the Core is listed in [MCP readiness](mcp.md#readiness-against-the-grpc-core-api).

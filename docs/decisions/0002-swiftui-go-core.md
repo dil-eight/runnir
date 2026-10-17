@@ -1,6 +1,6 @@
 # 0002 SwiftUI Desktop + Portable Go Core
 
-Status: accepted. Extends ADR 0001; its native desktop choice remains valid.
+Status: accepted. Extends ADR 0001; its native desktop choice remains valid. The runtime transport was changed from one-shot JSON-RPC over stdio to a persistent local gRPC API by [ADR 0004](0004-single-core-process-grpc.md); the stdio JSON-RPC handshake remains. The rest of this decision, including no CGO, an app-owned lifetime and no permanent daemon, still holds.
 
 ## Decision
 
