@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"runnir/core/internal/buildinfo"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
@@ -136,5 +138,69 @@ func TestOverlongSocketPathIsRejected(t *testing.T) {
 	err := Run(context.Background(), "/tmp/"+strings.Repeat("a", MaxSocketPathBytes))
 	if err == nil || !strings.Contains(err.Error(), "limit") {
 		t.Fatalf("want length error, got %v", err)
+	}
+}
+
+func connect(t *testing.T, path string) corev1.RunnirCoreClient {
+	t.Helper()
+	conn, err := grpc.NewClient("unix://"+path, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	return corev1.NewRunnirCoreClient(conn)
+}
+
+func TestRepositoryLifecycleOverGRPC(t *testing.T) {
+	path := socketPath(t)
+	stop := start(t, path)
+	defer stop()
+	client := connect(t, path)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	repoDir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: repoDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: repoDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Repository.Id == "" || first.Repository.Id != second.Repository.Id {
+		t.Fatalf("open is not idempotent: %q vs %q", first.Repository.Id, second.Repository.Id)
+	}
+	health, err := client.HealthCheck(ctx, &corev1.HealthCheckRequest{})
+	if err != nil || health.OpenRepositoryCount != 1 {
+		t.Fatalf("health = %v, %v", health, err)
+	}
+	id := first.Repository.Id
+	if _, err := client.RefreshRepository(ctx, &corev1.RefreshRepositoryRequest{RepositoryId: id}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.CloseRepository(ctx, &corev1.CloseRepositoryRequest{RepositoryId: id}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.RefreshRepository(ctx, &corev1.RefreshRepositoryRequest{RepositoryId: id})
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("refresh after close = %v, want NotFound", err)
+	}
+	_, err = client.CloseRepository(ctx, &corev1.CloseRepositoryRequest{RepositoryId: id})
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("second close = %v, want NotFound", err)
+	}
+}
+
+func TestOpenRepositoryRejectsInvalidPath(t *testing.T) {
+	path := socketPath(t)
+	stop := start(t, path)
+	defer stop()
+	_, err := connect(t, path).OpenRepository(context.Background(), &corev1.OpenRepositoryRequest{Path: "relative"})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("err = %v, want InvalidArgument", err)
 	}
 }

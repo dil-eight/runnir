@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
+	"runnir/core/internal/repository"
 )
 
 // MaxSocketPathBytes is the portable sockaddr_un.sun_path limit on macOS
@@ -51,8 +52,10 @@ func Run(ctx context.Context, socketPath string) error {
 		return fmt.Errorf("restrict socket: %w", err)
 	}
 
+	repositories := repository.New(repository.NopScanner{}, nil)
+	defer repositories.Shutdown()
 	grpcServer := grpc.NewServer()
-	corev1.RegisterRunnirCoreServer(grpcServer, &service{})
+	corev1.RegisterRunnirCoreServer(grpcServer, &service{repositories: repositories})
 
 	done := make(chan error, 1)
 	go func() { done <- grpcServer.Serve(listener) }()
