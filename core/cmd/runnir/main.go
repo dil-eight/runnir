@@ -1,20 +1,29 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"runnir/core/internal/buildinfo"
 	"runnir/core/internal/ipc"
+	"runnir/core/internal/server"
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr)) }
 
 func run(args []string, input io.Reader, output, diagnostics io.Writer) int {
+	if len(args) > 0 && args[0] == "serve" {
+		return serve(args[1:], input, diagnostics)
+	}
 	if len(args) != 1 {
-		fmt.Fprintln(diagnostics, "usage: runnir version | rpc")
+		fmt.Fprintln(diagnostics, "usage: runnir version | rpc | serve --socket PATH")
 		return 2
 	}
 	var err error
@@ -24,7 +33,7 @@ func run(args []string, input io.Reader, output, diagnostics io.Writer) int {
 	case "rpc":
 		err = ipc.Serve(input, output, handle)
 	default:
-		fmt.Fprintln(diagnostics, "unknown command; usage: runnir version | rpc")
+		fmt.Fprintln(diagnostics, "unknown command; usage: runnir version | rpc | serve --socket PATH")
 		return 2
 	}
 	if err != nil {
@@ -49,4 +58,36 @@ func handle(method string, params json.RawMessage) (any, *ipc.Error) {
 		}
 	}
 	return buildinfo.Current(), nil
+}
+
+// serve runs the local gRPC server until SIGINT/SIGTERM or, with
+// --exit-on-stdin-eof, until the parent closes our stdin (including by dying).
+func serve(args []string, input io.Reader, diagnostics io.Writer) int {
+	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	socket := flags.String("socket", "", "Unix domain socket path")
+	exitOnEOF := flags.Bool("exit-on-stdin-eof", false, "stop when stdin closes")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || *socket == "" {
+		fmt.Fprintln(diagnostics, "usage: runnir serve --socket PATH [--exit-on-stdin-eof]")
+		return 2
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if *exitOnEOF {
+		go func() { _, _ = io.Copy(io.Discard, input); stop() }()
+	}
+	return finishServe(server.Run(ctx, *socket), diagnostics)
+}
+
+func finishServe(err error, diagnostics io.Writer) int {
+	switch {
+	case err == nil:
+		return 0
+	case errors.Is(err, server.ErrAlreadyRunning):
+		fmt.Fprintln(diagnostics, "runnir: another core is already running")
+		return 3
+	default:
+		fmt.Fprintln(diagnostics, "runnir: serve failed:", err)
+		return 1
+	}
 }

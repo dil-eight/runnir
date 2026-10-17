@@ -1,0 +1,140 @@
+//go:build !windows
+
+package server
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	"runnir/core/internal/buildinfo"
+	corev1 "runnir/core/internal/gen/runnir/core/v1"
+)
+
+// Unix socket paths are short-limited and t.TempDir() is long on macOS.
+func socketPath(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("/tmp", "rn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	return filepath.Join(dir, "core.sock")
+}
+
+func start(t *testing.T, path string) (stop func() error) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() { result <- Run(ctx, path) }()
+	waitForSocket(t, path, result)
+	return func() error { cancel(); return <-result }
+}
+
+func waitForSocket(t *testing.T, path string, result chan error) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case err := <-result:
+			result <- err
+			return
+		default:
+		}
+		if info, err := os.Stat(path); err == nil && info.Mode()&os.ModeSocket != 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("socket did not appear")
+}
+
+func TestHealthCheckOverUnixSocket(t *testing.T) {
+	path := socketPath(t)
+	stop := start(t, path)
+	defer stop()
+
+	conn, err := grpc.NewClient("unix://"+path, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	response, err := corev1.NewRunnirCoreClient(conn).HealthCheck(ctx, &corev1.HealthCheckRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.CoreVersion != buildinfo.Version || response.ProtocolVersion != buildinfo.ProtocolVersion {
+		t.Fatalf("unexpected response: %v", response)
+	}
+}
+
+func TestSecondInstanceIsRefused(t *testing.T) {
+	path := socketPath(t)
+	stop := start(t, path)
+	defer stop()
+
+	err := Run(context.Background(), path)
+	if !errors.Is(err, ErrAlreadyRunning) {
+		t.Fatalf("want ErrAlreadyRunning, got %v", err)
+	}
+	// The refused attempt must not disturb the running Core.
+	if _, statErr := os.Stat(path); statErr != nil {
+		t.Fatalf("running core lost its socket: %v", statErr)
+	}
+}
+
+func TestStaleSocketIsReplaced(t *testing.T) {
+	path := socketPath(t)
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stop := start(t, path)
+	if err := stop(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestShutdownRemovesSocketAndReleasesLock(t *testing.T) {
+	path := socketPath(t)
+	stop := start(t, path)
+	if err := stop(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("socket should be removed, stat err = %v", err)
+	}
+	// Restart works because the advisory lock was released.
+	stop = start(t, path)
+	if err := stop(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSocketIsOwnerOnly(t *testing.T) {
+	path := socketPath(t)
+	stop := start(t, path)
+	defer stop()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm&0o077 != 0 {
+		t.Fatalf("socket permissions too open: %v", perm)
+	}
+}
+
+func TestOverlongSocketPathIsRejected(t *testing.T) {
+	err := Run(context.Background(), "/tmp/"+strings.Repeat("a", MaxSocketPathBytes))
+	if err == nil || !strings.Contains(err.Error(), "limit") {
+		t.Fatalf("want length error, got %v", err)
+	}
+}

@@ -45,3 +45,9 @@ Setup: ad-hoc signed `.app` with `app-sandbox` + `network.client` only (same as 
 - **Socket path length:** `sun_path` holds 103 bytes. The container path is already about 83 characters with a short bundle id, so the socket name must be short and the length checked at startup; fall back to a shorter directory if needed.
 - Stale socket after an unclean exit was left in place; the server must remove it only under the lock (plan phase 2).
 - Not verified: a Developer ID signed and notarized build, a real Xcode-built app, grpc-swift 1.x, the Swift gRPC dependency's effect on app size and CI time, helper behavior when the parent dies.
+
+## Progress
+
+- Phase 0: done, see spike results above.
+- Phase 1: done. Contract and generated code committed; deployment target raised to macOS 15.0.
+- Phase 2: done in Core, not yet launched by the app. `runnir serve --socket PATH [--exit-on-stdin-eof]` serves `HealthCheck` over a Unix socket (mode 0600) under an advisory `flock` on `PATH.lock`. A second instance exits with code 3 without touching the running socket; a stale socket is removed only under the lock; SIGINT/SIGTERM or stdin EOF stops it gracefully and removes the socket. Paths over 103 bytes are rejected. Verified with Go tests (`-race`), cross-builds for darwin/linux/windows, and a manual `grpcurl` call. The other RPCs return `Unimplemented`. `resident_memory_bytes` is currently Go's `MemStats.Sys`, not true RSS (phase 9). The lock file stays on disk after exit, which is harmless. Parent-death behavior has only been tested with a closed pipe, not an app crash.
