@@ -62,12 +62,12 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 
 ## Requirements
 
-- macOS 14 or newer.
+- macOS 15 or newer.
 - Xcode 27 or newer for the current checked-in project settings.
 - Swift 6.
 - Go 1.25+ (Xcode builds and bundles the helper; CGO is disabled).
 
-The app targets macOS 14+ because it uses modern SwiftUI and Observation APIs while remaining practical for current Macs.
+The app targets macOS 15+ for modern SwiftUI and Observation APIs and the grpc-swift 2 client (see ADR 0004).
 
 ## Development
 
