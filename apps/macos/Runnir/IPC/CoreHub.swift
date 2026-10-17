@@ -125,7 +125,8 @@ final class CoreHub {
         case .running(let health):
             status = .ready(version: health.coreVersion)
             startEvents()
-            await openAll()
+            // Not awaited: later states (a lost Core) must not wait for slow scans.
+            Task { await openAll() }
         case .lost:
             status = .lost
             markUnavailable()
@@ -155,12 +156,13 @@ final class CoreHub {
             existing.windowIDs.insert(windowID)
             guard existing.path != path else { return }
             let oldID = existing.coreID
+            let oldPath = existing.path
             existing.path = path
             existing.coreID = nil
             existing.branch = ""
             existing.workflows = []
             existing.phase = .waitingForCore
-            if let oldID { closeInCore(oldID) }
+            if let oldID { closeInCore(oldID, path: oldPath) }
             if isReady { Task { await open(existing) } }
             return
         }
@@ -182,15 +184,22 @@ final class CoreHub {
         session.windowIDs.remove(windowID)
         guard session.windowIDs.isEmpty else { return }
         sessions[workspaceID] = nil
-        if let coreID = session.coreID { closeInCore(coreID) }
+        if let coreID = session.coreID { closeInCore(coreID, path: session.path) }
     }
 
-    private func closeInCore(_ repositoryID: String) {
-        let provider = provider
+    private func isShown(_ path: String) -> Bool { sessions.values.contains { $0.path == path } }
+
+    /// Closes a repository in the Core unless a window shows its path again.
+    /// Core contexts are shared by path and closing is global, so a close that
+    /// raced with a reopen of the same path is followed by a fresh open.
+    private func closeInCore(_ repositoryID: String, path: String) {
         Task {
+            guard !isShown(path) else { return }
             // A missing Core or repository means there is nothing left to close.
-            if let service = try? await provider.service() {
-                try? await service.closeRepository(id: repositoryID)
+            guard let service = try? await provider.service() else { return }
+            try? await service.closeRepository(id: repositoryID)
+            if let reopened = sessions.values.first(where: { $0.path == path }) {
+                await open(reopened)
             }
         }
     }
@@ -206,25 +215,28 @@ final class CoreHub {
     private func open(_ session: RepositorySession) async {
         guard isReady else { session.phase = .unavailable; return }
         session.phase = .opening
+        let path = session.path
+        // The session may move to another path (relink) or go away (last window
+        // closed) while this open is in flight; its result then must not land.
+        func isCurrent() -> Bool { sessions[session.workspaceID] === session && session.path == path }
         do {
             let service = try await provider.service()
-            let repository = try await service.openRepository(path: session.path)
-            guard sessions[session.workspaceID] === session else {
-                // The last window closed while the open was in flight.
-                try? await service.closeRepository(id: repository.id)
+            let repository = try await service.openRepository(path: path)
+            guard isCurrent() else {
+                closeInCore(repository.id, path: path)
                 return
             }
             session.coreID = repository.id
             let workflows = try await service.listWorkflows(repositoryID: repository.id)
-            guard sessions[session.workspaceID] === session else { return }
+            guard isCurrent() else { return }
             apply(repository, workflows: workflows, to: session)
             session.phase = .ready
         } catch let error as CoreServiceError where error == .unavailable {
-            session.phase = .unavailable
+            if isCurrent() { session.phase = .unavailable }
         } catch is CancellationError {
             return
         } catch {
-            session.phase = .failed(Self.describe(error))
+            if isCurrent() { session.phase = .failed(Self.describe(error)) }
         }
     }
 

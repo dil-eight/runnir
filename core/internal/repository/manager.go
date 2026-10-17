@@ -153,10 +153,10 @@ func (m *Manager) Open(ctx context.Context, path string) (Info, error) {
 
 	created.mu.Lock()
 	switch {
+	case created.closed: // closed while scanning; the scan error is just the cancellation
+		created.openErr = ErrNotFound
 	case scanErr != nil:
 		created.openErr = scanErr
-	case created.closed:
-		created.openErr = ErrNotFound
 	default:
 		created.snap, created.last = snapshot, m.now()
 	}

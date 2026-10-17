@@ -71,7 +71,7 @@ struct CoreProcessIntegrationTests {
 
         let pids = Self.coreProcesses(socket: socket)
         await supervisor.stop()
-        #expect(await eventually { !Self.isAlive(pids[0]) })
+        #expect(await eventuallyAsync { !Self.isAlive(pids[0]) })
         #expect(!FileManager.default.fileExists(atPath: socket))
     }
 
@@ -96,7 +96,7 @@ struct CoreProcessIntegrationTests {
         let first = try #require(Self.coreProcesses(socket: socket).first)
 
         kill(first, SIGKILL)
-        #expect(await eventually { if case .lost = await supervisor.state { true } else { false } })
+        #expect(await eventuallyAsync { if case .lost = await supervisor.state { true } else { false } })
         await #expect(throws: CoreServiceError.unavailable) { _ = try await supervisor.service() }
 
         try await supervisor.recover()
@@ -131,15 +131,8 @@ struct CoreProcessIntegrationTests {
         try await supervisor.start()
         let pid = try #require(Self.coreProcesses(socket: socket).first)
         supervisor.terminateImmediately()
-        #expect(await eventually { !Self.isAlive(pid) })
+        #expect(await eventuallyAsync { !Self.isAlive(pid) })
         await supervisor.stop()
     }
 }
 
-private func eventually(_ condition: @Sendable () async -> Bool) async -> Bool {
-    for _ in 0..<500 {
-        if await condition() { return true }
-        try? await Task.sleep(for: .milliseconds(20))
-    }
-    return false
-}

@@ -35,13 +35,15 @@ struct ProcessCoreLauncher: CoreProcessLaunching {
 final class ProcessCoreHandle: CoreProcessHandle, @unchecked Sendable {
     private let process: Process
     private let stdin: Pipe
+    private let gracePeriod: Duration
     private let lock = NSLock()
     private var exitStatus: Int32?
-    private var waiters: [CheckedContinuation<Int32, Never>] = []
+    private var waiters: [(Int32?) -> Void] = []
 
-    init(process: Process, stdin: Pipe) {
+    init(process: Process, stdin: Pipe, gracePeriod: Duration = .seconds(3)) {
         self.process = process
         self.stdin = stdin
+        self.gracePeriod = gracePeriod
     }
 
     var processIdentifier: Int32 { process.processIdentifier }
@@ -53,18 +55,33 @@ final class ProcessCoreHandle: CoreProcessHandle, @unchecked Sendable {
         waiters = []
         lock.unlock()
         try? stdin.fileHandleForWriting.close()
-        for waiter in pending { waiter.resume(returning: status) }
+        for waiter in pending { waiter(status) }
     }
 
     func waitForExit() async -> Int32 {
-        await withCheckedContinuation { continuation in
+        while true {
+            if let status = await waitForExit(timeout: nil) { return status }
+        }
+    }
+
+    /// Returns the exit status, or nil when `timeout` passes first. The timer
+    /// resumes the same continuation, so a process that never exits cannot
+    /// keep this call waiting.
+    func waitForExit(timeout: Duration?) async -> Int32? {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Int32?, Never>) in
+            let resume = OnceResume(continuation)
             lock.lock()
             if let exitStatus {
                 lock.unlock()
-                continuation.resume(returning: exitStatus)
-            } else {
-                waiters.append(continuation)
-                lock.unlock()
+                resume.resume(exitStatus)
+                return
+            }
+            waiters.append { resume.resume($0) }
+            lock.unlock()
+            if let timeout {
+                let (seconds, attoseconds) = timeout.components
+                let delay = Double(seconds) + Double(attoseconds) / 1e18
+                DispatchQueue.global().asyncAfter(deadline: .now() + delay) { resume.resume(nil) }
             }
         }
     }
@@ -81,19 +98,30 @@ final class ProcessCoreHandle: CoreProcessHandle, @unchecked Sendable {
         try? stdin.fileHandleForWriting.close()
     }
 
+    /// SIGTERM and stdin EOF first; SIGKILL if the Core is still running after
+    /// the grace period.
     func terminate() async {
         guard !hasExited else { return }
         terminateNow()
-        let exitedInTime = await withTaskGroup(of: Bool.self) { group in
-            group.addTask { _ = await self.waitForExit(); return true }
-            group.addTask { try? await Task.sleep(for: .seconds(3)); return false }
-            let first = await group.next() ?? false
-            group.cancelAll()
-            return first
-        }
-        if !exitedInTime {
+        if await waitForExit(timeout: gracePeriod) == nil {
             kill(process.processIdentifier, SIGKILL)
             _ = await waitForExit()
         }
+    }
+}
+
+/// Resumes a continuation at most once, whichever of exit or timeout comes first.
+private final class OnceResume: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Int32?, Never>?
+
+    init(_ continuation: CheckedContinuation<Int32?, Never>) { self.continuation = continuation }
+
+    func resume(_ value: Int32?) {
+        lock.lock()
+        let pending = continuation
+        continuation = nil
+        lock.unlock()
+        pending?.resume(returning: value)
     }
 }

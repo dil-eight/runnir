@@ -74,10 +74,6 @@ final class DesktopCoordinator {
             if windows.isEmpty { showManager() }
             splash?.close()
             splash = nil
-            Task {
-                do { accountState.coreVersion = try await CoreClient.bundled.version() }
-                catch { accountState.coreConnectionFailed = true }
-            }
         }
     }
 

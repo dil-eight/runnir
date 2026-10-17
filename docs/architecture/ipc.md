@@ -1,6 +1,6 @@
 # IPC Contract v1
 
-> The app's runtime transport is the persistent local gRPC API described in [Core gRPC API v1](grpc-api.md) ([ADR 0004](../decisions/0004-single-core-process-grpc.md)). This document describes the earlier one-shot JSON-RPC stdio transport, which is kept for the version handshake (`runnir rpc`, `core.v1.version`; the app still uses it once at launch to read the Core version) and is not extended.
+> The app's runtime transport is the persistent local gRPC API described in [Core gRPC API v1](grpc-api.md) ([ADR 0004](../decisions/0004-single-core-process-grpc.md)). This document describes the earlier one-shot JSON-RPC stdio transport, which is kept for the version handshake (`runnir rpc`, `core.v1.version`; the app now reads the Core version from `HealthCheck` and no longer runs this handshake at launch) and is not extended.
 
 Status: implemented for version metadata only.
 

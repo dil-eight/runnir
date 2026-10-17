@@ -1,6 +1,9 @@
 // Package scanner reads a repository's current branch and GitHub Actions
 // workflow files. It only parses structure: expressions are kept verbatim,
-// nothing is evaluated, and nothing outside the repository root is followed.
+// nothing is evaluated, and symlinks are never followed. The only reads outside
+// the repository root are the HEAD and back-reference files of a linked
+// worktree's own git directory, and only after that directory confirms it
+// belongs to this worktree.
 package scanner
 
 import (
@@ -50,6 +53,19 @@ func (Scanner) Scan(ctx context.Context, root string) (repository.Snapshot, erro
 	return repository.Snapshot{Branch: readBranch(root), Workflows: workflows}, nil
 }
 
+// absentOrError maps "does not exist" to no error and permission problems to
+// repository.ErrAccessDenied.
+func absentOrError(err error) error {
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil
+	case errors.Is(err, fs.ErrPermission):
+		return repository.ErrAccessDenied
+	default:
+		return fmt.Errorf("read workflows: %w", err)
+	}
+}
+
 // probeReadable tells "the folder is unreadable" apart from "the folder has no
 // workflows". Without it a denied folder (for example under an App Sandbox that
 // granted access to the app but not to this process) would look like an empty
@@ -96,6 +112,9 @@ func readBranch(root string) string {
 		if !filepath.IsAbs(target) {
 			target = filepath.Join(root, target)
 		}
+		if !isOwnWorktreeGitDir(target, gitPath) {
+			return ""
+		}
 		gitDir = target
 	case !info.IsDir():
 		return ""
@@ -115,18 +134,45 @@ func readBranch(root string) string {
 	return branch
 }
 
+// isOwnWorktreeGitDir accepts a linked worktree's git directory only when it
+// has git's layout (".../.git/worktrees/<name>") and its "gitdir" file points
+// back at this worktree's ".git" file. A ".git" file written by a repository to
+// aim the scan at some other place fails both checks.
+func isOwnWorktreeGitDir(gitDir, worktreeGitFile string) bool {
+	clean := filepath.Clean(gitDir)
+	if filepath.Base(filepath.Dir(clean)) != "worktrees" || filepath.Base(filepath.Dir(filepath.Dir(clean))) != ".git" {
+		return false
+	}
+	back, err := readBounded(filepath.Join(clean, "gitdir"), maxHeadBytes)
+	if err != nil {
+		return false
+	}
+	return samePath(strings.TrimSpace(string(back)), worktreeGitFile)
+}
+
+func samePath(a, b string) bool {
+	ra, errA := filepath.EvalSymlinks(a)
+	rb, errB := filepath.EvalSymlinks(b)
+	return errA == nil && errB == nil && ra == rb
+}
+
 func readWorkflows(ctx context.Context, root string) ([]repository.Workflow, error) {
 	// Refuse symlinked .github or workflows directories so a repository
-	// cannot point the scan outside its granted folder.
+	// cannot point the scan outside its granted folder. A missing directory
+	// means no workflows; one the Core may not read is an error, so it is
+	// never mistaken for an empty repository.
 	for _, dir := range []string{".github", workflowsDir} {
 		info, err := os.Lstat(filepath.Join(root, filepath.FromSlash(dir)))
-		if err != nil || !info.IsDir() {
+		if err != nil {
+			return nil, absentOrError(err)
+		}
+		if !info.IsDir() {
 			return nil, nil
 		}
 	}
 	entries, err := os.ReadDir(filepath.Join(root, filepath.FromSlash(workflowsDir)))
 	if err != nil {
-		return nil, nil
+		return nil, absentOrError(err)
 	}
 	var workflows []repository.Workflow
 	for _, entry := range entries { // ReadDir returns names sorted
@@ -220,7 +266,22 @@ func parse(id string, data []byte) repository.Workflow {
 	return workflow
 }
 
+// triggers accepts every form of "on": a scalar, a sequence of scalars, or a
+// mapping whose keys are the events.
 func triggers(node *yaml.Node) []string {
+	if node.Kind == yaml.MappingNode {
+		var out []string
+		for i := 0; i < len(node.Content); i += 2 {
+			out = append(out, node.Content[i].Value)
+		}
+		return out
+	}
+	return scalarList(node)
+}
+
+// scalarList accepts a scalar or a sequence of scalars, the shape of "needs"
+// and of the short forms of "on"; anything else yields nothing.
+func scalarList(node *yaml.Node) []string {
 	switch node.Kind {
 	case yaml.ScalarNode:
 		return []string{node.Value}
@@ -230,12 +291,6 @@ func triggers(node *yaml.Node) []string {
 			if item = resolve(item); item.Kind == yaml.ScalarNode {
 				out = append(out, item.Value)
 			}
-		}
-		return out
-	case yaml.MappingNode:
-		var out []string
-		for i := 0; i < len(node.Content); i += 2 {
-			out = append(out, node.Content[i].Value)
 		}
 		return out
 	}
@@ -262,22 +317,13 @@ func jobs(node *yaml.Node, workflow *repository.Workflow) []repository.Job {
 						job.Name = value.Value
 					}
 				case "needs":
-					job.Needs = triggersLikeList(value)
+					job.Needs = scalarList(value)
 				}
 			}
 		}
 		out = append(out, job)
 	}
 	return out
-}
-
-// triggersLikeList accepts a scalar or a sequence of scalars (the shape of
-// "needs"); mappings yield nothing.
-func triggersLikeList(node *yaml.Node) []string {
-	if node.Kind == yaml.MappingNode {
-		return nil
-	}
-	return triggers(node)
 }
 
 // resolve follows aliases a bounded number of steps. Aliases are never

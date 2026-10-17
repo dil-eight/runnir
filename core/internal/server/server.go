@@ -89,18 +89,24 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 	done := make(chan error, 1)
 	go func() { done <- grpcServer.Serve(listener) }()
 
+	var serveErr error
+	serverEnded := false
 	select {
-	case err := <-done:
-		return err
+	case serveErr = <-done:
+		serverEnded = true
 	case <-ctx.Done():
 	}
 	// Running executions are cancelled first so their final events reach
 	// subscribers; then event streams are closed, because they never end on
-	// their own and would hold up the graceful stop.
+	// their own and would hold up the graceful stop. This also runs when the
+	// server failed on its own.
 	stopCtx, stopCancel := context.WithTimeout(context.Background(), shutdownGrace)
 	executions.Shutdown(stopCtx)
 	stopCancel()
 	bus.Close()
+	if serverEnded {
+		return serveErr
+	}
 	stopped := make(chan struct{})
 	go func() { grpcServer.GracefulStop(); close(stopped) }()
 	select {

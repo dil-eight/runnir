@@ -216,14 +216,38 @@ func TestBranchFromWorktreeGitFile(t *testing.T) {
 
 	worktree := t.TempDir()
 	write(t, worktree, ".git", "gitdir: "+gitdir+"\n")
+	write(t, main, ".git/worktrees/wt/gitdir", filepath.Join(worktree, ".git")+"\n")
 	if got := scan(t, worktree).Branch; got != "topic" {
 		t.Fatalf("absolute gitdir: branch = %q", got)
 	}
 
 	relative := filepath.Join(main, "wt-rel")
-	write(t, relative, ".git", "gitdir: ../.git/worktrees/wt\n")
-	if got := scan(t, relative).Branch; got != "topic" {
+	write(t, main, ".git/worktrees/rel/HEAD", "ref: refs/heads/other\n")
+	write(t, main, ".git/worktrees/rel/gitdir", filepath.Join(relative, ".git")+"\n")
+	write(t, relative, ".git", "gitdir: ../.git/worktrees/rel\n")
+	if got := scan(t, relative).Branch; got != "other" {
 		t.Fatalf("relative gitdir: branch = %q", got)
+	}
+}
+
+func TestGitFilePointingElsewhereIsNotFollowed(t *testing.T) {
+	outside := t.TempDir()
+	write(t, outside, "HEAD", "ref: refs/heads/leaked\n")
+	// Right layout but the git directory belongs to another worktree.
+	other := t.TempDir()
+	write(t, other, ".git/worktrees/wt/HEAD", "ref: refs/heads/leaked\n")
+	write(t, other, ".git/worktrees/wt/gitdir", "/somewhere/else/.git\n")
+
+	for name, target := range map[string]string{
+		"arbitrary directory": outside,
+		"foreign worktree":    filepath.Join(other, ".git", "worktrees", "wt"),
+		"relative escape":     "../../" + filepath.Base(outside),
+	} {
+		repo := t.TempDir()
+		write(t, repo, ".git", "gitdir: "+target+"\n")
+		if got := scan(t, repo).Branch; got != "" {
+			t.Errorf("%s: branch = %q, want nothing read outside the repository", name, got)
+		}
 	}
 }
 
@@ -285,5 +309,30 @@ func TestUnreadableFolderIsAnErrorNotAnEmptyRepository(t *testing.T) {
 func TestEmptyReadableFolderIsNotAnError(t *testing.T) {
 	if _, err := New().Scan(context.Background(), t.TempDir()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestUnreadableWorkflowsDirectoryIsAnError(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("permission bits are not enforced here")
+	}
+	root := t.TempDir()
+	write(t, root, ".github/workflows/ci.yml", "on: push\njobs: {}\n")
+	dir := filepath.Join(root, ".github", "workflows")
+	if err := os.Chmod(dir, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(dir, 0o755)
+	if _, err := New().Scan(context.Background(), root); !errors.Is(err, repository.ErrAccessDenied) {
+		t.Fatalf("err = %v, want ErrAccessDenied", err)
+	}
+}
+
+func TestNeedsAcceptsOnlyScalarsOrSequences(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, ".github/workflows/n.yml", "on: push\njobs:\n  a: {}\n  b:\n    needs: {a: 1}\n  c:\n    needs: [a, b]\n")
+	jobs := scan(t, root).Workflows[0].Jobs
+	if len(jobs[1].Needs) != 0 || strings.Join(jobs[2].Needs, ",") != "a,b" {
+		t.Fatalf("jobs = %+v", jobs)
 	}
 }

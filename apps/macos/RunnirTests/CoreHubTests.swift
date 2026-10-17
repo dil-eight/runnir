@@ -14,6 +14,8 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     private var branches: [String: String] = [:]
     private var workflows: [String: [CoreWorkflow]] = [:]
     private var failingPaths: [String: CoreServiceError] = [:]
+    private var openDelays: [String: Duration] = [:]
+    private var openIDs: Set<String> = []
     private var continuations: [AsyncThrowingStream<CoreEvent, any Error>.Continuation] = []
 
     var openCalls: [String] { lock.withLock { _openCalls } }
@@ -26,6 +28,10 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
 
     func setBranch(_ branch: String, for path: String) { lock.withLock { branches[Self.id(for: path)] = branch } }
     func setWorkflows(_ list: [CoreWorkflow], for path: String) { lock.withLock { workflows[Self.id(for: path)] = list } }
+    func delayOpen(of path: String, by delay: Duration) { lock.withLock { openDelays[path] = delay } }
+    /// Mirrors the Core: contexts are shared by path and a close is global.
+    func isOpen(_ path: String) -> Bool { lock.withLock { openIDs.contains(Self.id(for: path)) } }
+
     func failOpen(for path: String, with error: CoreServiceError = .invalidArgument("no")) {
         lock.withLock { failingPaths[path] = error }
     }
@@ -49,7 +55,9 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
             _openCalls.append(path)
             if let error = failingPaths[path] { throw error }
         }
+        if let delay = lock.withLock({ openDelays[path] }) { try? await Task.sleep(for: delay) }
         let id = Self.id(for: path)
+        lock.withLock { _ = openIDs.insert(id) }
         return CoreRepository(id: id, path: path, branch: lock.withLock { branches[id] } ?? "main", workflowCount: 0, lastRefresh: nil)
     }
 
@@ -58,7 +66,12 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         return CoreRepository(id: id, path: String(id.dropFirst(3)), branch: lock.withLock { branches[id] } ?? "main", workflowCount: 0, lastRefresh: Date())
     }
 
-    func closeRepository(id: String) async throws { lock.withLock { _closeCalls.append(id) } }
+    func closeRepository(id: String) async throws {
+        lock.withLock {
+            _closeCalls.append(id)
+            openIDs.remove(id)
+        }
+    }
 
     func listWorkflows(repositoryID: String) async throws -> [CoreWorkflow] {
         lock.withLock { _listCalls.append(repositoryID); return workflows[repositoryID] ?? [] }
@@ -115,14 +128,6 @@ final class FakeProvider: CoreProviding, @unchecked Sendable {
         if case .running = lock.withLock({ current }) { return core }
         throw CoreServiceError.unavailable
     }
-}
-
-func eventually(_ condition: @MainActor () -> Bool) async -> Bool {
-    for _ in 0..<400 {
-        if await condition() { return true }
-        try? await Task.sleep(for: .milliseconds(10))
-    }
-    return false
 }
 
 func coreEvent(_ kind: CoreEventKind, repository: String?, sequence: UInt64 = 1) -> CoreEvent {
@@ -299,6 +304,55 @@ struct CoreHubTests {
         #expect(await eventually { hub.session(for: workspace)?.coreID == FakeCore.id(for: "/repo/new") })
         #expect(await eventually { provider.core.closeCalls == [FakeCore.id(for: "/repo/old")] })
         #expect(hub.session(for: workspace)?.phase == .ready)
+    }
+
+    @Test
+    func relinkingWhileTheOldOpenIsInFlightKeepsTheNewPath() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID(), window = UUID()
+        provider.core.delayOpen(of: "/repo/old", by: .milliseconds(300))
+        hub.attach(windowID: window, workspaceID: workspace, path: "/repo/old")
+        #expect(await eventually { provider.core.openCalls.contains("/repo/old") })
+        hub.attach(windowID: window, workspaceID: workspace, path: "/repo/new")
+
+        #expect(await eventually { hub.session(for: workspace)?.coreID == FakeCore.id(for: "/repo/new") })
+        // The late result of the old open must neither overwrite the session nor leak.
+        #expect(await eventually { provider.core.closeCalls.contains(FakeCore.id(for: "/repo/old")) })
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(hub.session(for: workspace)?.coreID == FakeCore.id(for: "/repo/new"))
+        #expect(hub.session(for: workspace)?.phase == .ready)
+        #expect(!provider.core.isOpen("/repo/old"))
+        #expect(provider.core.isOpen("/repo/new"))
+    }
+
+    @Test
+    func reopeningRightAfterTheLastWindowClosedKeepsTheRepositoryOpen() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        let first = UUID()
+        hub.attach(windowID: first, workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+
+        hub.detach(windowID: first)
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(provider.core.isOpen("/repo/a"))
+        #expect(hub.session(for: workspace)?.phase == .ready)
+    }
+
+    @Test
+    func aLostCoreIsReportedWhileSlowOpensAreStillRunning() async {
+        let (hub, provider) = makeHub()
+        provider.core.delayOpen(of: "/repo/slow", by: .seconds(5))
+        hub.attach(windowID: UUID(), workspaceID: UUID(), path: "/repo/slow")
+        provider.ready()
+        #expect(await eventually { provider.core.openCalls.contains("/repo/slow") })
+        provider.emit(.lost(.processExited(9)))
+        let clock = ContinuousClock()
+        let started = clock.now
+        #expect(await eventually { hub.status == .lost })
+        #expect(clock.now - started < .seconds(1))
     }
 
     @Test

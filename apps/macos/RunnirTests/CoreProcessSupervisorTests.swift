@@ -134,13 +134,6 @@ private struct Rig {
     }
 }
 
-private func eventually(_ what: String = "condition", _ condition: @Sendable () async -> Bool) async -> Bool {
-    for _ in 0..<400 {
-        if await condition() { return true }
-        try? await Task.sleep(for: .milliseconds(10))
-    }
-    return false
-}
 
 // MARK: Tests
 
@@ -232,7 +225,7 @@ struct CoreProcessSupervisorTests {
         try await rig.supervisor.start()
         rig.launcher.handles[0].exit(137)
 
-        #expect(await eventually { await rig.supervisor.state == .lost(.processExited(137)) })
+        #expect(await eventuallyAsync { await rig.supervisor.state == .lost(.processExited(137)) })
         await #expect(throws: CoreServiceError.unavailable) { _ = try await rig.supervisor.service() }
 
         let health = try await rig.supervisor.recover()
@@ -259,7 +252,7 @@ struct CoreProcessSupervisorTests {
     func stoppingDuringStartCancelsIt() async {
         let rig = Rig(failures: .max, timeout: .seconds(30))
         let starting = Task { try await rig.supervisor.start() }
-        #expect(await eventually { rig.launcher.launches == 1 })
+        #expect(await eventuallyAsync { rig.launcher.launches == 1 })
         await rig.supervisor.stop()
         _ = try? await starting.value
         #expect(await rig.supervisor.state == .stopped)
@@ -295,5 +288,42 @@ struct CoreProcessSupervisorTests {
         rig.supervisor.terminateImmediately()
         #expect(rig.launcher.handles[0].terminatedNow)
         await rig.supervisor.stop()
+    }
+}
+
+struct ProcessCoreHandleTests {
+    @Test(.timeLimit(.minutes(1)))
+    func terminateKillsAProcessThatIgnoresSIGTERMAndStdinEOF() async throws {
+        let process = Process()
+        let stdin = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", "trap '' TERM; while :; do sleep 1; done"]
+        process.standardInput = stdin
+        let handle = ProcessCoreHandle(process: process, stdin: stdin, gracePeriod: .milliseconds(300))
+        process.terminationHandler = { handle.markExited($0.terminationStatus) }
+        try process.run()
+        // Let the shell install its trap before we signal it.
+        try await Task.sleep(for: .milliseconds(200))
+
+        let clock = ContinuousClock()
+        let started = clock.now
+        await handle.terminate()
+        #expect(clock.now - started < .seconds(5))
+        #expect(!process.isRunning)
+        #expect(process.terminationReason == .uncaughtSignal)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func waitWithTimeoutReturnsNilWhileRunningAndTheStatusAfterExit() async throws {
+        let process = Process()
+        let stdin = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/bin/cat")
+        process.standardInput = stdin
+        let handle = ProcessCoreHandle(process: process, stdin: stdin)
+        process.terminationHandler = { handle.markExited($0.terminationStatus) }
+        try process.run()
+        #expect(await handle.waitForExit(timeout: .milliseconds(100)) == nil)
+        try stdin.fileHandleForWriting.close() // cat exits at EOF
+        #expect(await handle.waitForExit() == 0)
     }
 }

@@ -365,6 +365,9 @@ func TestConcurrentOpenCloseRefreshMix(t *testing.T) {
 			defer wg.Done()
 			path := paths[i%len(paths)]
 			info, err := m.Open(context.Background(), path)
+			if errors.Is(err, ErrNotFound) {
+				return // another goroutine closed it while it was opening
+			}
 			if err != nil {
 				t.Error(err)
 				return
@@ -430,5 +433,25 @@ func TestConcurrentOpensShareAFailedInitialScan(t *testing.T) {
 	}
 	if m.Count() != 0 {
 		t.Fatal("failed open left a context behind")
+	}
+}
+
+func TestCloseDuringInitialOpenReportsNotFound(t *testing.T) {
+	scanning := make(chan struct{})
+	scanner := &fakeScanner{scan: func(ctx context.Context, _ string) (Snapshot, error) {
+		close(scanning)
+		<-ctx.Done()
+		return Snapshot{}, ctx.Err()
+	}}
+	m, _ := newManager(scanner)
+	path := dir(t)
+	result := make(chan error, 1)
+	go func() { _, err := m.Open(context.Background(), path); result <- err }()
+	<-scanning
+	if err := m.Close(idFor(path)); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-result; !errors.Is(err, ErrNotFound) {
+		t.Fatalf("open = %v, want ErrNotFound", err)
 	}
 }
