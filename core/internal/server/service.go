@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"runnir/core/internal/buildinfo"
+	"runnir/core/internal/events"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/repository"
 )
@@ -19,6 +21,7 @@ import (
 type service struct {
 	corev1.UnimplementedRunnirCoreServer
 	repositories *repository.Manager
+	events       *events.Bus
 }
 
 func (s *service) HealthCheck(context.Context, *corev1.HealthCheckRequest) (*corev1.HealthCheckResponse, error) {
@@ -71,6 +74,63 @@ func (s *service) ListWorkflows(_ context.Context, request *corev1.ListWorkflows
 		out.Workflows = append(out.Workflows, item)
 	}
 	return out, nil
+}
+
+// SubscribeEvents streams events until the client goes away, the Core shuts
+// down (Unavailable) or the client falls behind (ResourceExhausted). The first
+// message is CORE_READY carrying the baseline sequence; a client that sees
+// ResourceExhausted or a gap in sequences should resubscribe and reload state.
+// A client that stops reading keeps this goroutine blocked in Send until it
+// disconnects, but the queue behind it stays bounded.
+func (s *service) SubscribeEvents(request *corev1.SubscribeEventsRequest, stream corev1.RunnirCore_SubscribeEventsServer) error {
+	subscription := s.events.Subscribe(request.GetRepositoryIds())
+	defer subscription.Close()
+
+	ready := events.Event{Sequence: subscription.Baseline, Type: corev1.CoreEventType_CORE_EVENT_TYPE_CORE_READY, At: time.Now()}
+	if err := stream.Send(eventToProto(ready)); err != nil {
+		return err
+	}
+	for {
+		select {
+		case <-stream.Context().Done():
+			return status.FromContextError(stream.Context().Err()).Err()
+		case e, ok := <-subscription.C:
+			if !ok {
+				if errors.Is(subscription.Err(), events.ErrOverflow) {
+					return status.Error(codes.ResourceExhausted, "subscriber fell behind; resubscribe and reload state")
+				}
+				return status.Error(codes.Unavailable, "core is shutting down")
+			}
+			if err := stream.Send(eventToProto(e)); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func eventToProto(e events.Event) *corev1.CoreEvent {
+	return &corev1.CoreEvent{
+		Sequence:       e.Sequence,
+		Type:           e.Type,
+		RepositoryId:   e.RepositoryID,
+		ExecutionId:    e.ExecutionID,
+		ExecutionState: e.ExecutionState,
+		Message:        e.Message,
+		OccurredAt:     timestamppb.New(e.At),
+	}
+}
+
+func fromRepository(e repository.Event) events.Event {
+	out := events.Event{RepositoryID: e.RepositoryID}
+	switch e.Type {
+	case repository.RepositoryOpened:
+		out.Type = corev1.CoreEventType_CORE_EVENT_TYPE_REPOSITORY_OPENED
+	case repository.RepositoryRefreshed:
+		out.Type = corev1.CoreEventType_CORE_EVENT_TYPE_REPOSITORY_REFRESHED
+	case repository.RepositoryClosed:
+		out.Type = corev1.CoreEventType_CORE_EVENT_TYPE_REPOSITORY_CLOSED
+	}
+	return out
 }
 
 func toProto(info repository.Info) *corev1.Repository {

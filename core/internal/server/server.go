@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"runnir/core/internal/events"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/repository"
 	"runnir/core/internal/scanner"
@@ -22,10 +23,21 @@ const MaxSocketPathBytes = 103
 
 const shutdownGrace = 5 * time.Second
 
+// Options tunes a server; the zero value uses production defaults.
+type Options struct {
+	// EventBuffer is the per-subscriber event queue length.
+	EventBuffer int
+}
+
 // Run serves gRPC on a Unix domain socket until ctx is cancelled, then stops
 // gracefully and removes the socket. It returns ErrAlreadyRunning if another
 // Core holds the lock for the same socket path.
 func Run(ctx context.Context, socketPath string) error {
+	return RunWithOptions(ctx, socketPath, Options{})
+}
+
+// RunWithOptions is Run with explicit options.
+func RunWithOptions(ctx context.Context, socketPath string, options Options) error {
 	if socketPath == "" {
 		return errors.New("socket path is required")
 	}
@@ -53,10 +65,11 @@ func Run(ctx context.Context, socketPath string) error {
 		return fmt.Errorf("restrict socket: %w", err)
 	}
 
-	repositories := repository.New(scanner.New(), nil)
+	bus := events.New(options.EventBuffer)
+	repositories := repository.New(scanner.New(), func(e repository.Event) { bus.Publish(fromRepository(e)) })
 	defer repositories.Shutdown()
 	grpcServer := grpc.NewServer()
-	corev1.RegisterRunnirCoreServer(grpcServer, &service{repositories: repositories})
+	corev1.RegisterRunnirCoreServer(grpcServer, &service{repositories: repositories, events: bus})
 
 	done := make(chan error, 1)
 	go func() { done <- grpcServer.Serve(listener) }()
@@ -66,6 +79,9 @@ func Run(ctx context.Context, socketPath string) error {
 		return err
 	case <-ctx.Done():
 	}
+	// Event streams never end on their own; close them so the graceful stop
+	// is not left waiting for subscribers.
+	bus.Close()
 	stopped := make(chan struct{})
 	go func() { grpcServer.GracefulStop(); close(stopped) }()
 	select {

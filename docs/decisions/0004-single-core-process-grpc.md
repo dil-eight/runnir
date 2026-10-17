@@ -11,7 +11,7 @@ Runnir.app starts exactly one Go Core process per app instance. That process ser
 - **Crash recovery:** Swift detects a lost channel, shows a recovery prompt, restarts Core, reconnects, and re-opens the registered repositories and event subscription.
 - **Domain model:** `RepositoryManager` holds one `RepositoryContext` per stable `repository_id`. This id is the `workspaceId` from ADR 0003, never a path or a window title. Opening an already-open path returns the existing context. Contexts share no mutable state without synchronization.
 - **Concurrency:** workflow executions run through an `ExecutionCoordinator` with a default limit of three concurrent runs and a FIFO queue. The limit applies to executions, not open repositories. Long operations never block the gRPC server or the UI.
-- **Events:** one `SubscribeEvents` server stream. Events carry `repository_id` where relevant. Delivery uses bounded per-subscriber buffers; a slow subscriber is dropped or coalesced, never allowed to grow memory.
+- **Events:** one `SubscribeEvents` server stream. Events carry `repository_id` where relevant. Delivery uses a fixed-size queue per subscriber (256 events). Publishing never blocks; a subscriber that falls behind is disconnected with `RESOURCE_EXHAUSTED`, must resubscribe and reload state, and can detect gaps through the per-process `sequence`. The first message of a stream is `CORE_READY` carrying the baseline sequence.
 - **Refresh:** manual in MVP. Refresh rereads `.github/workflows`, resolves the branch, reparses YAML and publishes `REPOSITORY_REFRESHED`. A running execution keeps the workflow snapshot it started with. No file watcher in MVP.
 - **MCP:** a later MCP adapter connects to this same Core and calls the same services. Every operation names its `repository_id`; dangerous operations go through the trusted approval authority described in ADR 0002/IPC v1.
 
@@ -41,4 +41,4 @@ Internal targets, not guarantees: at most 300 MB combined idle footprint with 10
 
 ## Open Decisions
 
-gRPC-Swift version: the [phase 0 spike](../architecture/core-process-plan.md) showed UDS works under the App Sandbox with grpc-swift 2, which needs macOS 15, so the deployment target is raised from 14.0 to 15.0 (decided 2026-10-17); YAML parser for Go (the standard library has none, so a dependency must be chosen); event-buffer overflow policy; `repository_id` derivation and its relation to the ADR 0003 registry; whether the one-shot `rpc` handshake is retired.
+gRPC-Swift version: the [phase 0 spike](../architecture/core-process-plan.md) showed UDS works under the App Sandbox with grpc-swift 2, which needs macOS 15, so the deployment target is raised from 14.0 to 15.0 (decided 2026-10-17); YAML parser for Go (the standard library has none, so a dependency must be chosen); `repository_id` derivation and its relation to the ADR 0003 registry; whether the one-shot `rpc` handshake is retired.
