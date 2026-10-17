@@ -1,5 +1,7 @@
 # IPC Contract v1
 
+> A persistent single-process gRPC transport is proposed in [ADR 0004](../decisions/0004-single-core-process-grpc.md) and [the plan](core-process-plan.md). It is not implemented; this document describes the current one-shot stdio transport.
+
 Status: implemented for version metadata only.
 
 ## Transport
