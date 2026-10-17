@@ -485,3 +485,68 @@ struct RepositoryReaderTests {
         return root
     }
 }
+
+@MainActor
+struct DesktopCoreIntegrationTests {
+    @Test func windowsShareOneCoreRepositoryAndTheLastCloseReleasesIt() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: fixture.store, core: hub, makeGrant: factory.makeGrant,
+                                             makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        coordinator.openRegistered(fixture.original)
+        #expect(await eventually { hub.session(for: fixture.original.id)?.phase == .ready })
+        #expect(provider.core.openCalls == [fixture.original.path])
+
+        let first = try #require(factory.windows.first)
+        let second = try #require(factory.windows.last)
+        coordinator.didClose(first.record.id)
+        #expect(hub.session(for: fixture.original.id) != nil)
+        coordinator.didClose(second.record.id)
+        #expect(hub.session(for: fixture.original.id) == nil)
+        #expect(await eventually { provider.core.closeCalls == [FakeCore.id(for: fixture.original.path)] })
+    }
+
+    @Test func relinkingMovesTheRepositoryInTheCore() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: fixture.store, core: hub, makeGrant: factory.makeGrant,
+                                             makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        #expect(await eventually { hub.session(for: fixture.original.id)?.phase == .ready })
+
+        try coordinator.relinkWorkspace(fixture.relocated)
+        #expect(await eventually { hub.session(for: fixture.original.id)?.coreID == FakeCore.id(for: fixture.relocated.path) })
+        #expect(await eventually { provider.core.closeCalls == [FakeCore.id(for: fixture.original.path)] })
+    }
+
+    @Test func quittingDoesNotTouchTheCore() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: fixture.store, core: hub, makeGrant: factory.makeGrant,
+                                             makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        #expect(await eventually { hub.session(for: fixture.original.id)?.phase == .ready })
+        #expect(coordinator.prepareToQuit())
+        coordinator.didClose(try #require(factory.windows.first).record.id) // teardown during quit
+        #expect(provider.core.closeCalls.isEmpty)
+    }
+}

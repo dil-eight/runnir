@@ -273,6 +273,7 @@ struct DesktopWorkspaceView: View {
                         Button("Locate / Grant Access...") { desktop.importRepository(relinkID: workspace.id, reuseWindowID: windowID) }
                     }
                 } else {
+                    coreBanner
                     content
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -281,6 +282,44 @@ struct DesktopWorkspaceView: View {
         .ignoresSafeArea()
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
+    }
+
+    private var session: RepositorySession? { desktop.core?.session(for: workspace.id) }
+
+    private var coreSummary: String {
+        guard let session else { return "Working tree" }
+        switch session.phase {
+        case .ready:
+            let count = session.workflows.count
+            let workflows = count == 1 ? "1 workflow" : "\(count) workflows"
+            return session.branch.isEmpty ? workflows : "\(session.branch) · \(workflows)"
+        case .failed: return "Core could not read this folder"
+        case .unavailable: return "Core unavailable"
+        case .waitingForCore, .opening: return "Connecting to Core..."
+        }
+    }
+
+    /// Offers to restart the Core when it stopped or could not start.
+    @ViewBuilder private var coreBanner: some View {
+        if let core = desktop.core, core.status.needsRecovery {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle").foregroundStyle(RunnirTheme.warning)
+                Text(bannerText(core.status)).font(.system(size: 12))
+                Spacer(minLength: 4)
+                Button("Restart Core") { Task { await core.recover() } }
+            }
+            .buttonStyle(DesignButtonStyle()).padding(.horizontal, 20).frame(height: 40)
+            .background(RunnirTheme.warning.opacity(0.12))
+            DesignDivider()
+        }
+    }
+
+    private func bannerText(_ status: CoreHub.Status) -> String {
+        switch status {
+        case .lost: "Runnir Core stopped unexpectedly. Workflow data may be out of date."
+        case .failed(let reason): "Runnir Core is not running. \(reason)"
+        default: ""
+        }
     }
 
     private var toolbar: some View {
@@ -309,10 +348,14 @@ struct DesktopWorkspaceView: View {
                 Button {} label: { Label("Test Locally...", systemImage: "flask") }
                     .buttonStyle(DesignButtonStyle(primary: true)).disabled(true).help("Local execution is not implemented")
             } else {
-                Label("Working tree", systemImage: "arrow.triangle.branch")
+                Label(coreSummary, systemImage: "arrow.triangle.branch")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                Button("Refresh") { if let reader { Task { await files.load(reader) } } }
-                    .disabled(reader == nil || files.isLoading).help("Refresh local workflows")
+                    .lineLimit(1).help("Branch and workflows reported by Runnir Core")
+                Button("Refresh") {
+                    if let reader { Task { await files.load(reader) } }
+                    Task { await desktop.core?.refresh(workspaceID: workspace.id) }
+                }
+                .disabled(reader == nil || files.isLoading || session?.isRefreshing == true).help("Refresh local workflows")
                 Button {} label: { Label("Run Workflow...", systemImage: "play") }
                     .buttonStyle(DesignButtonStyle(primary: true)).disabled(true).help("GitHub dispatch is not implemented")
             }

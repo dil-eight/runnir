@@ -28,13 +28,17 @@ final class DesktopCoordinator {
     @ObservationIgnored private var bootTask: Task<Void, Never>?
     @ObservationIgnored var terminationInProgress = false
     let accountState = AppState()
+    /// The app's connection to the single Core process; nil in tests that do not need it.
+    let core: CoreHub?
 
     init(store: (any DesktopStateStoring)? = nil,
+         core: CoreHub? = nil,
          makeGrant: @escaping (WorkspaceRecord) throws -> any RepositoryGranting = { try RepositoryGrant(record: $0) },
          makeWorkspaceWindow: @escaping (WorkspaceWindowRecord, WorkspaceRecord, (any RepositoryGranting)?, DesktopCoordinator) -> any WorkspaceWindowManaging = {
              WorkspaceWindowController(record: $0, workspace: $1, grant: $2, desktop: $3)
          }) {
         self.store = store
+        self.core = core
         self.makeGrant = makeGrant
         self.makeWorkspaceWindow = makeWorkspaceWindow
     }
@@ -156,6 +160,7 @@ final class DesktopCoordinator {
         }
         for (controller, grant) in prepared {
             controller.attach(record: controller.record, workspace: workspace, grant: grant)
+            core?.attach(windowID: controller.record.id, workspaceID: workspace.id, path: workspace.path)
         }
     }
 
@@ -179,6 +184,7 @@ final class DesktopCoordinator {
             }
             do { try commit(candidate) } catch { grant.stop(); throw error }
             current.attach(record: record, workspace: workspace, grant: grant)
+            core?.attach(windowID: reuseWindowID, workspaceID: workspace.id, path: workspace.path)
             current.window?.makeKeyAndOrderFront(nil)
         } else {
             let record = WorkspaceWindowRecord(id: UUID(), workspaceID: workspace.id)
@@ -186,6 +192,7 @@ final class DesktopCoordinator {
             do { try commit(candidate) } catch { grant.stop(); throw error }
             let controller = makeWorkspaceWindow(record, workspace, grant, self)
             windows[record.id] = controller
+            core?.attach(windowID: record.id, workspaceID: workspace.id, path: workspace.path)
             controller.showWindow(nil)
         }
         manager?.orderOut(nil)
@@ -197,6 +204,8 @@ final class DesktopCoordinator {
         let grant = try? makeGrant(workspace)
         let controller = makeWorkspaceWindow(record, workspace, grant, self)
         windows[record.id] = controller
+        // Without a grant the folder is missing; the window offers to locate it.
+        if grant != nil { core?.attach(windowID: record.id, workspaceID: workspace.id, path: workspace.path) }
         controller.showWindow(nil)
     }
 
@@ -230,6 +239,7 @@ final class DesktopCoordinator {
     func didClose(_ id: UUID) {
         guard !terminationInProgress else { return }
         windows.removeValue(forKey: id)?.grant?.stop()
+        core?.detach(windowID: id)
     }
 
     func geometryChanged() {
@@ -376,15 +386,26 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
 
 @MainActor
 final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
-    let desktop = DesktopCoordinator()
+    let desktop: DesktopCoordinator
     /// The app's single Core process. Closing windows never stops it; quitting does.
-    let core = CoreProcessSupervisor.bundled()
+    let core: CoreProcessSupervisor
+    let coreHub: CoreHub
+
+    override init() {
+        let supervisor = CoreProcessSupervisor.bundled()
+        let hub = CoreHub(provider: supervisor)
+        core = supervisor
+        coreHub = hub
+        desktop = DesktopCoordinator(core: hub)
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil,
               NSClassFromString("XCTestCase") == nil else { return }
         desktop.start()
-        // A failed start is visible in the supervisor's state; recovery UI comes with the window integration.
+        coreHub.startMonitoring()
+        // A failed start shows up as the hub's status, with a restart offer in each window.
         Task { [core] in _ = try? await core.start() }
     }
 
