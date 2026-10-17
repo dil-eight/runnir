@@ -57,6 +57,22 @@ func (s *service) CloseRepository(_ context.Context, request *corev1.CloseReposi
 	return &corev1.CloseRepositoryResponse{}, nil
 }
 
+func (s *service) ListWorkflows(_ context.Context, request *corev1.ListWorkflowsRequest) (*corev1.ListWorkflowsResponse, error) {
+	workflows, err := s.repositories.Workflows(request.GetRepositoryId())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	out := &corev1.ListWorkflowsResponse{Workflows: make([]*corev1.Workflow, 0, len(workflows))}
+	for _, w := range workflows {
+		item := &corev1.Workflow{Id: w.ID, Name: w.Name, Triggers: w.Triggers, ParseError: w.ParseError}
+		for _, j := range w.Jobs {
+			item.Jobs = append(item.Jobs, &corev1.Job{Id: j.ID, Name: j.Name, Needs: j.Needs})
+		}
+		out.Workflows = append(out.Workflows, item)
+	}
+	return out, nil
+}
+
 func toProto(info repository.Info) *corev1.Repository {
 	out := &corev1.Repository{
 		Id:            info.ID,

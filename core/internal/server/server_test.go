@@ -204,3 +204,61 @@ func TestOpenRepositoryRejectsInvalidPath(t *testing.T) {
 		t.Fatalf("err = %v, want InvalidArgument", err)
 	}
 }
+
+func TestListWorkflowsAndBranchOverGRPC(t *testing.T) {
+	path := socketPath(t)
+	stop := start(t, path)
+	defer stop()
+	client := connect(t, path)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(os.MkdirAll(filepath.Join(root, ".git"), 0o755))
+	must(os.WriteFile(filepath.Join(root, ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0o644))
+	must(os.MkdirAll(filepath.Join(root, ".github", "workflows"), 0o755))
+	workflow := filepath.Join(root, ".github", "workflows", "ci.yml")
+	must(os.WriteFile(workflow, []byte("name: CI\non: push\njobs:\n  build: {}\n  test:\n    needs: build\n"), 0o644))
+
+	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opened.Repository.Branch != "main" || opened.Repository.WorkflowCount != 1 {
+		t.Fatalf("repository = %v", opened.Repository)
+	}
+	listed, err := client.ListWorkflows(ctx, &corev1.ListWorkflowsRequest{RepositoryId: opened.Repository.Id})
+	if err != nil || len(listed.Workflows) != 1 {
+		t.Fatalf("list = %v, %v", listed, err)
+	}
+	w := listed.Workflows[0]
+	if w.Name != "CI" || len(w.Jobs) != 2 || w.Jobs[1].Needs[0] != "build" {
+		t.Fatalf("workflow = %v", w)
+	}
+
+	// An external edit is picked up only by an explicit refresh.
+	must(os.WriteFile(filepath.Join(root, ".git", "HEAD"), []byte("ref: refs/heads/dev\n"), 0o644))
+	must(os.WriteFile(filepath.Join(root, ".github", "workflows", "extra.yml"), []byte("on: push\njobs: {}\n"), 0o644))
+	again, err := client.ListWorkflows(ctx, &corev1.ListWorkflowsRequest{RepositoryId: opened.Repository.Id})
+	if err != nil || len(again.Workflows) != 1 {
+		t.Fatalf("list before refresh = %v, %v", again, err)
+	}
+	refreshed, err := client.RefreshRepository(ctx, &corev1.RefreshRepositoryRequest{RepositoryId: opened.Repository.Id})
+	if err != nil || refreshed.Repository.Branch != "dev" || refreshed.Repository.WorkflowCount != 2 {
+		t.Fatalf("refresh = %v, %v", refreshed, err)
+	}
+
+	_, err = client.ListWorkflows(ctx, &corev1.ListWorkflowsRequest{RepositoryId: "repo_nope"})
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("unknown id = %v", err)
+	}
+}

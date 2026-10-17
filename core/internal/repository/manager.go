@@ -346,9 +346,3 @@ func idFor(resolvedPath string) string {
 	sum := sha256.Sum256([]byte(resolvedPath))
 	return "repo_" + hex.EncodeToString(sum[:8])
 }
-
-// NopScanner reports an empty snapshot. It stands in until workflow scanning
-// lands.
-type NopScanner struct{}
-
-func (NopScanner) Scan(context.Context, string) (Snapshot, error) { return Snapshot{}, nil }

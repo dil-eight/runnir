@@ -13,6 +13,7 @@ import (
 
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/repository"
+	"runnir/core/internal/scanner"
 )
 
 // MaxSocketPathBytes is the portable sockaddr_un.sun_path limit on macOS
@@ -52,7 +53,7 @@ func Run(ctx context.Context, socketPath string) error {
 		return fmt.Errorf("restrict socket: %w", err)
 	}
 
-	repositories := repository.New(repository.NopScanner{}, nil)
+	repositories := repository.New(scanner.New(), nil)
 	defer repositories.Shutdown()
 	grpcServer := grpc.NewServer()
 	corev1.RegisterRunnirCoreServer(grpcServer, &service{repositories: repositories})
