@@ -234,7 +234,7 @@ final class CoreHub {
                 ownCloses.remove(repositoryID)
             }
             if let reopened = sessions.values.first(where: { $0.path == path }) {
-                await open(reopened)
+                await open(reopened, force: true)
             }
         }
     }
@@ -247,8 +247,12 @@ final class CoreHub {
         for task in tasks { await task.value }
     }
 
-    private func open(_ session: RepositorySession) async {
+    /// Opens the session's repository. An open already in flight for the same
+    /// session is not repeated (attach and the Core-ready handler can both ask);
+    /// `force` reopens anyway, for a close that may have overtaken that open.
+    private func open(_ session: RepositorySession, force: Bool = false) async {
         guard isReady else { session.phase = .unavailable; return }
+        guard force || session.phase != .opening else { return }
         session.phase = .opening
         let path = session.path
         // The session may move to another path (relink) or go away (last window
@@ -269,7 +273,8 @@ final class CoreHub {
         } catch let error as CoreServiceError where error == .unavailable {
             if isCurrent() { session.phase = .unavailable }
         } catch is CancellationError {
-            return
+            // Do not leave the session looking busy, which would block retries.
+            if isCurrent() { session.phase = .waitingForCore }
         } catch {
             if isCurrent() { session.phase = .failed(Self.describe(error)) }
         }

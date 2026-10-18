@@ -460,6 +460,21 @@ struct CoreHubTests {
     }
 
     @Test
+    func attachingRightAsTheCoreBecomesReadyOpensOnce() async {
+        for _ in 0..<20 {
+            let (hub, provider) = makeHub()
+            let workspace = UUID()
+            provider.ready()
+            // Attach in the window between the ready state and the hub's open-all.
+            await Task.yield()
+            hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
+            #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+            try? await Task.sleep(for: .milliseconds(20))
+            #expect(provider.core.openCalls == ["/repo/a"])
+        }
+    }
+
+    @Test
     func movingAWindowToAnotherWorkspaceReleasesTheFirst() async {
         let (hub, provider) = await readyHub()
         let a = UUID(), b = UUID(), window = UUID()
