@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import GRPCCore
 @testable import Runnir
 
 struct CoreClientTests {
@@ -52,5 +53,16 @@ private struct ReplyTransport: CoreTransport {
             reply["error"] = ["code": -32601, "message": "Method not found"]
         }
         return try JSONSerialization.data(withJSONObject: reply)
+    }
+}
+
+struct GRPCErrorMappingTests {
+    @Test
+    func mapsStatusCodesToAppErrors() {
+        #expect(GRPCCoreService.map(RPCError(code: .deadlineExceeded, message: "")) == .timedOut)
+        #expect(GRPCCoreService.map(RPCError(code: .unavailable, message: "")) == .unavailable)
+        #expect(GRPCCoreService.map(RPCError(code: .permissionDenied, message: "")) == .accessDenied)
+        #expect(GRPCCoreService.map(RPCError(code: .notFound, message: "")) == .notFound)
+        #expect(GRPCCoreService.map(RPCError(code: .resourceExhausted, message: "")) == .resourceExhausted)
     }
 }

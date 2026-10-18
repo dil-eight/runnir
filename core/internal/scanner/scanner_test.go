@@ -230,6 +230,17 @@ func TestBranchFromWorktreeGitFile(t *testing.T) {
 	}
 }
 
+func TestBranchFromWorktreeOfABareRepository(t *testing.T) {
+	bare := filepath.Join(t.TempDir(), "project.git")
+	worktree := t.TempDir()
+	write(t, bare, "worktrees/feature/HEAD", "ref: refs/heads/feature\n")
+	write(t, bare, "worktrees/feature/gitdir", filepath.Join(worktree, ".git")+"\n")
+	write(t, worktree, ".git", "gitdir: "+filepath.Join(bare, "worktrees", "feature")+"\n")
+	if got := scan(t, worktree).Branch; got != "feature" {
+		t.Fatalf("branch = %q, want feature", got)
+	}
+}
+
 func TestGitFilePointingElsewhereIsNotFollowed(t *testing.T) {
 	outside := t.TempDir()
 	write(t, outside, "HEAD", "ref: refs/heads/leaked\n")

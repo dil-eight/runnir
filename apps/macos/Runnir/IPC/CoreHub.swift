@@ -151,6 +151,8 @@ final class CoreHub {
             if !isReady { status = .starting }
         case .running(let health):
             status = .ready(version: health.coreVersion)
+            // Close events of a previous Core process will never arrive.
+            ownCloses.removeAll()
             startEvents()
             // Not awaited: later states (a lost Core) must not wait for slow scans.
             Task { await openAll() }
@@ -225,7 +227,12 @@ final class CoreHub {
             // A missing Core or repository means there is nothing left to close.
             guard let service = try? await provider.service() else { return }
             ownCloses.insert(repositoryID)
-            try? await service.closeRepository(id: repositoryID)
+            do {
+                try await service.closeRepository(id: repositoryID)
+            } catch {
+                // No close happened, so no event will come to clear the mark.
+                ownCloses.remove(repositoryID)
+            }
             if let reopened = sessions.values.first(where: { $0.path == path }) {
                 await open(reopened)
             }
@@ -269,8 +276,12 @@ final class CoreHub {
     }
 
     func refresh(workspaceID: UUID) async {
-        guard let session = sessions[workspaceID], let coreID = session.coreID,
-              !session.isRefreshing, isReady else { return }
+        guard let session = sessions[workspaceID], !session.isRefreshing, isReady else { return }
+        guard let coreID = session.coreID else {
+            // Never opened (failed, timed out or the Core was away): Refresh is the retry.
+            if session.phase != .opening { await open(session) }
+            return
+        }
         session.isRefreshing = true
         defer { session.isRefreshing = false }
         let path = session.path
@@ -389,6 +400,7 @@ final class CoreHub {
             case .accessDenied: "The Core cannot read this folder. Use Locate / Grant Access to renew access."
             case .invalidArgument, .failedPrecondition: "The Core could not use this folder."
             case .resourceExhausted: "The Core is busy. Try again."
+            case .timedOut: "The Core took too long to answer. Press Refresh to try again."
             case .incompatibleProtocol(let version): "The Core speaks protocol \(version), which this app does not support."
             case .remote: "The Core request failed."
             }

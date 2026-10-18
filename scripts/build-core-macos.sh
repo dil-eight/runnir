@@ -1,7 +1,9 @@
 #!/bin/sh
 set -eu
 
-export PATH="/opt/homebrew/bin:/usr/local/go/bin:/usr/local/bin:$PATH"
+# The Go on PATH (for example from setup-go or the developer's shell) wins;
+# the usual install locations are only fallbacks for Xcode's minimal PATH.
+export PATH="$PATH:/opt/homebrew/bin:/usr/local/go/bin:/usr/local/bin"
 export CGO_ENABLED=0
 export GOOS=darwin
 export GOTOOLCHAIN=local

@@ -16,6 +16,7 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     private var failingPaths: [String: CoreServiceError] = [:]
     private var openDelays: [String: Duration] = [:]
     private var refreshDelay: Duration?
+    private var closeError: CoreServiceError?
     private var refreshError: CoreServiceError?
     private var openIDs: Set<String> = []
     private var continuations: [AsyncThrowingStream<CoreEvent, any Error>.Continuation] = []
@@ -36,9 +37,10 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     /// Mirrors the Core: contexts are shared by path and a close is global.
     func isOpen(_ path: String) -> Bool { lock.withLock { openIDs.contains(Self.id(for: path)) } }
 
-    func failOpen(for path: String, with error: CoreServiceError = .invalidArgument("no")) {
+    func failOpen(for path: String, with error: CoreServiceError? = .invalidArgument("no")) {
         lock.withLock { failingPaths[path] = error }
     }
+    func failClose(with error: CoreServiceError?) { lock.withLock { closeError = error } }
 
     func push(_ event: CoreEvent) { lock.withLock { continuations }.forEach { $0.yield(event) } }
     func endEvents(throwing error: any Error) {
@@ -73,8 +75,9 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     }
 
     func closeRepository(id: String) async throws {
-        lock.withLock {
+        try lock.withLock {
             _closeCalls.append(id)
+            if let closeError { throw closeError }
             openIDs.remove(id)
         }
     }
@@ -408,6 +411,52 @@ struct CoreHubTests {
         await hub.refresh(workspaceID: good)
         #expect(hub.session(for: good)?.summary == "main · 0 workflows · refresh failed")
         #expect(hub.session(for: good)?.detail.hasPrefix("Showing the last data.") == true)
+    }
+
+    @Test
+    func refreshRetriesARepositoryWhoseOpenFailed() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        provider.core.failOpen(for: "/repo/a", with: .accessDenied)
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { if case .failed = hub.session(for: workspace)?.phase { true } else { false } })
+
+        provider.core.failOpen(for: "/repo/a", with: nil) // access fixed
+        await hub.refresh(workspaceID: workspace)
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+        #expect(provider.core.openCalls.count == 2)
+    }
+
+    @Test
+    func aTimedOutOpenIsNotReportedAsAMissingCore() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        provider.core.failOpen(for: "/repo/slow", with: .timedOut)
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/slow")
+        #expect(await eventually {
+            if case .failed(let message) = hub.session(for: workspace)?.phase { message.contains("too long") } else { false }
+        })
+        #expect(hub.status == .ready(version: "fake"))
+    }
+
+    @Test
+    func aCloseThatFailedDoesNotHideALaterRealClose() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID(), first = UUID()
+        hub.attach(windowID: first, workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+
+        provider.core.failClose(with: .notFound)
+        hub.detach(windowID: first)
+        #expect(await eventually { provider.core.closeCalls.count == 1 })
+        provider.core.failClose(with: nil)
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+
+        // Someone else closes it now: the window must reopen it.
+        let opensBefore = provider.core.openCalls.count
+        provider.core.push(coreEvent(.repositoryClosed, repository: FakeCore.id(for: "/repo/a")))
+        #expect(await eventually { provider.core.openCalls.count == opensBefore + 1 })
     }
 
     @Test

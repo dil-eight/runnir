@@ -136,12 +136,13 @@ func readBranch(root string) string {
 }
 
 // isOwnWorktreeGitDir accepts a linked worktree's git directory only when it
-// has git's layout (".../.git/worktrees/<name>") and its "gitdir" file points
-// back at this worktree's ".git" file. A ".git" file written by a repository to
-// aim the scan at some other place fails both checks.
+// has git's layout ("<git dir>/worktrees/<name>", where the git dir may be
+// ".git" or a bare repository such as "project.git") and its "gitdir" file
+// points back at this worktree's ".git" file. The back-reference is what proves
+// ownership; a ".git" file aiming the scan at some other place fails it.
 func isOwnWorktreeGitDir(gitDir, worktreeGitFile string) bool {
 	clean := filepath.Clean(gitDir)
-	if filepath.Base(filepath.Dir(clean)) != "worktrees" || filepath.Base(filepath.Dir(filepath.Dir(clean))) != ".git" {
+	if filepath.Base(filepath.Dir(clean)) != "worktrees" {
 		return false
 	}
 	back, err := readBounded(filepath.Join(clean, "gitdir"), maxHeadBytes)
