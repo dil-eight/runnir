@@ -1,11 +1,16 @@
 import SwiftUI
 
 struct SettingsView: View {
+    var github: GitHubSession?
+
     var body: some View {
         Form {
             Section("GitHub") {
-                Text("Authentication uses Keychain-backed credentials. OAuth/device-flow configuration is documented before enabling login.")
-                    .foregroundStyle(RunnirTheme.secondaryForeground)
+                if let github {
+                    GitHubAccountSettings(session: github)
+                } else {
+                    Text("GitHub sign-in is not available.").foregroundStyle(RunnirTheme.secondaryForeground)
+                }
             }
 
             Section("Privacy") {

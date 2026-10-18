@@ -30,15 +30,19 @@ final class DesktopCoordinator {
     let accountState = AppState()
     /// The app's connection to the single Core process; nil in tests that do not need it.
     let core: CoreHub?
+    /// The app-wide GitHub account; nil in tests that do not need it.
+    let github: GitHubSession?
 
     init(store: (any DesktopStateStoring)? = nil,
          core: CoreHub? = nil,
+         github: GitHubSession? = nil,
          makeGrant: @escaping (WorkspaceRecord) throws -> any RepositoryGranting = { try RepositoryGrant(record: $0) },
          makeWorkspaceWindow: @escaping (WorkspaceWindowRecord, WorkspaceRecord, (any RepositoryGranting)?, DesktopCoordinator) -> any WorkspaceWindowManaging = {
              WorkspaceWindowController(record: $0, workspace: $1, grant: $2, desktop: $3)
          }) {
         self.store = store
         self.core = core
+        self.github = github
         self.makeGrant = makeGrant
         self.makeWorkspaceWindow = makeWorkspaceWindow
     }
@@ -410,13 +414,22 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
     /// The app's single Core process. Closing windows never stops it; quitting does.
     let core: CoreProcessSupervisor
     let coreHub: CoreHub
+    let github: GitHubSession
 
     override init() {
         let supervisor = CoreProcessSupervisor.bundled()
         let hub = CoreHub(provider: supervisor)
         core = supervisor
         coreHub = hub
-        desktop = DesktopCoordinator(core: hub)
+        let credentials = KeychainCredentialStore()
+        let api = GitHubRESTClient(baseURL: URL(string: "https://api.github.com")!, credentialStore: credentials)
+        github = GitHubSession(
+            deviceFlow: GitHubDeviceFlowClient(configuration: .runnirDesktop),
+            credentials: credentials,
+            api: api,
+            openURL: { NSWorkspace.shared.open($0) }
+        )
+        desktop = DesktopCoordinator(core: hub, github: github)
         super.init()
     }
 
@@ -425,6 +438,7 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
               NSClassFromString("XCTestCase") == nil else { return }
         desktop.start()
         coreHub.startMonitoring()
+        Task { [github] in await github.restore() }
         // A failed start shows up as the hub's status, with a restart offer in each window.
         Task { [core] in _ = try? await core.start() }
     }

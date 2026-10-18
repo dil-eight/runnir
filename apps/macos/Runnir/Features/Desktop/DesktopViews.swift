@@ -402,11 +402,17 @@ struct DesktopWorkspaceView: View {
                 }
             }
             Spacer()
-            HStack(spacing: 8) {
-                Image(systemName: "person.crop.circle").font(.system(size: 18)).foregroundStyle(RunnirTheme.secondaryForeground)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("GitHub").font(.system(size: 12))
-                    Text("Not connected").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+            Group {
+                if let github = desktop.github {
+                    GitHubAccountRow(session: github)
+                } else {
+                    HStack(spacing: 8) {
+                        Image(systemName: "person.crop.circle").font(.system(size: 18)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("GitHub").font(.system(size: 12))
+                            Text("Not connected").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        }
+                    }
                 }
             }.padding(.horizontal, 10).frame(height: 45)
             SettingsLink { Label("Settings...", systemImage: "gearshape") }
