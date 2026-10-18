@@ -28,7 +28,7 @@ Execution is a stub: the runner fails every job with "workflow execution engine 
 
 Events: `REPOSITORY_OPENED`, `REPOSITORY_REFRESHED`, `REPOSITORY_CLOSED`, `WORKFLOW_STARTED`, `WORKFLOW_STATUS_CHANGED` (queued, cancelled), `WORKFLOW_COMPLETED`, `WORKFLOW_FAILED`, `CORE_ERROR`. `sequence` is monotonic per Core process and matches delivery order; a gap or `RESOURCE_EXHAUSTED` means: resubscribe and reload state. Nothing keeps event history.
 
-The scanner reads the branch from `.git/HEAD` (also linked worktrees; detached HEAD gives an empty branch), never follows symlinks, and treats an unreadable folder as an error rather than an empty repository.
+The scanner reads the branch from `.git/HEAD` (also linked worktrees; detached HEAD gives an empty branch), never follows symlinks, and treats an unreadable folder as an error rather than an empty repository. `Repository.github_repository` is `owner/name` when the `origin` remote in the repository's git config (the main repository's config for a linked worktree) points at github.com; the raw remote URL is never sent because it can embed credentials.
 
 ## Compatibility
 
