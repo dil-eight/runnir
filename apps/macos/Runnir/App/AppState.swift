@@ -7,8 +7,6 @@ final class AppState {
     var selectedSection: AppSection = .dashboard
     var authenticationState: AuthenticationState = .unknown
     var lastError: AppError?
-    var coreVersion: CoreVersion?
-    var coreConnectionFailed = false
 }
 
 enum AuthenticationState: Equatable, Sendable {

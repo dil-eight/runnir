@@ -44,10 +44,14 @@ jobs:
   build-release:
     needs: core-binaries
     name: Build unsigned release artifact
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
+
+      - name: Select newest Xcode
+        # Swift package dependencies (gRPC, SwiftNIO) need Swift 6.2 or newer.
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
 
       - uses: actions/setup-go@v6
         with:

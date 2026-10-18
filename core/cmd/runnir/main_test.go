@@ -3,8 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestVersion(t *testing.T) {
@@ -91,5 +96,51 @@ func TestUnknownCommand(t *testing.T) {
 	var out, diagnostics bytes.Buffer
 	if run([]string{"mcp"}, strings.NewReader(""), &out, &diagnostics) != 2 || out.Len() != 0 {
 		t.Fatal("unimplemented command accepted")
+	}
+}
+
+func TestServeUsage(t *testing.T) {
+	for _, args := range [][]string{{"serve"}, {"serve", "--socket"}, {"serve", "--socket", "/tmp/x", "extra"}, {"serve", "--bogus"}} {
+		var out, diagnostics bytes.Buffer
+		if code := run(args, strings.NewReader(""), &out, &diagnostics); code != 2 || out.Len() != 0 {
+			t.Fatalf("%v: code=%d out=%q", args, code, out.String())
+		}
+	}
+}
+
+func TestServeStopsWhenStdinCloses(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("serve is not supported on windows")
+	}
+	dir, err := os.MkdirTemp("/tmp", "rn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	socket := filepath.Join(dir, "core.sock")
+	reader, writer := io.Pipe()
+	result := make(chan int, 1)
+	go func() {
+		var out, diagnostics bytes.Buffer
+		result <- run([]string{"serve", "--socket", socket, "--exit-on-stdin-eof"}, reader, &out, &diagnostics)
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if info, err := os.Stat(socket); err == nil && info.Mode()&os.ModeSocket != 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("socket did not appear")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	writer.Close()
+	select {
+	case code := <-result:
+		if code != 0 {
+			t.Fatalf("exit code %d", code)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("serve did not stop after stdin closed")
 	}
 }

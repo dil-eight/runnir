@@ -12,7 +12,7 @@ AI/MCP and cloud/referral integrations remain later directions. Keep current con
 
 ## Development Setup
 
-For desktop work, use a Mac with a supported Xcode 27+ installation, Swift 6 and Go 1.25+. The app targets macOS 14+. Go is required because Xcode builds and bundles the Core helper. Open apps/macos/Runnir.xcodeproj, select Runnir and My Mac, then Run.
+For desktop work, use a Mac with a supported Xcode 27+ installation, Swift 6 and Go 1.27+. The app targets macOS 15+. Go is required because Xcode builds and bundles the Core helper. Open apps/macos/Runnir.xcodeproj, select Runnir and My Mac, then Run.
 
 Go-only work can run from core/ on supported macOS/Linux/Windows environments. Native desktop integration tests require macOS/Xcode; a cross-build is not evidence of native execution on another OS.
 
@@ -21,7 +21,7 @@ The current foundation builds unsigned; no production signing keys are required 
 ## Architecture And Code
 
 - Preserve Swift 6/SwiftUI/Observation for native UI, Keychain and system integration; use pure Go for new portable domain services. Read [ADR 0002](docs/decisions/0002-swiftui-go-core.md) and [ADR 0003](docs/decisions/0003-workspaces-sessions-offline-storage.md).
-- Keep versioned stdio IPC separate from business logic. Document changed contracts and add compatibility/error tests; the current Core RPC implements version metadata only.
+- Keep versioned IPC (gRPC over a Unix socket, plus the JSON-RPC version handshake) separate from business logic. Document changed contracts, regenerate code with `scripts/generate-contracts.sh`, and add compatibility/error tests.
 - Preserve existing Swift services until feature-level migrations are tested. Avoid unrelated file moves/refactors and duplicate GitHub implementations.
 - Prefer small protocol-backed services, deterministic tests and standard libraries. Do not introduce Node/npm/pnpm, React, Electron, Tauri, Rust, CocoaPods or Carthage.
 - Explain new dependency need, pinned version, license, data access, subprocess/network behavior and maintenance cost in the PR. Do not silently add an SDK with autocollection.

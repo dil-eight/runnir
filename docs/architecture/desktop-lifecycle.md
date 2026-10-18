@@ -74,7 +74,7 @@ Resolve Application Support with native APIs. The first implementation combines 
 
 Single actor/queue serializes mutations; schema migration/validation checks types, duplicate IDs, missing associations, bounded frames and known navigation identifiers. Critical opened/closed/reassociated entries commit immediately; debounce geometry/navigation only. Do not use a single debounce for close events. Define last-known-good recovery and close tombstone ordering so restoring an older backup cannot resurrect durably closed windows. Corrupt JSON never crashes launch; do not overwrite recovery evidence silently.
 
-Use one authoritative workspace-restoration mechanism. Coordinate SwiftUI scenes/AppKit callbacks explicitly; validate actual API availability against the project's macOS 14 deployment target during implementation. Quit-triggered willClose notifications must not erase the snapshot. Repeated restore/Dock calls are idempotent. Persisted UI eligibility is separate from actual process liveness.
+Use one authoritative workspace-restoration mechanism. Coordinate SwiftUI scenes/AppKit callbacks explicitly; validate actual API availability against the project's macOS 15 deployment target during implementation. Quit-triggered willClose notifications must not erase the snapshot. Repeated restore/Dock calls are idempotent. Persisted UI eligibility is separate from actual process liveness.
 
 ## Ownership
 

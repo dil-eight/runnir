@@ -14,9 +14,9 @@ Swift/AppKit now owns startup routing, the singleton Manager, independent worksp
 
 Pure Go owns new portable GitHub Actions integration, workflow intelligence, pipeline/provenance tracking, artifacts/deployments, CLI and future MCP. Transport adapters call shared domain services. No CGO, mandatory backend or permanent daemon.
 
-Current implementation: CLI version and version-only JSON-RPC. See [IPC v1](ipc.md).
+Current implementation: the CLI (`version`, `serve`), a version-only JSON-RPC handshake ([IPC v1](ipc.md)), and a local gRPC API over a Unix socket served by one app-owned Core process: repository open, close and refresh, workflow listing, an event stream and execution scheduling with a stub runner ([gRPC API v1](grpc-api.md), [ADR 0004](../decisions/0004-single-core-process-grpc.md)). There is no GitHub integration, workflow validation or real execution engine in the Core yet.
 
-Target: shared workspace config/database/index/sync/environment services in Go, with native access bridges. One logical runtime/DB writer/sync per workspaceId serves independent windows. A future app-owned service process can last for the app session without becoming a permanent daemon. Current one-request version IPC does not provide that lifecycle/events contract.
+Target: shared workspace config/database/index/sync/environment services in Go, with native access bridges. One logical runtime/DB writer/sync per workspaceId serves independent windows. The app-owned service process now exists: it lasts for the app session, serves every window and is not a permanent daemon. Repository contexts and events are shared across windows; the database and sync writer are not implemented.
 
 ## Target Organization
 
@@ -34,7 +34,7 @@ The Xcode project and native sources live in `apps/macos/`; the Go Core stays in
 
 ## Security Boundaries
 
-Keychain owns desktop credentials. Local stdio does not grant filesystem scope or authority. Future repository tools require explicit, enforced grants; MCP and AI cannot self-approve mutations. Treat workflow/log text as untrusted data. A signed macOS helper inherits the app sandbox; development builds currently disable signing, so signed sandbox enforcement remains a distribution verification requirement.
+Keychain owns desktop credentials. Neither the local socket nor stdio grants filesystem scope or authority, and the Core socket currently has no per-client access control (see [gRPC API](grpc-api.md#security-model-today)). Future repository tools require explicit, enforced grants; MCP and AI cannot self-approve mutations. Treat workflow/log text as untrusted data. A signed macOS helper inherits the app sandbox; development builds currently disable signing, so signed sandbox enforcement remains a distribution verification requirement.
 
 Optional external AI requires explicit provider/data consent. Offers are a separate opt-in public catalog with local matching, not a repository upload service. See [startup integrations](../product/startup-integrations.md).
 

@@ -11,18 +11,18 @@ Updated: 2026-10-16. Desktop implementation/build/unit evidence is recorded in [
 | FR-03 dispatch | Missing | Workflow domain model only; GitHubEndpoint currently contains GET methods only | Workflow YAML/input schema/ref discovery, dispatch, presets, permission/confirmation gates, correlation and fallback |
 | FR-04 inspector | Missing feature | WorkflowRun model; RunsView explicitly says monitoring is planned | Run/job/step/log APIs, polling, bounded log viewer/search, cancel/rerun |
 | FR-05 workspace | Partial | Native folder picker/bookmarks, pinned directory descriptors and no-symlink traversal, bounded read-only local YAML browser | Signed scope verification, exhaustive race testing, save/editor, job inspection, actionlint adapter/diagnostics |
-| FR-06 local execution | Missing | Version-only Process transport provides a narrow lifecycle example; setup/sandbox docs are plans | Docker/OrbStack/act adapters, compatible job inventory, execution approvals, streaming/cancellation, limits and cleanup |
+| FR-06 local execution | Missing | A supervised Core process and a stub execution scheduler (limit 3, FIFO queue) exist, with no real engine; setup/sandbox docs are plans | Docker/OrbStack/act adapters, compatible job inventory, execution approvals, streaming/cancellation, limits and cleanup |
 | FR-07 optional feedback/diagnostics | Partial | Fixed public GitHub toolbar/help links and issue template; no runtime collection | Independent consent, payload/endpoint policy, crash import/sanitization and reviewed issue handoff |
 | FR-08 lifecycle/workspaces | Partial | AppKit splash/Manager, independent window IDs/state, bookmarks, atomic registry/session, startup/quit regression tests, transactional multi-window relink | Crash/power-loss injection, signed grants, native failed-write/quit cancellation, multi-monitor and full recovery integration tests |
-| FR-09 config/offline storage/sync | Partial registry only | Swift combined desktop-state.json; Core remains version-only | Read-only .runnir schemas, per-workspace DB/migrations, shared sync, environments/effective values, DB corruption/retention recovery |
+| FR-09 config/offline storage/sync | Partial registry only | Swift combined desktop-state.json; the Core holds only in-memory repository contexts | Read-only .runnir schemas, per-workspace DB/migrations, shared sync, environments/effective values, DB corruption/retention recovery |
 
 No FR is complete. A credential abstraction is not authentication; a model/screen is not an operational feature. FR-07 adds supporting feedback/reliability work without making analytics or a backend mandatory for the six core usability requirements.
 
 ## Foundations Already Implemented
 
-Native Swift 6/SwiftUI/Observation app and Xcode test targets; Swift typed REST client/DTOs; Keychain abstraction; pure Go version CLI; versioned bounded stdio RPC; bundled helper startup handshake; contract/unit test sources; build/test/analyzer and Go cross-build/security workflow configuration.
+Native Swift 6/SwiftUI/Observation app and Xcode test targets; Swift typed REST client/DTOs; Keychain abstraction; pure Go CLI (`version`, `serve`); versioned bounded stdio RPC for the version handshake; a supervised single Core process with a local gRPC API (repositories, workflow listing, events, stub execution scheduling); contract/unit test sources; build/test/analyzer and Go cross-build/security workflow configuration.
 
-Current Core has no GitHub, workflow validation or execution services. Its only RPC method is core.v1.version. Do not call the desktop endpoint an MCP server.
+Current Core has no GitHub, workflow validation or real execution services. Its gRPC calls cover repository contexts, workflow listing, events and execution scheduling with a stub runner; the stdio RPC offers only core.v1.version. Do not call either endpoint an MCP server.
 
 ## Specific Gaps And Dependencies
 

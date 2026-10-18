@@ -18,7 +18,8 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 - Unit tests for decoding, request construction, error mapping, credentials, and app state.
 - macOS GitHub Actions CI for build, unit tests, static analyzer, and dependency review.
 - MVP specification and future AI/MCP design documents (no AI runtime or MCP server).
-- Minimal Go CLI (`version`) and version-only JSON-RPC stdio endpoint (`rpc`).
+- Go CLI (`version`, `serve`), a version-only JSON-RPC stdio endpoint (`rpc`), and a local gRPC API over a Unix socket: repository open, close and refresh, workflow listing, an event stream, and execution scheduling with a stub runner (there is no real workflow execution engine).
+- One supervised Core process per app: started at launch, shared by all windows, restartable from a banner when lost, stopped on quit. Idle measurement on one machine: about 94 MB for the app plus Core with 10 open repositories (Debug build).
 - Bundled Core executable with a Swift startup handshake and integration test.
 - Go native test automation, six cross-compilation targets, formatting/vet and vulnerability checks.
 
@@ -62,18 +63,18 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 
 ## Requirements
 
-- macOS 14 or newer.
+- macOS 15 or newer.
 - Xcode 27 or newer for the current checked-in project settings.
 - Swift 6.
-- Go 1.25+ (Xcode builds and bundles the helper; CGO is disabled).
+- Go 1.27+ (Xcode builds and bundles the helper; CGO is disabled).
 
-The app targets macOS 14+ because it uses modern SwiftUI and Observation APIs while remaining practical for current Macs.
+The app targets macOS 15+ for modern SwiftUI and Observation APIs and the grpc-swift 2 client (see ADR 0004).
 
 ## Development
 
 Core checks (from `core/`): `go test ./...`, `go vet ./...`, `go build ./...`.
 Run `go run ./cmd/runnir version` for product/IPC version metadata.
-`runnir rpc` is desktop IPC; an MCP server is planned and is not implemented.
+`runnir rpc` and `runnir serve` are desktop IPC; an MCP server is planned and is not implemented. See [Core gRPC API](docs/architecture/grpc-api.md).
 
 Build:
 

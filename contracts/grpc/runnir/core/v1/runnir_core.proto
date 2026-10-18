@@ -1,0 +1,145 @@
+// Runnir Core local gRPC contract, version 1. See ADR 0004.
+//
+// Every repository-scoped call carries repository_id. Additive changes keep
+// this package; breaking changes require a new package version.
+syntax = "proto3";
+
+package runnir.core.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "runnir/core/internal/gen/runnir/core/v1;corev1";
+
+service RunnirCore {
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+
+  // Idempotent per resolved path: reopening returns the existing context.
+  rpc OpenRepository(OpenRepositoryRequest) returns (RepositoryResponse);
+  rpc CloseRepository(CloseRepositoryRequest) returns (CloseRepositoryResponse);
+  rpc RefreshRepository(RefreshRepositoryRequest) returns (RepositoryResponse);
+
+  rpc ListWorkflows(ListWorkflowsRequest) returns (ListWorkflowsResponse);
+
+  // Interface only in the MVP: no real GitHub Actions engine yet.
+  rpc StartWorkflow(StartWorkflowRequest) returns (ExecutionResponse);
+
+  rpc SubscribeEvents(SubscribeEventsRequest) returns (stream CoreEvent);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string core_version = 1;
+  uint32 protocol_version = 2;
+  uint32 open_repository_count = 3;
+  // Resident memory of the Core process in bytes, for diagnostics.
+  uint64 resident_memory_bytes = 4;
+  // Operating-system process id of the Core, so a supervisor can tell that
+  // the Core answering is the child it launched and not another instance.
+  uint32 process_id = 5;
+}
+
+message OpenRepositoryRequest {
+  // Absolute path of a working tree already granted to the app.
+  string path = 1;
+}
+
+message CloseRepositoryRequest {
+  string repository_id = 1;
+}
+
+message CloseRepositoryResponse {}
+
+message RefreshRepositoryRequest {
+  string repository_id = 1;
+}
+
+message RepositoryResponse {
+  Repository repository = 1;
+}
+
+message Repository {
+  // Stable id, independent of window and path spelling.
+  string id = 1;
+  string path = 2;
+  // Empty when HEAD is detached or unreadable.
+  string branch = 3;
+  uint32 workflow_count = 4;
+  google.protobuf.Timestamp last_refresh = 5;
+}
+
+message ListWorkflowsRequest {
+  string repository_id = 1;
+}
+
+message ListWorkflowsResponse {
+  repeated Workflow workflows = 1;
+}
+
+message Workflow {
+  // Path relative to the repository root, e.g. .github/workflows/ci.yml.
+  string id = 1;
+  string name = 2;
+  repeated string triggers = 3;
+  repeated Job jobs = 4;
+  // Set when the file could not be parsed; other fields may be partial.
+  string parse_error = 5;
+}
+
+message Job {
+  string id = 1;
+  string name = 2;
+  repeated string needs = 3;
+}
+
+message StartWorkflowRequest {
+  string repository_id = 1;
+  string workflow_id = 2;
+  string ref = 3;
+}
+
+enum ExecutionState {
+  EXECUTION_STATE_UNSPECIFIED = 0;
+  EXECUTION_STATE_QUEUED = 1;
+  EXECUTION_STATE_RUNNING = 2;
+  EXECUTION_STATE_SUCCEEDED = 3;
+  EXECUTION_STATE_FAILED = 4;
+  EXECUTION_STATE_CANCELLED = 5;
+}
+
+message ExecutionResponse {
+  string execution_id = 1;
+  string repository_id = 2;
+  ExecutionState state = 3;
+}
+
+message SubscribeEventsRequest {
+  // Empty means all repositories.
+  repeated string repository_ids = 1;
+}
+
+enum CoreEventType {
+  CORE_EVENT_TYPE_UNSPECIFIED = 0;
+  CORE_EVENT_TYPE_CORE_READY = 1;
+  CORE_EVENT_TYPE_REPOSITORY_OPENED = 2;
+  CORE_EVENT_TYPE_REPOSITORY_REFRESHED = 3;
+  CORE_EVENT_TYPE_REPOSITORY_CLOSED = 4;
+  CORE_EVENT_TYPE_WORKFLOW_STARTED = 5;
+  CORE_EVENT_TYPE_WORKFLOW_STATUS_CHANGED = 6;
+  CORE_EVENT_TYPE_WORKFLOW_COMPLETED = 7;
+  CORE_EVENT_TYPE_WORKFLOW_FAILED = 8;
+  CORE_EVENT_TYPE_CORE_ERROR = 9;
+}
+
+message CoreEvent {
+  // Monotonic per Core process; lets clients detect gaps after reconnect.
+  uint64 sequence = 1;
+  CoreEventType type = 2;
+  // Empty for events not tied to a repository (CORE_READY, some CORE_ERROR).
+  string repository_id = 3;
+  string execution_id = 4;
+  ExecutionState execution_state = 5;
+  // Human-readable detail; never contains credentials.
+  string message = 6;
+  google.protobuf.Timestamp occurred_at = 7;
+}

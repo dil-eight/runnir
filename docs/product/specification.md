@@ -16,7 +16,7 @@ Reduce the commit/push/test loop, simplify manual execution, and make repeated C
 
 Keep Swift 6, SwiftUI, Observation, Foundation, Security/Keychain and the separate pure Go executable, per [ADR 0002](../decisions/0002-swiftui-go-core.md) and AGENTS.md. The supplied brief's Tauri/React/Tailwind/shadcn stack is an alternative recommendation, not an adopted migration. No Node, React, Rust or Tauri dependencies are introduced.
 
-Use versioned JSON-RPC over local stdio with app-managed child processes; no permanent daemon. Keep transport separate from domain logic. Preserve existing Swift GitHub services until tested feature-level migrations are practical. New portable domain behavior belongs in Go; no competing implementations.
+Use versioned local IPC with one app-managed Core child process (gRPC over a Unix socket, [ADR 0004](../decisions/0004-single-core-process-grpc.md); JSON-RPC over stdio only for the version handshake); no permanent daemon. Keep transport separate from domain logic. Preserve existing Swift GitHub services until tested feature-level migrations are practical. New portable domain behavior belongs in Go; no competing implementations.
 
 The checked-in LICENSE contains GPLv3. Apache-2.0 is proposed in the supplied brief but is not adopted by this update. A separate explicit licensing decision is needed before representing the project as Apache-2.0; this specification does not change LICENSE.
 

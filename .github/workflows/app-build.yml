@@ -1,0 +1,86 @@
+name: App Build
+
+# Builds an unsigned universal Runnir.app on every pull request and push to
+# main, and keeps it as a short-lived artifact for testing. Tagged releases are
+# built by release.yml.
+on:
+  pull_request:
+    paths:
+      - "apps/**"
+      - "core/**"
+      - "contracts/**"
+      - "scripts/build-core-macos.sh"
+      - ".github/workflows/app-build.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch makes the running build obsolete.
+concurrency:
+  group: app-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: Unsigned app
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Select newest Xcode
+        # Swift package dependencies (gRPC, SwiftNIO) need Swift 6.2 or newer.
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: core/go.mod
+          cache: false
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -project apps/macos/Runnir.xcodeproj \
+            -scheme Runnir \
+            -destination 'generic/platform=macOS' \
+            -archivePath "$PWD/build/Runnir.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Check architectures
+        run: |
+          app=build/Runnir.xcarchive/Products/Applications/Runnir.app
+          for binary in "$app/Contents/MacOS/Runnir" "$app/Contents/Helpers/runnir-core"; do
+            archs=$(lipo -archs "$binary")
+            echo "$binary: $archs"
+            case "$archs" in *arm64*x86_64*|*x86_64*arm64*) ;; *) echo "not universal" >&2; exit 1 ;; esac
+          done
+
+      - name: Package
+        id: package
+        run: |
+          name="Runnir-${GITHUB_SHA::7}-unsigned"
+          mkdir -p build/export
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/Runnir.xcarchive/Products/Applications/Runnir.app \
+            "build/export/$name.zip"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: build/export/*.zip
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          {
+            echo "### Runnir app build"
+            echo
+            echo "Unsigned universal build (arm64 + x86_64), macOS 15 or newer: artifact \`${{ steps.package.outputs.name }}\`, kept 14 days."
+            echo "It is not signed or notarized, so Gatekeeper blocks it on first launch: open it with right-click, Open,"
+            echo "or remove the quarantine flag with \`xattr -dr com.apple.quarantine Runnir.app\`."
+          } >> "$GITHUB_STEP_SUMMARY"
