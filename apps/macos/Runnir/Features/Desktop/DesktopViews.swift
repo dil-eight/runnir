@@ -369,7 +369,6 @@ struct DesktopWorkspaceView: View {
                     }
                 }
                 Divider()
-                Button("GitHub Repositories...") { state.selectedSection = .repositories }
                 Button("Artifacts...") { state.selectedSection = .artifacts }
             } label: {
                 HStack(spacing: 10) {
@@ -448,7 +447,7 @@ struct DesktopWorkspaceView: View {
                             }
                         }
                     }.scrollIndicators(.hidden)
-                    UnavailableFeature(title: "No pipeline data", detail: "Connect GitHub to see workflow runs and job status.", symbol: "point.3.connected.trianglepath.dotted")
+                    GitHubLinkCard(repository: session?.githubRepository, coreReady: session?.phase == .ready, github: desktop.github)
                         .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
                 }
                 DesignDivider()
@@ -456,7 +455,9 @@ struct DesktopWorkspaceView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         SectionLabel(title: "RECENT RUNS")
                         DesignDivider()
-                        UnavailableFeature(title: "No runs available", detail: "GitHub is not connected.", symbol: "play.circle")
+                        UnavailableFeature(title: "No runs available",
+                                           detail: desktop.github?.user == nil ? "GitHub is not connected." : "Run history is not available yet.",
+                                           symbol: "play.circle")
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     VStack(alignment: .leading, spacing: 0) {
                         SectionLabel(title: "LOCAL WORKFLOWS").padding(.bottom, 8)
@@ -614,4 +615,110 @@ private struct UnavailableFeature: View {
 
 #Preview("Startup Splash") {
     StartupSplashView()
+}
+
+/// Shows which GitHub repository this working tree belongs to (from its origin
+/// remote) and whether Runnir can see it, with the step that fixes it when not.
+private struct GitHubLinkCard: View {
+    let repository: String?
+    let coreReady: Bool
+    let github: GitHubSession?
+    var installationURL: URL = GitHubAppConfiguration.runnirDesktop.installationURL
+    @Environment(\.openURL) private var openURL
+    @State private var access: GitHubRepositoryAccess?
+    @State private var attempt = 0
+    @State private var showingConnect = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol).foregroundStyle(tint)
+                Text(title).font(.system(size: 14, weight: .semibold))
+            }
+            if let detail { Text(detail).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground) }
+            HStack(spacing: 8) { buttons }.buttonStyle(DesignButtonStyle())
+        }
+        .task(id: checkKey) { await check() }
+        .sheet(isPresented: $showingConnect) { if let github { GitHubConnectView(session: github) } }
+    }
+
+    private var checkKey: String { "\(repository ?? "")|\(github?.user?.login ?? "")|\(attempt)" }
+
+    private func check() async {
+        guard let repository, let github, github.user != nil else { access = nil; return }
+        access = nil
+        access = await github.access(to: repository)
+    }
+
+    private enum Display { case reading, noRemote, signedOut, checking, linked(Repository), notVisible, failed(String) }
+
+    private var display: Display {
+        guard let repository else { return coreReady ? .noRemote : .reading }
+        _ = repository
+        guard let github, github.user != nil else { return .signedOut }
+        switch access {
+        case nil: return .checking
+        case .signedOut: return .signedOut
+        case .accessible(let linked): return .linked(linked)
+        case .notVisible: return .notVisible
+        case .failed(let message): return .failed(message)
+        }
+    }
+
+    private var title: String {
+        let name = repository ?? ""
+        switch display {
+        case .reading: return "Reading the repository..."
+        case .noRemote: return "No GitHub remote"
+        case .signedOut: return name
+        case .checking: return "Checking access to \(name)..."
+        case .linked(let linked): return linked.fullName
+        case .notVisible: return "Runnir can't see \(name)"
+        case .failed: return name
+        }
+    }
+
+    private var detail: String? {
+        switch display {
+        case .reading, .checking: return nil
+        case .noRemote: return "This working tree has no origin remote on github.com, so there are no GitHub runs to show for it."
+        case .signedOut: return "Connect GitHub to see workflow runs and job status for this repository."
+        case .linked(let linked): return "\(linked.visibility.rawValue.capitalized) · default branch \(linked.defaultBranch)"
+        case .notVisible:
+            return "Runnir Desktop only sees repositories it is installed on. Install it on this repository on GitHub, then check again."
+        case .failed(let message): return message
+        }
+    }
+
+    private var symbol: String {
+        switch display {
+        case .linked: "checkmark.circle"
+        case .notVisible, .failed: "exclamationmark.triangle"
+        default: "point.3.connected.trianglepath.dotted"
+        }
+    }
+
+    private var tint: Color {
+        switch display {
+        case .linked: RunnirTheme.success
+        case .notVisible, .failed: RunnirTheme.warning
+        default: RunnirTheme.secondaryForeground
+        }
+    }
+
+    @ViewBuilder private var buttons: some View {
+        switch display {
+        case .signedOut:
+            Button("Connect GitHub...") { showingConnect = true }
+        case .linked(let linked):
+            Button("Open on GitHub") { openURL(URL(string: "https://github.com/\(linked.fullName)")!) }
+        case .notVisible:
+            Button("Give Runnir Access...") { openURL(installationURL) }
+            Button("Check Again") { attempt += 1 }
+        case .failed:
+            Button("Check Again") { attempt += 1 }
+        default:
+            EmptyView()
+        }
+    }
 }

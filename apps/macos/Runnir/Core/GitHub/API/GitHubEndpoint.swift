@@ -3,6 +3,7 @@ import Foundation
 enum GitHubEndpoint: Sendable {
     case currentUser
     case repositories(page: Int)
+    case repository(owner: String, name: String)
     case workflows(owner: String, repository: String, page: Int)
 
     func request(baseURL: URL, token: String?) throws -> URLRequest {
@@ -33,6 +34,8 @@ enum GitHubEndpoint: Sendable {
             "/user"
         case .repositories:
             "/user/repos"
+        case .repository(let owner, let name):
+            "/repos/\(owner)/\(name)"
         case .workflows(let owner, let repository, _):
             "/repos/\(owner)/\(repository)/actions/workflows"
         }
@@ -40,7 +43,7 @@ enum GitHubEndpoint: Sendable {
 
     private var queryItems: [URLQueryItem]? {
         switch self {
-        case .currentUser:
+        case .currentUser, .repository:
             nil
         case .repositories(let page):
             [

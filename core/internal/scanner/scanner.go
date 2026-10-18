@@ -14,9 +14,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -51,7 +53,12 @@ func (Scanner) Scan(ctx context.Context, root string) (repository.Snapshot, erro
 	if err != nil {
 		return repository.Snapshot{}, err
 	}
-	return repository.Snapshot{Branch: readBranch(root), Workflows: workflows}, nil
+	snapshot := repository.Snapshot{Workflows: workflows}
+	if gitDir, ok := resolveGitDir(root); ok {
+		snapshot.Branch = readBranch(gitDir)
+		snapshot.GitHubRepository = readGitHubRepository(gitDir)
+	}
+	return snapshot, nil
 }
 
 // absentOrError maps "does not exist" to no error and permission problems to
@@ -90,36 +97,43 @@ func probeReadable(root string) error {
 	}
 }
 
-// readBranch returns the branch HEAD points to, or "" when HEAD is detached,
-// unreadable or does not name a local branch.
-func readBranch(root string) string {
+// resolveGitDir returns the repository's git directory: ".git" itself, or for
+// a linked worktree the directory its ".git" file names once that directory
+// confirms it belongs to this worktree.
+func resolveGitDir(root string) (string, bool) {
 	gitPath := filepath.Join(root, ".git")
 	info, err := os.Lstat(gitPath)
 	if err != nil {
-		return ""
+		return "", false
 	}
-	gitDir := gitPath
 	switch {
+	case info.IsDir():
+		return gitPath, true
 	case info.Mode().IsRegular(): // linked worktree: ".git" holds "gitdir: <path>"
 		data, err := readBounded(gitPath, maxHeadBytes)
 		if err != nil {
-			return ""
+			return "", false
 		}
 		target, ok := strings.CutPrefix(strings.TrimSpace(string(data)), "gitdir:")
 		target = strings.TrimSpace(target)
 		if !ok || target == "" {
-			return ""
+			return "", false
 		}
 		if !filepath.IsAbs(target) {
 			target = filepath.Join(root, target)
 		}
 		if !isOwnWorktreeGitDir(target, gitPath) {
-			return ""
+			return "", false
 		}
-		gitDir = target
-	case !info.IsDir():
-		return ""
+		return target, true
+	default:
+		return "", false
 	}
+}
+
+// readBranch returns the branch HEAD points to, or "" when HEAD is detached,
+// unreadable or does not name a local branch.
+func readBranch(gitDir string) string {
 	head, err := readBounded(filepath.Join(gitDir, "HEAD"), maxHeadBytes)
 	if err != nil {
 		return ""
@@ -134,6 +148,88 @@ func readBranch(root string) string {
 	}
 	return branch
 }
+
+const maxConfigBytes = 64 * 1024
+
+// readGitHubRepository returns "owner/name" when the origin remote points at
+// github.com. Linked worktrees share the main repository's config through
+// their "commondir" file.
+func readGitHubRepository(gitDir string) string {
+	commonDir := gitDir
+	if data, err := readBounded(filepath.Join(gitDir, "commondir"), maxHeadBytes); err == nil {
+		target := strings.TrimSpace(string(data))
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(gitDir, target)
+		}
+		commonDir = filepath.Clean(target)
+	}
+	config, err := readBounded(filepath.Join(commonDir, "config"), maxConfigBytes)
+	if err != nil {
+		return ""
+	}
+	return gitHubRepository(originURL(string(config)))
+}
+
+// originURL returns the first url of [remote "origin"] in a git config file.
+func originURL(config string) string {
+	inOrigin := false
+	for _, raw := range strings.Split(config, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || line[0] == '#' || line[0] == ';' {
+			continue
+		}
+		if line[0] == '[' {
+			header := strings.TrimSuffix(strings.TrimPrefix(line, "["), "]")
+			section, subsection, _ := strings.Cut(header, " ")
+			inOrigin = strings.EqualFold(section, "remote") && strings.Trim(strings.TrimSpace(subsection), `"`) == "origin"
+			continue
+		}
+		if !inOrigin {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if ok && strings.EqualFold(strings.TrimSpace(key), "url") {
+			return strings.Trim(strings.TrimSpace(value), `"`)
+		}
+	}
+	return ""
+}
+
+// gitHubRepository turns a github.com remote URL into "owner/name"; any other
+// host, or a malformed path, gives "".
+func gitHubRepository(remote string) string {
+	var path string
+	if user, rest, ok := strings.Cut(remote, "@"); ok && !strings.Contains(user, "/") && !strings.Contains(remote, "://") {
+		// scp-like: git@github.com:owner/name.git
+		host, p, ok := strings.Cut(rest, ":")
+		if !ok || !strings.EqualFold(host, "github.com") {
+			return ""
+		}
+		path = p
+	} else {
+		parsed, err := url.Parse(remote)
+		if err != nil || !strings.EqualFold(parsed.Hostname(), "github.com") {
+			return ""
+		}
+		switch parsed.Scheme {
+		case "https", "http", "ssh", "git":
+		default:
+			return ""
+		}
+		path = parsed.Path
+	}
+	path = strings.TrimSuffix(strings.Trim(path, "/"), ".git")
+	owner, name, ok := strings.Cut(path, "/")
+	if !ok || !validOwner.MatchString(owner) || !validName.MatchString(name) {
+		return ""
+	}
+	return owner + "/" + name
+}
+
+var (
+	validOwner = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$`)
+	validName  = regexp.MustCompile(`^[A-Za-z0-9._-]{1,100}$`)
+)
 
 // isOwnWorktreeGitDir accepts a linked worktree's git directory only when it
 // has git's layout ("<git dir>/worktrees/<name>", where the git dir may be

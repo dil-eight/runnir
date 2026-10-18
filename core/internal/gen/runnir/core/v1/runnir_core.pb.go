@@ -492,8 +492,11 @@ type Repository struct {
 	Branch        string                 `protobuf:"bytes,3,opt,name=branch,proto3" json:"branch,omitempty"`
 	WorkflowCount uint32                 `protobuf:"varint,4,opt,name=workflow_count,json=workflowCount,proto3" json:"workflow_count,omitempty"`
 	LastRefresh   *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_refresh,json=lastRefresh,proto3" json:"last_refresh,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// "owner/name" when the "origin" remote points at github.com; empty
+	// otherwise. The raw remote URL is never sent: it can embed credentials.
+	GithubRepository string `protobuf:"bytes,6,opt,name=github_repository,json=githubRepository,proto3" json:"github_repository,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Repository) Reset() {
@@ -559,6 +562,13 @@ func (x *Repository) GetLastRefresh() *timestamppb.Timestamp {
 		return x.LastRefresh
 	}
 	return nil
+}
+
+func (x *Repository) GetGithubRepository() string {
+	if x != nil {
+		return x.GithubRepository
+	}
+	return ""
 }
 
 type ListWorkflowsRequest struct {
@@ -1070,14 +1080,15 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x12RepositoryResponse\x12:\n" +
 	"\n" +
 	"repository\x18\x01 \x01(\v2\x1a.runnir.core.v1.RepositoryR\n" +
-	"repository\"\xae\x01\n" +
+	"repository\"\xdb\x01\n" +
 	"\n" +
 	"Repository\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n" +
 	"\x06branch\x18\x03 \x01(\tR\x06branch\x12%\n" +
 	"\x0eworkflow_count\x18\x04 \x01(\rR\rworkflowCount\x12=\n" +
-	"\flast_refresh\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vlastRefresh\";\n" +
+	"\flast_refresh\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vlastRefresh\x12+\n" +
+	"\x11github_repository\x18\x06 \x01(\tR\x10githubRepository\";\n" +
 	"\x14ListWorkflowsRequest\x12#\n" +
 	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\"O\n" +
 	"\x15ListWorkflowsResponse\x126\n" +

@@ -17,6 +17,8 @@ struct CoreRepository: Equatable, Identifiable, Sendable {
     let branch: String
     let workflowCount: Int
     let lastRefresh: Date?
+    /// "owner/name" from the origin remote on github.com, if any.
+    var githubRepository: String? = nil
 }
 
 struct CoreJob: Equatable, Sendable {

@@ -111,6 +111,13 @@ struct DesktopStateTests {
         #expect(AppSection.allCases.contains(.artifacts))
     }
 
+    @Test func aWindowSavedOnARetiredSectionOpensOnOverview() {
+        #expect(AppSection.repositories.restored == .dashboard)
+        for section in AppSection.allCases where section != .repositories {
+            #expect(section.restored == section)
+        }
+    }
+
     @Test func manualClosePersistsWithoutResurrectingOnReload() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
