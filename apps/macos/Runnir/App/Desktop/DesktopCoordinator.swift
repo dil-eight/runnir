@@ -394,7 +394,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
     private func installContent(_ workspace: WorkspaceRecord) {
         let frame = window?.frame
         let state = AppState()
-        state.selectedSection = record.section
+        state.selectedSection = record.section.restored
         window?.title = workspace.name + " - Runnir"
         window?.contentViewController = NSHostingController(rootView:
             DesktopWorkspaceView(desktop: desktop, workspace: workspace, windowID: record.id, reader: grant?.reader)
@@ -421,7 +421,8 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         let hub = CoreHub(provider: supervisor)
         core = supervisor
         coreHub = hub
-        let credentials = KeychainCredentialStore()
+        // One shared store: the Keychain is read once per launch.
+        let credentials = CachingCredentialStore.keychain
         let api = GitHubRESTClient(baseURL: URL(string: "https://api.github.com")!, credentialStore: credentials)
         github = GitHubSession(
             deviceFlow: GitHubDeviceFlowClient(configuration: .runnirDesktop),

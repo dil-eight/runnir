@@ -8,9 +8,9 @@ struct AppEnvironment: Sendable {
     static let live = AppEnvironment(
         githubService: GitHubRESTClient(
             baseURL: URL(string: "https://api.github.com")!,
-            credentialStore: KeychainCredentialStore()
+            credentialStore: CachingCredentialStore.keychain
         ),
-        credentialStore: KeychainCredentialStore()
+        credentialStore: CachingCredentialStore.keychain
     )
 }
 

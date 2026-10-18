@@ -9,6 +9,12 @@ enum AppSection: String, CaseIterable, Identifiable, Codable, Sendable {
     case workspace
 
     var id: String { rawValue }
+
+    /// Sections no longer reachable from the window; a saved window that was
+    /// on one opens on Overview instead.
+    static let retired: Set<AppSection> = [.repositories]
+
+    var restored: AppSection { Self.retired.contains(self) ? .dashboard : self }
     static let sidebarSections: [AppSection] = [.dashboard, .workflows, .runs, .workspace]
 
     var title: String {
