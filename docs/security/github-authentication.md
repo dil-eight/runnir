@@ -26,4 +26,9 @@ Registered 2026-10-18 in the `dil-eight` organization: **Runnir Desktop** (`runn
 
 ## Current Status
 
-The bootstrap includes the credential storage abstraction and GitHub REST client, and the app registration above. The Device Flow login itself is not implemented yet (backlog B05/B06); nothing in the app signs users in.
+Implemented in Swift (the token never leaves the app process):
+- `GitHubDeviceFlowClient` requests a device code with the client id only and polls `login/oauth/access_token`, mapping pending, slow down, expired, denied, a disabled Device Flow, rate limits and network failures. A verification page that is not HTTPS is refused.
+- `GitHubSession` owns the account state: it restores the saved token at launch and confirms it with `GET /user` (a rejected token is deleted, a network failure keeps it and shows "offline"), runs sign-in (opens the verification page, honors the interval and `slow_down`, retries up to three dropped requests, stops at the code's expiry), saves the token only to the Keychain, and signs out by deleting the Keychain item.
+- UI: the account row at the bottom of each workspace sidebar opens the connection sheet (code, Copy, Open GitHub Again, Cancel, every failure with its next step, and after success a link to install the app on repositories). Settings shows the account with Sign Out and a link to revoke the authorization at https://github.com/settings/apps/authorizations, since revoking from the app would need a client secret.
+
+Verified with unit tests against canned GitHub responses and fakes. Not yet verified: a real sign-in against github.com, Keychain prompts in a signed sandboxed build, and repository listing after installation (backlog B06/B07).

@@ -6,7 +6,7 @@ struct RunnirApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView()
+            SettingsView(github: delegate.github)
                 .environment(delegate.desktop.accountState)
                 .environment(\.appEnvironment, AppEnvironment.live)
         }
