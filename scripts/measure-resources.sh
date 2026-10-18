@@ -133,7 +133,11 @@ for count in $counts; do
     fi
 
     sleep "$settle"
-    core_pid=$(pgrep -P "$app_pid" -f "runnir-core serve" | head -1)
+    core_pid=$(pgrep -P "$app_pid" -f "runnir-core serve" | head -1 || true)
+    if [ -z "$core_pid" ]; then
+        echo "No Core process under the app (pid $app_pid); refusing to report a measurement." >&2
+        exit 1
+    fi
     processes=$(pgrep -f "runnir-core serve" | wc -l | tr -d ' ')
     app_mb=$(footprint_mb "$app_pid")
     core_mb=$(footprint_mb "$core_pid")

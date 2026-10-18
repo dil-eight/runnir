@@ -15,6 +15,8 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     private var workflows: [String: [CoreWorkflow]] = [:]
     private var failingPaths: [String: CoreServiceError] = [:]
     private var openDelays: [String: Duration] = [:]
+    private var refreshDelay: Duration?
+    private var refreshError: CoreServiceError?
     private var openIDs: Set<String> = []
     private var continuations: [AsyncThrowingStream<CoreEvent, any Error>.Continuation] = []
 
@@ -29,6 +31,8 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     func setBranch(_ branch: String, for path: String) { lock.withLock { branches[Self.id(for: path)] = branch } }
     func setWorkflows(_ list: [CoreWorkflow], for path: String) { lock.withLock { workflows[Self.id(for: path)] = list } }
     func delayOpen(of path: String, by delay: Duration) { lock.withLock { openDelays[path] = delay } }
+    func delayRefresh(by delay: Duration) { lock.withLock { refreshDelay = delay } }
+    func failRefresh(with error: CoreServiceError?) { lock.withLock { refreshError = error } }
     /// Mirrors the Core: contexts are shared by path and a close is global.
     func isOpen(_ path: String) -> Bool { lock.withLock { openIDs.contains(Self.id(for: path)) } }
 
@@ -63,6 +67,8 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
 
     func refreshRepository(id: String) async throws -> CoreRepository {
         lock.withLock { _refreshCalls.append(id) }
+        if let delay = lock.withLock({ refreshDelay }) { try? await Task.sleep(for: delay) }
+        if let error = lock.withLock({ refreshError }) { throw error }
         return CoreRepository(id: id, path: String(id.dropFirst(3)), branch: lock.withLock { branches[id] } ?? "main", workflowCount: 0, lastRefresh: Date())
     }
 
@@ -353,6 +359,55 @@ struct CoreHubTests {
         let started = clock.now
         #expect(await eventually { hub.status == .lost })
         #expect(clock.now - started < .seconds(1))
+    }
+
+    @Test
+    func aRefreshThatFinishesAfterARelinkDoesNotOverwriteTheNewRepository() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID(), window = UUID()
+        provider.core.setBranch("old-branch", for: "/repo/old")
+        provider.core.setBranch("new-branch", for: "/repo/new")
+        hub.attach(windowID: window, workspaceID: workspace, path: "/repo/old")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+
+        provider.core.delayRefresh(by: .milliseconds(300))
+        let refresh = Task { await hub.refresh(workspaceID: workspace) }
+        #expect(await eventually { provider.core.refreshCalls.count == 1 })
+        hub.attach(windowID: window, workspaceID: workspace, path: "/repo/new")
+        await refresh.value
+
+        #expect(await eventually { hub.session(for: workspace)?.coreID == FakeCore.id(for: "/repo/new") })
+        #expect(hub.session(for: workspace)?.branch == "new-branch")
+    }
+
+    @Test
+    func beforeTheCoreStartsRepositoriesWaitInsteadOfShowingUnavailable() async {
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
+        hub.startMonitoring() // the first state is .stopped
+        #expect(await eventually { hub.status == .stopped })
+        #expect(hub.session(for: workspace)?.phase == .waitingForCore)
+        #expect(hub.session(for: workspace)?.summary == "Connecting to Core...")
+    }
+
+    @Test
+    func statusTextShowsTheFailureReasonAndAFailedRefresh() async {
+        let (hub, provider) = await readyHub()
+        provider.core.failOpen(for: "/repo/denied", with: .accessDenied)
+        let denied = UUID(), good = UUID()
+        hub.attach(windowID: UUID(), workspaceID: denied, path: "/repo/denied")
+        hub.attach(windowID: UUID(), workspaceID: good, path: "/repo/good")
+        #expect(await eventually { if case .failed = hub.session(for: denied)?.phase { true } else { false } })
+        #expect(hub.session(for: denied)?.detail.contains("Locate / Grant Access") == true)
+
+        #expect(await eventually { hub.session(for: good)?.phase == .ready })
+        #expect(hub.session(for: good)?.summary == "main · 0 workflows")
+        provider.core.failRefresh(with: .accessDenied)
+        await hub.refresh(workspaceID: good)
+        #expect(hub.session(for: good)?.summary == "main · 0 workflows · refresh failed")
+        #expect(hub.session(for: good)?.detail.hasPrefix("Showing the last data.") == true)
     }
 
     @Test

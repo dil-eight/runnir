@@ -38,6 +38,8 @@ enum CoreSupervisorError: Error, Equatable, Sendable {
     case incompatibleProtocol(Int)
     case launchFailed
     case processExited(Int32)
+    /// The socket path does not fit a Unix socket address (103 bytes).
+    case socketPathTooLong
 }
 
 enum CoreLossReason: Equatable, Sendable {
@@ -102,8 +104,22 @@ actor CoreProcessSupervisor {
                 executableURL: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/runnir-core")
             ),
             connector: GRPCCoreConnector(),
-            socketPath: FileManager.default.temporaryDirectory.appendingPathComponent("runnir-core.sock").path
+            socketPath: socketPath(in: FileManager.default.temporaryDirectory)
         )
+    }
+
+    static let maxSocketPathBytes = 103
+
+    /// A socket path inside `directory` that fits a Unix socket address: the
+    /// descriptive name when it fits, else a short one. A directory too deep
+    /// for either yields the descriptive path, and the start fails clearly with
+    /// `socketPathTooLong` instead of the Core exiting with a bare status.
+    static func socketPath(in directory: URL) -> String {
+        for name in ["runnir-core.sock", "rc.sock"] {
+            let path = directory.appendingPathComponent(name).path
+            if path.utf8.count <= maxSocketPathBytes { return path }
+        }
+        return directory.appendingPathComponent("runnir-core.sock").path
     }
 
     /// Emits the current state first, then every change.
@@ -164,6 +180,7 @@ actor CoreProcessSupervisor {
         await teardown()
         state = .starting
         earlyExit = nil
+        guard socketPath.utf8.count <= Self.maxSocketPathBytes else { return try await fail(.socketPathTooLong) }
         if socketIsStale {
             // Our own previous Core exited, so its leftover socket is ours to remove.
             unlink(socketPath)
@@ -199,7 +216,10 @@ actor CoreProcessSupervisor {
                 connection = try? await connector.connect(socketPath: socketPath)
             }
             if let connection {
-                let answer = try? await connection.service.healthCheck()
+                let remaining = deadline - clock.now
+                let answer = await Self.bounded(by: min(remaining, .seconds(2))) {
+                    try? await connection.service.healthCheck()
+                } ?? nil
                 // Only the child we launched counts. A different pid means the
                 // socket still belongs to another Core, and our child is about to
                 // exit with status 3.
@@ -213,6 +233,24 @@ actor CoreProcessSupervisor {
             }
             if clock.now >= deadline { return try await fail(.timedOut) }
             try? await Task.sleep(for: pollInterval)
+        }
+    }
+
+    /// Runs `operation` but gives up after `limit`, so one stuck call cannot
+    /// stall the start loop past its deadline. The operation is cancelled on
+    /// timeout; one that ignores cancellation keeps running detached.
+    static func bounded<T: Sendable>(by limit: Duration, _ operation: @escaping @Sendable () async -> T) async -> T? {
+        let gate = BoundedGate<T>()
+        return await withCheckedContinuation { (continuation: CheckedContinuation<T?, Never>) in
+            gate.install(continuation)
+            let work = Task {
+                let value = await operation()
+                gate.resume(value)
+            }
+            Task {
+                try? await Task.sleep(for: max(limit, .zero))
+                if gate.resume(nil) { work.cancel() }
+            }
         }
     }
 
@@ -270,5 +308,27 @@ private final class QuitHandle: @unchecked Sendable {
         let current = handle
         lock.unlock()
         current?.terminateNow()
+    }
+}
+
+/// Resumes a continuation once with whichever result arrives first.
+private final class BoundedGate<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<T?, Never>?
+
+    func install(_ continuation: CheckedContinuation<T?, Never>) {
+        lock.withLock { self.continuation = continuation }
+    }
+
+    /// Returns true when this call delivered the result.
+    @discardableResult
+    func resume(_ value: T?) -> Bool {
+        let pending = lock.withLock { () -> CheckedContinuation<T?, Never>? in
+            let current = continuation
+            continuation = nil
+            return current
+        }
+        pending?.resume(returning: value)
+        return pending != nil
     }
 }

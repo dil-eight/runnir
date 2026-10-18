@@ -38,7 +38,7 @@ final class ProcessCoreHandle: CoreProcessHandle, @unchecked Sendable {
     private let gracePeriod: Duration
     private let lock = NSLock()
     private var exitStatus: Int32?
-    private var waiters: [(Int32?) -> Void] = []
+    private var waiters: [UUID: (Int32?) -> Void] = [:]
 
     init(process: Process, stdin: Pipe, gracePeriod: Duration = .seconds(3)) {
         self.process = process
@@ -48,11 +48,14 @@ final class ProcessCoreHandle: CoreProcessHandle, @unchecked Sendable {
 
     var processIdentifier: Int32 { process.processIdentifier }
 
+    /// Number of callers waiting for exit; for tests.
+    var pendingWaiters: Int { lock.withLock { waiters.count } }
+
     func markExited(_ status: Int32) {
         lock.lock()
         exitStatus = status
-        let pending = waiters
-        waiters = []
+        let pending = waiters.values
+        waiters = [:]
         lock.unlock()
         try? stdin.fileHandleForWriting.close()
         for waiter in pending { waiter(status) }
@@ -76,12 +79,17 @@ final class ProcessCoreHandle: CoreProcessHandle, @unchecked Sendable {
                 resume.resume(exitStatus)
                 return
             }
-            waiters.append { resume.resume($0) }
+            let id = UUID()
+            waiters[id] = { resume.resume($0) }
             lock.unlock()
             if let timeout {
                 let (seconds, attoseconds) = timeout.components
                 let delay = Double(seconds) + Double(attoseconds) / 1e18
-                DispatchQueue.global().asyncAfter(deadline: .now() + delay) { resume.resume(nil) }
+                DispatchQueue.global().asyncAfter(deadline: .now() + delay) { [weak self] in
+                    // Drop the waiter so repeated timed waits do not pile up.
+                    self?.lock.withLock { _ = self?.waiters.removeValue(forKey: id) }
+                    resume.resume(nil)
+                }
             }
         }
     }

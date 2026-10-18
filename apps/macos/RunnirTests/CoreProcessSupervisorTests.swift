@@ -9,6 +9,8 @@ private actor FakeHealth {
     var protocolVersion: Int
     var calls = 0
     let processID: Int32
+    var hangs = false
+    func setHangs(_ value: Bool) { hangs = value }
     init(failuresBeforeSuccess: Int = 0, protocolVersion: Int = 1, processID: Int32 = 0) {
         self.failuresBeforeSuccess = failuresBeforeSuccess
         self.protocolVersion = protocolVersion
@@ -26,7 +28,13 @@ private actor FakeHealth {
 
 private struct FakeService: CoreServicing {
     let health: FakeHealth
-    func healthCheck() async throws -> CoreHealth { try await health.next() }
+    func healthCheck() async throws -> CoreHealth {
+        if await health.hangs {
+            // A peer that accepts the call and never answers.
+            try await Task.sleep(for: .seconds(60))
+        }
+        return try await health.next()
+    }
     func openRepository(path: String) async throws -> CoreRepository { throw CoreServiceError.unavailable }
     func refreshRepository(id: String) async throws -> CoreRepository { throw CoreServiceError.unavailable }
     func closeRepository(id: String) async throws { throw CoreServiceError.unavailable }
@@ -282,6 +290,37 @@ struct CoreProcessSupervisorTests {
     }
 
     @Test
+    func aHealthCheckThatNeverAnswersStillTimesOut() async {
+        let rig = Rig(timeout: .milliseconds(300))
+        await rig.health.setHangs(true)
+        let clock = ContinuousClock()
+        let started = clock.now
+        await #expect(throws: CoreSupervisorError.timedOut) { try await rig.supervisor.start() }
+        #expect(clock.now - started < .seconds(3))
+    }
+
+    @Test
+    func aSocketPathThatCannotFitFailsBeforeLaunching() async {
+        let launcher = FakeLauncher()
+        let health = FakeHealth()
+        let supervisor = CoreProcessSupervisor(
+            launcher: launcher, connector: FakeConnector(health: health),
+            socketPath: "/tmp/" + String(repeating: "x", count: 120) + ".sock")
+        await #expect(throws: CoreSupervisorError.socketPathTooLong) { try await supervisor.start() }
+        #expect(launcher.launches == 0)
+    }
+
+    @Test
+    func socketPathFallsBackToAShortName() {
+        let short = URL(fileURLWithPath: "/tmp", isDirectory: true)
+        #expect(CoreProcessSupervisor.socketPath(in: short) == "/tmp/runnir-core.sock")
+        // 90 bytes: the long name no longer fits, the short one does.
+        let deep = URL(fileURLWithPath: "/" + String(repeating: "d", count: 89), isDirectory: true)
+        #expect(CoreProcessSupervisor.socketPath(in: deep).hasSuffix("/rc.sock"))
+        #expect(CoreProcessSupervisor.socketPath(in: deep).utf8.count <= CoreProcessSupervisor.maxSocketPathBytes)
+    }
+
+    @Test
     func terminateImmediatelyReachesTheRunningProcess() async throws {
         let rig = Rig()
         try await rig.supervisor.start()
@@ -323,6 +362,9 @@ struct ProcessCoreHandleTests {
         process.terminationHandler = { handle.markExited($0.terminationStatus) }
         try process.run()
         #expect(await handle.waitForExit(timeout: .milliseconds(100)) == nil)
+        #expect(await handle.waitForExit(timeout: .milliseconds(100)) == nil)
+        // Timed-out waits do not leave waiters behind.
+        #expect(handle.pendingWaiters == 0)
         try stdin.fileHandleForWriting.close() // cat exits at EOF
         #expect(await handle.waitForExit() == 0)
     }

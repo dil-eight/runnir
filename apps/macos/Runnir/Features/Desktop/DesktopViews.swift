@@ -286,18 +286,8 @@ struct DesktopWorkspaceView: View {
 
     private var session: RepositorySession? { desktop.core?.session(for: workspace.id) }
 
-    private var coreSummary: String {
-        guard let session else { return "Working tree" }
-        switch session.phase {
-        case .ready:
-            let count = session.workflows.count
-            let workflows = count == 1 ? "1 workflow" : "\(count) workflows"
-            return session.branch.isEmpty ? workflows : "\(session.branch) · \(workflows)"
-        case .failed: return "Core could not read this folder"
-        case .unavailable: return "Core unavailable"
-        case .waitingForCore, .opening: return "Connecting to Core..."
-        }
-    }
+    private var coreSummary: String { session?.summary ?? "Working tree" }
+    private var coreDetail: String { session?.detail ?? "Branch and workflows reported by Runnir Core" }
 
     /// Offers to restart the Core when it stopped or could not start.
     @ViewBuilder private var coreBanner: some View {
@@ -350,7 +340,7 @@ struct DesktopWorkspaceView: View {
             } else {
                 Label(coreSummary, systemImage: "arrow.triangle.branch")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                    .lineLimit(1).help("Branch and workflows reported by Runnir Core")
+                    .lineLimit(1).help(coreDetail)
                 Button("Refresh") {
                     if let reader { Task { await files.load(reader) } }
                     Task { await desktop.core?.refresh(workspaceID: workspace.id) }

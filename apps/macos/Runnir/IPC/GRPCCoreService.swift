@@ -46,8 +46,19 @@ struct GRPCCoreConnector: CoreConnecting {
 struct GRPCCoreService: CoreServicing {
     fileprivate let client: Runnir_Core_V1_RunnirCore.Client<HTTP2ClientTransport.Posix>
 
+    /// Every unary call has a deadline so a stuck peer cannot hang the caller.
+    /// Health is short because the supervisor polls it; scans may take longer.
+    static let healthTimeout: Duration = .seconds(2)
+    static let callTimeout: Duration = .seconds(30)
+
+    private static func options(_ timeout: Duration) -> CallOptions {
+        var options = CallOptions.defaults
+        options.timeout = timeout
+        return options
+    }
+
     func healthCheck() async throws -> CoreHealth {
-        let response = try await call { try await client.healthCheck(.init()) }
+        let response = try await call { try await client.healthCheck(.init(), options: Self.options(Self.healthTimeout)) }
         return CoreHealth(
             coreVersion: response.coreVersion,
             protocolVersion: Int(response.protocolVersion),
@@ -58,21 +69,21 @@ struct GRPCCoreService: CoreServicing {
     }
 
     func openRepository(path: String) async throws -> CoreRepository {
-        let response = try await call { try await client.openRepository(.with { $0.path = path }) }
+        let response = try await call { try await client.openRepository(.with { $0.path = path }, options: Self.options(Self.callTimeout)) }
         return Self.map(response.repository)
     }
 
     func refreshRepository(id: String) async throws -> CoreRepository {
-        let response = try await call { try await client.refreshRepository(.with { $0.repositoryID = id }) }
+        let response = try await call { try await client.refreshRepository(.with { $0.repositoryID = id }, options: Self.options(Self.callTimeout)) }
         return Self.map(response.repository)
     }
 
     func closeRepository(id: String) async throws {
-        _ = try await call { try await client.closeRepository(.with { $0.repositoryID = id }) }
+        _ = try await call { try await client.closeRepository(.with { $0.repositoryID = id }, options: Self.options(Self.callTimeout)) }
     }
 
     func listWorkflows(repositoryID: String) async throws -> [CoreWorkflow] {
-        let response = try await call { try await client.listWorkflows(.with { $0.repositoryID = repositoryID }) }
+        let response = try await call { try await client.listWorkflows(.with { $0.repositoryID = repositoryID }, options: Self.options(Self.callTimeout)) }
         return response.workflows.map { workflow in
             CoreWorkflow(
                 id: workflow.id,
@@ -90,7 +101,7 @@ struct GRPCCoreService: CoreServicing {
                 $0.repositoryID = repositoryID
                 $0.workflowID = workflowID
                 $0.ref = ref ?? ""
-            })
+            }, options: Self.options(Self.callTimeout))
         }
         return CoreExecution(id: response.executionID, repositoryID: response.repositoryID, state: Self.map(response.state))
     }

@@ -1,9 +1,10 @@
 // Package scanner reads a repository's current branch and GitHub Actions
 // workflow files. It only parses structure: expressions are kept verbatim,
 // nothing is evaluated, and symlinks are never followed. The only reads outside
-// the repository root are the HEAD and back-reference files of a linked
-// worktree's own git directory, and only after that directory confirms it
-// belongs to this worktree.
+// the repository root concern a linked worktree's git directory named by its
+// ".git" file: the bounded "gitdir" back-reference file is read and compared
+// (never returned) to confirm the directory belongs to this worktree, and only
+// then is its HEAD read for the branch.
 package scanner
 
 import (

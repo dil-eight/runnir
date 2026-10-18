@@ -44,6 +44,26 @@ final class RepositorySession: Identifiable {
         self.workspaceID = workspaceID
         self.path = path
     }
+
+    /// Short status for the toolbar.
+    var summary: String {
+        switch phase {
+        case .ready:
+            let count = workflows.count == 1 ? "1 workflow" : "\(workflows.count) workflows"
+            let base = branch.isEmpty ? count : "\(branch) · \(count)"
+            return refreshError == nil ? base : base + " · refresh failed"
+        case .failed: return "Core could not open this repository"
+        case .unavailable: return "Core unavailable"
+        case .waitingForCore, .opening: return "Connecting to Core..."
+        }
+    }
+
+    /// The full explanation, for the tooltip.
+    var detail: String {
+        if case .failed(let message) = phase { return message }
+        if let refreshError { return "Showing the last data. " + refreshError }
+        return "Branch and workflows reported by Runnir Core"
+    }
 }
 
 /// Connects workspace windows to the single Core: opens a repository when its
@@ -76,6 +96,9 @@ final class CoreHub {
     @ObservationIgnored private var windowWorkspace: [UUID: UUID] = [:]
     @ObservationIgnored private var monitor: Task<Void, Never>?
     @ObservationIgnored private var eventTask: Task<Void, Never>?
+    /// Ids this hub closed itself; their REPOSITORY_CLOSED events are not
+    /// "someone else closed it" and must not trigger a reopen.
+    @ObservationIgnored private var ownCloses: Set<String> = []
 
     init(provider: any CoreProviding) {
         self.provider = provider
@@ -118,8 +141,12 @@ final class CoreHub {
     private func handle(_ state: CoreConnectionState) async {
         switch state {
         case .stopped:
+            // Not started yet (or stopped on purpose): nothing is broken, the
+            // repositories simply wait for the Core.
             status = .stopped
-            markUnavailable()
+            eventTask?.cancel()
+            eventTask = nil
+            for session in sessions.values { session.phase = .waitingForCore }
         case .starting:
             if !isReady { status = .starting }
         case .running(let health):
@@ -197,6 +224,7 @@ final class CoreHub {
             guard !isShown(path) else { return }
             // A missing Core or repository means there is nothing left to close.
             guard let service = try? await provider.service() else { return }
+            ownCloses.insert(repositoryID)
             try? await service.closeRepository(id: repositoryID)
             if let reopened = sessions.values.first(where: { $0.path == path }) {
                 await open(reopened)
@@ -245,21 +273,26 @@ final class CoreHub {
               !session.isRefreshing, isReady else { return }
         session.isRefreshing = true
         defer { session.isRefreshing = false }
+        let path = session.path
+        // A relink can move the session to another repository meanwhile.
+        func isCurrent() -> Bool {
+            sessions[workspaceID] === session && session.path == path && session.coreID == coreID
+        }
         do {
             let service = try await provider.service()
             let repository = try await service.refreshRepository(id: coreID)
             let workflows = try await service.listWorkflows(repositoryID: coreID)
-            guard sessions[workspaceID] === session else { return }
+            guard isCurrent() else { return }
             apply(repository, workflows: workflows, to: session)
             session.refreshError = nil
         } catch let error as CoreServiceError where error == .notFound {
-            await open(session)
+            if isCurrent() { await open(session) }
         } catch let error as CoreServiceError where error == .unavailable {
-            session.phase = .unavailable
+            if isCurrent() { session.phase = .unavailable }
         } catch is CancellationError {
             return
         } catch {
-            session.refreshError = Self.describe(error)
+            if isCurrent() { session.refreshError = Self.describe(error) }
         }
     }
 
@@ -308,8 +341,8 @@ final class CoreHub {
             session.appliedSequence = event.sequence
             reloadWorkflows(of: session)
         case .repositoryClosed:
-            // Our own closes remove the session first, so a match means someone
-            // else closed a repository a window still shows.
+            // A close this hub sent is followed by its own reopen when needed.
+            if let id = event.repositoryID, ownCloses.remove(id) != nil { return }
             guard let session = session(forCoreID: event.repositoryID), session.phase == .ready else { return }
             Task { await open(session) }
         case .coreError:
@@ -330,7 +363,7 @@ final class CoreHub {
         Task {
             guard let service = try? await provider.service(),
                   let workflows = try? await service.listWorkflows(repositoryID: coreID),
-                  sessions[session.workspaceID] === session else { return }
+                  sessions[session.workspaceID] === session, session.coreID == coreID else { return }
             session.workflows = workflows
         }
     }
@@ -347,6 +380,7 @@ final class CoreHub {
             case .incompatibleProtocol(let version): "The Core speaks protocol \(version), which this app does not support."
             case .launchFailed: "The Core could not be launched."
             case .processExited(let code): "The Core exited with status \(code)."
+            case .socketPathTooLong: "The Core's socket path is too long for this system."
             }
         case let error as CoreServiceError:
             switch error {
