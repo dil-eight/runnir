@@ -164,6 +164,8 @@ struct CoreHubTests {
         let (hub, provider) = makeHub()
         provider.ready()
         _ = await eventually { hub.status == .ready(version: "fake") }
+        // Events pushed before the hub subscribes would be lost.
+        _ = await eventually { provider.core.subscriptions >= 1 }
         return (hub, provider)
     }
 
