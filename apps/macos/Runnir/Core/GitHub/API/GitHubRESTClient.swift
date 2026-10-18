@@ -24,6 +24,10 @@ final class GitHubRESTClient: GitHubService {
         return repositories.map { $0.domainModel() }
     }
 
+    func repository(owner: String, name: String) async throws -> Repository {
+        try await send(.repository(owner: owner, name: name), responseType: GitHubRepositoryDTO.self).domainModel()
+    }
+
     func listWorkflows(owner: String, repository: String) async throws -> [Workflow] {
         let fullName = "\(owner)/\(repository)"
         let workflows = try await sendPaginated { page in

@@ -347,3 +347,64 @@ func TestNeedsAcceptsOnlyScalarsOrSequences(t *testing.T) {
 		t.Fatalf("jobs = %+v", jobs)
 	}
 }
+
+func TestGitHubRepositoryFromOrigin(t *testing.T) {
+	for remote, want := range map[string]string{
+		"https://github.com/dil-eight/runnir.git":          "dil-eight/runnir",
+		"https://github.com/dil-eight/runnir":              "dil-eight/runnir",
+		"https://x-access-token:secret@github.com/o/r.git": "o/r",
+		"git@github.com:dil-eight/runnir.git":              "dil-eight/runnir",
+		"ssh://git@github.com/dil-eight/runnir.git":        "dil-eight/runnir",
+		"ssh://git@github.com:22/o/r":                      "o/r",
+		"https://GitHub.com/o/r.git/":                      "o/r",
+		"https://gitlab.com/o/r.git":                       "",
+		"git@gitlab.com:o/r.git":                           "",
+		"https://github.com/o":                             "",
+		"https://github.com/o/r/extra":                     "",
+		"file:///Users/me/repo":                            "",
+		"https://github.com.evil.test/o/r":                 "",
+		"":                                                 "",
+	} {
+		if got := gitHubRepository(remote); got != want {
+			t.Errorf("gitHubRepository(%q) = %q, want %q", remote, got, want)
+		}
+	}
+}
+
+func TestOriginIsReadFromTheRepositoryConfigOnly(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, ".git/HEAD", "ref: refs/heads/main\n")
+	write(t, root, ".git/config", `[core]
+	bare = false
+[remote "upstream"]
+	url = https://github.com/someone/else.git
+[remote "origin"]
+	url = git@github.com:dil-eight/runnir.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`)
+	snapshot := scan(t, root)
+	if snapshot.GitHubRepository != "dil-eight/runnir" || snapshot.Branch != "main" {
+		t.Fatalf("snapshot = %+v", snapshot)
+	}
+
+	none := t.TempDir()
+	write(t, none, ".git/HEAD", "ref: refs/heads/main\n")
+	write(t, none, ".git/config", "[remote \"origin\"]\n\turl = https://gitlab.com/o/r.git\n")
+	if got := scan(t, none).GitHubRepository; got != "" {
+		t.Fatalf("non-GitHub origin = %q", got)
+	}
+}
+
+func TestLinkedWorktreeUsesTheMainRepositoryConfig(t *testing.T) {
+	main := t.TempDir()
+	worktree := t.TempDir()
+	write(t, main, ".git/config", "[remote \"origin\"]\n\turl = https://github.com/o/r.git\n")
+	write(t, main, ".git/worktrees/wt/HEAD", "ref: refs/heads/topic\n")
+	write(t, main, ".git/worktrees/wt/commondir", "../..\n")
+	write(t, main, ".git/worktrees/wt/gitdir", filepath.Join(worktree, ".git")+"\n")
+	write(t, worktree, ".git", "gitdir: "+filepath.Join(main, ".git", "worktrees", "wt")+"\n")
+	snapshot := scan(t, worktree)
+	if snapshot.GitHubRepository != "o/r" || snapshot.Branch != "topic" {
+		t.Fatalf("snapshot = %+v", snapshot)
+	}
+}

@@ -161,7 +161,8 @@ struct GRPCCoreService: CoreServicing {
             path: repository.path,
             branch: repository.branch,
             workflowCount: Int(repository.workflowCount),
-            lastRefresh: repository.hasLastRefresh ? repository.lastRefresh.date : nil
+            lastRefresh: repository.hasLastRefresh ? repository.lastRefresh.date : nil,
+            githubRepository: repository.githubRepository.isEmpty ? nil : repository.githubRepository
         )
     }
 

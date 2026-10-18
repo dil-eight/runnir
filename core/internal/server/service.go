@@ -166,10 +166,11 @@ func fromRepository(e repository.Event) events.Event {
 
 func toProto(info repository.Info) *corev1.Repository {
 	out := &corev1.Repository{
-		Id:            info.ID,
-		Path:          info.Path,
-		Branch:        info.Branch,
-		WorkflowCount: uint32(info.WorkflowCount),
+		Id:               info.ID,
+		Path:             info.Path,
+		Branch:           info.Branch,
+		GithubRepository: info.GitHubRepository,
+		WorkflowCount:    uint32(info.WorkflowCount),
 	}
 	if !info.LastRefresh.IsZero() {
 		out.LastRefresh = timestamppb.New(info.LastRefresh)

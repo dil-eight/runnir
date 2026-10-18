@@ -266,6 +266,10 @@ nonisolated struct Runnir_Core_V1_Repository: Sendable {
   /// Clears the value of `lastRefresh`. Subsequent reads from it will return its default value.
   mutating func clearLastRefresh() {self._lastRefresh = nil}
 
+  /// "owner/name" when the "origin" remote points at github.com; empty
+  /// otherwise. The raw remote URL is never sent: it can embed credentials.
+  var githubRepository: String = String()
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -642,7 +646,7 @@ nonisolated extension Runnir_Core_V1_RepositoryResponse: SwiftProtobuf.Message, 
 
 nonisolated extension Runnir_Core_V1_Repository: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".Repository"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}path\0\u{1}branch\0\u{3}workflow_count\0\u{3}last_refresh\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}path\0\u{1}branch\0\u{3}workflow_count\0\u{3}last_refresh\0\u{3}github_repository\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -655,6 +659,7 @@ nonisolated extension Runnir_Core_V1_Repository: SwiftProtobuf.Message, SwiftPro
       case 3: try { try decoder.decodeSingularStringField(value: &self.branch) }()
       case 4: try { try decoder.decodeSingularUInt32Field(value: &self.workflowCount) }()
       case 5: try { try decoder.decodeSingularMessageField(value: &self._lastRefresh) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.githubRepository) }()
       default: break
       }
     }
@@ -680,6 +685,9 @@ nonisolated extension Runnir_Core_V1_Repository: SwiftProtobuf.Message, SwiftPro
     try { if let v = self._lastRefresh {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
     } }()
+    if !self.githubRepository.isEmpty {
+      try visitor.visitSingularStringField(value: self.githubRepository, fieldNumber: 6)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -689,6 +697,7 @@ nonisolated extension Runnir_Core_V1_Repository: SwiftProtobuf.Message, SwiftPro
     if lhs.branch != rhs.branch {return false}
     if lhs.workflowCount != rhs.workflowCount {return false}
     if lhs._lastRefresh != rhs._lastRefresh {return false}
+    if lhs.githubRepository != rhs.githubRepository {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -42,6 +42,20 @@ struct GitHubRESTClientTests {
         #expect(user.login == "octocat")
         #expect(user.name == "Mona")
     }
+
+    @Test
+    func readsOneRepositoryAndMapsNotFound() async throws {
+        let found = URLSession.mock(statusCode: 200, body: #"{"id":7,"name":"runnir","full_name":"dil-eight/runnir","private":false,"visibility":"public","default_branch":"main","owner":{"login":"dil-eight"}}"#)
+        let client = GitHubRESTClient(baseURL: URL(string: "https://api.github.test")!,
+                                      credentialStore: InMemoryCredentialStore(token: "t"), urlSession: found)
+        let repository = try await client.repository(owner: "dil-eight", name: "runnir")
+        #expect(repository.fullName == "dil-eight/runnir")
+
+        let missing = URLSession.mock(statusCode: 404, body: #"{"message":"Not Found"}"#)
+        let hidden = GitHubRESTClient(baseURL: URL(string: "https://api.github.test")!,
+                                      credentialStore: InMemoryCredentialStore(token: "t"), urlSession: missing)
+        await #expect(throws: GitHubAPIError.notFound) { _ = try await hidden.repository(owner: "o", name: "r") }
+    }
 }
 
 private final class MockURLProtocol: URLProtocol {

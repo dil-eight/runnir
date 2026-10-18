@@ -64,7 +64,8 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         if let delay = lock.withLock({ openDelays[path] }) { try? await Task.sleep(for: delay) }
         let id = Self.id(for: path)
         lock.withLock { _ = openIDs.insert(id) }
-        return CoreRepository(id: id, path: path, branch: lock.withLock { branches[id] } ?? "main", workflowCount: 0, lastRefresh: nil)
+        return CoreRepository(id: id, path: path, branch: lock.withLock { branches[id] } ?? "main", workflowCount: 0, lastRefresh: nil,
+                              githubRepository: path == "/repo/linked" ? "o/r" : nil)
     }
 
     func refreshRepository(id: String) async throws -> CoreRepository {
@@ -474,6 +475,14 @@ struct CoreHubTests {
             try? await Task.sleep(for: .milliseconds(20))
             #expect(provider.core.openCalls == ["/repo/a"])
         }
+    }
+
+    @Test
+    func theGitHubRepositoryFromTheCoreReachesTheSession() async {
+        let (hub, _) = await readyHub()
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        #expect(await eventually { hub.session(for: workspace)?.githubRepository == "o/r" })
     }
 
     @Test

@@ -66,6 +66,9 @@ message Repository {
   string branch = 3;
   uint32 workflow_count = 4;
   google.protobuf.Timestamp last_refresh = 5;
+  // "owner/name" when the "origin" remote points at github.com; empty
+  // otherwise. The raw remote URL is never sent: it can embed credentials.
+  string github_repository = 6;
 }
 
 message ListWorkflowsRequest {

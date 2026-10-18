@@ -33,6 +33,8 @@ final class RepositorySession: Identifiable {
     fileprivate(set) var phase: Phase = .waitingForCore
     fileprivate(set) var coreID: String?
     fileprivate(set) var branch = ""
+    /// The GitHub repository this working tree pushes to ("owner/name").
+    fileprivate(set) var githubRepository: String?
     fileprivate(set) var workflows: [CoreWorkflow] = []
     fileprivate(set) var lastRefresh: Date?
     fileprivate(set) var isRefreshing = false
@@ -315,6 +317,7 @@ final class CoreHub {
     private func apply(_ repository: CoreRepository, workflows: [CoreWorkflow], to session: RepositorySession) {
         session.coreID = repository.id
         session.branch = repository.branch
+        session.githubRepository = repository.githubRepository
         session.lastRefresh = repository.lastRefresh
         session.workflows = workflows
     }

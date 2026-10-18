@@ -152,8 +152,11 @@ struct GitHubAccountSettings: View {
                 Text("Signed in as \(user.login)")
                 HStack {
                     Button("Sign Out") { Task { await session.signOut() } }
+                    Button("Manage Repository Access...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
                     Button("Manage Authorization on GitHub...") { openURL(GitHubSession.authorizationsURL) }
                 }
+                Text("Runnir sees only repositories where the Runnir Desktop app is installed. Manage Repository Access adds or removes them on GitHub.")
+                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 Text("Sign Out removes the authorization from this Mac's Keychain. To revoke Runnir's access entirely, use Manage Authorization on GitHub.")
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
             case .offline:

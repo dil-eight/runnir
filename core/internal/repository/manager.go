@@ -35,8 +35,10 @@ type Scanner interface {
 // Snapshot is an immutable result of one scan. Managers replace snapshots
 // wholesale and never mutate one after publishing it; callers must not either.
 type Snapshot struct {
-	Branch    string
-	Workflows []Workflow
+	Branch string
+	// GitHubRepository is "owner/name" from the origin remote, or empty.
+	GitHubRepository string
+	Workflows        []Workflow
 }
 
 type Workflow struct {
@@ -55,11 +57,12 @@ type Job struct {
 
 // Info is a point-in-time view of one repository context.
 type Info struct {
-	ID            string
-	Path          string
-	Branch        string
-	WorkflowCount int
-	LastRefresh   time.Time
+	ID               string
+	Path             string
+	Branch           string
+	GitHubRepository string
+	WorkflowCount    int
+	LastRefresh      time.Time
 }
 
 type EventType int
@@ -111,7 +114,8 @@ type entry struct {
 func (e *entry) info() Info {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	return Info{ID: e.id, Path: e.path, Branch: e.snap.Branch, WorkflowCount: len(e.snap.Workflows), LastRefresh: e.last}
+	return Info{ID: e.id, Path: e.path, Branch: e.snap.Branch, GitHubRepository: e.snap.GitHubRepository,
+		WorkflowCount: len(e.snap.Workflows), LastRefresh: e.last}
 }
 
 func (e *entry) isReady() bool {
