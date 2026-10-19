@@ -27,6 +27,13 @@ type fakeRunsGitHub struct {
 	runStatus string
 	posts     []string
 	conflict  bool
+	forbidden bool
+}
+
+func (f *fakeRunsGitHub) sent() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.posts...)
 }
 
 func (f *fakeRunsGitHub) handler() http.HandlerFunc {
@@ -50,6 +57,14 @@ func (f *fakeRunsGitHub) handler() http.HandlerFunc {
 			_, _ = w.Write([]byte(strings.NewReplacer("%d", "14", "%s", "completed", "conclusion\":%s", "conclusion\":\"success\"").Replace(jobJSON)))
 		case r.URL.Path == "/repos/o/r/actions/jobs/14/logs":
 			_, _ = w.Write([]byte(strings.Repeat("x\n", maxLogLines+10)))
+		case r.URL.Path == "/repos/o/r/actions/jobs/15":
+			_, _ = w.Write([]byte(`{"id":15,"name":"deploy","status":"completed","conclusion":"skipped","steps":[]}`))
+		case r.URL.Path == "/repos/o/r/actions/jobs/16":
+			finished := time.Now().UTC().Format(time.RFC3339)
+			_, _ = w.Write([]byte(`{"id":16,"name":"build","status":"completed","conclusion":"success","completed_at":"` + finished + `",
+				"steps":[{"number":1,"name":"Set up job","status":"completed","conclusion":"success","started_at":"` + finished + `"}]}`))
+		case r.URL.Path == "/repos/o/r/actions/jobs/15/logs", r.URL.Path == "/repos/o/r/actions/jobs/16/logs":
+			w.WriteHeader(http.StatusNotFound)
 		case r.URL.Path == "/repos/o/r/actions/jobs/13/logs":
 			w.WriteHeader(http.StatusGone)
 		case r.URL.Path == "/repos/o/r/actions/runs/21" && r.Method == http.MethodGet:
@@ -60,6 +75,11 @@ func (f *fakeRunsGitHub) handler() http.HandlerFunc {
 			_, _ = w.Write([]byte(`{"id":21,"run_number":1482,"run_attempt":1,"name":"CI","status":"` + f.runStatus + `","conclusion":` + conclusion + `}`))
 		case strings.HasPrefix(r.URL.Path, "/repos/o/r/actions/runs/21/") && r.Method == http.MethodPost:
 			f.posts = append(f.posts, strings.TrimPrefix(r.URL.Path, "/repos/o/r/actions/runs/21/"))
+			if f.forbidden {
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"message":"Unable to re-run this workflow run because it was created over a month ago"}`))
+				return
+			}
 			if f.conflict {
 				w.WriteHeader(http.StatusConflict)
 				_, _ = w.Write([]byte(`{"message":"Cannot cancel a workflow run that is completed."}`))
@@ -123,6 +143,14 @@ func TestJobLogLinesCarryKindAndStep(t *testing.T) {
 	if err != nil || expired.Availability != corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_EXPIRED {
 		t.Fatalf("expired = %v, %v", expired, err)
 	}
+	skipped, err := client.GetJobLog(ctx, &corev1.GetJobLogRequest{RepositoryId: id, JobId: 15})
+	if err != nil || skipped.Availability != corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_AVAILABLE || len(skipped.Lines) != 0 {
+		t.Fatalf("a job that never ran = %v, %v", skipped, err)
+	}
+	settling, err := client.GetJobLog(ctx, &corev1.GetJobLogRequest{RepositoryId: id, JobId: 16})
+	if err != nil || settling.Availability != corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_NOT_READY {
+		t.Fatalf("a job that just finished = %v, %v", settling, err)
+	}
 	short, err := client.GetJobLog(ctx, &corev1.GetJobLogRequest{RepositoryId: id, JobId: 14})
 	if err != nil || len(short.Lines) != maxLogLines || !short.Truncated || short.Lines[0].Number != 11 {
 		t.Fatalf("many short lines = %d lines, truncated %v, %v", len(short.GetLines()), short.GetTruncated(), err)
@@ -154,8 +182,8 @@ func TestRunActionsCheckTheRunStateAndSendOnce(t *testing.T) {
 	}
 
 	rerun := prepare(corev1.RunAction_RUN_ACTION_RERUN_FAILED)
-	if rerun.ActionId == "" || rerun.ExpiresAt == nil || len(fake.posts) != 0 {
-		t.Fatalf("prepare re-run = %v, posts %v", rerun, fake.posts)
+	if rerun.ActionId == "" || rerun.ExpiresAt == nil || len(fake.sent()) != 0 {
+		t.Fatalf("prepare re-run = %v, posts %v", rerun, fake.sent())
 	}
 	confirmed, err := client.ConfirmRunAction(ctx, &corev1.ConfirmRunActionRequest{ActionId: rerun.ActionId})
 	if err != nil || confirmed.AcceptedAt == nil || confirmed.Rejection != "" {
@@ -181,11 +209,19 @@ func TestRunActionsCheckTheRunStateAndSendOnce(t *testing.T) {
 		t.Fatalf("refused = %v, %v", refused, err)
 	}
 
-	fake.mu.Lock()
-	posts := append([]string(nil), fake.posts...)
-	fake.mu.Unlock()
-	if strings.Join(posts, ",") != "rerun-failed-jobs,cancel" {
+	if posts := fake.sent(); strings.Join(posts, ",") != "rerun-failed-jobs,cancel" {
 		t.Fatalf("posts = %v", posts)
+	}
+
+	// A refused change keeps GitHub's reason instead of looking like
+	// missing access.
+	fake.mu.Lock()
+	fake.runStatus, fake.conflict, fake.forbidden = "completed", false, true
+	fake.mu.Unlock()
+	old := prepare(corev1.RunAction_RUN_ACTION_RERUN)
+	tooOld, err := client.ConfirmRunAction(ctx, &corev1.ConfirmRunActionRequest{ActionId: old.ActionId})
+	if err != nil || !strings.Contains(tooOld.Rejection, "over a month ago") || tooOld.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_OK {
+		t.Fatalf("forbidden re-run = %v, %v", tooOld, err)
 	}
 	if _, err := client.PrepareRunAction(ctx, &corev1.PrepareRunActionRequest{RepositoryId: id, RunId: 21}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("no action = %v", err)

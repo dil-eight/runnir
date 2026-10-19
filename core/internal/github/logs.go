@@ -30,6 +30,9 @@ type JobLog struct {
 	DroppedLines int
 	// True when lines were dropped at the start or reading stopped early.
 	Truncated bool
+	// True when the log was larger than maxLogDownload: Data is the end of
+	// what was read, not the end of the log.
+	StoppedEarly bool
 }
 
 // JobLog downloads a job's log and keeps at most tail bytes from its end.
@@ -130,6 +133,10 @@ func transportError(ctx context.Context) error {
 // readTail keeps the last tail bytes of body, cut at a line start, counting
 // the lines it drops. It reads at most maxLogDownload bytes.
 func readTail(body io.Reader, tail int) (JobLog, error) {
+	return readTailUpTo(body, tail, maxLogDownload)
+}
+
+func readTailUpTo(body io.Reader, tail, limit int) (JobLog, error) {
 	var (
 		kept    []byte
 		dropped int
@@ -149,7 +156,7 @@ func readTail(body io.Reader, tail int) (JobLog, error) {
 		dropped += bytes.Count(kept[:cut], []byte{'\n'})
 		kept = append(kept[:0:0], kept[cut:]...)
 	}
-	for total < maxLogDownload {
+	for total < limit {
 		n, err := body.Read(chunk)
 		if n > 0 {
 			total += n
@@ -167,5 +174,9 @@ func readTail(body io.Reader, tail int) (JobLog, error) {
 		}
 	}
 	trim(tail)
-	return JobLog{Data: kept, DroppedLines: dropped, Truncated: true}, nil
+	// The limit can fall exactly at the end; only more data means we stopped.
+	if n, _ := body.Read(make([]byte, 1)); n == 0 {
+		return JobLog{Data: kept, DroppedLines: dropped, Truncated: dropped > 0}, nil
+	}
+	return JobLog{Data: kept, DroppedLines: dropped, Truncated: true, StoppedEarly: true}, nil
 }

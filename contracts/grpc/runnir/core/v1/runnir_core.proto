@@ -377,8 +377,10 @@ enum JobLogAvailability {
   JOB_LOG_AVAILABILITY_UNSPECIFIED = 0;
   JOB_LOG_AVAILABILITY_AVAILABLE = 1;
   // GitHub no longer has the log: its retention passed or it was deleted.
+  // A job that never ran has no log and is AVAILABLE with no lines.
   JOB_LOG_AVAILABILITY_EXPIRED = 2;
-  // The job has not finished; GitHub serves the log once it completes.
+  // The job has not finished, or finished moments ago and GitHub is still
+  // storing the log; ask again shortly.
   JOB_LOG_AVAILABILITY_NOT_READY = 3;
 }
 
@@ -411,6 +413,9 @@ message GetJobLogResponse {
   repeated LogLine lines = 3;
   // Earlier lines were dropped to keep the response bounded.
   bool truncated = 4;
+  // The log is larger than the Core reads (256 MiB): the lines are the end
+  // of what was read, not the end of the log.
+  bool stopped_early = 5;
 }
 
 enum RunAction {
@@ -449,6 +454,7 @@ message ConfirmRunActionResponse {
   // When GitHub accepted the request. Cancelling and re-running then happen
   // asynchronously; the run's status shows the outcome.
   google.protobuf.Timestamp accepted_at = 2;
-  // GitHub's reason when it refused the request (status is OK then).
+  // GitHub's reason when it refused the request (status is OK then), for
+  // example a run that finished meanwhile or one too old to re-run.
   string rejection = 3;
 }

@@ -50,7 +50,7 @@ func (s *service) GetJobLog(ctx context.Context, request *corev1.GetJobLogReques
 	}
 	log, logErr := s.github.JobLog(ctx, owner, name, request.GetJobId(), 0)
 	if errors.Is(logErr, github.ErrLogUnavailable) {
-		out.Availability = corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_EXPIRED
+		out.Availability = missingLogAvailability(job, time.Now())
 		return out, nil
 	}
 	if out.Status, err = s.githubStatus(logErr); err != nil {
@@ -68,6 +68,7 @@ func (s *service) GetJobLog(ctx context.Context, request *corev1.GetJobLogReques
 	lines := joblog.Parse(log.Data, int64(log.DroppedLines)+1, steps)
 	out.Availability = corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_AVAILABLE
 	out.Truncated = log.Truncated
+	out.StoppedEarly = log.StoppedEarly
 	// Many short lines cost more on the wire than their text; keep the
 	// response well under the client's 4 MiB message limit.
 	if len(lines) > maxLogLines {
@@ -150,6 +151,31 @@ func (s *service) ConfirmRunAction(ctx context.Context, request *corev1.ConfirmR
 		out.AcceptedAt = timestamppb.New(acceptedAt)
 	}
 	return out, nil
+}
+
+// logSettleTime is how long after a job finishes GitHub may still answer
+// 404 for its log while storing it.
+const logSettleTime = 2 * time.Minute
+
+// missingLogAvailability explains a log GitHub does not have: a job that
+// never ran wrote none (an empty log), a job that just finished may not be
+// stored yet, and otherwise the log expired or was deleted.
+func missingLogAvailability(job github.Job, now time.Time) corev1.JobLogAvailability {
+	ran := false
+	for _, step := range job.Steps {
+		if step.Conclusion != "skipped" && !step.StartedAt.IsZero() {
+			ran = true
+			break
+		}
+	}
+	switch {
+	case job.Conclusion == "skipped" || !ran:
+		return corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_AVAILABLE
+	case !job.CompletedAt.IsZero() && now.Sub(job.CompletedAt) < logSettleTime:
+		return corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_NOT_READY
+	default:
+		return corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_EXPIRED
+	}
 }
 
 // runActionProblem says why an action does not fit the run's current state,

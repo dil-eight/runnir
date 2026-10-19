@@ -287,8 +287,10 @@ const (
 	JobLogAvailability_JOB_LOG_AVAILABILITY_UNSPECIFIED JobLogAvailability = 0
 	JobLogAvailability_JOB_LOG_AVAILABILITY_AVAILABLE   JobLogAvailability = 1
 	// GitHub no longer has the log: its retention passed or it was deleted.
+	// A job that never ran has no log and is AVAILABLE with no lines.
 	JobLogAvailability_JOB_LOG_AVAILABILITY_EXPIRED JobLogAvailability = 2
-	// The job has not finished; GitHub serves the log once it completes.
+	// The job has not finished, or finished moments ago and GitHub is still
+	// storing the log; ask again shortly.
 	JobLogAvailability_JOB_LOG_AVAILABILITY_NOT_READY JobLogAvailability = 3
 )
 
@@ -3022,7 +3024,10 @@ type GetJobLogResponse struct {
 	Availability JobLogAvailability     `protobuf:"varint,2,opt,name=availability,proto3,enum=runnir.core.v1.JobLogAvailability" json:"availability,omitempty"`
 	Lines        []*LogLine             `protobuf:"bytes,3,rep,name=lines,proto3" json:"lines,omitempty"`
 	// Earlier lines were dropped to keep the response bounded.
-	Truncated     bool `protobuf:"varint,4,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	Truncated bool `protobuf:"varint,4,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	// The log is larger than the Core reads (256 MiB): the lines are the end
+	// of what was read, not the end of the log.
+	StoppedEarly  bool `protobuf:"varint,5,opt,name=stopped_early,json=stoppedEarly,proto3" json:"stopped_early,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3081,6 +3086,13 @@ func (x *GetJobLogResponse) GetLines() []*LogLine {
 func (x *GetJobLogResponse) GetTruncated() bool {
 	if x != nil {
 		return x.Truncated
+	}
+	return false
+}
+
+func (x *GetJobLogResponse) GetStoppedEarly() bool {
+	if x != nil {
+		return x.StoppedEarly
 	}
 	return false
 }
@@ -3275,7 +3287,8 @@ type ConfirmRunActionResponse struct {
 	// When GitHub accepted the request. Cancelling and re-running then happen
 	// asynchronously; the run's status shows the outcome.
 	AcceptedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=accepted_at,json=acceptedAt,proto3" json:"accepted_at,omitempty"`
-	// GitHub's reason when it refused the request (status is OK then).
+	// GitHub's reason when it refused the request (status is OK then), for
+	// example a run that finished meanwhile or one too old to re-run.
 	Rejection     string `protobuf:"bytes,3,opt,name=rejection,proto3" json:"rejection,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3536,12 +3549,13 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x04text\x18\x02 \x01(\tR\x04text\x12/\n" +
 	"\x04kind\x18\x03 \x01(\x0e2\x1b.runnir.core.v1.LogLineKindR\x04kind\x12\x1f\n" +
 	"\vstep_number\x18\x04 \x01(\x03R\n" +
-	"stepNumber\"\xde\x01\n" +
+	"stepNumber\"\x83\x02\n" +
 	"\x11GetJobLogResponse\x124\n" +
 	"\x06status\x18\x01 \x01(\v2\x1c.runnir.core.v1.GitHubStatusR\x06status\x12F\n" +
 	"\favailability\x18\x02 \x01(\x0e2\".runnir.core.v1.JobLogAvailabilityR\favailability\x12-\n" +
 	"\x05lines\x18\x03 \x03(\v2\x17.runnir.core.v1.LogLineR\x05lines\x12\x1c\n" +
-	"\ttruncated\x18\x04 \x01(\bR\ttruncated\"\x88\x01\n" +
+	"\ttruncated\x18\x04 \x01(\bR\ttruncated\x12#\n" +
+	"\rstopped_early\x18\x05 \x01(\bR\fstoppedEarly\"\x88\x01\n" +
 	"\x17PrepareRunActionRequest\x12#\n" +
 	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\x12\x15\n" +
 	"\x06run_id\x18\x02 \x01(\x03R\x05runId\x121\n" +

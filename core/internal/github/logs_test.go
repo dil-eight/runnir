@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 func numberedLog(lines int) string {
@@ -30,6 +31,18 @@ func TestReadTailKeepsWholeLinesFromTheEnd(t *testing.T) {
 	small, _ := readTail(strings.NewReader("a\nb\n"), 95)
 	if string(small.Data) != "a\nb\n" || small.DroppedLines != 0 || small.Truncated {
 		t.Fatalf("small = %+v", small)
+	}
+}
+
+func TestAHugeLogSaysItStoppedEarly(t *testing.T) {
+	got, err := readTailUpTo(iotest.OneByteReader(strings.NewReader(numberedLog(1000))), 95, 500)
+	if err != nil || !got.StoppedEarly || !got.Truncated || len(got.Data) == 0 || len(got.Data) > 95 {
+		t.Fatalf("stopped early = %+v, %v", got, err)
+	}
+	// Reading exactly up to the limit and then hitting the end is complete.
+	exact, _ := readTailUpTo(iotest.OneByteReader(strings.NewReader(numberedLog(50))), 1000, 500)
+	if exact.StoppedEarly || exact.Truncated || len(exact.Data) != 500 {
+		t.Fatalf("exact = stopped %v, truncated %v, %d bytes", exact.StoppedEarly, exact.Truncated, len(exact.Data))
 	}
 }
 

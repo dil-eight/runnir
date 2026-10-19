@@ -24,9 +24,10 @@ var (
 	ErrInvalid     = errors.New("unexpected GitHub response")
 )
 
-// RejectedError is GitHub refusing a request it understood (HTTP 422 or 409),
-// for example a workflow without a workflow_dispatch trigger at that ref, or
-// cancelling a run that already finished.
+// RejectedError is GitHub refusing a change it understood (HTTP 422, 409, or
+// 403 on a write), for example a workflow without a workflow_dispatch trigger
+// at that ref, cancelling a run that already finished, or re-running a run
+// older than a month.
 type RejectedError struct{ Message string }
 
 func (e *RejectedError) Error() string {
@@ -299,9 +300,9 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 	return nil
 }
 
-// send performs one request and maps GitHub's failure statuses. A 422 or 409
-// is returned as *RejectedError with GitHub's message, which never holds the
-// token.
+// send performs one request and maps GitHub's failure statuses. A 422, a 409,
+// or a 403 on a change is returned as *RejectedError with GitHub's message,
+// which never holds the token.
 func (c *Client) send(ctx context.Context, method, path string, query url.Values, body []byte, accept string) ([]byte, int, error) {
 	token, ok := c.credential.Token()
 	if !ok {
@@ -349,19 +350,27 @@ func (c *Client) send(ctx context.Context, method, path string, query url.Values
 		return nil, status, ErrUnauthorized
 	case status == http.StatusTooManyRequests, status == http.StatusForbidden && isRateLimited(response):
 		return nil, status, &RateLimitError{Reset: rateLimitReset(response)}
+	case status == http.StatusForbidden && method != http.MethodGet:
+		// A refused change carries GitHub's reason, for example a run too
+		// old to re-run or an organization policy; reads keep NOT_VISIBLE.
+		return nil, status, &RejectedError{Message: problemMessage(data)}
 	case status == http.StatusForbidden, status == http.StatusNotFound:
 		return nil, status, ErrNotVisible
 	case status == http.StatusUnprocessableEntity, status == http.StatusConflict:
-		var problem struct {
-			Message string `json:"message"`
-		}
-		_ = json.Unmarshal(data, &problem)
-		return nil, status, &RejectedError{Message: problem.Message}
+		return nil, status, &RejectedError{Message: problemMessage(data)}
 	case status >= 500:
 		return nil, status, ErrUnavailable
 	default:
 		return nil, status, ErrInvalid
 	}
+}
+
+func problemMessage(data []byte) string {
+	var problem struct {
+		Message string `json:"message"`
+	}
+	_ = json.Unmarshal(data, &problem)
+	return problem.Message
 }
 
 func isRateLimited(response *http.Response) bool {

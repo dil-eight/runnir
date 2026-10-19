@@ -263,9 +263,11 @@ nonisolated enum Runnir_Core_V1_JobLogAvailability: SwiftProtobuf.Enum, Swift.Ca
   case available // = 1
 
   /// GitHub no longer has the log: its retention passed or it was deleted.
+  /// A job that never ran has no log and is AVAILABLE with no lines.
   case expired // = 2
 
-  /// The job has not finished; GitHub serves the log once it completes.
+  /// The job has not finished, or finished moments ago and GitHub is still
+  /// storing the log; ask again shortly.
   case notReady // = 3
   case UNRECOGNIZED(Int)
 
@@ -1343,6 +1345,10 @@ nonisolated struct Runnir_Core_V1_GetJobLogResponse: Sendable {
   /// Earlier lines were dropped to keep the response bounded.
   var truncated: Bool = false
 
+  /// The log is larger than the Core reads (256 MiB): the lines are the end
+  /// of what was read, not the end of the log.
+  var stoppedEarly: Bool = false
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -1452,7 +1458,8 @@ nonisolated struct Runnir_Core_V1_ConfirmRunActionResponse: Sendable {
   /// Clears the value of `acceptedAt`. Subsequent reads from it will return its default value.
   mutating func clearAcceptedAt() {self._acceptedAt = nil}
 
-  /// GitHub's reason when it refused the request (status is OK then).
+  /// GitHub's reason when it refused the request (status is OK then), for
+  /// example a run that finished meanwhile or one too old to re-run.
   var rejection: String = String()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
@@ -3272,7 +3279,7 @@ nonisolated extension Runnir_Core_V1_LogLine: SwiftProtobuf.Message, SwiftProtob
 
 nonisolated extension Runnir_Core_V1_GetJobLogResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".GetJobLogResponse"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{1}availability\0\u{1}lines\0\u{1}truncated\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{1}availability\0\u{1}lines\0\u{1}truncated\0\u{3}stopped_early\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3284,6 +3291,7 @@ nonisolated extension Runnir_Core_V1_GetJobLogResponse: SwiftProtobuf.Message, S
       case 2: try { try decoder.decodeSingularEnumField(value: &self.availability) }()
       case 3: try { try decoder.decodeRepeatedMessageField(value: &self.lines) }()
       case 4: try { try decoder.decodeSingularBoolField(value: &self.truncated) }()
+      case 5: try { try decoder.decodeSingularBoolField(value: &self.stoppedEarly) }()
       default: break
       }
     }
@@ -3306,6 +3314,9 @@ nonisolated extension Runnir_Core_V1_GetJobLogResponse: SwiftProtobuf.Message, S
     if self.truncated != false {
       try visitor.visitSingularBoolField(value: self.truncated, fieldNumber: 4)
     }
+    if self.stoppedEarly != false {
+      try visitor.visitSingularBoolField(value: self.stoppedEarly, fieldNumber: 5)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3314,6 +3325,7 @@ nonisolated extension Runnir_Core_V1_GetJobLogResponse: SwiftProtobuf.Message, S
     if lhs.availability != rhs.availability {return false}
     if lhs.lines != rhs.lines {return false}
     if lhs.truncated != rhs.truncated {return false}
+    if lhs.stoppedEarly != rhs.stoppedEarly {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
