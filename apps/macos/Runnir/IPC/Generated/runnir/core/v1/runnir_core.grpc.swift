@@ -233,6 +233,45 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "GetJobLog" metadata.
+        internal enum GetJobLog: Sendable {
+            /// Request type for "GetJobLog".
+            internal typealias Input = Runnir_Core_V1_GetJobLogRequest
+            /// Response type for "GetJobLog".
+            internal typealias Output = Runnir_Core_V1_GetJobLogResponse
+            /// Descriptor for "GetJobLog".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "GetJobLog",
+                type: .unary
+            )
+        }
+        /// Namespace for "PrepareRunAction" metadata.
+        internal enum PrepareRunAction: Sendable {
+            /// Request type for "PrepareRunAction".
+            internal typealias Input = Runnir_Core_V1_PrepareRunActionRequest
+            /// Response type for "PrepareRunAction".
+            internal typealias Output = Runnir_Core_V1_PrepareRunActionResponse
+            /// Descriptor for "PrepareRunAction".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "PrepareRunAction",
+                type: .unary
+            )
+        }
+        /// Namespace for "ConfirmRunAction" metadata.
+        internal enum ConfirmRunAction: Sendable {
+            /// Request type for "ConfirmRunAction".
+            internal typealias Input = Runnir_Core_V1_ConfirmRunActionRequest
+            /// Response type for "ConfirmRunAction".
+            internal typealias Output = Runnir_Core_V1_ConfirmRunActionResponse
+            /// Descriptor for "ConfirmRunAction".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ConfirmRunAction",
+                type: .unary
+            )
+        }
         /// Descriptors for all methods in the "runnir.core.v1.RunnirCore" service.
         internal static let descriptors: [GRPCCore.MethodDescriptor] = [
             HealthCheck.descriptor,
@@ -250,7 +289,10 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             ListGitHubRefs.descriptor,
             DescribeWorkflowDispatch.descriptor,
             PrepareWorkflowDispatch.descriptor,
-            ConfirmWorkflowDispatch.descriptor
+            ConfirmWorkflowDispatch.descriptor,
+            GetJobLog.descriptor,
+            PrepareRunAction.descriptor,
+            ConfirmRunAction.descriptor
         ]
     }
 }
@@ -534,6 +576,59 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>
+
+        /// Handle the "GetJobLog" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The end of one job's log (at most 2 MiB and 50,000 lines), split into
+        /// > lines that are tagged with their kind and the step that wrote them.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_GetJobLogRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_GetJobLogResponse` messages.
+        func getJobLog(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetJobLogRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetJobLogResponse>
+
+        /// Handle the "PrepareRunAction" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Cancelling or re-running a run takes two calls, like a dispatch: Prepare
+        /// > checks the run's current state and returns a single-use confirmation;
+        /// > only Confirm sends the request to GitHub, once.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_PrepareRunActionRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_PrepareRunActionResponse` messages.
+        func prepareRunAction(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_PrepareRunActionRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_PrepareRunActionResponse>
+
+        /// Handle the "ConfirmRunAction" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ConfirmRunActionRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ConfirmRunActionResponse` messages.
+        func confirmRunAction(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ConfirmRunActionRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ConfirmRunActionResponse>
     }
 
     /// Service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -801,6 +896,59 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.ServerRequest<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>
+
+        /// Handle the "GetJobLog" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The end of one job's log (at most 2 MiB and 50,000 lines), split into
+        /// > lines that are tagged with their kind and the step that wrote them.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetJobLogRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_GetJobLogResponse` message.
+        func getJobLog(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_GetJobLogRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetJobLogResponse>
+
+        /// Handle the "PrepareRunAction" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Cancelling or re-running a run takes two calls, like a dispatch: Prepare
+        /// > checks the run's current state and returns a single-use confirmation;
+        /// > only Confirm sends the request to GitHub, once.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_PrepareRunActionRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_PrepareRunActionResponse` message.
+        func prepareRunAction(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_PrepareRunActionRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_PrepareRunActionResponse>
+
+        /// Handle the "ConfirmRunAction" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ConfirmRunActionRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ConfirmRunActionResponse` message.
+        func confirmRunAction(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ConfirmRunActionRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ConfirmRunActionResponse>
     }
 
     /// Simple service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -1067,6 +1215,59 @@ extension Runnir_Core_V1_RunnirCore {
             request: Runnir_Core_V1_ConfirmWorkflowDispatchRequest,
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_ConfirmWorkflowDispatchResponse
+
+        /// Handle the "GetJobLog" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The end of one job's log (at most 2 MiB and 50,000 lines), split into
+        /// > lines that are tagged with their kind and the step that wrote them.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_GetJobLogRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_GetJobLogResponse` to respond with.
+        func getJobLog(
+            request: Runnir_Core_V1_GetJobLogRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_GetJobLogResponse
+
+        /// Handle the "PrepareRunAction" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Cancelling or re-running a run takes two calls, like a dispatch: Prepare
+        /// > checks the run's current state and returns a single-use confirmation;
+        /// > only Confirm sends the request to GitHub, once.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_PrepareRunActionRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_PrepareRunActionResponse` to respond with.
+        func prepareRunAction(
+            request: Runnir_Core_V1_PrepareRunActionRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_PrepareRunActionResponse
+
+        /// Handle the "ConfirmRunAction" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ConfirmRunActionRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ConfirmRunActionResponse` to respond with.
+        func confirmRunAction(
+            request: Runnir_Core_V1_ConfirmRunActionRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ConfirmRunActionResponse
     }
 }
 
@@ -1250,6 +1451,39 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
                 )
             }
         )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.GetJobLog.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetJobLogRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetJobLogResponse>(),
+            handler: { request, context in
+                try await self.getJobLog(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.PrepareRunAction.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_PrepareRunActionRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_PrepareRunActionResponse>(),
+            handler: { request, context in
+                try await self.prepareRunAction(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ConfirmRunAction.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ConfirmRunActionRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ConfirmRunActionResponse>(),
+            handler: { request, context in
+                try await self.confirmRunAction(
+                    request: request,
+                    context: context
+                )
+            }
+        )
     }
 }
 
@@ -1426,6 +1660,39 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse> {
         let response = try await self.confirmWorkflowDispatch(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func getJobLog(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetJobLogRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetJobLogResponse> {
+        let response = try await self.getJobLog(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func prepareRunAction(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_PrepareRunActionRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_PrepareRunActionResponse> {
+        let response = try await self.prepareRunAction(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func confirmRunAction(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ConfirmRunActionRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ConfirmRunActionResponse> {
+        let response = try await self.confirmRunAction(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -1641,6 +1908,45 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>(
             message: try await self.confirmWorkflowDispatch(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func getJobLog(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_GetJobLogRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetJobLogResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_GetJobLogResponse>(
+            message: try await self.getJobLog(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func prepareRunAction(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_PrepareRunActionRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_PrepareRunActionResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_PrepareRunActionResponse>(
+            message: try await self.prepareRunAction(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func confirmRunAction(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ConfirmRunActionRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ConfirmRunActionResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ConfirmRunActionResponse>(
+            message: try await self.confirmRunAction(
                 request: request.message,
                 context: context
             ),
@@ -1994,6 +2300,74 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "GetJobLog" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The end of one job's log (at most 2 MiB and 50,000 lines), split into
+        /// > lines that are tagged with their kind and the step that wrote them.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetJobLogRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetJobLogRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetJobLogResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func getJobLog<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetJobLogRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetJobLogRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetJobLogResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetJobLogResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "PrepareRunAction" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Cancelling or re-running a run takes two calls, like a dispatch: Prepare
+        /// > checks the run's current state and returns a single-use confirmation;
+        /// > only Confirm sends the request to GitHub, once.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_PrepareRunActionRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_PrepareRunActionRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_PrepareRunActionResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func prepareRunAction<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_PrepareRunActionRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_PrepareRunActionRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_PrepareRunActionResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_PrepareRunActionResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ConfirmRunAction" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ConfirmRunActionRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ConfirmRunActionRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ConfirmRunActionResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func confirmRunAction<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ConfirmRunActionRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ConfirmRunActionRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ConfirmRunActionResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ConfirmRunActionResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
     }
 
@@ -2524,6 +2898,107 @@ extension Runnir_Core_V1_RunnirCore {
                 onResponse: handleResponse
             )
         }
+
+        /// Call the "GetJobLog" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The end of one job's log (at most 2 MiB and 50,000 lines), split into
+        /// > lines that are tagged with their kind and the step that wrote them.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetJobLogRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetJobLogRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetJobLogResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func getJobLog<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetJobLogRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetJobLogRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetJobLogResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetJobLogResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.GetJobLog.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "PrepareRunAction" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Cancelling or re-running a run takes two calls, like a dispatch: Prepare
+        /// > checks the run's current state and returns a single-use confirmation;
+        /// > only Confirm sends the request to GitHub, once.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_PrepareRunActionRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_PrepareRunActionRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_PrepareRunActionResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func prepareRunAction<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_PrepareRunActionRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_PrepareRunActionRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_PrepareRunActionResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_PrepareRunActionResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.PrepareRunAction.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ConfirmRunAction" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ConfirmRunActionRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ConfirmRunActionRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ConfirmRunActionResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func confirmRunAction<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ConfirmRunActionRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ConfirmRunActionRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ConfirmRunActionResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ConfirmRunActionResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ConfirmRunAction.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
     }
 }
 
@@ -2957,6 +3432,92 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetJobLog" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The end of one job's log (at most 2 MiB and 50,000 lines), split into
+    /// > lines that are tagged with their kind and the step that wrote them.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_GetJobLogRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getJobLog<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_GetJobLogRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetJobLogResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.getJobLog(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetJobLogRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetJobLogResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "PrepareRunAction" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Cancelling or re-running a run takes two calls, like a dispatch: Prepare
+    /// > checks the run's current state and returns a single-use confirmation;
+    /// > only Confirm sends the request to GitHub, once.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_PrepareRunActionRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func prepareRunAction<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_PrepareRunActionRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_PrepareRunActionResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.prepareRunAction(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_PrepareRunActionRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_PrepareRunActionResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ConfirmRunAction" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ConfirmRunActionRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func confirmRunAction<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ConfirmRunActionRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ConfirmRunActionResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.confirmRunAction(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ConfirmRunActionRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ConfirmRunActionResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -3456,6 +4017,104 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.confirmWorkflowDispatch(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetJobLog" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The end of one job's log (at most 2 MiB and 50,000 lines), split into
+    /// > lines that are tagged with their kind and the step that wrote them.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getJobLog<Result>(
+        _ message: Runnir_Core_V1_GetJobLogRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetJobLogResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_GetJobLogRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.getJobLog(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "PrepareRunAction" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Cancelling or re-running a run takes two calls, like a dispatch: Prepare
+    /// > checks the run's current state and returns a single-use confirmation;
+    /// > only Confirm sends the request to GitHub, once.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func prepareRunAction<Result>(
+        _ message: Runnir_Core_V1_PrepareRunActionRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_PrepareRunActionResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_PrepareRunActionRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.prepareRunAction(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ConfirmRunAction" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func confirmRunAction<Result>(
+        _ message: Runnir_Core_V1_ConfirmRunActionRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ConfirmRunActionResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ConfirmRunActionRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.confirmRunAction(
             request: request,
             options: options,
             onResponse: handleResponse

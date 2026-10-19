@@ -119,6 +119,28 @@ func TestStatusesMapToActionableErrors(t *testing.T) {
 	if !errors.As(err, &rateLimit) || rateLimit.Reset.Unix() != reset {
 		t.Fatalf("rate limit = %v", err)
 	}
+
+	// A refused change keeps GitHub's reason; a refused read stays NOT_VISIBLE.
+	refused, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(403)
+		_, _ = w.Write([]byte(`{"message":"Unable to re-run this workflow run because it was created over a month ago"}`))
+	})
+	var rejected *RejectedError
+	if err := refused.RerunRun(context.Background(), "o", "r", 9, false); !errors.As(err, &rejected) || !strings.Contains(rejected.Message, "over a month ago") {
+		t.Fatalf("forbidden change = %v", err)
+	}
+	if _, err := refused.Run(context.Background(), "o", "r", 9); !errors.Is(err, ErrNotVisible) {
+		t.Fatalf("forbidden read = %v", err)
+	}
+	// Missing installation or permission stays NOT_VISIBLE, which the app
+	// can help fix.
+	notInstalled, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(403)
+		_, _ = w.Write([]byte(`{"message":"Resource not accessible by integration"}`))
+	})
+	if err := notInstalled.CancelRun(context.Background(), "o", "r", 9); !errors.Is(err, ErrNotVisible) {
+		t.Fatalf("not accessible by integration = %v", err)
+	}
 }
 
 func TestNoTokenMeansNoRequest(t *testing.T) {

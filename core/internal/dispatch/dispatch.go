@@ -5,29 +5,25 @@
 package dispatch
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
 	"strconv"
-	"sync"
 	"time"
 
+	"runnir/core/internal/approval"
 	"runnir/core/internal/scanner"
 )
 
 var (
 	// ErrUnknown: no such preparation, or it was already confirmed.
-	ErrUnknown = errors.New("this confirmation is unknown or was already used")
-	ErrExpired = errors.New("this confirmation has expired")
-	ErrTooMany = errors.New("too many dispatches are waiting for confirmation")
+	ErrUnknown = approval.ErrUnknown
+	ErrExpired = approval.ErrExpired
+	ErrTooMany = approval.ErrTooMany
 )
 
 const (
-	DefaultTTL     = 2 * time.Minute
-	maxPending     = 20
+	DefaultTTL     = approval.DefaultTTL
 	maxInputs      = 25
 	maxValueLength = 65535
 )
@@ -43,66 +39,27 @@ type Request struct {
 	Inputs       map[string]string
 }
 
-type Pending struct {
-	ID        string
-	Request   Request
-	ExpiresAt time.Time
-}
+type Pending = approval.Pending[Request]
 
 // Store keeps prepared dispatches in memory. Safe for concurrent use.
 type Store struct {
-	mu      sync.Mutex
-	pending map[string]Pending
-	ttl     time.Duration
-	now     func() time.Time
+	store *approval.Store[Request]
 }
 
 func NewStore(ttl time.Duration, now func() time.Time) *Store {
-	if ttl <= 0 {
-		ttl = DefaultTTL
-	}
-	if now == nil {
-		now = time.Now
-	}
-	return &Store{pending: map[string]Pending{}, ttl: ttl, now: now}
+	return &Store{store: approval.NewStore[Request]("dispatch_", ttl, now)}
 }
 
-// Prepare records a validated request and returns its single-use id.
+// Prepare records a validated request and returns its single-use id. The
+// inputs are copied, so later changes to the caller's map do not matter.
 func (s *Store) Prepare(request Request) (Pending, error) {
-	var raw [16]byte
-	if _, err := rand.Read(raw[:]); err != nil {
-		return Pending{}, fmt.Errorf("generate dispatch id: %w", err)
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	now := s.now()
-	for id, p := range s.pending {
-		if !now.Before(p.ExpiresAt) {
-			delete(s.pending, id)
-		}
-	}
-	if len(s.pending) >= maxPending {
-		return Pending{}, ErrTooMany
-	}
 	request.Inputs = maps.Clone(request.Inputs)
-	pending := Pending{ID: "dispatch_" + hex.EncodeToString(raw[:]), Request: request, ExpiresAt: now.Add(s.ttl)}
-	s.pending[pending.ID] = pending
-	return pending, nil
+	return s.store.Prepare(request)
 }
 
 // Confirm consumes a preparation. It succeeds at most once per id.
 func (s *Store) Confirm(id string) (Request, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	pending, ok := s.pending[id]
-	if !ok {
-		return Request{}, ErrUnknown
-	}
-	delete(s.pending, id)
-	if !s.now().Before(pending.ExpiresAt) {
-		return Request{}, ErrExpired
-	}
-	return pending.Request, nil
+	return s.store.Confirm(id)
 }
 
 // Validate checks inputs against the workflow_dispatch definition the way

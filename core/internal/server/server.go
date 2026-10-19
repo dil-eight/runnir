@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"runnir/core/internal/approval"
 	"runnir/core/internal/buildinfo"
 	"runnir/core/internal/dispatch"
 	"runnir/core/internal/events"
@@ -99,6 +100,7 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 		repositories: repositories, events: bus, executions: executions, credential: credential,
 		github:     github.NewClient(credential, options.GitHubBaseURL, buildinfo.Version),
 		dispatches: dispatch.NewStore(0, nil),
+		runActions: approval.NewStore[runAction]("action_", 0, nil),
 	})
 
 	done := make(chan error, 1)

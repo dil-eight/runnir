@@ -82,11 +82,7 @@ func (s *service) ListWorkflowRuns(ctx context.Context, request *corev1.ListWork
 	}
 	out := &corev1.ListWorkflowRunsResponse{Status: result}
 	for _, r := range runs {
-		out.Runs = append(out.Runs, &corev1.WorkflowRun{
-			Id: r.ID, WorkflowId: r.WorkflowID, Name: r.Name, DisplayTitle: r.DisplayTitle, RunNumber: r.RunNumber,
-			Event: r.Event, Status: r.Status, Conclusion: r.Conclusion, Branch: r.Branch, HeadSha: r.HeadSHA,
-			Actor: r.Actor, HtmlUrl: r.HTMLURL, CreatedAt: timestamp(r.CreatedAt), UpdatedAt: timestamp(r.UpdatedAt),
-		})
+		out.Runs = append(out.Runs, runMessage(r))
 	}
 	return out, nil
 }
@@ -111,7 +107,8 @@ func (s *service) ListRunJobs(ctx context.Context, request *corev1.ListRunJobsRe
 			StartedAt: timestamp(j.StartedAt), CompletedAt: timestamp(j.CompletedAt),
 		}
 		for _, step := range j.Steps {
-			job.Steps = append(job.Steps, &corev1.RunStep{Number: step.Number, Name: step.Name, Status: step.Status, Conclusion: step.Conclusion})
+			job.Steps = append(job.Steps, &corev1.RunStep{Number: step.Number, Name: step.Name, Status: step.Status, Conclusion: step.Conclusion,
+				StartedAt: timestamp(step.StartedAt), CompletedAt: timestamp(step.CompletedAt)})
 		}
 		out.Jobs = append(out.Jobs, job)
 	}
