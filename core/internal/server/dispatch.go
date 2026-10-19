@@ -1,0 +1,152 @@
+package server
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"runnir/core/internal/dispatch"
+	corev1 "runnir/core/internal/gen/runnir/core/v1"
+	"runnir/core/internal/github"
+	"runnir/core/internal/scanner"
+)
+
+func (s *service) ListGitHubRefs(ctx context.Context, request *corev1.ListGitHubRefsRequest) (*corev1.ListGitHubRefsResponse, error) {
+	owner, name, problem, err := s.githubTarget(request.GetRepositoryId())
+	if err != nil || problem != nil {
+		return &corev1.ListGitHubRefsResponse{Status: problem}, err
+	}
+	refs, fetchErr := s.github.Refs(ctx, owner, name)
+	result, err := s.githubStatus(fetchErr)
+	if err != nil {
+		return nil, err
+	}
+	return &corev1.ListGitHubRefsResponse{Status: result, DefaultBranch: refs.DefaultBranch, Branches: refs.Branches, Tags: refs.Tags}, nil
+}
+
+func (s *service) DescribeWorkflowDispatch(ctx context.Context, request *corev1.DescribeWorkflowDispatchRequest) (*corev1.DescribeWorkflowDispatchResponse, error) {
+	if request.GetWorkflowPath() == "" || request.GetRef() == "" {
+		return nil, status.Error(codes.InvalidArgument, "workflow_path and ref are required")
+	}
+	owner, name, problem, err := s.githubTarget(request.GetRepositoryId())
+	if err != nil || problem != nil {
+		return &corev1.DescribeWorkflowDispatchResponse{Status: problem}, err
+	}
+	data, fetchErr := s.github.File(ctx, owner, name, request.GetWorkflowPath(), request.GetRef())
+	result, err := s.githubStatus(fetchErr)
+	if err != nil {
+		return nil, err
+	}
+	out := &corev1.DescribeWorkflowDispatchResponse{Status: result}
+	if fetchErr != nil {
+		return out, nil
+	}
+	definition, parseErr := scanner.ParseDispatch(data)
+	if parseErr != nil {
+		out.ParseError = "The workflow file on this ref is not valid YAML."
+		return out, nil
+	}
+	out.Dispatchable = definition.Dispatchable
+	for _, input := range definition.Inputs {
+		out.Inputs = append(out.Inputs, &corev1.DispatchInput{
+			Name: input.Name, Description: input.Description, Type: inputType(input.Type),
+			Required: input.Required, DefaultValue: input.Default, Options: input.Options,
+		})
+	}
+	return out, nil
+}
+
+func (s *service) PrepareWorkflowDispatch(ctx context.Context, request *corev1.PrepareWorkflowDispatchRequest) (*corev1.PrepareWorkflowDispatchResponse, error) {
+	if request.GetWorkflowId() <= 0 || request.GetRef() == "" {
+		return nil, status.Error(codes.InvalidArgument, "workflow_id and ref are required")
+	}
+	owner, name, problem, err := s.githubTarget(request.GetRepositoryId())
+	if err != nil || problem != nil {
+		return &corev1.PrepareWorkflowDispatchResponse{Status: problem}, err
+	}
+	// Validate against the definition GitHub will run: the workflow's own file
+	// at the requested ref.
+	path, fetchErr := s.github.WorkflowPath(ctx, owner, name, request.GetWorkflowId())
+	var data []byte
+	if fetchErr == nil {
+		data, fetchErr = s.github.File(ctx, owner, name, path, request.GetRef())
+	}
+	result, err := s.githubStatus(fetchErr)
+	if err != nil {
+		return nil, err
+	}
+	out := &corev1.PrepareWorkflowDispatchResponse{Status: result, WorkflowPath: path}
+	if fetchErr != nil {
+		return out, nil
+	}
+	definition, parseErr := scanner.ParseDispatch(data)
+	if parseErr != nil {
+		out.Problems = []string{"The workflow file on " + request.GetRef() + " is not valid YAML."}
+		return out, nil
+	}
+	if problems := dispatch.Validate(definition, request.GetRef(), request.GetInputs()); len(problems) > 0 {
+		out.Problems = problems
+		return out, nil
+	}
+	pending, err := s.dispatches.Prepare(dispatch.Request{
+		RepositoryID: request.GetRepositoryId(), Owner: owner, Name: name,
+		WorkflowID: request.GetWorkflowId(), WorkflowPath: path, Ref: request.GetRef(), Inputs: request.GetInputs(),
+	})
+	if errors.Is(err, dispatch.ErrTooMany) {
+		return nil, status.Error(codes.ResourceExhausted, err.Error())
+	} else if err != nil {
+		return nil, status.Error(codes.Internal, "could not prepare the dispatch")
+	}
+	out.DispatchId = pending.ID
+	out.ExpiresAt = timestamppb.New(pending.ExpiresAt)
+	return out, nil
+}
+
+func (s *service) ConfirmWorkflowDispatch(ctx context.Context, request *corev1.ConfirmWorkflowDispatchRequest) (*corev1.ConfirmWorkflowDispatchResponse, error) {
+	prepared, err := s.dispatches.Confirm(request.GetDispatchId())
+	if err != nil {
+		return nil, status.Error(codes.FailedPrecondition, "this confirmation expired or was already used; review the run again")
+	}
+	// The repository must still be open: a closed one may have been relinked.
+	if _, err := s.repositories.Get(prepared.RepositoryID); err != nil {
+		return nil, rpcError(err)
+	}
+	sentAt := time.Now()
+	runID, sendErr := s.github.Dispatch(ctx, prepared.Owner, prepared.Name, prepared.WorkflowID, prepared.Ref, prepared.Inputs)
+	var rejected *github.RejectedError
+	if errors.As(sendErr, &rejected) {
+		return &corev1.ConfirmWorkflowDispatchResponse{
+			Status:    &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_OK},
+			Rejection: rejected.Message,
+		}, nil
+	}
+	result, err := s.githubStatus(sendErr)
+	if err != nil {
+		return nil, err
+	}
+	out := &corev1.ConfirmWorkflowDispatchResponse{Status: result}
+	if sendErr == nil {
+		out.DispatchedAt = timestamppb.New(sentAt)
+		out.RunId = runID
+	}
+	return out, nil
+}
+
+func inputType(name string) corev1.DispatchInputType {
+	switch name {
+	case "boolean":
+		return corev1.DispatchInputType_DISPATCH_INPUT_TYPE_BOOLEAN
+	case "choice":
+		return corev1.DispatchInputType_DISPATCH_INPUT_TYPE_CHOICE
+	case "number":
+		return corev1.DispatchInputType_DISPATCH_INPUT_TYPE_NUMBER
+	case "environment":
+		return corev1.DispatchInputType_DISPATCH_INPUT_TYPE_ENVIRONMENT
+	default:
+		return corev1.DispatchInputType_DISPATCH_INPUT_TYPE_STRING
+	}
+}

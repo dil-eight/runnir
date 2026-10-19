@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"runnir/core/internal/buildinfo"
+	"runnir/core/internal/dispatch"
 	"runnir/core/internal/events"
 	"runnir/core/internal/execution"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
@@ -28,6 +29,7 @@ type service struct {
 	executions   *execution.Coordinator
 	credential   *github.Credential
 	github       *github.Client
+	dispatches   *dispatch.Store
 }
 
 func (s *service) HealthCheck(context.Context, *corev1.HealthCheckRequest) (*corev1.HealthCheckResponse, error) {

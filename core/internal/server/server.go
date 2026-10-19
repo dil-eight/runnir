@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 
 	"runnir/core/internal/buildinfo"
+	"runnir/core/internal/dispatch"
 	"runnir/core/internal/events"
 	"runnir/core/internal/execution"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
@@ -96,7 +97,8 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 	credential := &github.Credential{}
 	corev1.RegisterRunnirCoreServer(grpcServer, &service{
 		repositories: repositories, events: bus, executions: executions, credential: credential,
-		github: github.NewClient(credential, options.GitHubBaseURL, buildinfo.Version),
+		github:     github.NewClient(credential, options.GitHubBaseURL, buildinfo.Version),
+		dispatches: dispatch.NewStore(0, nil),
 	})
 
 	done := make(chan error, 1)

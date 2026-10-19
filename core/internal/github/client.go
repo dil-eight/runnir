@@ -1,6 +1,7 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -22,6 +23,17 @@ var (
 	ErrUnavailable = errors.New("GitHub is unavailable")
 	ErrInvalid     = errors.New("unexpected GitHub response")
 )
+
+// RejectedError is GitHub refusing a request it understood (HTTP 422), for
+// example a workflow without a workflow_dispatch trigger at that ref.
+type RejectedError struct{ Message string }
+
+func (e *RejectedError) Error() string {
+	if e.Message == "" {
+		return "GitHub rejected the request"
+	}
+	return "GitHub rejected the request: " + e.Message
+}
 
 // RateLimitError says when GitHub will accept requests again.
 type RateLimitError struct{ Reset time.Time }
@@ -231,50 +243,78 @@ func repoPath(owner, name, suffix string) string {
 }
 
 func (c *Client) get(ctx context.Context, path string, query url.Values, out any) error {
-	token, ok := c.credential.Token()
-	if !ok {
-		return ErrNoCredential
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path+"?"+query.Encode(), nil)
+	data, _, err := c.send(ctx, http.MethodGet, path, query, nil, "application/vnd.github+json")
 	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(data, out); err != nil {
 		return ErrInvalid
 	}
-	request.Header.Set("Accept", "application/vnd.github+json")
+	return nil
+}
+
+// send performs one request and maps GitHub's failure statuses. A 422 is
+// returned as *RejectedError with GitHub's message, which never holds the
+// token.
+func (c *Client) send(ctx context.Context, method, path string, query url.Values, body []byte, accept string) ([]byte, int, error) {
+	token, ok := c.credential.Token()
+	if !ok {
+		return nil, 0, ErrNoCredential
+	}
+	target := c.baseURL + path
+	if len(query) > 0 {
+		target += "?" + query.Encode()
+	}
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	request, err := http.NewRequestWithContext(ctx, method, target, reader)
+	if err != nil {
+		return nil, 0, ErrInvalid
+	}
+	request.Header.Set("Accept", accept)
 	request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("User-Agent", c.userAgent)
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
 
 	response, err := c.http.Do(request)
 	if err != nil {
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return nil, 0, ctx.Err()
 		}
-		return ErrUnavailable
+		return nil, 0, ErrUnavailable
 	}
 	defer response.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes+1))
 	if err != nil {
-		return ErrUnavailable
+		return nil, response.StatusCode, ErrUnavailable
 	}
 	if len(data) > maxResponseBytes {
-		return ErrInvalid
+		return nil, response.StatusCode, ErrInvalid
 	}
 	switch status := response.StatusCode; {
 	case status >= 200 && status < 300:
-		if err := json.Unmarshal(data, out); err != nil {
-			return ErrInvalid
-		}
-		return nil
+		return data, status, nil
 	case status == http.StatusUnauthorized:
-		return ErrUnauthorized
+		return nil, status, ErrUnauthorized
 	case status == http.StatusTooManyRequests, status == http.StatusForbidden && isRateLimited(response):
-		return &RateLimitError{Reset: rateLimitReset(response)}
+		return nil, status, &RateLimitError{Reset: rateLimitReset(response)}
 	case status == http.StatusForbidden, status == http.StatusNotFound:
-		return ErrNotVisible
+		return nil, status, ErrNotVisible
+	case status == http.StatusUnprocessableEntity:
+		var problem struct {
+			Message string `json:"message"`
+		}
+		_ = json.Unmarshal(data, &problem)
+		return nil, status, &RejectedError{Message: problem.Message}
 	case status >= 500:
-		return ErrUnavailable
+		return nil, status, ErrUnavailable
 	default:
-		return ErrInvalid
+		return nil, status, ErrInvalid
 	}
 }
 

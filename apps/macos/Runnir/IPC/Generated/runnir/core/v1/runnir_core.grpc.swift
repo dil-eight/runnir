@@ -181,6 +181,58 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "ListGitHubRefs" metadata.
+        internal enum ListGitHubRefs: Sendable {
+            /// Request type for "ListGitHubRefs".
+            internal typealias Input = Runnir_Core_V1_ListGitHubRefsRequest
+            /// Response type for "ListGitHubRefs".
+            internal typealias Output = Runnir_Core_V1_ListGitHubRefsResponse
+            /// Descriptor for "ListGitHubRefs".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ListGitHubRefs",
+                type: .unary
+            )
+        }
+        /// Namespace for "DescribeWorkflowDispatch" metadata.
+        internal enum DescribeWorkflowDispatch: Sendable {
+            /// Request type for "DescribeWorkflowDispatch".
+            internal typealias Input = Runnir_Core_V1_DescribeWorkflowDispatchRequest
+            /// Response type for "DescribeWorkflowDispatch".
+            internal typealias Output = Runnir_Core_V1_DescribeWorkflowDispatchResponse
+            /// Descriptor for "DescribeWorkflowDispatch".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "DescribeWorkflowDispatch",
+                type: .unary
+            )
+        }
+        /// Namespace for "PrepareWorkflowDispatch" metadata.
+        internal enum PrepareWorkflowDispatch: Sendable {
+            /// Request type for "PrepareWorkflowDispatch".
+            internal typealias Input = Runnir_Core_V1_PrepareWorkflowDispatchRequest
+            /// Response type for "PrepareWorkflowDispatch".
+            internal typealias Output = Runnir_Core_V1_PrepareWorkflowDispatchResponse
+            /// Descriptor for "PrepareWorkflowDispatch".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "PrepareWorkflowDispatch",
+                type: .unary
+            )
+        }
+        /// Namespace for "ConfirmWorkflowDispatch" metadata.
+        internal enum ConfirmWorkflowDispatch: Sendable {
+            /// Request type for "ConfirmWorkflowDispatch".
+            internal typealias Input = Runnir_Core_V1_ConfirmWorkflowDispatchRequest
+            /// Response type for "ConfirmWorkflowDispatch".
+            internal typealias Output = Runnir_Core_V1_ConfirmWorkflowDispatchResponse
+            /// Descriptor for "ConfirmWorkflowDispatch".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ConfirmWorkflowDispatch",
+                type: .unary
+            )
+        }
         /// Descriptors for all methods in the "runnir.core.v1.RunnirCore" service.
         internal static let descriptors: [GRPCCore.MethodDescriptor] = [
             HealthCheck.descriptor,
@@ -194,7 +246,11 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             ClearGitHubCredential.descriptor,
             ListGitHubWorkflows.descriptor,
             ListWorkflowRuns.descriptor,
-            ListRunJobs.descriptor
+            ListRunJobs.descriptor,
+            ListGitHubRefs.descriptor,
+            DescribeWorkflowDispatch.descriptor,
+            PrepareWorkflowDispatch.descriptor,
+            ConfirmWorkflowDispatch.descriptor
         ]
     }
 }
@@ -408,6 +464,76 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListRunJobsRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListRunJobsResponse>
+
+        /// Handle the "ListGitHubRefs" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Branches and tags a workflow can run on.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ListGitHubRefsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ListGitHubRefsResponse` messages.
+        func listGitHubRefs(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListGitHubRefsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListGitHubRefsResponse>
+
+        /// Handle the "DescribeWorkflowDispatch" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Whether a workflow can be started by hand at a ref, and its inputs, read
+        /// > from the workflow file on GitHub at that ref.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_DescribeWorkflowDispatchRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_DescribeWorkflowDispatchResponse` messages.
+        func describeWorkflowDispatch(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_DescribeWorkflowDispatchRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_DescribeWorkflowDispatchResponse>
+
+        /// Handle the "PrepareWorkflowDispatch" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Starting a workflow takes two calls: Prepare validates and returns a
+        /// > single-use confirmation that expires; only Confirm sends it to GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_PrepareWorkflowDispatchRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_PrepareWorkflowDispatchResponse` messages.
+        func prepareWorkflowDispatch(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_PrepareWorkflowDispatchRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_PrepareWorkflowDispatchResponse>
+
+        /// Handle the "ConfirmWorkflowDispatch" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ConfirmWorkflowDispatchRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ConfirmWorkflowDispatchResponse` messages.
+        func confirmWorkflowDispatch(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>
     }
 
     /// Service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -605,6 +731,76 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.ServerRequest<Runnir_Core_V1_ListRunJobsRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListRunJobsResponse>
+
+        /// Handle the "ListGitHubRefs" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Branches and tags a workflow can run on.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubRefsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ListGitHubRefsResponse` message.
+        func listGitHubRefs(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ListGitHubRefsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListGitHubRefsResponse>
+
+        /// Handle the "DescribeWorkflowDispatch" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Whether a workflow can be started by hand at a ref, and its inputs, read
+        /// > from the workflow file on GitHub at that ref.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_DescribeWorkflowDispatchRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_DescribeWorkflowDispatchResponse` message.
+        func describeWorkflowDispatch(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_DescribeWorkflowDispatchRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_DescribeWorkflowDispatchResponse>
+
+        /// Handle the "PrepareWorkflowDispatch" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Starting a workflow takes two calls: Prepare validates and returns a
+        /// > single-use confirmation that expires; only Confirm sends it to GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_PrepareWorkflowDispatchRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_PrepareWorkflowDispatchResponse` message.
+        func prepareWorkflowDispatch(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_PrepareWorkflowDispatchRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_PrepareWorkflowDispatchResponse>
+
+        /// Handle the "ConfirmWorkflowDispatch" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ConfirmWorkflowDispatchRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ConfirmWorkflowDispatchResponse` message.
+        func confirmWorkflowDispatch(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>
     }
 
     /// Simple service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -801,6 +997,76 @@ extension Runnir_Core_V1_RunnirCore {
             request: Runnir_Core_V1_ListRunJobsRequest,
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_ListRunJobsResponse
+
+        /// Handle the "ListGitHubRefs" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Branches and tags a workflow can run on.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ListGitHubRefsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ListGitHubRefsResponse` to respond with.
+        func listGitHubRefs(
+            request: Runnir_Core_V1_ListGitHubRefsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ListGitHubRefsResponse
+
+        /// Handle the "DescribeWorkflowDispatch" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Whether a workflow can be started by hand at a ref, and its inputs, read
+        /// > from the workflow file on GitHub at that ref.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_DescribeWorkflowDispatchRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_DescribeWorkflowDispatchResponse` to respond with.
+        func describeWorkflowDispatch(
+            request: Runnir_Core_V1_DescribeWorkflowDispatchRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_DescribeWorkflowDispatchResponse
+
+        /// Handle the "PrepareWorkflowDispatch" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Starting a workflow takes two calls: Prepare validates and returns a
+        /// > single-use confirmation that expires; only Confirm sends it to GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_PrepareWorkflowDispatchRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_PrepareWorkflowDispatchResponse` to respond with.
+        func prepareWorkflowDispatch(
+            request: Runnir_Core_V1_PrepareWorkflowDispatchRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_PrepareWorkflowDispatchResponse
+
+        /// Handle the "ConfirmWorkflowDispatch" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ConfirmWorkflowDispatchRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ConfirmWorkflowDispatchResponse` to respond with.
+        func confirmWorkflowDispatch(
+            request: Runnir_Core_V1_ConfirmWorkflowDispatchRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ConfirmWorkflowDispatchResponse
     }
 }
 
@@ -940,6 +1206,50 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
                 )
             }
         )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ListGitHubRefs.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListGitHubRefsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListGitHubRefsResponse>(),
+            handler: { request, context in
+                try await self.listGitHubRefs(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.DescribeWorkflowDispatch.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_DescribeWorkflowDispatchRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_DescribeWorkflowDispatchResponse>(),
+            handler: { request, context in
+                try await self.describeWorkflowDispatch(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.PrepareWorkflowDispatch.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_PrepareWorkflowDispatchRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_PrepareWorkflowDispatchResponse>(),
+            handler: { request, context in
+                try await self.prepareWorkflowDispatch(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ConfirmWorkflowDispatch.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>(),
+            handler: { request, context in
+                try await self.confirmWorkflowDispatch(
+                    request: request,
+                    context: context
+                )
+            }
+        )
     }
 }
 
@@ -1072,6 +1382,50 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListRunJobsResponse> {
         let response = try await self.listRunJobs(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func listGitHubRefs(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListGitHubRefsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListGitHubRefsResponse> {
+        let response = try await self.listGitHubRefs(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func describeWorkflowDispatch(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_DescribeWorkflowDispatchRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_DescribeWorkflowDispatchResponse> {
+        let response = try await self.describeWorkflowDispatch(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func prepareWorkflowDispatch(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_PrepareWorkflowDispatchRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_PrepareWorkflowDispatchResponse> {
+        let response = try await self.prepareWorkflowDispatch(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func confirmWorkflowDispatch(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse> {
+        let response = try await self.confirmWorkflowDispatch(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -1235,6 +1589,58 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListRunJobsResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_ListRunJobsResponse>(
             message: try await self.listRunJobs(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func listGitHubRefs(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ListGitHubRefsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListGitHubRefsResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ListGitHubRefsResponse>(
+            message: try await self.listGitHubRefs(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func describeWorkflowDispatch(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_DescribeWorkflowDispatchRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_DescribeWorkflowDispatchResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_DescribeWorkflowDispatchResponse>(
+            message: try await self.describeWorkflowDispatch(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func prepareWorkflowDispatch(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_PrepareWorkflowDispatchRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_PrepareWorkflowDispatchResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_PrepareWorkflowDispatchResponse>(
+            message: try await self.prepareWorkflowDispatch(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func confirmWorkflowDispatch(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>(
+            message: try await self.confirmWorkflowDispatch(
                 request: request.message,
                 context: context
             ),
@@ -1498,6 +1904,96 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListRunJobsResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListRunJobsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ListGitHubRefs" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Branches and tags a workflow can run on.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubRefsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListGitHubRefsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListGitHubRefsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func listGitHubRefs<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListGitHubRefsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListGitHubRefsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListGitHubRefsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListGitHubRefsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "DescribeWorkflowDispatch" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Whether a workflow can be started by hand at a ref, and its inputs, read
+        /// > from the workflow file on GitHub at that ref.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_DescribeWorkflowDispatchRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_DescribeWorkflowDispatchRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_DescribeWorkflowDispatchResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func describeWorkflowDispatch<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_DescribeWorkflowDispatchRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_DescribeWorkflowDispatchRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_DescribeWorkflowDispatchResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_DescribeWorkflowDispatchResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "PrepareWorkflowDispatch" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Starting a workflow takes two calls: Prepare validates and returns a
+        /// > single-use confirmation that expires; only Confirm sends it to GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_PrepareWorkflowDispatchRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_PrepareWorkflowDispatchRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_PrepareWorkflowDispatchResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func prepareWorkflowDispatch<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_PrepareWorkflowDispatchRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_PrepareWorkflowDispatchRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_PrepareWorkflowDispatchResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_PrepareWorkflowDispatchResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ConfirmWorkflowDispatch" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ConfirmWorkflowDispatchRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ConfirmWorkflowDispatchRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ConfirmWorkflowDispatchResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func confirmWorkflowDispatch<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
     }
 
@@ -1894,6 +2390,140 @@ extension Runnir_Core_V1_RunnirCore {
                 onResponse: handleResponse
             )
         }
+
+        /// Call the "ListGitHubRefs" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Branches and tags a workflow can run on.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubRefsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListGitHubRefsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListGitHubRefsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func listGitHubRefs<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListGitHubRefsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListGitHubRefsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListGitHubRefsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListGitHubRefsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ListGitHubRefs.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "DescribeWorkflowDispatch" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Whether a workflow can be started by hand at a ref, and its inputs, read
+        /// > from the workflow file on GitHub at that ref.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_DescribeWorkflowDispatchRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_DescribeWorkflowDispatchRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_DescribeWorkflowDispatchResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func describeWorkflowDispatch<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_DescribeWorkflowDispatchRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_DescribeWorkflowDispatchRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_DescribeWorkflowDispatchResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_DescribeWorkflowDispatchResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.DescribeWorkflowDispatch.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "PrepareWorkflowDispatch" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Starting a workflow takes two calls: Prepare validates and returns a
+        /// > single-use confirmation that expires; only Confirm sends it to GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_PrepareWorkflowDispatchRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_PrepareWorkflowDispatchRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_PrepareWorkflowDispatchResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func prepareWorkflowDispatch<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_PrepareWorkflowDispatchRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_PrepareWorkflowDispatchRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_PrepareWorkflowDispatchResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_PrepareWorkflowDispatchResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.PrepareWorkflowDispatch.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ConfirmWorkflowDispatch" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ConfirmWorkflowDispatchRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ConfirmWorkflowDispatchRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ConfirmWorkflowDispatchResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func confirmWorkflowDispatch<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ConfirmWorkflowDispatch.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
     }
 }
 
@@ -2213,6 +2843,120 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListRunJobsRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListRunJobsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListGitHubRefs" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Branches and tags a workflow can run on.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubRefsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listGitHubRefs<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ListGitHubRefsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListGitHubRefsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.listGitHubRefs(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListGitHubRefsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListGitHubRefsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "DescribeWorkflowDispatch" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Whether a workflow can be started by hand at a ref, and its inputs, read
+    /// > from the workflow file on GitHub at that ref.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_DescribeWorkflowDispatchRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func describeWorkflowDispatch<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_DescribeWorkflowDispatchRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_DescribeWorkflowDispatchResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.describeWorkflowDispatch(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_DescribeWorkflowDispatchRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_DescribeWorkflowDispatchResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "PrepareWorkflowDispatch" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Starting a workflow takes two calls: Prepare validates and returns a
+    /// > single-use confirmation that expires; only Confirm sends it to GitHub.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_PrepareWorkflowDispatchRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func prepareWorkflowDispatch<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_PrepareWorkflowDispatchRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_PrepareWorkflowDispatchResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.prepareWorkflowDispatch(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_PrepareWorkflowDispatchRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_PrepareWorkflowDispatchResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ConfirmWorkflowDispatch" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ConfirmWorkflowDispatchRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func confirmWorkflowDispatch<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.confirmWorkflowDispatch(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -2582,6 +3326,136 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.listRunJobs(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListGitHubRefs" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Branches and tags a workflow can run on.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listGitHubRefs<Result>(
+        _ message: Runnir_Core_V1_ListGitHubRefsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListGitHubRefsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ListGitHubRefsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.listGitHubRefs(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "DescribeWorkflowDispatch" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Whether a workflow can be started by hand at a ref, and its inputs, read
+    /// > from the workflow file on GitHub at that ref.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func describeWorkflowDispatch<Result>(
+        _ message: Runnir_Core_V1_DescribeWorkflowDispatchRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_DescribeWorkflowDispatchResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_DescribeWorkflowDispatchRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.describeWorkflowDispatch(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "PrepareWorkflowDispatch" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Starting a workflow takes two calls: Prepare validates and returns a
+    /// > single-use confirmation that expires; only Confirm sends it to GitHub.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func prepareWorkflowDispatch<Result>(
+        _ message: Runnir_Core_V1_PrepareWorkflowDispatchRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_PrepareWorkflowDispatchResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_PrepareWorkflowDispatchRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.prepareWorkflowDispatch(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ConfirmWorkflowDispatch" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func confirmWorkflowDispatch<Result>(
+        _ message: Runnir_Core_V1_ConfirmWorkflowDispatchRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ConfirmWorkflowDispatchResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ConfirmWorkflowDispatchRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.confirmWorkflowDispatch(
             request: request,
             options: options,
             onResponse: handleResponse
