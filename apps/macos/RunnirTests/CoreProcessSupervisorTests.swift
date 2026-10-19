@@ -399,10 +399,10 @@ struct CoreLivenessTests {
     func aHealthyCoreStaysRunning() async throws {
         let rig = Rig(liveness: .milliseconds(10))
         try await rig.supervisor.start()
-        try await Task.sleep(for: .milliseconds(150))
+        // Wait for several liveness checks however slow the machine is.
+        #expect(await eventuallyAsync { await rig.health.calls > 3 }, "health is checked while running")
         #expect(await rig.supervisor.state == .running(CoreHealth(coreVersion: "test", protocolVersion: 1, openRepositoryCount: 0,
                                                                    residentMemoryBytes: 1, processID: 0)))
-        #expect(await rig.health.calls > 3, "health was checked while running")
         await rig.supervisor.stop()
     }
 }
