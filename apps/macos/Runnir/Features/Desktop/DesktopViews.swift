@@ -282,6 +282,9 @@ struct DesktopWorkspaceView: View {
         .ignoresSafeArea()
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
+        .sheet(isPresented: Binding(get: { state.showingSwitcher }, set: { state.showingSwitcher = $0 })) {
+            WorkspaceSwitcherView(desktop: desktop, currentWorkspaceID: workspace.id, windowID: windowID)
+        }
     }
 
     private var session: RepositorySession? { desktop.core?.session(for: workspace.id) }
@@ -358,19 +361,7 @@ struct DesktopWorkspaceView: View {
         VStack(alignment: .leading, spacing: 2) {
             Color.clear.frame(height: 26)
             BrandLogo(height: 47, width: 128).padding(.leading, 6).padding(.top, 2).padding(.bottom, 14)
-            Menu {
-                Button("Open Workspace Manager...") { desktop.showManager() }
-                Divider()
-                ForEach(desktop.snapshot.workspaces) { target in
-                    Menu(target.name) {
-                        Button("Reuse Current Window") { desktop.openRegistered(target, reuseWindowID: windowID) }
-                        Button("Open New Window") { desktop.openRegistered(target) }
-                        if desktop.openCount(target.id) > 0 { Button("Focus Existing Window") { desktop.focus(target.id) } }
-                    }
-                }
-                Divider()
-                Button("Artifacts...") { state.selectedSection = .artifacts }
-            } label: {
+            Button { state.showingSwitcher = true } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "shippingbox").frame(width: 16).foregroundStyle(RunnirTheme.primary)
                     VStack(alignment: .leading, spacing: 1) {
@@ -381,7 +372,15 @@ struct DesktopWorkspaceView: View {
                 }.padding(.horizontal, 10).frame(height: 48)
                     .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
-            }.menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
+            }
+            .buttonStyle(.plain)
+            .help("Switch workspace (Shift-Command-O)")
+            .contextMenu {
+                Button("Open Quickly...") { state.showingSwitcher = true }
+                Button("Workspace Manager...") { desktop.showManager() }
+                Divider()
+                Button("Artifacts...") { state.selectedSection = .artifacts }
+            }
             Color.clear.frame(height: 10)
             VStack(spacing: 2) {
                 ForEach(AppSection.sidebarSections) { section in

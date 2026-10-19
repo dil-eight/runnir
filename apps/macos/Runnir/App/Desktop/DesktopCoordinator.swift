@@ -9,6 +9,11 @@ protocol WorkspaceWindowManaging: AnyObject {
     var window: NSWindow? { get }
     func attach(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: any RepositoryGranting)
     func showWindow(_ sender: Any?)
+    func showSwitcher()
+}
+
+extension WorkspaceWindowManaging {
+    func showSwitcher() {}
 }
 
 @MainActor
@@ -107,6 +112,16 @@ final class DesktopCoordinator {
         }
         manager?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// "Open Quickly": the switcher in the key workspace window, or the
+    /// Workspace Manager when no workspace window is in front.
+    func showSwitcher() {
+        if let controller = windows.values.first(where: { $0.window?.isKeyWindow == true }) {
+            controller.showSwitcher()
+        } else {
+            showManager()
+        }
     }
 
     func openCount(_ workspaceID: UUID) -> Int {
@@ -353,6 +368,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
     var record: WorkspaceWindowRecord
     var grant: (any RepositoryGranting)?
     private let desktop: DesktopCoordinator
+    private var state: AppState?
 
     init(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: (any RepositoryGranting)?, desktop: DesktopCoordinator) {
         self.record = record
@@ -394,12 +410,18 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
     private func installContent(_ workspace: WorkspaceRecord) {
         let frame = window?.frame
         let state = AppState()
+        self.state = state
         state.selectedSection = record.section.restored
         window?.title = workspace.name + " - Runnir"
         window?.contentViewController = NSHostingController(rootView:
             DesktopWorkspaceView(desktop: desktop, workspace: workspace, windowID: record.id, reader: grant?.reader)
                 .environment(state).environment(\.appEnvironment, AppEnvironment.live))
         if let frame { window?.setFrame(frame, display: false) }
+    }
+
+    func showSwitcher() {
+        window?.makeKeyAndOrderFront(nil)
+        state?.showingSwitcher = true
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool { desktop.shouldClose(record.id) }

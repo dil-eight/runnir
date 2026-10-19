@@ -7,6 +7,8 @@ final class AppState {
     var selectedSection: AppSection = .dashboard
     var authenticationState: AuthenticationState = .unknown
     var lastError: AppError?
+    /// The workspace switcher is showing in this window.
+    var showingSwitcher = false
 }
 
 enum AuthenticationState: Equatable, Sendable {
