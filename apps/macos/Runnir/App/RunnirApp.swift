@@ -14,6 +14,8 @@ struct RunnirApp: App {
             CommandGroup(replacing: .newItem) {
                 Button("Open Workspace...") { delegate.desktop.showManager() }
                     .keyboardShortcut("n", modifiers: .command)
+                Button("Open Quickly...") { delegate.desktop.showSwitcher() }
+                    .keyboardShortcut("o", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .help) {
                 Link("Runnir on GitHub", destination: URL(string: "https://github.com/dil-eight/runnir")!)
