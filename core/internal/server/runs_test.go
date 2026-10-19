@@ -46,6 +46,10 @@ func (f *fakeRunsGitHub) handler() http.HandlerFunc {
 			_, _ = w.Write([]byte("2026-10-19T10:00:01.0000000Z Current runner version: '2.330.0'\n" +
 				"2026-10-19T10:00:04.0000000Z ##[group]Run xcodebuild archive\n" +
 				"2026-10-19T10:00:08.0000000Z ##[error]Provisioning profile expired\n"))
+		case r.URL.Path == "/repos/o/r/actions/jobs/14":
+			_, _ = w.Write([]byte(strings.NewReplacer("%d", "14", "%s", "completed", "conclusion\":%s", "conclusion\":\"success\"").Replace(jobJSON)))
+		case r.URL.Path == "/repos/o/r/actions/jobs/14/logs":
+			_, _ = w.Write([]byte(strings.Repeat("x\n", maxLogLines+10)))
 		case r.URL.Path == "/repos/o/r/actions/jobs/13/logs":
 			w.WriteHeader(http.StatusGone)
 		case r.URL.Path == "/repos/o/r/actions/runs/21" && r.Method == http.MethodGet:
@@ -118,6 +122,10 @@ func TestJobLogLinesCarryKindAndStep(t *testing.T) {
 	expired, err := client.GetJobLog(ctx, &corev1.GetJobLogRequest{RepositoryId: id, JobId: 13})
 	if err != nil || expired.Availability != corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_EXPIRED {
 		t.Fatalf("expired = %v, %v", expired, err)
+	}
+	short, err := client.GetJobLog(ctx, &corev1.GetJobLogRequest{RepositoryId: id, JobId: 14})
+	if err != nil || len(short.Lines) != maxLogLines || !short.Truncated || short.Lines[0].Number != 11 {
+		t.Fatalf("many short lines = %d lines, truncated %v, %v", len(short.GetLines()), short.GetTruncated(), err)
 	}
 	missing, err := client.GetJobLog(ctx, &corev1.GetJobLogRequest{RepositoryId: id, JobId: 99})
 	if err != nil || missing.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_NOT_VISIBLE {

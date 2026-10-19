@@ -581,8 +581,8 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > The end of one job's log (at most 2 MiB of text), split into lines that
-        /// > are tagged with their kind and the step that wrote them.
+        /// > The end of one job's log (at most 2 MiB and 50,000 lines), split into
+        /// > lines that are tagged with their kind and the step that wrote them.
         ///
         /// - Parameters:
         ///   - request: A streaming request of `Runnir_Core_V1_GetJobLogRequest` messages.
@@ -901,8 +901,8 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > The end of one job's log (at most 2 MiB of text), split into lines that
-        /// > are tagged with their kind and the step that wrote them.
+        /// > The end of one job's log (at most 2 MiB and 50,000 lines), split into
+        /// > lines that are tagged with their kind and the step that wrote them.
         ///
         /// - Parameters:
         ///   - request: A request containing a single `Runnir_Core_V1_GetJobLogRequest` message.
@@ -1220,8 +1220,8 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > The end of one job's log (at most 2 MiB of text), split into lines that
-        /// > are tagged with their kind and the step that wrote them.
+        /// > The end of one job's log (at most 2 MiB and 50,000 lines), split into
+        /// > lines that are tagged with their kind and the step that wrote them.
         ///
         /// - Parameters:
         ///   - request: A `Runnir_Core_V1_GetJobLogRequest` message.
@@ -2306,8 +2306,8 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > The end of one job's log (at most 2 MiB of text), split into lines that
-        /// > are tagged with their kind and the step that wrote them.
+        /// > The end of one job's log (at most 2 MiB and 50,000 lines), split into
+        /// > lines that are tagged with their kind and the step that wrote them.
         ///
         /// - Parameters:
         ///   - request: A request containing a single `Runnir_Core_V1_GetJobLogRequest` message.
@@ -2903,8 +2903,8 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > The end of one job's log (at most 2 MiB of text), split into lines that
-        /// > are tagged with their kind and the step that wrote them.
+        /// > The end of one job's log (at most 2 MiB and 50,000 lines), split into
+        /// > lines that are tagged with their kind and the step that wrote them.
         ///
         /// - Parameters:
         ///   - request: A request containing a single `Runnir_Core_V1_GetJobLogRequest` message.
@@ -3441,8 +3441,8 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > The end of one job's log (at most 2 MiB of text), split into lines that
-    /// > are tagged with their kind and the step that wrote them.
+    /// > The end of one job's log (at most 2 MiB and 50,000 lines), split into
+    /// > lines that are tagged with their kind and the step that wrote them.
     ///
     /// - Parameters:
     ///   - request: A request containing a single `Runnir_Core_V1_GetJobLogRequest` message.
@@ -4027,8 +4027,8 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > The end of one job's log (at most 2 MiB of text), split into lines that
-    /// > are tagged with their kind and the step that wrote them.
+    /// > The end of one job's log (at most 2 MiB and 50,000 lines), split into
+    /// > lines that are tagged with their kind and the step that wrote them.
     ///
     /// - Parameters:
     ///   - message: request message to send.

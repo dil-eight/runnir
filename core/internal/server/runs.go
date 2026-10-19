@@ -16,6 +16,8 @@ import (
 	"runnir/core/internal/joblog"
 )
 
+const maxLogLines = 50_000
+
 // runAction is exactly what ConfirmRunAction sends to GitHub.
 type runAction struct {
 	RepositoryID string
@@ -63,9 +65,16 @@ func (s *service) GetJobLog(ctx context.Context, request *corev1.GetJobLogReques
 			steps = append(steps, joblog.Step{Number: step.Number, StartedAt: step.StartedAt})
 		}
 	}
+	lines := joblog.Parse(log.Data, int64(log.DroppedLines)+1, steps)
 	out.Availability = corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_AVAILABLE
 	out.Truncated = log.Truncated
-	for _, line := range joblog.Parse(log.Data, int64(log.DroppedLines)+1, steps) {
+	// Many short lines cost more on the wire than their text; keep the
+	// response well under the client's 4 MiB message limit.
+	if len(lines) > maxLogLines {
+		lines = lines[len(lines)-maxLogLines:]
+		out.Truncated = true
+	}
+	for _, line := range lines {
 		out.Lines = append(out.Lines, &corev1.LogLine{Number: line.Number, Text: line.Text, Kind: lineKind(line.Kind), StepNumber: line.Step})
 	}
 	return out, nil

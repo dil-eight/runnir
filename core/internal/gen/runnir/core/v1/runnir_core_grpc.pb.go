@@ -78,8 +78,8 @@ type RunnirCoreClient interface {
 	// single-use confirmation that expires; only Confirm sends it to GitHub.
 	PrepareWorkflowDispatch(ctx context.Context, in *PrepareWorkflowDispatchRequest, opts ...grpc.CallOption) (*PrepareWorkflowDispatchResponse, error)
 	ConfirmWorkflowDispatch(ctx context.Context, in *ConfirmWorkflowDispatchRequest, opts ...grpc.CallOption) (*ConfirmWorkflowDispatchResponse, error)
-	// The end of one job's log (at most 2 MiB of text), split into lines that
-	// are tagged with their kind and the step that wrote them.
+	// The end of one job's log (at most 2 MiB and 50,000 lines), split into
+	// lines that are tagged with their kind and the step that wrote them.
 	GetJobLog(ctx context.Context, in *GetJobLogRequest, opts ...grpc.CallOption) (*GetJobLogResponse, error)
 	// Cancelling or re-running a run takes two calls, like a dispatch: Prepare
 	// checks the run's current state and returns a single-use confirmation;
@@ -328,8 +328,8 @@ type RunnirCoreServer interface {
 	// single-use confirmation that expires; only Confirm sends it to GitHub.
 	PrepareWorkflowDispatch(context.Context, *PrepareWorkflowDispatchRequest) (*PrepareWorkflowDispatchResponse, error)
 	ConfirmWorkflowDispatch(context.Context, *ConfirmWorkflowDispatchRequest) (*ConfirmWorkflowDispatchResponse, error)
-	// The end of one job's log (at most 2 MiB of text), split into lines that
-	// are tagged with their kind and the step that wrote them.
+	// The end of one job's log (at most 2 MiB and 50,000 lines), split into
+	// lines that are tagged with their kind and the step that wrote them.
 	GetJobLog(context.Context, *GetJobLogRequest) (*GetJobLogResponse, error)
 	// Cancelling or re-running a run takes two calls, like a dispatch: Prepare
 	// checks the run's current state and returns a single-use confirmation;

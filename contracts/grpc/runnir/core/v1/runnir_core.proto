@@ -48,8 +48,8 @@ service RunnirCore {
   rpc PrepareWorkflowDispatch(PrepareWorkflowDispatchRequest) returns (PrepareWorkflowDispatchResponse);
   rpc ConfirmWorkflowDispatch(ConfirmWorkflowDispatchRequest) returns (ConfirmWorkflowDispatchResponse);
 
-  // The end of one job's log (at most 2 MiB of text), split into lines that
-  // are tagged with their kind and the step that wrote them.
+  // The end of one job's log (at most 2 MiB and 50,000 lines), split into
+  // lines that are tagged with their kind and the step that wrote them.
   rpc GetJobLog(GetJobLogRequest) returns (GetJobLogResponse);
   // Cancelling or re-running a run takes two calls, like a dispatch: Prepare
   // checks the run's current state and returns a single-use confirmation;
