@@ -173,92 +173,19 @@ struct WorkspaceRunsView: View {
                     }.padding(6)
                 }
             }
-            .frame(width: 340)
+            .frame(width: 300)
             DesignDivider(vertical: true)
             Group {
                 if let run = session.runs.first(where: { $0.id == selectedRunID }) {
-                    RunDetailView(run: run, workspaceID: session.workspaceID, hub: hub)
+                    RunInspectorView(run: run, workspaceID: session.workspaceID, hub: hub)
+                        .id(run.id)
                 } else {
-                    UnavailableFeature(title: "Select a run", detail: "Choose a run to see its jobs and steps.", symbol: "play.circle")
+                    UnavailableFeature(title: "Select a run", detail: "Choose a run to see its jobs, steps and logs.", symbol: "play.circle")
                         .padding(24).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear { if selectedRunID == nil { selectedRunID = session.runs.first?.id } }
-    }
-}
-
-/// One run: header and its jobs with steps, read on demand and re-read while
-/// the run is still going.
-struct RunDetailView: View {
-    let run: CoreWorkflowRun
-    let workspaceID: UUID
-    let hub: CoreHub
-    @Environment(\.openURL) private var openURL
-    @State private var jobs: CoreGitHubResult<CoreRunJob>?
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .top, spacing: 10) {
-                    RunOutcomeIcon(outcome: run.outcome, size: 20)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(run.title).font(.system(size: 16, weight: .semibold))
-                        Text("\(run.name) #\(run.runNumber) · \(run.outcome.label)")
-                            .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                        Text(metadata).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                    }
-                    Spacer()
-                    if let url = run.htmlURL { Button("Open on GitHub") { openURL(url) }.buttonStyle(DesignButtonStyle()) }
-                }
-                DesignDivider()
-                switch jobs {
-                case nil:
-                    HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Loading jobs...").font(.system(size: 12)) }
-                case .some(let result) where result.access != .ok:
-                    Text("Jobs could not be loaded from GitHub.").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                case .some(let result):
-                    ForEach(result.items) { job in JobSection(job: job) }
-                    if result.items.isEmpty {
-                        Text("This run has no jobs yet.").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                    }
-                }
-            }
-            .padding(24)
-        }
-        .task(id: "\(run.id)-\(run.status)-\(run.updatedAt?.timeIntervalSince1970 ?? 0)") {
-            jobs = await hub.jobs(workspaceID: workspaceID, runID: run.id)
-        }
-    }
-
-    private var metadata: String {
-        var parts = [run.branch, String(run.headSHA.prefix(7)), run.event]
-        if let actor = run.actor { parts.append(actor) }
-        return parts.joined(separator: " · ")
-    }
-}
-
-private struct JobSection: View {
-    let job: CoreRunJob
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                RunOutcomeIcon(outcome: job.outcome)
-                Text(job.name).font(.system(size: 13, weight: .medium))
-                Spacer()
-                if let started = job.startedAt, let completed = job.completedAt {
-                    Text(Duration.seconds(completed.timeIntervalSince(started)).formatted(.units(allowed: [.hours, .minutes, .seconds], width: .narrow)))
-                        .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
-                }
-            }
-            ForEach(job.steps) { step in
-                HStack(spacing: 8) {
-                    RunOutcomeIcon(outcome: step.outcome, size: 11)
-                    Text(step.name).font(.system(size: 12)).lineLimit(1)
-                }.padding(.leading, 22)
-            }
-        }
     }
 }
 

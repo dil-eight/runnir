@@ -47,9 +47,16 @@ struct CoreWorkflowRun: Equatable, Identifiable, Sendable {
     let htmlURL: URL?
     let createdAt: Date?
     let updatedAt: Date?
+    /// 1 for the first attempt; each re-run adds one.
+    var runAttempt: Int64 = 1
 
     var outcome: CoreRunOutcome { CoreRunOutcome(status: status, conclusion: conclusion) }
     var title: String { displayTitle.isEmpty ? name : displayTitle }
+    /// GitHub re-runs failed jobs only for a run that ended with failed or
+    /// cancelled jobs; a startup failure has no jobs to re-run.
+    var canRerunFailedJobs: Bool {
+        status == "completed" && ["failure", "cancelled", "timed_out"].contains(conclusion ?? "")
+    }
 }
 
 struct CoreRunStep: Equatable, Identifiable, Sendable {
@@ -57,6 +64,8 @@ struct CoreRunStep: Equatable, Identifiable, Sendable {
     let name: String
     let status: String
     let conclusion: String?
+    var startedAt: Date? = nil
+    var completedAt: Date? = nil
     var id: Int64 { number }
     var outcome: CoreRunOutcome { CoreRunOutcome(status: status, conclusion: conclusion) }
 }
@@ -171,6 +180,77 @@ struct CoreDispatchResult: Equatable, Sendable {
     let dispatchedAt: Date?
     /// The new run when GitHub said which one it started.
     let runID: Int64?
+    /// GitHub's reason when it refused the request.
+    let rejection: String?
+}
+
+// MARK: Logs and run actions
+
+enum CoreLogLineKind: Equatable, Sendable {
+    case plain, error, warning, notice, command, group, endGroup, debug
+}
+
+struct CoreLogLine: Equatable, Identifiable, Sendable {
+    /// Counts from 1 in the full log, including lines dropped by truncation.
+    let number: Int64
+    let text: String
+    let kind: CoreLogLineKind
+    /// The step running when the line was written; 0 when none matched.
+    let stepNumber: Int64
+    var id: Int64 { number }
+}
+
+enum CoreJobLogAvailability: Equatable, Sendable {
+    case available
+    /// GitHub no longer has the log.
+    case expired
+    /// The job has not finished; GitHub serves the log afterwards.
+    case notReady
+}
+
+struct CoreJobLog: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    let availability: CoreJobLogAvailability
+    let lines: [CoreLogLine]
+    /// Earlier lines were dropped to keep the log bounded.
+    let truncated: Bool
+    /// The log is larger than the Core reads: the lines end before the log does.
+    var stoppedEarly = false
+
+    static func failed(_ access: CoreGitHubAccess) -> CoreJobLog {
+        CoreJobLog(access: access, availability: .available, lines: [], truncated: false)
+    }
+}
+
+enum CoreRunAction: Equatable, Sendable {
+    case cancel
+    case rerun
+    case rerunFailed
+
+    var title: String {
+        switch self {
+        case .cancel: "Cancel Run"
+        case .rerun: "Re-run all jobs"
+        case .rerunFailed: "Re-run failed jobs"
+        }
+    }
+}
+
+/// A run action checked against the run's current state, waiting for the
+/// user's confirmation, or the reasons it cannot be taken now.
+struct CorePreparedRunAction: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    let actionID: String?
+    let expiresAt: Date?
+    let problems: [String]
+    /// The run as GitHub reported it while preparing.
+    let run: CoreWorkflowRun?
+}
+
+struct CoreRunActionResult: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    /// Set when GitHub accepted the request; the outcome follows in the run.
+    let acceptedAt: Date?
     /// GitHub's reason when it refused the request.
     let rejection: String?
 }
