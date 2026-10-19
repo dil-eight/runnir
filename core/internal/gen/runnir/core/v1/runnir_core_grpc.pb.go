@@ -24,18 +24,22 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	RunnirCore_HealthCheck_FullMethodName           = "/runnir.core.v1.RunnirCore/HealthCheck"
-	RunnirCore_OpenRepository_FullMethodName        = "/runnir.core.v1.RunnirCore/OpenRepository"
-	RunnirCore_CloseRepository_FullMethodName       = "/runnir.core.v1.RunnirCore/CloseRepository"
-	RunnirCore_RefreshRepository_FullMethodName     = "/runnir.core.v1.RunnirCore/RefreshRepository"
-	RunnirCore_ListWorkflows_FullMethodName         = "/runnir.core.v1.RunnirCore/ListWorkflows"
-	RunnirCore_StartWorkflow_FullMethodName         = "/runnir.core.v1.RunnirCore/StartWorkflow"
-	RunnirCore_SubscribeEvents_FullMethodName       = "/runnir.core.v1.RunnirCore/SubscribeEvents"
-	RunnirCore_SetGitHubCredential_FullMethodName   = "/runnir.core.v1.RunnirCore/SetGitHubCredential"
-	RunnirCore_ClearGitHubCredential_FullMethodName = "/runnir.core.v1.RunnirCore/ClearGitHubCredential"
-	RunnirCore_ListGitHubWorkflows_FullMethodName   = "/runnir.core.v1.RunnirCore/ListGitHubWorkflows"
-	RunnirCore_ListWorkflowRuns_FullMethodName      = "/runnir.core.v1.RunnirCore/ListWorkflowRuns"
-	RunnirCore_ListRunJobs_FullMethodName           = "/runnir.core.v1.RunnirCore/ListRunJobs"
+	RunnirCore_HealthCheck_FullMethodName              = "/runnir.core.v1.RunnirCore/HealthCheck"
+	RunnirCore_OpenRepository_FullMethodName           = "/runnir.core.v1.RunnirCore/OpenRepository"
+	RunnirCore_CloseRepository_FullMethodName          = "/runnir.core.v1.RunnirCore/CloseRepository"
+	RunnirCore_RefreshRepository_FullMethodName        = "/runnir.core.v1.RunnirCore/RefreshRepository"
+	RunnirCore_ListWorkflows_FullMethodName            = "/runnir.core.v1.RunnirCore/ListWorkflows"
+	RunnirCore_StartWorkflow_FullMethodName            = "/runnir.core.v1.RunnirCore/StartWorkflow"
+	RunnirCore_SubscribeEvents_FullMethodName          = "/runnir.core.v1.RunnirCore/SubscribeEvents"
+	RunnirCore_SetGitHubCredential_FullMethodName      = "/runnir.core.v1.RunnirCore/SetGitHubCredential"
+	RunnirCore_ClearGitHubCredential_FullMethodName    = "/runnir.core.v1.RunnirCore/ClearGitHubCredential"
+	RunnirCore_ListGitHubWorkflows_FullMethodName      = "/runnir.core.v1.RunnirCore/ListGitHubWorkflows"
+	RunnirCore_ListWorkflowRuns_FullMethodName         = "/runnir.core.v1.RunnirCore/ListWorkflowRuns"
+	RunnirCore_ListRunJobs_FullMethodName              = "/runnir.core.v1.RunnirCore/ListRunJobs"
+	RunnirCore_ListGitHubRefs_FullMethodName           = "/runnir.core.v1.RunnirCore/ListGitHubRefs"
+	RunnirCore_DescribeWorkflowDispatch_FullMethodName = "/runnir.core.v1.RunnirCore/DescribeWorkflowDispatch"
+	RunnirCore_PrepareWorkflowDispatch_FullMethodName  = "/runnir.core.v1.RunnirCore/PrepareWorkflowDispatch"
+	RunnirCore_ConfirmWorkflowDispatch_FullMethodName  = "/runnir.core.v1.RunnirCore/ConfirmWorkflowDispatch"
 )
 
 // RunnirCoreClient is the client API for RunnirCore service.
@@ -62,6 +66,15 @@ type RunnirCoreClient interface {
 	ListGitHubWorkflows(ctx context.Context, in *ListGitHubWorkflowsRequest, opts ...grpc.CallOption) (*ListGitHubWorkflowsResponse, error)
 	ListWorkflowRuns(ctx context.Context, in *ListWorkflowRunsRequest, opts ...grpc.CallOption) (*ListWorkflowRunsResponse, error)
 	ListRunJobs(ctx context.Context, in *ListRunJobsRequest, opts ...grpc.CallOption) (*ListRunJobsResponse, error)
+	// Branches and tags a workflow can run on.
+	ListGitHubRefs(ctx context.Context, in *ListGitHubRefsRequest, opts ...grpc.CallOption) (*ListGitHubRefsResponse, error)
+	// Whether a workflow can be started by hand at a ref, and its inputs, read
+	// from the workflow file on GitHub at that ref.
+	DescribeWorkflowDispatch(ctx context.Context, in *DescribeWorkflowDispatchRequest, opts ...grpc.CallOption) (*DescribeWorkflowDispatchResponse, error)
+	// Starting a workflow takes two calls: Prepare validates and returns a
+	// single-use confirmation that expires; only Confirm sends it to GitHub.
+	PrepareWorkflowDispatch(ctx context.Context, in *PrepareWorkflowDispatchRequest, opts ...grpc.CallOption) (*PrepareWorkflowDispatchResponse, error)
+	ConfirmWorkflowDispatch(ctx context.Context, in *ConfirmWorkflowDispatchRequest, opts ...grpc.CallOption) (*ConfirmWorkflowDispatchResponse, error)
 }
 
 type runnirCoreClient struct {
@@ -201,6 +214,46 @@ func (c *runnirCoreClient) ListRunJobs(ctx context.Context, in *ListRunJobsReque
 	return out, nil
 }
 
+func (c *runnirCoreClient) ListGitHubRefs(ctx context.Context, in *ListGitHubRefsRequest, opts ...grpc.CallOption) (*ListGitHubRefsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGitHubRefsResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ListGitHubRefs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) DescribeWorkflowDispatch(ctx context.Context, in *DescribeWorkflowDispatchRequest, opts ...grpc.CallOption) (*DescribeWorkflowDispatchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DescribeWorkflowDispatchResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_DescribeWorkflowDispatch_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) PrepareWorkflowDispatch(ctx context.Context, in *PrepareWorkflowDispatchRequest, opts ...grpc.CallOption) (*PrepareWorkflowDispatchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PrepareWorkflowDispatchResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_PrepareWorkflowDispatch_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) ConfirmWorkflowDispatch(ctx context.Context, in *ConfirmWorkflowDispatchRequest, opts ...grpc.CallOption) (*ConfirmWorkflowDispatchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConfirmWorkflowDispatchResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ConfirmWorkflowDispatch_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnirCoreServer is the server API for RunnirCore service.
 // All implementations must embed UnimplementedRunnirCoreServer
 // for forward compatibility.
@@ -225,6 +278,15 @@ type RunnirCoreServer interface {
 	ListGitHubWorkflows(context.Context, *ListGitHubWorkflowsRequest) (*ListGitHubWorkflowsResponse, error)
 	ListWorkflowRuns(context.Context, *ListWorkflowRunsRequest) (*ListWorkflowRunsResponse, error)
 	ListRunJobs(context.Context, *ListRunJobsRequest) (*ListRunJobsResponse, error)
+	// Branches and tags a workflow can run on.
+	ListGitHubRefs(context.Context, *ListGitHubRefsRequest) (*ListGitHubRefsResponse, error)
+	// Whether a workflow can be started by hand at a ref, and its inputs, read
+	// from the workflow file on GitHub at that ref.
+	DescribeWorkflowDispatch(context.Context, *DescribeWorkflowDispatchRequest) (*DescribeWorkflowDispatchResponse, error)
+	// Starting a workflow takes two calls: Prepare validates and returns a
+	// single-use confirmation that expires; only Confirm sends it to GitHub.
+	PrepareWorkflowDispatch(context.Context, *PrepareWorkflowDispatchRequest) (*PrepareWorkflowDispatchResponse, error)
+	ConfirmWorkflowDispatch(context.Context, *ConfirmWorkflowDispatchRequest) (*ConfirmWorkflowDispatchResponse, error)
 	mustEmbedUnimplementedRunnirCoreServer()
 }
 
@@ -270,6 +332,18 @@ func (UnimplementedRunnirCoreServer) ListWorkflowRuns(context.Context, *ListWork
 }
 func (UnimplementedRunnirCoreServer) ListRunJobs(context.Context, *ListRunJobsRequest) (*ListRunJobsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRunJobs not implemented")
+}
+func (UnimplementedRunnirCoreServer) ListGitHubRefs(context.Context, *ListGitHubRefsRequest) (*ListGitHubRefsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListGitHubRefs not implemented")
+}
+func (UnimplementedRunnirCoreServer) DescribeWorkflowDispatch(context.Context, *DescribeWorkflowDispatchRequest) (*DescribeWorkflowDispatchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DescribeWorkflowDispatch not implemented")
+}
+func (UnimplementedRunnirCoreServer) PrepareWorkflowDispatch(context.Context, *PrepareWorkflowDispatchRequest) (*PrepareWorkflowDispatchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PrepareWorkflowDispatch not implemented")
+}
+func (UnimplementedRunnirCoreServer) ConfirmWorkflowDispatch(context.Context, *ConfirmWorkflowDispatchRequest) (*ConfirmWorkflowDispatchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ConfirmWorkflowDispatch not implemented")
 }
 func (UnimplementedRunnirCoreServer) mustEmbedUnimplementedRunnirCoreServer() {}
 func (UnimplementedRunnirCoreServer) testEmbeddedByValue()                    {}
@@ -501,6 +575,78 @@ func _RunnirCore_ListRunJobs_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_ListGitHubRefs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGitHubRefsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ListGitHubRefs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ListGitHubRefs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ListGitHubRefs(ctx, req.(*ListGitHubRefsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_DescribeWorkflowDispatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DescribeWorkflowDispatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).DescribeWorkflowDispatch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_DescribeWorkflowDispatch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).DescribeWorkflowDispatch(ctx, req.(*DescribeWorkflowDispatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_PrepareWorkflowDispatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PrepareWorkflowDispatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).PrepareWorkflowDispatch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_PrepareWorkflowDispatch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).PrepareWorkflowDispatch(ctx, req.(*PrepareWorkflowDispatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_ConfirmWorkflowDispatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfirmWorkflowDispatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ConfirmWorkflowDispatch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ConfirmWorkflowDispatch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ConfirmWorkflowDispatch(ctx, req.(*ConfirmWorkflowDispatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnirCore_ServiceDesc is the grpc.ServiceDesc for RunnirCore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -551,6 +697,22 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListRunJobs",
 			Handler:    _RunnirCore_ListRunJobs_Handler,
+		},
+		{
+			MethodName: "ListGitHubRefs",
+			Handler:    _RunnirCore_ListGitHubRefs_Handler,
+		},
+		{
+			MethodName: "DescribeWorkflowDispatch",
+			Handler:    _RunnirCore_DescribeWorkflowDispatch_Handler,
+		},
+		{
+			MethodName: "PrepareWorkflowDispatch",
+			Handler:    _RunnirCore_PrepareWorkflowDispatch_Handler,
+		},
+		{
+			MethodName: "ConfirmWorkflowDispatch",
+			Handler:    _RunnirCore_ConfirmWorkflowDispatch_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

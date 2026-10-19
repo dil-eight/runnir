@@ -37,6 +37,16 @@ service RunnirCore {
   rpc ListGitHubWorkflows(ListGitHubWorkflowsRequest) returns (ListGitHubWorkflowsResponse);
   rpc ListWorkflowRuns(ListWorkflowRunsRequest) returns (ListWorkflowRunsResponse);
   rpc ListRunJobs(ListRunJobsRequest) returns (ListRunJobsResponse);
+
+  // Branches and tags a workflow can run on.
+  rpc ListGitHubRefs(ListGitHubRefsRequest) returns (ListGitHubRefsResponse);
+  // Whether a workflow can be started by hand at a ref, and its inputs, read
+  // from the workflow file on GitHub at that ref.
+  rpc DescribeWorkflowDispatch(DescribeWorkflowDispatchRequest) returns (DescribeWorkflowDispatchResponse);
+  // Starting a workflow takes two calls: Prepare validates and returns a
+  // single-use confirmation that expires; only Confirm sends it to GitHub.
+  rpc PrepareWorkflowDispatch(PrepareWorkflowDispatchRequest) returns (PrepareWorkflowDispatchResponse);
+  rpc ConfirmWorkflowDispatch(ConfirmWorkflowDispatchRequest) returns (ConfirmWorkflowDispatchResponse);
 }
 
 message HealthCheckRequest {}
@@ -267,4 +277,80 @@ message RunStep {
   string name = 2;
   string status = 3;
   string conclusion = 4;
+}
+
+message ListGitHubRefsRequest {
+  string repository_id = 1;
+}
+
+message ListGitHubRefsResponse {
+  GitHubStatus status = 1;
+  string default_branch = 2;
+  repeated string branches = 3;
+  repeated string tags = 4;
+}
+
+enum DispatchInputType {
+  DISPATCH_INPUT_TYPE_UNSPECIFIED = 0;
+  DISPATCH_INPUT_TYPE_STRING = 1;
+  DISPATCH_INPUT_TYPE_BOOLEAN = 2;
+  DISPATCH_INPUT_TYPE_CHOICE = 3;
+  DISPATCH_INPUT_TYPE_NUMBER = 4;
+  DISPATCH_INPUT_TYPE_ENVIRONMENT = 5;
+}
+
+message DispatchInput {
+  string name = 1;
+  string description = 2;
+  DispatchInputType type = 3;
+  bool required = 4;
+  string default_value = 5;
+  repeated string options = 6;
+}
+
+message DescribeWorkflowDispatchRequest {
+  string repository_id = 1;
+  string workflow_path = 2;
+  string ref = 3;
+}
+
+message DescribeWorkflowDispatchResponse {
+  // NOT_VISIBLE also covers a workflow file that does not exist at the ref.
+  GitHubStatus status = 1;
+  bool dispatchable = 2;
+  repeated DispatchInput inputs = 3;
+  // Set when the workflow file at the ref is not valid YAML.
+  string parse_error = 4;
+}
+
+message PrepareWorkflowDispatchRequest {
+  string repository_id = 1;
+  int64 workflow_id = 2;
+  string ref = 3;
+  // Only the inputs the user set; GitHub applies the defaults.
+  map<string, string> inputs = 4;
+}
+
+message PrepareWorkflowDispatchResponse {
+  GitHubStatus status = 1;
+  // Empty when `problems` is not.
+  string dispatch_id = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  // Readable reasons the request cannot run as given.
+  repeated string problems = 4;
+  string workflow_path = 5;
+}
+
+message ConfirmWorkflowDispatchRequest {
+  string dispatch_id = 1;
+}
+
+message ConfirmWorkflowDispatchResponse {
+  GitHubStatus status = 1;
+  // When the request was sent; the new run is created at or after it.
+  google.protobuf.Timestamp dispatched_at = 2;
+  // 0 when GitHub did not say which run it started.
+  int64 run_id = 3;
+  // GitHub's reason when it refused the request (status is OK then).
+  string rejection = 4;
 }
