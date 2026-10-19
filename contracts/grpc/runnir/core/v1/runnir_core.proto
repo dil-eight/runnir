@@ -29,6 +29,14 @@ service RunnirCore {
   // is never written to disk, logged, sent in events or returned by any call.
   rpc SetGitHubCredential(SetGitHubCredentialRequest) returns (SetGitHubCredentialResponse);
   rpc ClearGitHubCredential(ClearGitHubCredentialRequest) returns (ClearGitHubCredentialResponse);
+
+  // GitHub Actions data for the github.com repository an open repository's
+  // origin points at, read with the token from SetGitHubCredential. Only
+  // repositories open in the Core can be queried. GitHub-side problems are
+  // reported in `status`, not as call errors.
+  rpc ListGitHubWorkflows(ListGitHubWorkflowsRequest) returns (ListGitHubWorkflowsResponse);
+  rpc ListWorkflowRuns(ListWorkflowRunsRequest) returns (ListWorkflowRunsResponse);
+  rpc ListRunJobs(ListRunJobsRequest) returns (ListRunJobsResponse);
 }
 
 message HealthCheckRequest {}
@@ -163,3 +171,100 @@ message SetGitHubCredentialResponse {}
 message ClearGitHubCredentialRequest {}
 
 message ClearGitHubCredentialResponse {}
+
+enum GithubAccess {
+  GITHUB_ACCESS_UNSPECIFIED = 0;
+  GITHUB_ACCESS_OK = 1;
+  // The origin remote is not on github.com.
+  GITHUB_ACCESS_NO_REMOTE = 2;
+  // The Core holds no token.
+  GITHUB_ACCESS_SIGNED_OUT = 3;
+  // GitHub refused the token; the Core forgot it.
+  GITHUB_ACCESS_TOKEN_REJECTED = 4;
+  // The app is not installed on the repository, or the user cannot see it.
+  GITHUB_ACCESS_NOT_VISIBLE = 5;
+  GITHUB_ACCESS_RATE_LIMITED = 6;
+  GITHUB_ACCESS_UNAVAILABLE = 7;
+}
+
+message GitHubStatus {
+  GithubAccess access = 1;
+  // When RATE_LIMITED: when GitHub accepts requests again.
+  google.protobuf.Timestamp retry_after = 2;
+}
+
+message ListGitHubWorkflowsRequest {
+  string repository_id = 1;
+}
+
+message ListGitHubWorkflowsResponse {
+  GitHubStatus status = 1;
+  repeated GitHubWorkflow workflows = 2;
+}
+
+message GitHubWorkflow {
+  int64 id = 1;
+  string name = 2;
+  string path = 3;
+  string state = 4;
+  string html_url = 5;
+}
+
+message ListWorkflowRunsRequest {
+  string repository_id = 1;
+  // Empty means every branch.
+  string branch = 2;
+  // 1 to 100; 0 means 100.
+  uint32 limit = 3;
+}
+
+message ListWorkflowRunsResponse {
+  GitHubStatus status = 1;
+  repeated WorkflowRun runs = 2;
+}
+
+message WorkflowRun {
+  int64 id = 1;
+  int64 workflow_id = 2;
+  string name = 3;
+  string display_title = 4;
+  int64 run_number = 5;
+  string event = 6;
+  string status = 7;
+  // Empty while the run is not completed.
+  string conclusion = 8;
+  string branch = 9;
+  string head_sha = 10;
+  string actor = 11;
+  string html_url = 12;
+  google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+}
+
+message ListRunJobsRequest {
+  string repository_id = 1;
+  int64 run_id = 2;
+}
+
+message ListRunJobsResponse {
+  GitHubStatus status = 1;
+  repeated RunJob jobs = 2;
+}
+
+message RunJob {
+  int64 id = 1;
+  string name = 2;
+  string status = 3;
+  string conclusion = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp completed_at = 6;
+  string html_url = 7;
+  repeated RunStep steps = 8;
+}
+
+message RunStep {
+  int64 number = 1;
+  string name = 2;
+  string status = 3;
+  string conclusion = 4;
+}

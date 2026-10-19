@@ -27,6 +27,7 @@ type service struct {
 	events       *events.Bus
 	executions   *execution.Coordinator
 	credential   *github.Credential
+	github       *github.Client
 }
 
 func (s *service) HealthCheck(context.Context, *corev1.HealthCheckRequest) (*corev1.HealthCheckResponse, error) {
@@ -220,4 +221,12 @@ func rpcError(err error) error {
 	default:
 		return status.Error(codes.Internal, "repository operation failed")
 	}
+}
+
+// timestamp leaves zero times unset rather than sending the Unix epoch.
+func timestamp(t time.Time) *timestamppb.Timestamp {
+	if t.IsZero() {
+		return nil
+	}
+	return timestamppb.New(t)
 }

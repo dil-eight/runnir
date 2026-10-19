@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"runnir/core/internal/buildinfo"
 	"runnir/core/internal/events"
 	"runnir/core/internal/execution"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
@@ -29,6 +30,8 @@ const shutdownGrace = 5 * time.Second
 type Options struct {
 	// ClientSecret, when set, is required on every call except HealthCheck.
 	ClientSecret []byte
+	// GitHubBaseURL overrides https://api.github.com, for tests.
+	GitHubBaseURL string
 	// EventBuffer is the per-subscriber event queue length.
 	EventBuffer int
 	// MaxExecutions is the number of concurrent workflow executions (default 3).
@@ -93,6 +96,7 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 	credential := &github.Credential{}
 	corev1.RegisterRunnirCoreServer(grpcServer, &service{
 		repositories: repositories, events: bus, executions: executions, credential: credential,
+		github: github.NewClient(credential, options.GitHubBaseURL, buildinfo.Version),
 	})
 
 	done := make(chan error, 1)
