@@ -39,6 +39,13 @@ final class RepositorySession: Identifiable {
     fileprivate(set) var lastRefresh: Date?
     fileprivate(set) var isRefreshing = false
     fileprivate(set) var refreshError: String?
+    /// GitHub Actions data for `githubRepository`, read through the Core.
+    fileprivate(set) var githubAccess: CoreGitHubAccess?
+    fileprivate(set) var runs: [CoreWorkflowRun] = []
+    fileprivate(set) var remoteWorkflows: [CoreGitHubWorkflow] = []
+    fileprivate(set) var isLoadingGitHub = false
+    fileprivate(set) var githubLoadedAt: Date?
+    @ObservationIgnored fileprivate var githubPoll: Task<Void, Never>?
     @ObservationIgnored fileprivate var windowIDs: Set<UUID> = []
     @ObservationIgnored fileprivate var appliedSequence: UInt64 = 0
 
@@ -103,6 +110,10 @@ final class CoreHub {
     @ObservationIgnored private var ownCloses: Set<String> = []
     /// Returns the GitHub token to hand to the Core, or nil when signed out.
     @ObservationIgnored var githubTokenProvider: (@MainActor () async -> String?)?
+    /// Called when GitHub refused the token, so the account can sign out.
+    @ObservationIgnored var onGitHubTokenRejected: (@MainActor () async -> Void)?
+    /// How often runs are re-read while any of them is queued or running.
+    @ObservationIgnored var githubPollInterval: Duration = .seconds(20)
 
     init(provider: any CoreProviding) {
         self.provider = provider
@@ -189,6 +200,75 @@ final class CoreHub {
         guard isReady, let service = try? await provider.service() else { return }
         let token = await githubTokenProvider?()
         try? await service.setGitHubCredential(token)
+        // What the Core may read changed: reload every repository's activity.
+        for workspaceID in sessions.keys { await loadGitHubActivity(workspaceID: workspaceID) }
+    }
+
+    // MARK: GitHub activity
+
+    /// Reads the newest runs and the workflows of the repository's GitHub
+    /// origin. While a run is queued or running, reads again after
+    /// `githubPollInterval`.
+    func loadGitHubActivity(workspaceID: UUID) async {
+        guard let session = sessions[workspaceID], let coreID = session.coreID, isReady, !session.isLoadingGitHub else { return }
+        guard session.githubRepository != nil else {
+            session.githubAccess = .noRemote
+            return
+        }
+        session.isLoadingGitHub = true
+        defer { session.isLoadingGitHub = false }
+        func isCurrent() -> Bool { sessions[workspaceID] === session && session.coreID == coreID }
+        do {
+            let service = try await provider.service()
+            let runs = try await service.listWorkflowRuns(repositoryID: coreID, branch: nil, limit: 30)
+            let workflows = runs.access == .ok ? try await service.listGitHubWorkflows(repositoryID: coreID) : nil
+            guard isCurrent() else { return }
+            session.githubAccess = runs.access
+            switch runs.access {
+            case .ok:
+                session.runs = runs.items
+                if let workflows, workflows.access == .ok { session.remoteWorkflows = workflows.items }
+                session.githubLoadedAt = Date()
+            case .rateLimited, .unavailable:
+                break // keep the last data; the access state says it may be stale
+            case .noRemote, .signedOut, .tokenRejected, .notVisible:
+                session.runs = []
+                session.remoteWorkflows = []
+            }
+            if runs.access == .tokenRejected { await onGitHubTokenRejected?() }
+        } catch is CancellationError {
+            return
+        } catch {
+            if isCurrent() { session.githubAccess = .unavailable }
+        }
+        scheduleGitHubPoll(for: session)
+    }
+
+    private func scheduleGitHubPoll(for session: RepositorySession) {
+        session.githubPoll?.cancel()
+        guard session.runs.contains(where: { $0.outcome.isActive }) else { return }
+        let interval = githubPollInterval
+        let workspaceID = session.workspaceID
+        session.githubPoll = Task { [weak self] in
+            try? await Task.sleep(for: interval)
+            guard !Task.isCancelled, let self, self.sessions[workspaceID] === session else { return }
+            await self.loadGitHubActivity(workspaceID: workspaceID)
+        }
+    }
+
+    /// Jobs and steps of one run, read on demand.
+    func jobs(workspaceID: UUID, runID: Int64) async -> CoreGitHubResult<CoreRunJob> {
+        guard let coreID = sessions[workspaceID]?.coreID, isReady,
+              let service = try? await provider.service() else {
+            return CoreGitHubResult(access: .unavailable, items: [])
+        }
+        do {
+            let result = try await service.listRunJobs(repositoryID: coreID, runID: runID)
+            if result.access == .tokenRejected { await onGitHubTokenRejected?() }
+            return result
+        } catch {
+            return CoreGitHubResult(access: .unavailable, items: [])
+        }
     }
 
     // MARK: Windows
@@ -232,6 +312,7 @@ final class CoreHub {
         guard let session = sessions[workspaceID] else { return }
         session.windowIDs.remove(windowID)
         guard session.windowIDs.isEmpty else { return }
+        session.githubPoll?.cancel()
         sessions[workspaceID] = nil
         if let coreID = session.coreID { closeInCore(coreID, path: session.path) }
     }
@@ -290,6 +371,7 @@ final class CoreHub {
             guard isCurrent() else { return }
             apply(repository, workflows: workflows, to: session)
             session.phase = .ready
+            Task { await loadGitHubActivity(workspaceID: session.workspaceID) }
         } catch let error as CoreServiceError where error == .unavailable {
             if isCurrent() { session.phase = .unavailable }
         } catch is CancellationError {
@@ -321,6 +403,7 @@ final class CoreHub {
             guard isCurrent() else { return }
             apply(repository, workflows: workflows, to: session)
             session.refreshError = nil
+            Task { await loadGitHubActivity(workspaceID: workspaceID) }
         } catch let error as CoreServiceError where error == .notFound {
             if isCurrent() { await open(session) }
         } catch let error as CoreServiceError where error == .unavailable {

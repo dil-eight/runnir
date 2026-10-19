@@ -21,6 +21,22 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     private var openIDs: Set<String> = []
     private var continuations: [AsyncThrowingStream<CoreEvent, any Error>.Continuation] = []
     private var _credentialCalls: [String?] = []
+    private var runsResults: [String: CoreGitHubResult<CoreWorkflowRun>] = [:]
+    private var _runsCalls: [String] = []
+    private var jobsResult = CoreGitHubResult<CoreRunJob>(access: .ok, items: [])
+    var runsCalls: [String] { lock.withLock { _runsCalls } }
+    func setRuns(_ result: CoreGitHubResult<CoreWorkflowRun>, for path: String) { lock.withLock { runsResults[Self.id(for: path)] = result } }
+    func setJobs(_ result: CoreGitHubResult<CoreRunJob>) { lock.withLock { jobsResult = result } }
+    func listGitHubWorkflows(repositoryID: String) async throws -> CoreGitHubResult<CoreGitHubWorkflow> {
+        CoreGitHubResult(access: .ok, items: [CoreGitHubWorkflow(id: 1, name: "CI", path: ".github/workflows/ci.yml", state: "active", htmlURL: nil)])
+    }
+    func listWorkflowRuns(repositoryID: String, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> {
+        lock.withLock {
+            _runsCalls.append(repositoryID)
+            return runsResults[repositoryID] ?? CoreGitHubResult(access: .ok, items: [])
+        }
+    }
+    func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { lock.withLock { jobsResult } }
     var credentialCalls: [String?] { lock.withLock { _credentialCalls } }
     func setGitHubCredential(_ token: String?) async throws { lock.withLock { _credentialCalls.append(token) } }
 
@@ -512,6 +528,94 @@ struct CoreHubTests {
         token = nil
         hub.githubCredentialChanged()
         #expect(await eventually { provider.core.credentialCalls.last == .some(nil) })
+    }
+
+    private func run(_ id: Int64, status: String, conclusion: String?) -> CoreWorkflowRun {
+        CoreWorkflowRun(id: id, workflowID: 1, name: "CI", displayTitle: "Change \(id)", runNumber: id, event: "push",
+                        status: status, conclusion: conclusion, branch: "main", headSHA: "abc", actor: nil,
+                        htmlURL: nil, createdAt: Date(), updatedAt: Date())
+    }
+
+    @Test
+    func runsAndWorkflowsLoadForALinkedRepository() async {
+        let (hub, provider) = await readyHub()
+        provider.core.setRuns(CoreGitHubResult(access: .ok, items: [run(1, status: "completed", conclusion: "success")]), for: "/repo/linked")
+        let linked = UUID(), local = UUID()
+        hub.attach(windowID: UUID(), workspaceID: linked, path: "/repo/linked")
+        hub.attach(windowID: UUID(), workspaceID: local, path: "/repo/local")
+        #expect(await eventually { hub.session(for: linked)?.runs.count == 1 })
+        #expect(hub.session(for: linked)?.githubAccess == .ok)
+        #expect(hub.session(for: linked)?.remoteWorkflows.count == 1)
+        #expect(await eventually { hub.session(for: local)?.githubAccess == .noRemote })
+        // A repository without a GitHub remote never asks the Core for runs.
+        #expect(provider.core.runsCalls.allSatisfy { $0 == FakeCore.id(for: "/repo/linked") })
+    }
+
+    @Test
+    func missingAccessClearsRunsAndARejectedTokenSignsOut() async {
+        let (hub, provider) = await readyHub()
+        var rejected = 0
+        hub.onGitHubTokenRejected = { rejected += 1 }
+        let workspace = UUID()
+        provider.core.setRuns(CoreGitHubResult(access: .ok, items: [run(1, status: "completed", conclusion: "failure")]), for: "/repo/linked")
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        #expect(await eventually { hub.session(for: workspace)?.runs.count == 1 })
+
+        provider.core.setRuns(CoreGitHubResult(access: .notVisible, items: []), for: "/repo/linked")
+        await hub.loadGitHubActivity(workspaceID: workspace)
+        #expect(hub.session(for: workspace)?.githubAccess == .notVisible)
+        #expect(hub.session(for: workspace)?.runs.isEmpty == true)
+
+        provider.core.setRuns(CoreGitHubResult(access: .tokenRejected, items: []), for: "/repo/linked")
+        await hub.loadGitHubActivity(workspaceID: workspace)
+        #expect(rejected == 1)
+    }
+
+    @Test
+    func rateLimitsKeepTheLastRuns() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        provider.core.setRuns(CoreGitHubResult(access: .ok, items: [run(1, status: "completed", conclusion: "success")]), for: "/repo/linked")
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        #expect(await eventually { hub.session(for: workspace)?.runs.count == 1 })
+        provider.core.setRuns(CoreGitHubResult(access: .rateLimited(until: nil), items: []), for: "/repo/linked")
+        await hub.loadGitHubActivity(workspaceID: workspace)
+        #expect(hub.session(for: workspace)?.githubAccess == .rateLimited(until: nil))
+        #expect(hub.session(for: workspace)?.runs.count == 1)
+    }
+
+    @Test
+    func activeRunsAreReadAgainUntilTheyFinish() async {
+        let (hub, provider) = await readyHub()
+        hub.githubPollInterval = .milliseconds(30)
+        let workspace = UUID()
+        provider.core.setRuns(CoreGitHubResult(access: .ok, items: [run(1, status: "in_progress", conclusion: nil)]), for: "/repo/linked")
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        #expect(await eventually { provider.core.runsCalls.count >= 3 })
+
+        provider.core.setRuns(CoreGitHubResult(access: .ok, items: [run(1, status: "completed", conclusion: "success")]), for: "/repo/linked")
+        #expect(await eventually { hub.session(for: workspace)?.runs.first?.outcome == .succeeded })
+        let settled = provider.core.runsCalls.count
+        try? await Task.sleep(for: .milliseconds(150))
+        #expect(provider.core.runsCalls.count == settled)
+    }
+
+    @Test
+    func signingInReloadsRunsAndJobsPassThrough() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        #expect(await eventually { hub.session(for: workspace)?.githubAccess == .ok })
+        let before = provider.core.runsCalls.count
+        hub.githubTokenProvider = { "ghu_new" }
+        hub.githubCredentialChanged()
+        #expect(await eventually { provider.core.runsCalls.count > before })
+
+        let job = CoreRunJob(id: 9, name: "build", status: "completed", conclusion: "success", startedAt: nil, completedAt: nil, htmlURL: nil,
+                             steps: [CoreRunStep(number: 1, name: "Checkout", status: "completed", conclusion: "success")])
+        provider.core.setJobs(CoreGitHubResult(access: .ok, items: [job]))
+        let jobs = await hub.jobs(workspaceID: workspace, runID: 1)
+        #expect(jobs == CoreGitHubResult(access: .ok, items: [job]))
     }
 
     @Test

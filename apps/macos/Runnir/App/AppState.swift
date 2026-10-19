@@ -9,6 +9,8 @@ final class AppState {
     var lastError: AppError?
     /// The workspace switcher is showing in this window.
     var showingSwitcher = false
+    /// The run shown in the Runs section.
+    var selectedRunID: Int64?
 }
 
 enum AuthenticationState: Equatable, Sendable {

@@ -44,6 +44,9 @@ private struct FakeService: CoreServicing {
         AsyncThrowingStream { $0.finish(throwing: CoreServiceError.unavailable) }
     }
     func setGitHubCredential(_ token: String?) async throws {}
+    func listGitHubWorkflows(repositoryID: String) async throws -> CoreGitHubResult<CoreGitHubWorkflow> { CoreGitHubResult(access: .ok, items: []) }
+    func listWorkflowRuns(repositoryID: String, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> { CoreGitHubResult(access: .ok, items: []) }
+    func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { CoreGitHubResult(access: .ok, items: []) }
 }
 
 private final class FakeConnection: CoreConnection, @unchecked Sendable {

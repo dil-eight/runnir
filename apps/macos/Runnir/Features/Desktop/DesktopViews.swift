@@ -428,8 +428,22 @@ struct DesktopWorkspaceView: View {
         case .workspace:
             LocalWorkflowBrowser(model: files)
         case .repositories: RepositoriesView()
-        case .workflows: WorkflowsView()
-        case .runs: RunsView()
+        case .workflows:
+            if let session, let hub = desktop.core {
+                WorkspaceWorkflowsView(session: session, hub: hub, github: desktop.github) { run in
+                    state.selectedRunID = run.id
+                    state.selectedSection = .runs
+                }
+            } else {
+                WorkflowsView()
+            }
+        case .runs:
+            if let session, let hub = desktop.core {
+                WorkspaceRunsView(session: session, hub: hub, github: desktop.github,
+                                  selectedRunID: Binding(get: { state.selectedRunID }, set: { state.selectedRunID = $0 }))
+            } else {
+                RunsView()
+            }
         case .artifacts: ArtifactsView()
         }
     }
@@ -454,9 +468,16 @@ struct DesktopWorkspaceView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         SectionLabel(title: "RECENT RUNS")
                         DesignDivider()
-                        UnavailableFeature(title: "No runs available",
-                                           detail: desktop.github?.user == nil ? "GitHub is not connected." : "Run history is not available yet.",
-                                           symbol: "play.circle")
+                        if let session, session.githubRepository != nil {
+                            RecentRunsList(session: session, github: desktop.github, hub: desktop.core) { run in
+                                state.selectedRunID = run.id
+                                state.selectedSection = .runs
+                            }
+                        } else {
+                            UnavailableFeature(title: "No runs available",
+                                               detail: "This working tree has no GitHub remote.",
+                                               symbol: "play.circle")
+                        }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     VStack(alignment: .leading, spacing: 0) {
                         SectionLabel(title: "LOCAL WORKFLOWS").padding(.bottom, 8)
@@ -554,7 +575,7 @@ private struct LocalWorkflowBrowser: View {
     }
 }
 
-private struct DesignDivider: View {
+struct DesignDivider: View {
     var vertical = false
     var body: some View {
         Rectangle().fill(RunnirTheme.border).frame(width: vertical ? 1 : nil, height: vertical ? nil : 1)
@@ -562,7 +583,7 @@ private struct DesignDivider: View {
     }
 }
 
-private struct DesignButtonStyle: ButtonStyle {
+struct DesignButtonStyle: ButtonStyle {
     var primary = false
     @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some View {
@@ -586,14 +607,14 @@ private struct WorkflowTabStyle: ButtonStyle {
     }
 }
 
-private struct SectionLabel: View {
+struct SectionLabel: View {
     let title: String
     var body: some View {
         Text(title).font(.system(size: 11, weight: .medium)).foregroundStyle(RunnirTheme.secondaryForeground)
     }
 }
 
-private struct UnavailableFeature: View {
+struct UnavailableFeature: View {
     let title: String
     let detail: String
     let symbol: String

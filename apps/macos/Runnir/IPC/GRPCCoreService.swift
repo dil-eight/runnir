@@ -129,6 +129,65 @@ struct GRPCCoreService: CoreServicing {
         }
     }
 
+    func listGitHubWorkflows(repositoryID: String) async throws -> CoreGitHubResult<CoreGitHubWorkflow> {
+        let response = try await call {
+            try await client.listGitHubWorkflows(.with { $0.repositoryID = repositoryID }, options: Self.options(Self.callTimeout))
+        }
+        return CoreGitHubResult(access: Self.map(response.status), items: response.workflows.map {
+            CoreGitHubWorkflow(id: $0.id, name: $0.name, path: $0.path, state: $0.state, htmlURL: URL(string: $0.htmlURL))
+        })
+    }
+
+    func listWorkflowRuns(repositoryID: String, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> {
+        let response = try await call {
+            try await client.listWorkflowRuns(.with {
+                $0.repositoryID = repositoryID
+                $0.branch = branch ?? ""
+                $0.limit = UInt32(clamping: max(0, min(limit, 100)))
+            }, options: Self.options(Self.callTimeout))
+        }
+        return CoreGitHubResult(access: Self.map(response.status), items: response.runs.map { run in
+            CoreWorkflowRun(
+                id: run.id, workflowID: run.workflowID, name: run.name, displayTitle: run.displayTitle,
+                runNumber: run.runNumber, event: run.event, status: run.status,
+                conclusion: run.conclusion.isEmpty ? nil : run.conclusion, branch: run.branch, headSHA: run.headSha,
+                actor: run.actor.isEmpty ? nil : run.actor, htmlURL: URL(string: run.htmlURL),
+                createdAt: run.hasCreatedAt ? run.createdAt.date : nil,
+                updatedAt: run.hasUpdatedAt ? run.updatedAt.date : nil
+            )
+        })
+    }
+
+    func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> {
+        let response = try await call {
+            try await client.listRunJobs(.with {
+                $0.repositoryID = repositoryID
+                $0.runID = runID
+            }, options: Self.options(Self.callTimeout))
+        }
+        return CoreGitHubResult(access: Self.map(response.status), items: response.jobs.map { job in
+            CoreRunJob(
+                id: job.id, name: job.name, status: job.status, conclusion: job.conclusion.isEmpty ? nil : job.conclusion,
+                startedAt: job.hasStartedAt ? job.startedAt.date : nil,
+                completedAt: job.hasCompletedAt ? job.completedAt.date : nil,
+                htmlURL: URL(string: job.htmlURL),
+                steps: job.steps.map { CoreRunStep(number: $0.number, name: $0.name, status: $0.status, conclusion: $0.conclusion.isEmpty ? nil : $0.conclusion) }
+            )
+        })
+    }
+
+    static func map(_ status: Runnir_Core_V1_GitHubStatus) -> CoreGitHubAccess {
+        switch status.access {
+        case .ok: .ok
+        case .noRemote: .noRemote
+        case .signedOut: .signedOut
+        case .tokenRejected: .tokenRejected
+        case .notVisible: .notVisible
+        case .rateLimited: .rateLimited(until: status.hasRetryAfter ? status.retryAfter.date : nil)
+        default: .unavailable
+        }
+    }
+
     func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error> {
         let client = client
         return AsyncThrowingStream { continuation in
