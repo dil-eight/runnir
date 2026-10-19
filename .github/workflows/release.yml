@@ -36,7 +36,7 @@ jobs:
           if [ "$GOOS" = windows ]; then suffix=".exe"; fi
           go build -trimpath -ldflags "-X runnir/core/internal/buildinfo.Version=${GITHUB_REF_NAME#v}" \
             -o "../build/runnir-${GITHUB_REF_NAME}-${GOOS}-${GOARCH}${suffix}" ./cmd/runnir
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: core-${{ matrix.goos }}-${{ matrix.goarch }}
           path: build/runnir-*
