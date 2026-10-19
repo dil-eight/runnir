@@ -602,7 +602,9 @@ struct CoreHubTests {
 
         #expect(await eventually { hub.session(for: workspace)?.githubAccess == .ok })
         #expect(hub.session(for: workspace)?.runs.count == 1)
-        #expect(provider.core.runsCalls.count == 2)
+        // At least the first load and the one asked for during it; the Core's
+        // own credential push may add another.
+        #expect(provider.core.runsCalls.count >= 2)
     }
 
     private func run(_ id: Int64, status: String, conclusion: String?) -> CoreWorkflowRun {

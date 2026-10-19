@@ -436,7 +436,10 @@ func resolve(node *yaml.Node) *yaml.Node {
 
 // truncate bounds a message without splitting a character: gRPC refuses to
 // send a string that is not valid UTF-8, which would fail the whole listing.
+// Invalid bytes are replaced first, because a replacement character is
+// longer than the byte it stands for.
 func truncate(message string) string {
+	message = strings.ToValidUTF8(message, "\uFFFD")
 	if len(message) > maxErrorChars {
 		cut := maxErrorChars
 		for cut > 0 && !utf8.RuneStart(message[cut]) {
@@ -444,5 +447,5 @@ func truncate(message string) string {
 		}
 		message = message[:cut]
 	}
-	return strings.ToValidUTF8(message, "\uFFFD")
+	return message
 }

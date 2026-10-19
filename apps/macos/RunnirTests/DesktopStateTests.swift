@@ -267,7 +267,25 @@ struct DesktopCoordinatorTests {
         #expect(saved.id == fixture.original.id)
         #expect(saved.path == fixture.relocated.path)
         #expect(saved.bookmark == Data([1, 2, 3]))
+        #expect(saved.name == "fixture", "a name that is not the folder name is kept")
         #expect(coordinator.message == nil)
+    }
+
+    @Test func aRenamedFolderRenamesAWorkspaceNamedAfterIt() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        var named = fixture.original
+        named.name = URL(fileURLWithPath: fixture.original.path).lastPathComponent
+        try fixture.store.save(DesktopSnapshot(workspaces: [named]))
+        let factory = TestWindowFactory()
+        factory.resolvedPath = fixture.relocated.path
+        let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant,
+                                             makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(named)
+        let saved = try #require(try fixture.store.load().workspaces.first)
+        #expect(saved.name == URL(fileURLWithPath: fixture.relocated.path).lastPathComponent)
+        #expect(factory.windows.first?.workspace.name == saved.name)
     }
 
     @Test func failedGrantPreparationRollsBackAllWindowsAndRegistry() async throws {

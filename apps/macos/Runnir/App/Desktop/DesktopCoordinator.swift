@@ -252,17 +252,24 @@ final class DesktopCoordinator {
 
     /// Keeps a workspace record in step with what its grant resolved: a fresh
     /// bookmark for a stale one, and the folder's current path after a move,
-    /// so the next launch and the Core use the right folder. When saving fails
-    /// the resolved values are still used for this session.
+    /// so the next launch and the Core use the right folder. A name that was
+    /// the old folder name follows a rename. When saving fails the resolved
+    /// values are still used for this session.
     private func reconcile(_ workspace: WorkspaceRecord, with grant: any RepositoryGranting) -> WorkspaceRecord {
         var updated = workspace
         if let bookmark = grant.refreshedBookmark { updated.bookmark = bookmark }
-        if grant.url.path != workspace.path { updated.path = grant.url.path }
+        if grant.url.path != workspace.path {
+            updated.path = grant.url.path
+            if workspace.name == URL(fileURLWithPath: workspace.path).lastPathComponent {
+                updated.name = grant.url.lastPathComponent
+            }
+        }
         guard updated != workspace,
               let index = snapshot.workspaces.firstIndex(where: { $0.id == workspace.id }) else { return updated }
         var candidate = snapshot
         candidate.workspaces[index].bookmark = updated.bookmark
         candidate.workspaces[index].path = updated.path
+        candidate.workspaces[index].name = updated.name
         try? commit(candidate)
         return updated
     }

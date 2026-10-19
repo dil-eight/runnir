@@ -420,4 +420,8 @@ func TestCutParseErrorsStayValidUTF8(t *testing.T) {
 	if cut := truncate("bad \xff byte"); cut != "bad \uFFFD byte" {
 		t.Fatalf("invalid byte = %q", cut)
 	}
+	// Replacement characters are longer than the bytes they replace.
+	if cut := truncate(strings.Repeat("\xff", maxErrorChars)); !utf8.ValidString(cut) || len(cut) > maxErrorChars {
+		t.Fatalf("all invalid = %d bytes, valid %v", len(cut), utf8.ValidString(cut))
+	}
 }
