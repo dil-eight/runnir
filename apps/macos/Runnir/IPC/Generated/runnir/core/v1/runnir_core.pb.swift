@@ -169,6 +169,9 @@ nonisolated struct Runnir_Core_V1_HealthCheckResponse: Sendable {
   /// the Core answering is the child it launched and not another instance.
   var processID: UInt32 = 0
 
+  /// Whether a GitHub token is currently held (never the token itself).
+  var githubCredentialSet: Bool = false
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -420,6 +423,48 @@ nonisolated struct Runnir_Core_V1_CoreEvent: Sendable {
   fileprivate var _occurredAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
 }
 
+nonisolated struct Runnir_Core_V1_SetGitHubCredentialRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var token: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_SetGitHubCredentialResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_ClearGitHubCredentialRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_ClearGitHubCredentialResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
 fileprivate nonisolated let _protobuf_package = "runnir.core.v1"
@@ -453,7 +498,7 @@ nonisolated extension Runnir_Core_V1_HealthCheckRequest: SwiftProtobuf.Message, 
 
 nonisolated extension Runnir_Core_V1_HealthCheckResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".HealthCheckResponse"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}core_version\0\u{3}protocol_version\0\u{3}open_repository_count\0\u{3}resident_memory_bytes\0\u{3}process_id\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}core_version\0\u{3}protocol_version\0\u{3}open_repository_count\0\u{3}resident_memory_bytes\0\u{3}process_id\0\u{3}github_credential_set\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -466,6 +511,7 @@ nonisolated extension Runnir_Core_V1_HealthCheckResponse: SwiftProtobuf.Message,
       case 3: try { try decoder.decodeSingularUInt32Field(value: &self.openRepositoryCount) }()
       case 4: try { try decoder.decodeSingularUInt64Field(value: &self.residentMemoryBytes) }()
       case 5: try { try decoder.decodeSingularUInt32Field(value: &self.processID) }()
+      case 6: try { try decoder.decodeSingularBoolField(value: &self.githubCredentialSet) }()
       default: break
       }
     }
@@ -487,6 +533,9 @@ nonisolated extension Runnir_Core_V1_HealthCheckResponse: SwiftProtobuf.Message,
     if self.processID != 0 {
       try visitor.visitSingularUInt32Field(value: self.processID, fieldNumber: 5)
     }
+    if self.githubCredentialSet != false {
+      try visitor.visitSingularBoolField(value: self.githubCredentialSet, fieldNumber: 6)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -496,6 +545,7 @@ nonisolated extension Runnir_Core_V1_HealthCheckResponse: SwiftProtobuf.Message,
     if lhs.openRepositoryCount != rhs.openRepositoryCount {return false}
     if lhs.residentMemoryBytes != rhs.residentMemoryBytes {return false}
     if lhs.processID != rhs.processID {return false}
+    if lhs.githubCredentialSet != rhs.githubCredentialSet {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1022,6 +1072,93 @@ nonisolated extension Runnir_Core_V1_CoreEvent: SwiftProtobuf.Message, SwiftProt
     if lhs.executionState != rhs.executionState {return false}
     if lhs.message != rhs.message {return false}
     if lhs._occurredAt != rhs._occurredAt {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_SetGitHubCredentialRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".SetGitHubCredentialRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}token\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.token) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.token.isEmpty {
+      try visitor.visitSingularStringField(value: self.token, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_SetGitHubCredentialRequest, rhs: Runnir_Core_V1_SetGitHubCredentialRequest) -> Bool {
+    if lhs.token != rhs.token {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_SetGitHubCredentialResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".SetGitHubCredentialResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    // Load everything into unknown fields
+    while try decoder.nextFieldNumber() != nil {}
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_SetGitHubCredentialResponse, rhs: Runnir_Core_V1_SetGitHubCredentialResponse) -> Bool {
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ClearGitHubCredentialRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ClearGitHubCredentialRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    // Load everything into unknown fields
+    while try decoder.nextFieldNumber() != nil {}
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ClearGitHubCredentialRequest, rhs: Runnir_Core_V1_ClearGitHubCredentialRequest) -> Bool {
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ClearGitHubCredentialResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ClearGitHubCredentialResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    // Load everything into unknown fields
+    while try decoder.nextFieldNumber() != nil {}
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ClearGitHubCredentialResponse, rhs: Runnir_Core_V1_ClearGitHubCredentialResponse) -> Bool {
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

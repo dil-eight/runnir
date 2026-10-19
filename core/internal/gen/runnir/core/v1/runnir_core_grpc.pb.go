@@ -24,13 +24,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	RunnirCore_HealthCheck_FullMethodName       = "/runnir.core.v1.RunnirCore/HealthCheck"
-	RunnirCore_OpenRepository_FullMethodName    = "/runnir.core.v1.RunnirCore/OpenRepository"
-	RunnirCore_CloseRepository_FullMethodName   = "/runnir.core.v1.RunnirCore/CloseRepository"
-	RunnirCore_RefreshRepository_FullMethodName = "/runnir.core.v1.RunnirCore/RefreshRepository"
-	RunnirCore_ListWorkflows_FullMethodName     = "/runnir.core.v1.RunnirCore/ListWorkflows"
-	RunnirCore_StartWorkflow_FullMethodName     = "/runnir.core.v1.RunnirCore/StartWorkflow"
-	RunnirCore_SubscribeEvents_FullMethodName   = "/runnir.core.v1.RunnirCore/SubscribeEvents"
+	RunnirCore_HealthCheck_FullMethodName           = "/runnir.core.v1.RunnirCore/HealthCheck"
+	RunnirCore_OpenRepository_FullMethodName        = "/runnir.core.v1.RunnirCore/OpenRepository"
+	RunnirCore_CloseRepository_FullMethodName       = "/runnir.core.v1.RunnirCore/CloseRepository"
+	RunnirCore_RefreshRepository_FullMethodName     = "/runnir.core.v1.RunnirCore/RefreshRepository"
+	RunnirCore_ListWorkflows_FullMethodName         = "/runnir.core.v1.RunnirCore/ListWorkflows"
+	RunnirCore_StartWorkflow_FullMethodName         = "/runnir.core.v1.RunnirCore/StartWorkflow"
+	RunnirCore_SubscribeEvents_FullMethodName       = "/runnir.core.v1.RunnirCore/SubscribeEvents"
+	RunnirCore_SetGitHubCredential_FullMethodName   = "/runnir.core.v1.RunnirCore/SetGitHubCredential"
+	RunnirCore_ClearGitHubCredential_FullMethodName = "/runnir.core.v1.RunnirCore/ClearGitHubCredential"
 )
 
 // RunnirCoreClient is the client API for RunnirCore service.
@@ -46,6 +48,10 @@ type RunnirCoreClient interface {
 	// Interface only in the MVP: no real GitHub Actions engine yet.
 	StartWorkflow(ctx context.Context, in *StartWorkflowRequest, opts ...grpc.CallOption) (*ExecutionResponse, error)
 	SubscribeEvents(ctx context.Context, in *SubscribeEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CoreEvent], error)
+	// The app hands the signed-in user's GitHub token to the Core's memory. It
+	// is never written to disk, logged, sent in events or returned by any call.
+	SetGitHubCredential(ctx context.Context, in *SetGitHubCredentialRequest, opts ...grpc.CallOption) (*SetGitHubCredentialResponse, error)
+	ClearGitHubCredential(ctx context.Context, in *ClearGitHubCredentialRequest, opts ...grpc.CallOption) (*ClearGitHubCredentialResponse, error)
 }
 
 type runnirCoreClient struct {
@@ -135,6 +141,26 @@ func (c *runnirCoreClient) SubscribeEvents(ctx context.Context, in *SubscribeEve
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type RunnirCore_SubscribeEventsClient = grpc.ServerStreamingClient[CoreEvent]
 
+func (c *runnirCoreClient) SetGitHubCredential(ctx context.Context, in *SetGitHubCredentialRequest, opts ...grpc.CallOption) (*SetGitHubCredentialResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetGitHubCredentialResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_SetGitHubCredential_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) ClearGitHubCredential(ctx context.Context, in *ClearGitHubCredentialRequest, opts ...grpc.CallOption) (*ClearGitHubCredentialResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearGitHubCredentialResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ClearGitHubCredential_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnirCoreServer is the server API for RunnirCore service.
 // All implementations must embed UnimplementedRunnirCoreServer
 // for forward compatibility.
@@ -148,6 +174,10 @@ type RunnirCoreServer interface {
 	// Interface only in the MVP: no real GitHub Actions engine yet.
 	StartWorkflow(context.Context, *StartWorkflowRequest) (*ExecutionResponse, error)
 	SubscribeEvents(*SubscribeEventsRequest, grpc.ServerStreamingServer[CoreEvent]) error
+	// The app hands the signed-in user's GitHub token to the Core's memory. It
+	// is never written to disk, logged, sent in events or returned by any call.
+	SetGitHubCredential(context.Context, *SetGitHubCredentialRequest) (*SetGitHubCredentialResponse, error)
+	ClearGitHubCredential(context.Context, *ClearGitHubCredentialRequest) (*ClearGitHubCredentialResponse, error)
 	mustEmbedUnimplementedRunnirCoreServer()
 }
 
@@ -178,6 +208,12 @@ func (UnimplementedRunnirCoreServer) StartWorkflow(context.Context, *StartWorkfl
 }
 func (UnimplementedRunnirCoreServer) SubscribeEvents(*SubscribeEventsRequest, grpc.ServerStreamingServer[CoreEvent]) error {
 	return status.Error(codes.Unimplemented, "method SubscribeEvents not implemented")
+}
+func (UnimplementedRunnirCoreServer) SetGitHubCredential(context.Context, *SetGitHubCredentialRequest) (*SetGitHubCredentialResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetGitHubCredential not implemented")
+}
+func (UnimplementedRunnirCoreServer) ClearGitHubCredential(context.Context, *ClearGitHubCredentialRequest) (*ClearGitHubCredentialResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClearGitHubCredential not implemented")
 }
 func (UnimplementedRunnirCoreServer) mustEmbedUnimplementedRunnirCoreServer() {}
 func (UnimplementedRunnirCoreServer) testEmbeddedByValue()                    {}
@@ -319,6 +355,42 @@ func _RunnirCore_SubscribeEvents_Handler(srv interface{}, stream grpc.ServerStre
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type RunnirCore_SubscribeEventsServer = grpc.ServerStreamingServer[CoreEvent]
 
+func _RunnirCore_SetGitHubCredential_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetGitHubCredentialRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).SetGitHubCredential(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_SetGitHubCredential_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).SetGitHubCredential(ctx, req.(*SetGitHubCredentialRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_ClearGitHubCredential_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearGitHubCredentialRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ClearGitHubCredential(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ClearGitHubCredential_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ClearGitHubCredential(ctx, req.(*ClearGitHubCredentialRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnirCore_ServiceDesc is the grpc.ServiceDesc for RunnirCore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -349,6 +421,14 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "StartWorkflow",
 			Handler:    _RunnirCore_StartWorkflow_Handler,
+		},
+		{
+			MethodName: "SetGitHubCredential",
+			Handler:    _RunnirCore_SetGitHubCredential_Handler,
+		},
+		{
+			MethodName: "ClearGitHubCredential",
+			Handler:    _RunnirCore_ClearGitHubCredential_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

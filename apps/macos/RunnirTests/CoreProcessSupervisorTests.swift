@@ -43,6 +43,7 @@ private struct FakeService: CoreServicing {
     func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error> {
         AsyncThrowingStream { $0.finish(throwing: CoreServiceError.unavailable) }
     }
+    func setGitHubCredential(_ token: String?) async throws {}
 }
 
 private final class FakeConnection: CoreConnection, @unchecked Sendable {
@@ -55,9 +56,10 @@ private final class FakeConnector: CoreConnecting, @unchecked Sendable {
     private let lock = NSLock()
     private let health: FakeHealth
     private(set) var connects = 0
+    private(set) var secrets: [String] = []
     init(health: FakeHealth) { self.health = health }
-    func connect(socketPath: String) async throws -> any CoreConnection {
-        lock.withLock { connects += 1 }
+    func connect(socketPath: String, clientSecret: String) async throws -> any CoreConnection {
+        lock.withLock { connects += 1; secrets.append(clientSecret) }
         return FakeConnection(health: health)
     }
 }
@@ -105,9 +107,12 @@ private final class FakeLauncher: CoreProcessLaunching, @unchecked Sendable {
     var exitImmediately: Int32?
     var launches: Int { lock.lock(); defer { lock.unlock() }; return handles.count }
 
-    func launch(socketPath: String) throws -> any CoreProcessHandle {
+    private(set) var secrets: [String] = []
+
+    func launch(socketPath: String, clientSecret: String) throws -> any CoreProcessHandle {
         if let launchError { throw launchError }
         lock.lock()
+        secrets.append(clientSecret)
         let handle = FakeHandle(pid: Int32(1000 + handles.count))
         handles.append(handle)
         lock.unlock()
@@ -318,6 +323,22 @@ struct CoreProcessSupervisorTests {
         let deep = URL(fileURLWithPath: "/" + String(repeating: "d", count: 89), isDirectory: true)
         #expect(CoreProcessSupervisor.socketPath(in: deep).hasSuffix("/rc.sock"))
         #expect(CoreProcessSupervisor.socketPath(in: deep).utf8.count <= CoreProcessSupervisor.maxSocketPathBytes)
+    }
+
+    @Test
+    func eachLaunchGetsAFreshSecretThatTheConnectionPresents() async throws {
+        let rig = Rig()
+        try await rig.supervisor.start()
+        rig.launcher.handles[0].exit(9)
+        #expect(await eventuallyAsync { if case .lost = await rig.supervisor.state { true } else { false } })
+        try await rig.supervisor.recover()
+
+        let launched = rig.launcher.secrets
+        #expect(launched.count == 2)
+        #expect(launched[0] != launched[1])
+        #expect(launched.allSatisfy { $0.count == 64 && $0.allSatisfy(\.isHexDigit) })
+        #expect(Set(rig.connector.secrets) == Set(launched))
+        await rig.supervisor.stop()
     }
 
     @Test

@@ -6,14 +6,14 @@ import Darwin
 struct ProcessCoreLauncher: CoreProcessLaunching {
     let executableURL: URL
 
-    func launch(socketPath: String) throws -> any CoreProcessHandle {
+    func launch(socketPath: String, clientSecret: String) throws -> any CoreProcessHandle {
         guard FileManager.default.isExecutableFile(atPath: executableURL.path) else {
             throw CoreSupervisorError.helperUnavailable
         }
         let process = Process()
         let stdin = Pipe()
         process.executableURL = executableURL
-        process.arguments = ["serve", "--socket", socketPath, "--exit-on-stdin-eof"]
+        process.arguments = ["serve", "--socket", socketPath, "--exit-on-stdin-eof", "--client-secret-stdin"]
         process.environment = ["LANG": "C"]
         process.currentDirectoryURL = executableURL.deletingLastPathComponent()
         process.standardInput = stdin
@@ -28,6 +28,14 @@ struct ProcessCoreLauncher: CoreProcessLaunching {
             throw CoreSupervisorError.launchFailed
         }
         try? stdin.fileHandleForReading.close() // the child holds its own copy
+        do {
+            // The secret goes over the pipe; the write end then stays open so the
+            // Core notices when this app goes away.
+            try stdin.fileHandleForWriting.write(contentsOf: Data((clientSecret + "\n").utf8))
+        } catch {
+            handle.terminateNow()
+            throw CoreSupervisorError.launchFailed
+        }
         return handle
     }
 }

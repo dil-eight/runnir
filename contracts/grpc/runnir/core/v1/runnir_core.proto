@@ -24,6 +24,11 @@ service RunnirCore {
   rpc StartWorkflow(StartWorkflowRequest) returns (ExecutionResponse);
 
   rpc SubscribeEvents(SubscribeEventsRequest) returns (stream CoreEvent);
+
+  // The app hands the signed-in user's GitHub token to the Core's memory. It
+  // is never written to disk, logged, sent in events or returned by any call.
+  rpc SetGitHubCredential(SetGitHubCredentialRequest) returns (SetGitHubCredentialResponse);
+  rpc ClearGitHubCredential(ClearGitHubCredentialRequest) returns (ClearGitHubCredentialResponse);
 }
 
 message HealthCheckRequest {}
@@ -37,6 +42,8 @@ message HealthCheckResponse {
   // Operating-system process id of the Core, so a supervisor can tell that
   // the Core answering is the child it launched and not another instance.
   uint32 process_id = 5;
+  // Whether a GitHub token is currently held (never the token itself).
+  bool github_credential_set = 6;
 }
 
 message OpenRepositoryRequest {
@@ -146,3 +153,13 @@ message CoreEvent {
   string message = 6;
   google.protobuf.Timestamp occurred_at = 7;
 }
+
+message SetGitHubCredentialRequest {
+  string token = 1;
+}
+
+message SetGitHubCredentialResponse {}
+
+message ClearGitHubCredentialRequest {}
+
+message ClearGitHubCredentialResponse {}

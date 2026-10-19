@@ -15,6 +15,7 @@ import (
 	"runnir/core/internal/events"
 	"runnir/core/internal/execution"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
+	"runnir/core/internal/github"
 	"runnir/core/internal/repository"
 )
 
@@ -25,6 +26,7 @@ type service struct {
 	repositories *repository.Manager
 	events       *events.Bus
 	executions   *execution.Coordinator
+	credential   *github.Credential
 }
 
 func (s *service) HealthCheck(context.Context, *corev1.HealthCheckRequest) (*corev1.HealthCheckResponse, error) {
@@ -35,10 +37,31 @@ func (s *service) HealthCheck(context.Context, *corev1.HealthCheckRequest) (*cor
 		ProtocolVersion:     buildinfo.ProtocolVersion,
 		OpenRepositoryCount: uint32(s.repositories.Count()),
 		ProcessId:           uint32(os.Getpid()),
+		GithubCredentialSet: s.hasCredential(),
 		// Go runtime's total memory obtained from the OS; a coarse stand-in
 		// for resident size until the diagnostics phase.
 		ResidentMemoryBytes: memory.Sys,
 	}, nil
+}
+
+func (s *service) hasCredential() bool {
+	if s.credential == nil {
+		return false
+	}
+	_, ok := s.credential.Token()
+	return ok
+}
+
+func (s *service) SetGitHubCredential(_ context.Context, request *corev1.SetGitHubCredentialRequest) (*corev1.SetGitHubCredentialResponse, error) {
+	if err := s.credential.Set(request.GetToken()); err != nil {
+		return nil, status.Error(codes.InvalidArgument, "not a valid GitHub token")
+	}
+	return &corev1.SetGitHubCredentialResponse{}, nil
+}
+
+func (s *service) ClearGitHubCredential(context.Context, *corev1.ClearGitHubCredentialRequest) (*corev1.ClearGitHubCredentialResponse, error) {
+	s.credential.Clear()
+	return &corev1.ClearGitHubCredentialResponse{}, nil
 }
 
 func (s *service) OpenRepository(ctx context.Context, request *corev1.OpenRepositoryRequest) (*corev1.RepositoryResponse, error) {

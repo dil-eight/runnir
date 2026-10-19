@@ -200,9 +200,11 @@ type HealthCheckResponse struct {
 	ResidentMemoryBytes uint64 `protobuf:"varint,4,opt,name=resident_memory_bytes,json=residentMemoryBytes,proto3" json:"resident_memory_bytes,omitempty"`
 	// Operating-system process id of the Core, so a supervisor can tell that
 	// the Core answering is the child it launched and not another instance.
-	ProcessId     uint32 `protobuf:"varint,5,opt,name=process_id,json=processId,proto3" json:"process_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ProcessId uint32 `protobuf:"varint,5,opt,name=process_id,json=processId,proto3" json:"process_id,omitempty"`
+	// Whether a GitHub token is currently held (never the token itself).
+	GithubCredentialSet bool `protobuf:"varint,6,opt,name=github_credential_set,json=githubCredentialSet,proto3" json:"github_credential_set,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *HealthCheckResponse) Reset() {
@@ -268,6 +270,13 @@ func (x *HealthCheckResponse) GetProcessId() uint32 {
 		return x.ProcessId
 	}
 	return 0
+}
+
+func (x *HealthCheckResponse) GetGithubCredentialSet() bool {
+	if x != nil {
+		return x.GithubCredentialSet
+	}
+	return false
 }
 
 type OpenRepositoryRequest struct {
@@ -1057,19 +1066,172 @@ func (x *CoreEvent) GetOccurredAt() *timestamppb.Timestamp {
 	return nil
 }
 
+type SetGitHubCredentialRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetGitHubCredentialRequest) Reset() {
+	*x = SetGitHubCredentialRequest{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetGitHubCredentialRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetGitHubCredentialRequest) ProtoMessage() {}
+
+func (x *SetGitHubCredentialRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetGitHubCredentialRequest.ProtoReflect.Descriptor instead.
+func (*SetGitHubCredentialRequest) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *SetGitHubCredentialRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+type SetGitHubCredentialResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetGitHubCredentialResponse) Reset() {
+	*x = SetGitHubCredentialResponse{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetGitHubCredentialResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetGitHubCredentialResponse) ProtoMessage() {}
+
+func (x *SetGitHubCredentialResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetGitHubCredentialResponse.ProtoReflect.Descriptor instead.
+func (*SetGitHubCredentialResponse) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{17}
+}
+
+type ClearGitHubCredentialRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClearGitHubCredentialRequest) Reset() {
+	*x = ClearGitHubCredentialRequest{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClearGitHubCredentialRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClearGitHubCredentialRequest) ProtoMessage() {}
+
+func (x *ClearGitHubCredentialRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClearGitHubCredentialRequest.ProtoReflect.Descriptor instead.
+func (*ClearGitHubCredentialRequest) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{18}
+}
+
+type ClearGitHubCredentialResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClearGitHubCredentialResponse) Reset() {
+	*x = ClearGitHubCredentialResponse{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClearGitHubCredentialResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClearGitHubCredentialResponse) ProtoMessage() {}
+
+func (x *ClearGitHubCredentialResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClearGitHubCredentialResponse.ProtoReflect.Descriptor instead.
+func (*ClearGitHubCredentialResponse) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{19}
+}
+
 var File_runnir_core_v1_runnir_core_proto protoreflect.FileDescriptor
 
 const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\n" +
 	" runnir/core/v1/runnir_core.proto\x12\x0erunnir.core.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x14\n" +
-	"\x12HealthCheckRequest\"\xea\x01\n" +
+	"\x12HealthCheckRequest\"\x9e\x02\n" +
 	"\x13HealthCheckResponse\x12!\n" +
 	"\fcore_version\x18\x01 \x01(\tR\vcoreVersion\x12)\n" +
 	"\x10protocol_version\x18\x02 \x01(\rR\x0fprotocolVersion\x122\n" +
 	"\x15open_repository_count\x18\x03 \x01(\rR\x13openRepositoryCount\x122\n" +
 	"\x15resident_memory_bytes\x18\x04 \x01(\x04R\x13residentMemoryBytes\x12\x1d\n" +
 	"\n" +
-	"process_id\x18\x05 \x01(\rR\tprocessId\"+\n" +
+	"process_id\x18\x05 \x01(\rR\tprocessId\x122\n" +
+	"\x15github_credential_set\x18\x06 \x01(\bR\x13githubCredentialSet\"+\n" +
 	"\x15OpenRepositoryRequest\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\"=\n" +
 	"\x16CloseRepositoryRequest\x12#\n" +
@@ -1123,7 +1285,12 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x0fexecution_state\x18\x05 \x01(\x0e2\x1e.runnir.core.v1.ExecutionStateR\x0eexecutionState\x12\x18\n" +
 	"\amessage\x18\x06 \x01(\tR\amessage\x12;\n" +
 	"\voccurred_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"occurredAt*\xc4\x01\n" +
+	"occurredAt\"2\n" +
+	"\x1aSetGitHubCredentialRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"\x1d\n" +
+	"\x1bSetGitHubCredentialResponse\"\x1e\n" +
+	"\x1cClearGitHubCredentialRequest\"\x1f\n" +
+	"\x1dClearGitHubCredentialResponse*\xc4\x01\n" +
 	"\x0eExecutionState\x12\x1f\n" +
 	"\x1bEXECUTION_STATE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16EXECUTION_STATE_QUEUED\x10\x01\x12\x1b\n" +
@@ -1141,7 +1308,7 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"'CORE_EVENT_TYPE_WORKFLOW_STATUS_CHANGED\x10\x06\x12&\n" +
 	"\"CORE_EVENT_TYPE_WORKFLOW_COMPLETED\x10\a\x12#\n" +
 	"\x1fCORE_EVENT_TYPE_WORKFLOW_FAILED\x10\b\x12\x1e\n" +
-	"\x1aCORE_EVENT_TYPE_CORE_ERROR\x10\t2\x98\x05\n" +
+	"\x1aCORE_EVENT_TYPE_CORE_ERROR\x10\t2\xfe\x06\n" +
 	"\n" +
 	"RunnirCore\x12V\n" +
 	"\vHealthCheck\x12\".runnir.core.v1.HealthCheckRequest\x1a#.runnir.core.v1.HealthCheckResponse\x12[\n" +
@@ -1150,7 +1317,9 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x11RefreshRepository\x12(.runnir.core.v1.RefreshRepositoryRequest\x1a\".runnir.core.v1.RepositoryResponse\x12\\\n" +
 	"\rListWorkflows\x12$.runnir.core.v1.ListWorkflowsRequest\x1a%.runnir.core.v1.ListWorkflowsResponse\x12X\n" +
 	"\rStartWorkflow\x12$.runnir.core.v1.StartWorkflowRequest\x1a!.runnir.core.v1.ExecutionResponse\x12V\n" +
-	"\x0fSubscribeEvents\x12&.runnir.core.v1.SubscribeEventsRequest\x1a\x19.runnir.core.v1.CoreEvent0\x01B0Z.runnir/core/internal/gen/runnir/core/v1;corev1b\x06proto3"
+	"\x0fSubscribeEvents\x12&.runnir.core.v1.SubscribeEventsRequest\x1a\x19.runnir.core.v1.CoreEvent0\x01\x12n\n" +
+	"\x13SetGitHubCredential\x12*.runnir.core.v1.SetGitHubCredentialRequest\x1a+.runnir.core.v1.SetGitHubCredentialResponse\x12t\n" +
+	"\x15ClearGitHubCredential\x12,.runnir.core.v1.ClearGitHubCredentialRequest\x1a-.runnir.core.v1.ClearGitHubCredentialResponseB0Z.runnir/core/internal/gen/runnir/core/v1;corev1b\x06proto3"
 
 var (
 	file_runnir_core_v1_runnir_core_proto_rawDescOnce sync.Once
@@ -1165,37 +1334,41 @@ func file_runnir_core_v1_runnir_core_proto_rawDescGZIP() []byte {
 }
 
 var file_runnir_core_v1_runnir_core_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_runnir_core_v1_runnir_core_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_runnir_core_v1_runnir_core_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_runnir_core_v1_runnir_core_proto_goTypes = []any{
-	(ExecutionState)(0),              // 0: runnir.core.v1.ExecutionState
-	(CoreEventType)(0),               // 1: runnir.core.v1.CoreEventType
-	(*HealthCheckRequest)(nil),       // 2: runnir.core.v1.HealthCheckRequest
-	(*HealthCheckResponse)(nil),      // 3: runnir.core.v1.HealthCheckResponse
-	(*OpenRepositoryRequest)(nil),    // 4: runnir.core.v1.OpenRepositoryRequest
-	(*CloseRepositoryRequest)(nil),   // 5: runnir.core.v1.CloseRepositoryRequest
-	(*CloseRepositoryResponse)(nil),  // 6: runnir.core.v1.CloseRepositoryResponse
-	(*RefreshRepositoryRequest)(nil), // 7: runnir.core.v1.RefreshRepositoryRequest
-	(*RepositoryResponse)(nil),       // 8: runnir.core.v1.RepositoryResponse
-	(*Repository)(nil),               // 9: runnir.core.v1.Repository
-	(*ListWorkflowsRequest)(nil),     // 10: runnir.core.v1.ListWorkflowsRequest
-	(*ListWorkflowsResponse)(nil),    // 11: runnir.core.v1.ListWorkflowsResponse
-	(*Workflow)(nil),                 // 12: runnir.core.v1.Workflow
-	(*Job)(nil),                      // 13: runnir.core.v1.Job
-	(*StartWorkflowRequest)(nil),     // 14: runnir.core.v1.StartWorkflowRequest
-	(*ExecutionResponse)(nil),        // 15: runnir.core.v1.ExecutionResponse
-	(*SubscribeEventsRequest)(nil),   // 16: runnir.core.v1.SubscribeEventsRequest
-	(*CoreEvent)(nil),                // 17: runnir.core.v1.CoreEvent
-	(*timestamppb.Timestamp)(nil),    // 18: google.protobuf.Timestamp
+	(ExecutionState)(0),                   // 0: runnir.core.v1.ExecutionState
+	(CoreEventType)(0),                    // 1: runnir.core.v1.CoreEventType
+	(*HealthCheckRequest)(nil),            // 2: runnir.core.v1.HealthCheckRequest
+	(*HealthCheckResponse)(nil),           // 3: runnir.core.v1.HealthCheckResponse
+	(*OpenRepositoryRequest)(nil),         // 4: runnir.core.v1.OpenRepositoryRequest
+	(*CloseRepositoryRequest)(nil),        // 5: runnir.core.v1.CloseRepositoryRequest
+	(*CloseRepositoryResponse)(nil),       // 6: runnir.core.v1.CloseRepositoryResponse
+	(*RefreshRepositoryRequest)(nil),      // 7: runnir.core.v1.RefreshRepositoryRequest
+	(*RepositoryResponse)(nil),            // 8: runnir.core.v1.RepositoryResponse
+	(*Repository)(nil),                    // 9: runnir.core.v1.Repository
+	(*ListWorkflowsRequest)(nil),          // 10: runnir.core.v1.ListWorkflowsRequest
+	(*ListWorkflowsResponse)(nil),         // 11: runnir.core.v1.ListWorkflowsResponse
+	(*Workflow)(nil),                      // 12: runnir.core.v1.Workflow
+	(*Job)(nil),                           // 13: runnir.core.v1.Job
+	(*StartWorkflowRequest)(nil),          // 14: runnir.core.v1.StartWorkflowRequest
+	(*ExecutionResponse)(nil),             // 15: runnir.core.v1.ExecutionResponse
+	(*SubscribeEventsRequest)(nil),        // 16: runnir.core.v1.SubscribeEventsRequest
+	(*CoreEvent)(nil),                     // 17: runnir.core.v1.CoreEvent
+	(*SetGitHubCredentialRequest)(nil),    // 18: runnir.core.v1.SetGitHubCredentialRequest
+	(*SetGitHubCredentialResponse)(nil),   // 19: runnir.core.v1.SetGitHubCredentialResponse
+	(*ClearGitHubCredentialRequest)(nil),  // 20: runnir.core.v1.ClearGitHubCredentialRequest
+	(*ClearGitHubCredentialResponse)(nil), // 21: runnir.core.v1.ClearGitHubCredentialResponse
+	(*timestamppb.Timestamp)(nil),         // 22: google.protobuf.Timestamp
 }
 var file_runnir_core_v1_runnir_core_proto_depIdxs = []int32{
 	9,  // 0: runnir.core.v1.RepositoryResponse.repository:type_name -> runnir.core.v1.Repository
-	18, // 1: runnir.core.v1.Repository.last_refresh:type_name -> google.protobuf.Timestamp
+	22, // 1: runnir.core.v1.Repository.last_refresh:type_name -> google.protobuf.Timestamp
 	12, // 2: runnir.core.v1.ListWorkflowsResponse.workflows:type_name -> runnir.core.v1.Workflow
 	13, // 3: runnir.core.v1.Workflow.jobs:type_name -> runnir.core.v1.Job
 	0,  // 4: runnir.core.v1.ExecutionResponse.state:type_name -> runnir.core.v1.ExecutionState
 	1,  // 5: runnir.core.v1.CoreEvent.type:type_name -> runnir.core.v1.CoreEventType
 	0,  // 6: runnir.core.v1.CoreEvent.execution_state:type_name -> runnir.core.v1.ExecutionState
-	18, // 7: runnir.core.v1.CoreEvent.occurred_at:type_name -> google.protobuf.Timestamp
+	22, // 7: runnir.core.v1.CoreEvent.occurred_at:type_name -> google.protobuf.Timestamp
 	2,  // 8: runnir.core.v1.RunnirCore.HealthCheck:input_type -> runnir.core.v1.HealthCheckRequest
 	4,  // 9: runnir.core.v1.RunnirCore.OpenRepository:input_type -> runnir.core.v1.OpenRepositoryRequest
 	5,  // 10: runnir.core.v1.RunnirCore.CloseRepository:input_type -> runnir.core.v1.CloseRepositoryRequest
@@ -1203,15 +1376,19 @@ var file_runnir_core_v1_runnir_core_proto_depIdxs = []int32{
 	10, // 12: runnir.core.v1.RunnirCore.ListWorkflows:input_type -> runnir.core.v1.ListWorkflowsRequest
 	14, // 13: runnir.core.v1.RunnirCore.StartWorkflow:input_type -> runnir.core.v1.StartWorkflowRequest
 	16, // 14: runnir.core.v1.RunnirCore.SubscribeEvents:input_type -> runnir.core.v1.SubscribeEventsRequest
-	3,  // 15: runnir.core.v1.RunnirCore.HealthCheck:output_type -> runnir.core.v1.HealthCheckResponse
-	8,  // 16: runnir.core.v1.RunnirCore.OpenRepository:output_type -> runnir.core.v1.RepositoryResponse
-	6,  // 17: runnir.core.v1.RunnirCore.CloseRepository:output_type -> runnir.core.v1.CloseRepositoryResponse
-	8,  // 18: runnir.core.v1.RunnirCore.RefreshRepository:output_type -> runnir.core.v1.RepositoryResponse
-	11, // 19: runnir.core.v1.RunnirCore.ListWorkflows:output_type -> runnir.core.v1.ListWorkflowsResponse
-	15, // 20: runnir.core.v1.RunnirCore.StartWorkflow:output_type -> runnir.core.v1.ExecutionResponse
-	17, // 21: runnir.core.v1.RunnirCore.SubscribeEvents:output_type -> runnir.core.v1.CoreEvent
-	15, // [15:22] is the sub-list for method output_type
-	8,  // [8:15] is the sub-list for method input_type
+	18, // 15: runnir.core.v1.RunnirCore.SetGitHubCredential:input_type -> runnir.core.v1.SetGitHubCredentialRequest
+	20, // 16: runnir.core.v1.RunnirCore.ClearGitHubCredential:input_type -> runnir.core.v1.ClearGitHubCredentialRequest
+	3,  // 17: runnir.core.v1.RunnirCore.HealthCheck:output_type -> runnir.core.v1.HealthCheckResponse
+	8,  // 18: runnir.core.v1.RunnirCore.OpenRepository:output_type -> runnir.core.v1.RepositoryResponse
+	6,  // 19: runnir.core.v1.RunnirCore.CloseRepository:output_type -> runnir.core.v1.CloseRepositoryResponse
+	8,  // 20: runnir.core.v1.RunnirCore.RefreshRepository:output_type -> runnir.core.v1.RepositoryResponse
+	11, // 21: runnir.core.v1.RunnirCore.ListWorkflows:output_type -> runnir.core.v1.ListWorkflowsResponse
+	15, // 22: runnir.core.v1.RunnirCore.StartWorkflow:output_type -> runnir.core.v1.ExecutionResponse
+	17, // 23: runnir.core.v1.RunnirCore.SubscribeEvents:output_type -> runnir.core.v1.CoreEvent
+	19, // 24: runnir.core.v1.RunnirCore.SetGitHubCredential:output_type -> runnir.core.v1.SetGitHubCredentialResponse
+	21, // 25: runnir.core.v1.RunnirCore.ClearGitHubCredential:output_type -> runnir.core.v1.ClearGitHubCredentialResponse
+	17, // [17:26] is the sub-list for method output_type
+	8,  // [8:17] is the sub-list for method input_type
 	8,  // [8:8] is the sub-list for extension type_name
 	8,  // [8:8] is the sub-list for extension extendee
 	0,  // [0:8] is the sub-list for field type_name
@@ -1228,7 +1405,7 @@ func file_runnir_core_v1_runnir_core_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_runnir_core_v1_runnir_core_proto_rawDesc), len(file_runnir_core_v1_runnir_core_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   16,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

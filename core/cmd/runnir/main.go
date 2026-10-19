@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"runnir/core/internal/buildinfo"
@@ -62,21 +64,49 @@ func handle(method string, params json.RawMessage) (any, *ipc.Error) {
 
 // serve runs the local gRPC server until SIGINT/SIGTERM or, with
 // --exit-on-stdin-eof, until the parent closes our stdin (including by dying).
+// serve runs the local gRPC server until SIGINT/SIGTERM or, with
+// --exit-on-stdin-eof, until the parent closes our stdin (including by dying).
+// With --client-secret-stdin the first stdin line is a per-launch secret that
+// every call except HealthCheck must present; it never appears in argv or env.
 func serve(args []string, input io.Reader, diagnostics io.Writer) int {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	socket := flags.String("socket", "", "Unix domain socket path")
 	exitOnEOF := flags.Bool("exit-on-stdin-eof", false, "stop when stdin closes")
+	secretOnStdin := flags.Bool("client-secret-stdin", false, "read the client secret from the first stdin line")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || *socket == "" {
-		fmt.Fprintln(diagnostics, "usage: runnir serve --socket PATH [--exit-on-stdin-eof]")
+		fmt.Fprintln(diagnostics, "usage: runnir serve --socket PATH [--exit-on-stdin-eof] [--client-secret-stdin]")
 		return 2
+	}
+	reader := bufio.NewReaderSize(input, 512)
+	options := server.Options{}
+	if *secretOnStdin {
+		secret, err := readSecret(reader)
+		if err != nil {
+			fmt.Fprintln(diagnostics, "runnir: a client secret is required on stdin")
+			return 2
+		}
+		options.ClientSecret = secret
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if *exitOnEOF {
-		go func() { _, _ = io.Copy(io.Discard, input); stop() }()
+		go func() { _, _ = io.Copy(io.Discard, reader); stop() }()
 	}
-	return finishServe(server.Run(ctx, *socket), diagnostics)
+	return finishServe(server.RunWithOptions(ctx, *socket, options), diagnostics)
+}
+
+// readSecret reads one line of 32 to 128 hex characters.
+func readSecret(reader *bufio.Reader) ([]byte, error) {
+	line, err := reader.ReadSlice('\n')
+	if err != nil {
+		return nil, err
+	}
+	secret := strings.TrimSpace(string(line))
+	if len(secret) < 32 || len(secret) > 128 || strings.Trim(secret, "0123456789abcdefABCDEF") != "" {
+		return nil, errors.New("malformed client secret")
+	}
+	return []byte(secret), nil
 }
 
 func finishServe(err error, diagnostics io.Writer) int {

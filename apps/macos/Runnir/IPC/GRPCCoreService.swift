@@ -11,12 +11,12 @@ final class GRPCCoreConnection: CoreConnection, @unchecked Sendable {
     private let grpcClient: GRPCClient<HTTP2ClientTransport.Posix>
     private let runTask: Task<Void, Never>
 
-    init(socketPath: String) throws {
+    init(socketPath: String, clientSecret: String) throws {
         let transport = try HTTP2ClientTransport.Posix(
             target: .unixDomainSocket(path: socketPath),
             transportSecurity: .plaintext
         )
-        let grpcClient = GRPCClient(transport: transport)
+        let grpcClient = GRPCClient(transport: transport, interceptors: [ClientSecretInterceptor(secret: clientSecret)])
         self.grpcClient = grpcClient
         self.runTask = Task { try? await grpcClient.runConnections() }
         self.service = GRPCCoreService(client: Runnir_Core_V1_RunnirCore.Client(wrapping: grpcClient))
@@ -38,8 +38,23 @@ final class GRPCCoreConnection: CoreConnection, @unchecked Sendable {
 }
 
 struct GRPCCoreConnector: CoreConnecting {
-    func connect(socketPath: String) async throws -> any CoreConnection {
-        try GRPCCoreConnection(socketPath: socketPath)
+    func connect(socketPath: String, clientSecret: String) async throws -> any CoreConnection {
+        try GRPCCoreConnection(socketPath: socketPath, clientSecret: clientSecret)
+    }
+}
+
+/// Adds the per-launch client secret to every call.
+struct ClientSecretInterceptor: ClientInterceptor {
+    let secret: String
+
+    func intercept<Input: Sendable, Output: Sendable>(
+        request: StreamingClientRequest<Input>,
+        context: ClientContext,
+        next: (StreamingClientRequest<Input>, ClientContext) async throws -> StreamingClientResponse<Output>
+    ) async throws -> StreamingClientResponse<Output> {
+        var request = request
+        request.metadata.replaceOrAddString("Bearer \(secret)", forKey: "authorization")
+        return try await next(request, context)
     }
 }
 
@@ -104,6 +119,14 @@ struct GRPCCoreService: CoreServicing {
             }, options: Self.options(Self.callTimeout))
         }
         return CoreExecution(id: response.executionID, repositoryID: response.repositoryID, state: Self.map(response.state))
+    }
+
+    func setGitHubCredential(_ token: String?) async throws {
+        if let token {
+            _ = try await call { try await client.setGitHubCredential(.with { $0.token = token }, options: Self.options(Self.callTimeout)) }
+        } else {
+            _ = try await call { try await client.clearGitHubCredential(.init(), options: Self.options(Self.callTimeout)) }
+        }
     }
 
     func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error> {

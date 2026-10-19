@@ -101,6 +101,8 @@ final class CoreHub {
     /// Ids this hub closed itself; their REPOSITORY_CLOSED events are not
     /// "someone else closed it" and must not trigger a reopen.
     @ObservationIgnored private var ownCloses: Set<String> = []
+    /// Returns the GitHub token to hand to the Core, or nil when signed out.
+    @ObservationIgnored var githubTokenProvider: (@MainActor () async -> String?)?
 
     init(provider: any CoreProviding) {
         self.provider = provider
@@ -156,6 +158,8 @@ final class CoreHub {
             // Close events of a previous Core process will never arrive.
             ownCloses.removeAll()
             startEvents()
+            // A new Core process starts without a token.
+            Task { await pushGitHubCredential() }
             // Not awaited: later states (a lost Core) must not wait for slow scans.
             Task { await openAll() }
         case .lost:
@@ -171,6 +175,20 @@ final class CoreHub {
         eventTask?.cancel()
         eventTask = nil
         for session in sessions.values { session.phase = .unavailable }
+    }
+
+    // MARK: GitHub credential
+
+    /// Call after sign-in, sign-out or a rejected token so the Core holds the
+    /// current token, or none.
+    func githubCredentialChanged() {
+        Task { await pushGitHubCredential() }
+    }
+
+    private func pushGitHubCredential() async {
+        guard isReady, let service = try? await provider.service() else { return }
+        let token = await githubTokenProvider?()
+        try? await service.setGitHubCredential(token)
     }
 
     // MARK: Windows

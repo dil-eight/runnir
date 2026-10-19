@@ -454,6 +454,9 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         )
         desktop = DesktopCoordinator(core: hub, github: github)
         super.init()
+        // The Core holds the token only while the user is signed in.
+        hub.githubTokenProvider = { [github] in await github.currentToken() }
+        github.onCredentialChange = { [hub] in hub.githubCredentialChanged() }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
