@@ -13,6 +13,10 @@ on:
       - ".github/workflows/app-build.yml"
   push:
     branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "**/*.pen"
   workflow_dispatch:
 
 permissions:

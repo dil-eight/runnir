@@ -1,9 +1,19 @@
 name: CI
 
+# Skipped when a change touches only documentation and design files.
 on:
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "**/*.pen"
   push:
     branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "**/*.pen"
+  workflow_dispatch:
 
 permissions:
   contents: read
