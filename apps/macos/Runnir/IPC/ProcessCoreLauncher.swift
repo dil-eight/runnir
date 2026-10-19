@@ -31,12 +31,20 @@ struct ProcessCoreLauncher: CoreProcessLaunching {
         do {
             // The secret goes over the pipe; the write end then stays open so the
             // Core notices when this app goes away.
-            try stdin.fileHandleForWriting.write(contentsOf: Data((clientSecret + "\n").utf8))
+            try Self.writeSecret(clientSecret, to: stdin.fileHandleForWriting)
         } catch {
             handle.terminateNow()
             throw CoreSupervisorError.launchFailed
         }
         return handle
+    }
+
+    /// Writes the secret line. A child that already exited has closed its
+    /// end; without F_SETNOSIGPIPE that write would raise SIGPIPE and end the
+    /// app instead of failing the launch.
+    static func writeSecret(_ secret: String, to handle: FileHandle) throws {
+        _ = fcntl(handle.fileDescriptor, F_SETNOSIGPIPE, 1)
+        try handle.write(contentsOf: Data((secret + "\n").utf8))
     }
 }
 

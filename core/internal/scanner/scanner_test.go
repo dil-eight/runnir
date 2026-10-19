@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"runnir/core/internal/repository"
 )
@@ -406,5 +407,17 @@ func TestLinkedWorktreeUsesTheMainRepositoryConfig(t *testing.T) {
 	snapshot := scan(t, worktree)
 	if snapshot.GitHubRepository != "o/r" || snapshot.Branch != "topic" {
 		t.Fatalf("snapshot = %+v", snapshot)
+	}
+}
+
+func TestCutParseErrorsStayValidUTF8(t *testing.T) {
+	for _, size := range []int{maxErrorChars - 1, maxErrorChars, maxErrorChars + 1} {
+		message := strings.Repeat("a", size%2) + strings.Repeat("я", size)
+		if cut := truncate(message); !utf8.ValidString(cut) || len(cut) > maxErrorChars {
+			t.Fatalf("truncate(%d runes) = %d bytes, valid %v", size, len(cut), utf8.ValidString(cut))
+		}
+	}
+	if cut := truncate("bad \xff byte"); cut != "bad \uFFFD byte" {
+		t.Fatalf("invalid byte = %q", cut)
 	}
 }

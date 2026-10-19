@@ -9,12 +9,14 @@ private actor ScriptedDeviceFlow: DeviceFlowServicing {
     var requestError: DeviceFlowError?
     var answers: [Result<DeviceTokenPoll, DeviceFlowError>] = []
     var polls = 0
+    var requests = 0
 
     func set(answers: [Result<DeviceTokenPoll, DeviceFlowError>]) { self.answers = answers }
     func set(requestError: DeviceFlowError?) { self.requestError = requestError }
     func set(authorization: DeviceAuthorization) { self.authorization = authorization }
 
     func requestAuthorization() async throws -> DeviceAuthorization {
+        requests += 1
         if let requestError { throw requestError }
         return authorization
     }
@@ -167,6 +169,21 @@ struct GitHubSessionTests {
     }
 
     @Test
+    func aCancelledSignInFinishingLateDoesNotFreeTheNextOne() async {
+        let rig = Rig()
+        rig.session.signIn()
+        #expect(await eventually { if case .waiting = rig.session.connection { true } else { false } })
+        rig.session.cancelSignIn()
+        rig.session.signIn()
+        // Let the cancelled sign-in run to its end.
+        try? await Task.sleep(for: .milliseconds(100))
+        rig.session.signIn() // must be ignored: one sign-in is still running
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(await rig.flow.requests == 2)
+        rig.session.cancelSignIn()
+    }
+
+    @Test
     func restoreConfirmsASavedTokenAndDropsARevokedOne() async throws {
         let saved = Rig(credentials: InMemoryCredentialStore(token: "t"))
         await saved.session.restore()
@@ -183,6 +200,15 @@ struct GitHubSessionTests {
         await offline.session.restore()
         #expect(offline.session.connection == .offline)
         #expect(try await offline.credentials.token() == "t")
+
+        // A failing GitHub is not a signed-out user: the sign-in is kept.
+        for failure: GitHubAPIError in [.serverError(statusCode: 502), .invalidResponse] {
+            let outage = Rig(credentials: InMemoryCredentialStore(token: "t"))
+            await outage.api.set(.failure(failure))
+            await outage.session.restore()
+            #expect(outage.session.connection == .offline)
+            #expect(try await outage.credentials.token() == "t")
+        }
 
         let none = Rig()
         await none.session.restore()

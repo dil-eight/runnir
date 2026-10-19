@@ -64,6 +64,9 @@ final class GitHubSession {
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private let clock = ContinuousClock()
     @ObservationIgnored private var signInTask: Task<Void, Never>?
+    /// Identifies the current sign-in, so a cancelled one that finishes late
+    /// cannot clear the handle of the sign-in that replaced it.
+    @ObservationIgnored private var signInID: UUID?
     /// Called whenever the usable token appears or goes away.
     @ObservationIgnored var onCredentialChange: (@MainActor () -> Void)?
 
@@ -119,16 +122,19 @@ final class GitHubSession {
     func signIn() {
         guard signInTask == nil else { return }
         connection = .requestingCode
+        let id = UUID()
+        signInID = id
         signInTask = Task { [weak self] in
             await self?.runSignIn()
-            self?.signInTask = nil
+            guard let self, self.signInID == id else { return }
+            self.signInTask = nil
+            self.signInID = nil
         }
     }
 
     /// Stops waiting for the browser. Nothing is saved.
     func cancelSignIn() {
-        signInTask?.cancel()
-        signInTask = nil
+        cancelSignInIfRunning()
         connection = .signedOut(nil)
     }
 
@@ -214,9 +220,9 @@ final class GitHubSession {
             try? await credentials.removeToken()
             connection = .signedOut(problem)
             onCredentialChange?()
-        } catch GitHubAPIError.networkUnavailable {
-            connection = .offline
-        } catch GitHubAPIError.rateLimited {
+        } catch GitHubAPIError.networkUnavailable, GitHubAPIError.rateLimited,
+                GitHubAPIError.serverError, GitHubAPIError.invalidResponse {
+            // GitHub is unreachable or failing for now; the saved sign-in stays.
             connection = .offline
         } catch {
             connection = .signedOut(.unexpected)
@@ -279,6 +285,7 @@ final class GitHubSession {
     private func cancelSignInIfRunning() {
         signInTask?.cancel()
         signInTask = nil
+        signInID = nil
     }
 
     static func problem(for error: any Error) -> GitHubSignInProblem {

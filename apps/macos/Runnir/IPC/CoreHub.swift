@@ -46,6 +46,9 @@ final class RepositorySession: Identifiable {
     fileprivate(set) var isLoadingGitHub = false
     fileprivate(set) var githubLoadedAt: Date?
     @ObservationIgnored fileprivate var githubPoll: Task<Void, Never>?
+    /// A load was asked for while one was running; run another after it,
+    /// because what the Core may read (the token) can have changed meanwhile.
+    @ObservationIgnored fileprivate var githubReloadPending = false
     @ObservationIgnored fileprivate var windowIDs: Set<UUID> = []
     @ObservationIgnored fileprivate var appliedSequence: UInt64 = 0
 
@@ -208,21 +211,37 @@ final class CoreHub {
 
     /// Reads the newest runs and the workflows of the repository's GitHub
     /// origin. While a run is queued or running, reads again after
-    /// `githubPollInterval`.
+    /// `githubPollInterval`. A call during a running load is not dropped: the
+    /// load runs once more when the current one ends.
     func loadGitHubActivity(workspaceID: UUID) async {
-        guard let session = sessions[workspaceID], let coreID = session.coreID, isReady, !session.isLoadingGitHub else { return }
+        guard let session = sessions[workspaceID], session.coreID != nil, isReady else { return }
         guard session.githubRepository != nil else {
             session.githubAccess = .noRemote
             return
         }
+        guard !session.isLoadingGitHub else {
+            session.githubReloadPending = true
+            return
+        }
         session.isLoadingGitHub = true
         defer { session.isLoadingGitHub = false }
+        repeat {
+            session.githubReloadPending = false
+            guard await loadGitHubActivityOnce(session) else { return }
+        } while session.githubReloadPending && sessions[workspaceID] === session && isReady
+        scheduleGitHubPoll(for: session)
+    }
+
+    /// One read of runs and workflows; false when it was cancelled.
+    private func loadGitHubActivityOnce(_ session: RepositorySession) async -> Bool {
+        let workspaceID = session.workspaceID
+        guard let coreID = session.coreID else { return true }
         func isCurrent() -> Bool { sessions[workspaceID] === session && session.coreID == coreID }
         do {
             let service = try await provider.service()
             let runs = try await service.listWorkflowRuns(repositoryID: coreID, branch: nil, limit: 30)
             let workflows = runs.access == .ok ? try await service.listGitHubWorkflows(repositoryID: coreID) : nil
-            guard isCurrent() else { return }
+            guard isCurrent() else { return true }
             session.githubAccess = runs.access
             switch runs.access {
             case .ok:
@@ -237,11 +256,11 @@ final class CoreHub {
             }
             if runs.access == .tokenRejected { await onGitHubTokenRejected?() }
         } catch is CancellationError {
-            return
+            return false
         } catch {
             if isCurrent() { session.githubAccess = .unavailable }
         }
-        scheduleGitHubPoll(for: session)
+        return true
     }
 
     private func scheduleGitHubPoll(for session: RepositorySession) {

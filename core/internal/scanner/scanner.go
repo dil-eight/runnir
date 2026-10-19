@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"go.yaml.in/yaml/v3"
 
@@ -433,9 +434,15 @@ func resolve(node *yaml.Node) *yaml.Node {
 	return node
 }
 
+// truncate bounds a message without splitting a character: gRPC refuses to
+// send a string that is not valid UTF-8, which would fail the whole listing.
 func truncate(message string) string {
 	if len(message) > maxErrorChars {
-		return message[:maxErrorChars]
+		cut := maxErrorChars
+		for cut > 0 && !utf8.RuneStart(message[cut]) {
+			cut--
+		}
+		message = message[:cut]
 	}
-	return message
+	return strings.ToValidUTF8(message, "\uFFFD")
 }

@@ -18,8 +18,12 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
-  security-events: write
+
+# A newer push to the same pull request makes the running checks obsolete;
+# runs on main always finish.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-test-analyze:

@@ -404,3 +404,17 @@ struct ProcessCoreHandleTests {
         #expect(await handle.waitForExit() == 0)
     }
 }
+
+@Suite(.timeLimit(.minutes(1)))
+struct ProcessCoreLauncherTests {
+    /// Writing the secret to a child that already went away must fail the
+    /// launch, not raise SIGPIPE, which would end the test process (and the app).
+    @Test
+    func writingToAClosedPipeThrowsInsteadOfKillingTheApp() throws {
+        let pipe = Pipe()
+        try pipe.fileHandleForReading.close()
+        #expect(throws: (any Error).self) {
+            try ProcessCoreLauncher.writeSecret(String(repeating: "a", count: 64), to: pipe.fileHandleForWriting)
+        }
+    }
+}

@@ -124,21 +124,30 @@ private final class RepositoryDirectory: @unchecked Sendable {
 protocol RepositoryGranting: AnyObject {
     var url: URL { get }
     var reader: RepositoryReader { get }
+    /// A new bookmark when the saved one was stale; the caller saves it.
+    var refreshedBookmark: Data? { get }
     func stop()
+}
+
+extension RepositoryGranting {
+    var refreshedBookmark: Data? { nil }
 }
 
 @MainActor
 final class RepositoryGrant: RepositoryGranting {
     let url: URL
     let reader: RepositoryReader
+    private(set) var refreshedBookmark: Data?
     private let scopedURL: URL
     private var scoped: Bool
 
+    /// A stale bookmark (after a move, rename or system update) still
+    /// resolves; it is used and replaced with a fresh one, as Apple advises,
+    /// instead of sending the user to Locate.
     init(record: WorkspaceRecord) throws {
         var stale = false
         let resolved = try URL(resolvingBookmarkData: record.bookmark, options: [.withSecurityScope, .withoutUI],
                                relativeTo: nil, bookmarkDataIsStale: &stale)
-        guard !stale else { throw RepositoryAccessError.unavailable }
         scopedURL = resolved
         scoped = resolved.startAccessingSecurityScopedResource()
         do {
@@ -147,6 +156,10 @@ final class RepositoryGrant: RepositoryGranting {
         } catch {
             if scoped { resolved.stopAccessingSecurityScopedResource() }
             throw error
+        }
+        if stale {
+            refreshedBookmark = try? resolved.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+                                                           includingResourceValuesForKeys: nil, relativeTo: nil)
         }
     }
 
