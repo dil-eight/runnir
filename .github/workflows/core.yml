@@ -4,19 +4,18 @@ name: Go Core
 on:
   push:
     branches: [main]
-    paths:
+    paths: &core-inputs
       - "core/**"
       - "contracts/**"
       - "buf.yaml"
       - "buf.gen.yaml"
       - ".github/workflows/core.yml"
   pull_request:
-    paths:
-      - "core/**"
-      - "contracts/**"
-      - "buf.yaml"
-      - "buf.gen.yaml"
-      - ".github/workflows/core.yml"
+    paths: *core-inputs
+  # Weekly, so newly published vulnerabilities in Go or dependencies are
+  # reported even when nobody changes Core code.
+  schedule:
+    - cron: "0 6 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -30,6 +29,8 @@ concurrency:
 
 jobs:
   native:
+    # The weekly run only rescans for vulnerabilities.
+    if: github.event_name != 'schedule'
     name: Native tests (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -53,6 +54,8 @@ jobs:
       - run: go run ./cmd/runnir version
 
   cross-build:
+    # The weekly run only rescans for vulnerabilities.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
