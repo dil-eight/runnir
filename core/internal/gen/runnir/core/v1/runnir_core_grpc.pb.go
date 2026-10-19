@@ -33,6 +33,9 @@ const (
 	RunnirCore_SubscribeEvents_FullMethodName       = "/runnir.core.v1.RunnirCore/SubscribeEvents"
 	RunnirCore_SetGitHubCredential_FullMethodName   = "/runnir.core.v1.RunnirCore/SetGitHubCredential"
 	RunnirCore_ClearGitHubCredential_FullMethodName = "/runnir.core.v1.RunnirCore/ClearGitHubCredential"
+	RunnirCore_ListGitHubWorkflows_FullMethodName   = "/runnir.core.v1.RunnirCore/ListGitHubWorkflows"
+	RunnirCore_ListWorkflowRuns_FullMethodName      = "/runnir.core.v1.RunnirCore/ListWorkflowRuns"
+	RunnirCore_ListRunJobs_FullMethodName           = "/runnir.core.v1.RunnirCore/ListRunJobs"
 )
 
 // RunnirCoreClient is the client API for RunnirCore service.
@@ -52,6 +55,13 @@ type RunnirCoreClient interface {
 	// is never written to disk, logged, sent in events or returned by any call.
 	SetGitHubCredential(ctx context.Context, in *SetGitHubCredentialRequest, opts ...grpc.CallOption) (*SetGitHubCredentialResponse, error)
 	ClearGitHubCredential(ctx context.Context, in *ClearGitHubCredentialRequest, opts ...grpc.CallOption) (*ClearGitHubCredentialResponse, error)
+	// GitHub Actions data for the github.com repository an open repository's
+	// origin points at, read with the token from SetGitHubCredential. Only
+	// repositories open in the Core can be queried. GitHub-side problems are
+	// reported in `status`, not as call errors.
+	ListGitHubWorkflows(ctx context.Context, in *ListGitHubWorkflowsRequest, opts ...grpc.CallOption) (*ListGitHubWorkflowsResponse, error)
+	ListWorkflowRuns(ctx context.Context, in *ListWorkflowRunsRequest, opts ...grpc.CallOption) (*ListWorkflowRunsResponse, error)
+	ListRunJobs(ctx context.Context, in *ListRunJobsRequest, opts ...grpc.CallOption) (*ListRunJobsResponse, error)
 }
 
 type runnirCoreClient struct {
@@ -161,6 +171,36 @@ func (c *runnirCoreClient) ClearGitHubCredential(ctx context.Context, in *ClearG
 	return out, nil
 }
 
+func (c *runnirCoreClient) ListGitHubWorkflows(ctx context.Context, in *ListGitHubWorkflowsRequest, opts ...grpc.CallOption) (*ListGitHubWorkflowsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGitHubWorkflowsResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ListGitHubWorkflows_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) ListWorkflowRuns(ctx context.Context, in *ListWorkflowRunsRequest, opts ...grpc.CallOption) (*ListWorkflowRunsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWorkflowRunsResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ListWorkflowRuns_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) ListRunJobs(ctx context.Context, in *ListRunJobsRequest, opts ...grpc.CallOption) (*ListRunJobsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRunJobsResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ListRunJobs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnirCoreServer is the server API for RunnirCore service.
 // All implementations must embed UnimplementedRunnirCoreServer
 // for forward compatibility.
@@ -178,6 +218,13 @@ type RunnirCoreServer interface {
 	// is never written to disk, logged, sent in events or returned by any call.
 	SetGitHubCredential(context.Context, *SetGitHubCredentialRequest) (*SetGitHubCredentialResponse, error)
 	ClearGitHubCredential(context.Context, *ClearGitHubCredentialRequest) (*ClearGitHubCredentialResponse, error)
+	// GitHub Actions data for the github.com repository an open repository's
+	// origin points at, read with the token from SetGitHubCredential. Only
+	// repositories open in the Core can be queried. GitHub-side problems are
+	// reported in `status`, not as call errors.
+	ListGitHubWorkflows(context.Context, *ListGitHubWorkflowsRequest) (*ListGitHubWorkflowsResponse, error)
+	ListWorkflowRuns(context.Context, *ListWorkflowRunsRequest) (*ListWorkflowRunsResponse, error)
+	ListRunJobs(context.Context, *ListRunJobsRequest) (*ListRunJobsResponse, error)
 	mustEmbedUnimplementedRunnirCoreServer()
 }
 
@@ -214,6 +261,15 @@ func (UnimplementedRunnirCoreServer) SetGitHubCredential(context.Context, *SetGi
 }
 func (UnimplementedRunnirCoreServer) ClearGitHubCredential(context.Context, *ClearGitHubCredentialRequest) (*ClearGitHubCredentialResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ClearGitHubCredential not implemented")
+}
+func (UnimplementedRunnirCoreServer) ListGitHubWorkflows(context.Context, *ListGitHubWorkflowsRequest) (*ListGitHubWorkflowsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListGitHubWorkflows not implemented")
+}
+func (UnimplementedRunnirCoreServer) ListWorkflowRuns(context.Context, *ListWorkflowRunsRequest) (*ListWorkflowRunsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListWorkflowRuns not implemented")
+}
+func (UnimplementedRunnirCoreServer) ListRunJobs(context.Context, *ListRunJobsRequest) (*ListRunJobsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRunJobs not implemented")
 }
 func (UnimplementedRunnirCoreServer) mustEmbedUnimplementedRunnirCoreServer() {}
 func (UnimplementedRunnirCoreServer) testEmbeddedByValue()                    {}
@@ -391,6 +447,60 @@ func _RunnirCore_ClearGitHubCredential_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_ListGitHubWorkflows_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGitHubWorkflowsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ListGitHubWorkflows(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ListGitHubWorkflows_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ListGitHubWorkflows(ctx, req.(*ListGitHubWorkflowsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_ListWorkflowRuns_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWorkflowRunsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ListWorkflowRuns(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ListWorkflowRuns_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ListWorkflowRuns(ctx, req.(*ListWorkflowRunsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_ListRunJobs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRunJobsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ListRunJobs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ListRunJobs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ListRunJobs(ctx, req.(*ListRunJobsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnirCore_ServiceDesc is the grpc.ServiceDesc for RunnirCore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -429,6 +539,18 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClearGitHubCredential",
 			Handler:    _RunnirCore_ClearGitHubCredential_Handler,
+		},
+		{
+			MethodName: "ListGitHubWorkflows",
+			Handler:    _RunnirCore_ListGitHubWorkflows_Handler,
+		},
+		{
+			MethodName: "ListWorkflowRuns",
+			Handler:    _RunnirCore_ListWorkflowRuns_Handler,
+		},
+		{
+			MethodName: "ListRunJobs",
+			Handler:    _RunnirCore_ListRunJobs_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

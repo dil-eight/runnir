@@ -142,6 +142,45 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "ListGitHubWorkflows" metadata.
+        internal enum ListGitHubWorkflows: Sendable {
+            /// Request type for "ListGitHubWorkflows".
+            internal typealias Input = Runnir_Core_V1_ListGitHubWorkflowsRequest
+            /// Response type for "ListGitHubWorkflows".
+            internal typealias Output = Runnir_Core_V1_ListGitHubWorkflowsResponse
+            /// Descriptor for "ListGitHubWorkflows".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ListGitHubWorkflows",
+                type: .unary
+            )
+        }
+        /// Namespace for "ListWorkflowRuns" metadata.
+        internal enum ListWorkflowRuns: Sendable {
+            /// Request type for "ListWorkflowRuns".
+            internal typealias Input = Runnir_Core_V1_ListWorkflowRunsRequest
+            /// Response type for "ListWorkflowRuns".
+            internal typealias Output = Runnir_Core_V1_ListWorkflowRunsResponse
+            /// Descriptor for "ListWorkflowRuns".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ListWorkflowRuns",
+                type: .unary
+            )
+        }
+        /// Namespace for "ListRunJobs" metadata.
+        internal enum ListRunJobs: Sendable {
+            /// Request type for "ListRunJobs".
+            internal typealias Input = Runnir_Core_V1_ListRunJobsRequest
+            /// Response type for "ListRunJobs".
+            internal typealias Output = Runnir_Core_V1_ListRunJobsResponse
+            /// Descriptor for "ListRunJobs".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ListRunJobs",
+                type: .unary
+            )
+        }
         /// Descriptors for all methods in the "runnir.core.v1.RunnirCore" service.
         internal static let descriptors: [GRPCCore.MethodDescriptor] = [
             HealthCheck.descriptor,
@@ -152,7 +191,10 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             StartWorkflow.descriptor,
             SubscribeEvents.descriptor,
             SetGitHubCredential.descriptor,
-            ClearGitHubCredential.descriptor
+            ClearGitHubCredential.descriptor,
+            ListGitHubWorkflows.descriptor,
+            ListWorkflowRuns.descriptor,
+            ListRunJobs.descriptor
         ]
     }
 }
@@ -317,6 +359,55 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ClearGitHubCredentialRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>
+
+        /// Handle the "ListGitHubWorkflows" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > GitHub Actions data for the github.com repository an open repository's
+        /// > origin points at, read with the token from SetGitHubCredential. Only
+        /// > repositories open in the Core can be queried. GitHub-side problems are
+        /// > reported in `status`, not as call errors.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ListGitHubWorkflowsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ListGitHubWorkflowsResponse` messages.
+        func listGitHubWorkflows(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListGitHubWorkflowsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListGitHubWorkflowsResponse>
+
+        /// Handle the "ListWorkflowRuns" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ListWorkflowRunsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ListWorkflowRunsResponse` messages.
+        func listWorkflowRuns(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListWorkflowRunsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListWorkflowRunsResponse>
+
+        /// Handle the "ListRunJobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ListRunJobsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ListRunJobsResponse` messages.
+        func listRunJobs(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListRunJobsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListRunJobsResponse>
     }
 
     /// Service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -465,6 +556,55 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.ServerRequest<Runnir_Core_V1_ClearGitHubCredentialRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>
+
+        /// Handle the "ListGitHubWorkflows" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > GitHub Actions data for the github.com repository an open repository's
+        /// > origin points at, read with the token from SetGitHubCredential. Only
+        /// > repositories open in the Core can be queried. GitHub-side problems are
+        /// > reported in `status`, not as call errors.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubWorkflowsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ListGitHubWorkflowsResponse` message.
+        func listGitHubWorkflows(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ListGitHubWorkflowsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListGitHubWorkflowsResponse>
+
+        /// Handle the "ListWorkflowRuns" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListWorkflowRunsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ListWorkflowRunsResponse` message.
+        func listWorkflowRuns(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ListWorkflowRunsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListWorkflowRunsResponse>
+
+        /// Handle the "ListRunJobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListRunJobsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ListRunJobsResponse` message.
+        func listRunJobs(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ListRunJobsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListRunJobsResponse>
     }
 
     /// Simple service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -612,6 +752,55 @@ extension Runnir_Core_V1_RunnirCore {
             request: Runnir_Core_V1_ClearGitHubCredentialRequest,
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_ClearGitHubCredentialResponse
+
+        /// Handle the "ListGitHubWorkflows" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > GitHub Actions data for the github.com repository an open repository's
+        /// > origin points at, read with the token from SetGitHubCredential. Only
+        /// > repositories open in the Core can be queried. GitHub-side problems are
+        /// > reported in `status`, not as call errors.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ListGitHubWorkflowsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ListGitHubWorkflowsResponse` to respond with.
+        func listGitHubWorkflows(
+            request: Runnir_Core_V1_ListGitHubWorkflowsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ListGitHubWorkflowsResponse
+
+        /// Handle the "ListWorkflowRuns" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ListWorkflowRunsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ListWorkflowRunsResponse` to respond with.
+        func listWorkflowRuns(
+            request: Runnir_Core_V1_ListWorkflowRunsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ListWorkflowRunsResponse
+
+        /// Handle the "ListRunJobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ListRunJobsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ListRunJobsResponse` to respond with.
+        func listRunJobs(
+            request: Runnir_Core_V1_ListRunJobsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ListRunJobsResponse
     }
 }
 
@@ -718,6 +907,39 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
                 )
             }
         )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ListGitHubWorkflows.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListGitHubWorkflowsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListGitHubWorkflowsResponse>(),
+            handler: { request, context in
+                try await self.listGitHubWorkflows(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ListWorkflowRuns.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListWorkflowRunsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListWorkflowRunsResponse>(),
+            handler: { request, context in
+                try await self.listWorkflowRuns(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ListRunJobs.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListRunJobsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListRunJobsResponse>(),
+            handler: { request, context in
+                try await self.listRunJobs(
+                    request: request,
+                    context: context
+                )
+            }
+        )
     }
 }
 
@@ -817,6 +1039,39 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse> {
         let response = try await self.clearGitHubCredential(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func listGitHubWorkflows(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListGitHubWorkflowsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListGitHubWorkflowsResponse> {
+        let response = try await self.listGitHubWorkflows(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func listWorkflowRuns(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListWorkflowRunsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListWorkflowRunsResponse> {
+        let response = try await self.listWorkflowRuns(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func listRunJobs(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListRunJobsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListRunJobsResponse> {
+        let response = try await self.listRunJobs(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -941,6 +1196,45 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>(
             message: try await self.clearGitHubCredential(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func listGitHubWorkflows(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ListGitHubWorkflowsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListGitHubWorkflowsResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ListGitHubWorkflowsResponse>(
+            message: try await self.listGitHubWorkflows(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func listWorkflowRuns(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ListWorkflowRunsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListWorkflowRunsResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ListWorkflowRunsResponse>(
+            message: try await self.listWorkflowRuns(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func listRunJobs(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ListRunJobsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListRunJobsResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ListRunJobsResponse>(
+            message: try await self.listRunJobs(
                 request: request.message,
                 context: context
             ),
@@ -1140,6 +1434,70 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ClearGitHubCredentialResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ListGitHubWorkflows" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > GitHub Actions data for the github.com repository an open repository's
+        /// > origin points at, read with the token from SetGitHubCredential. Only
+        /// > repositories open in the Core can be queried. GitHub-side problems are
+        /// > reported in `status`, not as call errors.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubWorkflowsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListGitHubWorkflowsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListGitHubWorkflowsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func listGitHubWorkflows<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListGitHubWorkflowsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListGitHubWorkflowsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListGitHubWorkflowsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListGitHubWorkflowsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ListWorkflowRuns" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListWorkflowRunsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListWorkflowRunsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListWorkflowRunsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func listWorkflowRuns<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListWorkflowRunsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListWorkflowRunsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListWorkflowRunsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListWorkflowRunsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ListRunJobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListRunJobsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListRunJobsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListRunJobsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func listRunJobs<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListRunJobsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListRunJobsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListRunJobsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListRunJobsResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
     }
 
@@ -1439,6 +1797,103 @@ extension Runnir_Core_V1_RunnirCore {
                 onResponse: handleResponse
             )
         }
+
+        /// Call the "ListGitHubWorkflows" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > GitHub Actions data for the github.com repository an open repository's
+        /// > origin points at, read with the token from SetGitHubCredential. Only
+        /// > repositories open in the Core can be queried. GitHub-side problems are
+        /// > reported in `status`, not as call errors.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubWorkflowsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListGitHubWorkflowsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListGitHubWorkflowsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func listGitHubWorkflows<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListGitHubWorkflowsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListGitHubWorkflowsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListGitHubWorkflowsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListGitHubWorkflowsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ListGitHubWorkflows.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ListWorkflowRuns" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListWorkflowRunsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListWorkflowRunsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListWorkflowRunsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func listWorkflowRuns<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListWorkflowRunsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListWorkflowRunsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListWorkflowRunsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListWorkflowRunsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ListWorkflowRuns.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ListRunJobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListRunJobsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListRunJobsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListRunJobsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func listRunJobs<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListRunJobsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListRunJobsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListRunJobsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListRunJobsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ListRunJobs.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
     }
 }
 
@@ -1676,6 +2131,88 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ClearGitHubCredentialRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ClearGitHubCredentialResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListGitHubWorkflows" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > GitHub Actions data for the github.com repository an open repository's
+    /// > origin points at, read with the token from SetGitHubCredential. Only
+    /// > repositories open in the Core can be queried. GitHub-side problems are
+    /// > reported in `status`, not as call errors.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubWorkflowsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listGitHubWorkflows<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ListGitHubWorkflowsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListGitHubWorkflowsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.listGitHubWorkflows(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListGitHubWorkflowsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListGitHubWorkflowsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListWorkflowRuns" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ListWorkflowRunsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listWorkflowRuns<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ListWorkflowRunsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListWorkflowRunsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.listWorkflowRuns(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListWorkflowRunsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListWorkflowRunsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListRunJobs" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ListRunJobsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listRunJobs<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ListRunJobsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListRunJobsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.listRunJobs(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListRunJobsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListRunJobsResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -1951,6 +2488,100 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.clearGitHubCredential(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListGitHubWorkflows" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > GitHub Actions data for the github.com repository an open repository's
+    /// > origin points at, read with the token from SetGitHubCredential. Only
+    /// > repositories open in the Core can be queried. GitHub-side problems are
+    /// > reported in `status`, not as call errors.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listGitHubWorkflows<Result>(
+        _ message: Runnir_Core_V1_ListGitHubWorkflowsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListGitHubWorkflowsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ListGitHubWorkflowsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.listGitHubWorkflows(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListWorkflowRuns" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listWorkflowRuns<Result>(
+        _ message: Runnir_Core_V1_ListWorkflowRunsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListWorkflowRunsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ListWorkflowRunsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.listWorkflowRuns(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListRunJobs" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listRunJobs<Result>(
+        _ message: Runnir_Core_V1_ListRunJobsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListRunJobsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ListRunJobsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.listRunJobs(
             request: request,
             options: options,
             onResponse: handleResponse
