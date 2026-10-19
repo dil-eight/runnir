@@ -146,16 +146,19 @@ struct GRPCCoreService: CoreServicing {
                 $0.limit = UInt32(clamping: max(0, min(limit, 100)))
             }, options: Self.options(Self.callTimeout))
         }
-        return CoreGitHubResult(access: Self.map(response.status), items: response.runs.map { run in
-            CoreWorkflowRun(
-                id: run.id, workflowID: run.workflowID, name: run.name, displayTitle: run.displayTitle,
-                runNumber: run.runNumber, event: run.event, status: run.status,
-                conclusion: run.conclusion.isEmpty ? nil : run.conclusion, branch: run.branch, headSHA: run.headSha,
-                actor: run.actor.isEmpty ? nil : run.actor, htmlURL: URL(string: run.htmlURL),
-                createdAt: run.hasCreatedAt ? run.createdAt.date : nil,
-                updatedAt: run.hasUpdatedAt ? run.updatedAt.date : nil
-            )
-        })
+        return CoreGitHubResult(access: Self.map(response.status), items: response.runs.map(Self.map))
+    }
+
+    static func map(_ run: Runnir_Core_V1_WorkflowRun) -> CoreWorkflowRun {
+        CoreWorkflowRun(
+            id: run.id, workflowID: run.workflowID, name: run.name, displayTitle: run.displayTitle,
+            runNumber: run.runNumber, event: run.event, status: run.status,
+            conclusion: run.conclusion.isEmpty ? nil : run.conclusion, branch: run.branch, headSHA: run.headSha,
+            actor: run.actor.isEmpty ? nil : run.actor, htmlURL: URL(string: run.htmlURL),
+            createdAt: run.hasCreatedAt ? run.createdAt.date : nil,
+            updatedAt: run.hasUpdatedAt ? run.updatedAt.date : nil,
+            runAttempt: max(1, run.runAttempt)
+        )
     }
 
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> {
@@ -171,7 +174,12 @@ struct GRPCCoreService: CoreServicing {
                 startedAt: job.hasStartedAt ? job.startedAt.date : nil,
                 completedAt: job.hasCompletedAt ? job.completedAt.date : nil,
                 htmlURL: URL(string: job.htmlURL),
-                steps: job.steps.map { CoreRunStep(number: $0.number, name: $0.name, status: $0.status, conclusion: $0.conclusion.isEmpty ? nil : $0.conclusion) }
+                steps: job.steps.map { step in
+                    CoreRunStep(number: step.number, name: step.name, status: step.status,
+                                conclusion: step.conclusion.isEmpty ? nil : step.conclusion,
+                                startedAt: step.hasStartedAt ? step.startedAt.date : nil,
+                                completedAt: step.hasCompletedAt ? step.completedAt.date : nil)
+                }
             )
         })
     }
@@ -236,6 +244,74 @@ struct GRPCCoreService: CoreServicing {
             access: Self.map(response.status),
             dispatchedAt: response.hasDispatchedAt ? response.dispatchedAt.date : nil,
             runID: response.runID == 0 ? nil : response.runID,
+            rejection: response.rejection.isEmpty ? nil : response.rejection
+        )
+    }
+
+    /// A log of up to 50,000 lines can exceed gRPC's default 4 MiB message
+    /// limit on the wire, so this call allows more.
+    func jobLog(repositoryID: String, jobID: Int64) async throws -> CoreJobLog {
+        var options = Self.options(.seconds(150))
+        options.maxRequestMessageBytes = 16 << 20
+        options.maxResponseMessageBytes = 16 << 20
+        let response = try await call {
+            try await client.getJobLog(.with {
+                $0.repositoryID = repositoryID
+                $0.jobID = jobID
+            }, options: options)
+        }
+        let availability: CoreJobLogAvailability = switch response.availability {
+        case .expired: .expired
+        case .notReady: .notReady
+        default: .available
+        }
+        return CoreJobLog(
+            access: Self.map(response.status), availability: availability,
+            lines: response.lines.map { line in
+                let kind: CoreLogLineKind = switch line.kind {
+                case .error: .error
+                case .warning: .warning
+                case .notice: .notice
+                case .command: .command
+                case .group: .group
+                case .endGroup: .endGroup
+                case .debug: .debug
+                default: .plain
+                }
+                return CoreLogLine(number: line.number, text: line.text, kind: kind, stepNumber: line.stepNumber)
+            },
+            truncated: response.truncated
+        )
+    }
+
+    func prepareRunAction(repositoryID: String, runID: Int64, action: CoreRunAction) async throws -> CorePreparedRunAction {
+        let response = try await call {
+            try await client.prepareRunAction(.with {
+                $0.repositoryID = repositoryID
+                $0.runID = runID
+                $0.action = switch action {
+                case .cancel: .cancel
+                case .rerun: .rerun
+                case .rerunFailed: .rerunFailed
+                }
+            }, options: Self.options(Self.callTimeout))
+        }
+        return CorePreparedRunAction(
+            access: Self.map(response.status),
+            actionID: response.actionID.isEmpty ? nil : response.actionID,
+            expiresAt: response.hasExpiresAt ? response.expiresAt.date : nil,
+            problems: response.problems,
+            run: response.hasRun ? Self.map(response.run) : nil
+        )
+    }
+
+    func confirmRunAction(actionID: String) async throws -> CoreRunActionResult {
+        let response = try await call {
+            try await client.confirmRunAction(.with { $0.actionID = actionID }, options: Self.options(Self.callTimeout))
+        }
+        return CoreRunActionResult(
+            access: Self.map(response.status),
+            acceptedAt: response.hasAcceptedAt ? response.acceptedAt.date : nil,
             rejection: response.rejection.isEmpty ? nil : response.rejection
         )
     }

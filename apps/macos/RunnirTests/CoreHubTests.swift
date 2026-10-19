@@ -61,6 +61,32 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
             return CoreDispatchResult(access: .ok, dispatchedAt: Date(), runID: nil, rejection: nil)
         }
     }
+    // Logs and run actions
+    var jobLogResult = CoreJobLog(access: .ok, availability: .available, lines: [], truncated: false)
+    var runActionProblems: [String] = []
+    var runActionRejection: String?
+    var preparedRun: CoreWorkflowRun?
+    private var _runActions: [CoreRunAction] = []
+    private var _confirmedActions: [String] = []
+    var runActions: [CoreRunAction] { lock.withLock { _runActions } }
+    var confirmedActions: [String] { lock.withLock { _confirmedActions } }
+    func jobLog(repositoryID: String, jobID: Int64) async throws -> CoreJobLog { lock.withLock { jobLogResult } }
+    func prepareRunAction(repositoryID: String, runID: Int64, action: CoreRunAction) async throws -> CorePreparedRunAction {
+        lock.withLock {
+            _runActions.append(action)
+            return runActionProblems.isEmpty
+                ? CorePreparedRunAction(access: .ok, actionID: "action_\(_runActions.count)", expiresAt: Date().addingTimeInterval(120), problems: [], run: preparedRun)
+                : CorePreparedRunAction(access: .ok, actionID: nil, expiresAt: nil, problems: runActionProblems, run: preparedRun)
+        }
+    }
+    func confirmRunAction(actionID: String) async throws -> CoreRunActionResult {
+        try lock.withLock {
+            guard !_confirmedActions.contains(actionID) else { throw CoreServiceError.failedPrecondition("used") }
+            _confirmedActions.append(actionID)
+            if let runActionRejection { return CoreRunActionResult(access: .ok, acceptedAt: nil, rejection: runActionRejection) }
+            return CoreRunActionResult(access: .ok, acceptedAt: Date(), rejection: nil)
+        }
+    }
     var credentialCalls: [String?] { lock.withLock { _credentialCalls } }
     func setGitHubCredential(_ token: String?) async throws { lock.withLock { _credentialCalls.append(token) } }
 

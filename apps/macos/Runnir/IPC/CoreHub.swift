@@ -342,6 +342,58 @@ final class CoreHub {
         }
     }
 
+    // MARK: Logs and run actions
+
+    /// The end of one job's log.
+    func jobLog(workspaceID: UUID, jobID: Int64) async -> CoreJobLog {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return .failed(.unavailable) }
+        do {
+            let log = try await service.jobLog(repositoryID: coreID, jobID: jobID)
+            if log.access == .tokenRejected { await onGitHubTokenRejected?() }
+            return log
+        } catch {
+            return .failed(.unavailable)
+        }
+    }
+
+    func prepareRunAction(workspaceID: UUID, runID: Int64, action: CoreRunAction) async -> CorePreparedRunAction {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID),
+              let prepared = try? await service.prepareRunAction(repositoryID: coreID, runID: runID, action: action) else {
+            return CorePreparedRunAction(access: .unavailable, actionID: nil, expiresAt: nil, problems: [], run: nil)
+        }
+        if prepared.access == .tokenRejected { await onGitHubTokenRejected?() }
+        return prepared
+    }
+
+    /// Sends a prepared run action. nil means the confirmation expired or was
+    /// already used, or the Core was not reachable: nothing was sent.
+    func confirmRunAction(workspaceID: UUID, actionID: String) async -> CoreRunActionResult? {
+        guard let (service, _) = await serviceAndCoreID(workspaceID),
+              let result = try? await service.confirmRunAction(actionID: actionID) else { return nil }
+        if result.access == .tokenRejected { await onGitHubTokenRejected?() }
+        return result
+    }
+
+    /// After GitHub accepted a cancel or re-run, reloads runs until the run's
+    /// status, attempt or update time changes, or until `runLookupTimeout`.
+    /// Returns the changed run, or nil when no change showed up in time. An
+    /// active run then keeps being polled as usual.
+    func followRunChange(workspaceID: UUID, from before: CoreWorkflowRun) async -> CoreWorkflowRun? {
+        let clock = ContinuousClock()
+        let deadline = clock.now + runLookupTimeout
+        while !Task.isCancelled {
+            await loadGitHubActivity(workspaceID: workspaceID)
+            guard let session = sessions[workspaceID] else { return nil }
+            if let run = session.runs.first(where: { $0.id == before.id }),
+               run.status != before.status || run.runAttempt != before.runAttempt || run.updatedAt != before.updatedAt {
+                return run
+            }
+            if clock.now >= deadline { return nil }
+            try? await Task.sleep(for: runLookupInterval)
+        }
+        return nil
+    }
+
     // MARK: Windows
 
     /// Associates a window with a workspace; the first window opens the

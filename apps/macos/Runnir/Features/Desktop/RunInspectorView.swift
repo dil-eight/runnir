@@ -1,0 +1,616 @@
+import SwiftUI
+
+// MARK: Models
+
+/// Cancel and re-run for one run, through the Core's two-step confirmation:
+/// prepare checks the run's current state, the user confirms what they saw,
+/// and only then is the request sent, once.
+@MainActor
+@Observable
+final class RunActionModel {
+    enum Phase: Equatable {
+        case idle
+        case preparing(CoreRunAction)
+        /// Waiting for the user to confirm the prepared action.
+        case confirming(CoreRunAction, CorePreparedRunAction)
+        case sending(CoreRunAction)
+        /// GitHub accepted; waiting for the run to show the change.
+        case requested(CoreRunAction)
+        case notice(String)
+        case failed(String)
+    }
+
+    private(set) var phase: Phase = .idle
+    @ObservationIgnored private let hub: CoreHub
+    @ObservationIgnored private let workspaceID: UUID
+    @ObservationIgnored private var follow: Task<Void, Never>?
+
+    init(hub: CoreHub, workspaceID: UUID) {
+        self.hub = hub
+        self.workspaceID = workspaceID
+    }
+
+    var isBusy: Bool {
+        switch phase {
+        case .preparing, .confirming, .sending, .requested: true
+        case .idle, .notice, .failed: false
+        }
+    }
+
+    var pending: (action: CoreRunAction, prepared: CorePreparedRunAction)? {
+        if case .confirming(let action, let prepared) = phase { return (action, prepared) }
+        return nil
+    }
+
+    func prepare(_ action: CoreRunAction, for run: CoreWorkflowRun) async {
+        guard !isBusy else { return }
+        phase = .preparing(action)
+        let prepared = await hub.prepareRunAction(workspaceID: workspaceID, runID: run.id, action: action)
+        if prepared.access == .ok, prepared.actionID != nil {
+            phase = .confirming(action, prepared)
+        } else if let problem = prepared.problems.first {
+            phase = .failed(problem)
+        } else {
+            phase = .failed(Self.describe(prepared.access))
+        }
+    }
+
+    func dismiss() {
+        switch phase {
+        case .confirming, .notice, .failed: phase = .idle
+        default: break
+        }
+    }
+
+    /// Sends the prepared action once and follows the run until it changes.
+    func confirm(current run: CoreWorkflowRun) async {
+        guard case .confirming(let action, let prepared) = phase, let actionID = prepared.actionID else { return }
+        phase = .sending(action)
+        guard let result = await hub.confirmRunAction(workspaceID: workspaceID, actionID: actionID) else {
+            phase = .failed("The confirmation expired or the Core was not reachable. Nothing was sent; try again.")
+            return
+        }
+        if let rejection = result.rejection {
+            phase = .failed("GitHub refused: \(rejection)")
+            return
+        }
+        guard result.acceptedAt != nil else {
+            phase = .failed(Self.describe(result.access))
+            return
+        }
+        phase = .requested(action)
+        let before = prepared.run ?? run
+        follow?.cancel()
+        follow = Task { [weak self, hub, workspaceID] in
+            let changed = await hub.followRunChange(workspaceID: workspaceID, from: before)
+            guard let self, !Task.isCancelled, case .requested = self.phase else { return }
+            self.phase = changed == nil
+                ? .notice("GitHub accepted the request, but the run has not changed yet. Reload runs in a moment.")
+                : .idle
+        }
+    }
+
+    var statusText: String? {
+        switch phase {
+        case .preparing(let action): "Checking the run before \(action == .cancel ? "cancelling" : "re-running")..."
+        case .sending(let action): action == .cancel ? "Asking GitHub to cancel..." : "Asking GitHub to re-run..."
+        case .requested(let action): action == .cancel ? "Cancel requested. GitHub is stopping the run." : "Re-run requested. GitHub is starting a new attempt."
+        case .notice(let text), .failed(let text): text
+        case .idle, .confirming: nil
+        }
+    }
+
+    static func describe(_ access: CoreGitHubAccess) -> String {
+        switch access {
+        case .signedOut, .tokenRejected: "Connect GitHub to change runs."
+        case .notVisible: "GitHub did not allow this. Runnir Desktop needs access to this repository with Actions write permission."
+        case .rateLimited: "GitHub is limiting requests. Nothing was changed; try again later."
+        case .noRemote: "This working tree has no origin on github.com."
+        case .ok, .unavailable: "GitHub could not be reached. Nothing was changed."
+        }
+    }
+
+    /// Title and explanation for the confirmation, from the run as prepared.
+    static func confirmation(for action: CoreRunAction, run: CoreWorkflowRun) -> (title: String, message: String, button: String) {
+        let target = "\(run.name) on \(run.branch) · \(run.headSHA.prefix(7))"
+        switch action {
+        case .cancel:
+            return ("Cancel run #\(run.runNumber)?",
+                    "\(target). GitHub stops the jobs that are still running and marks the run cancelled.", "Cancel Run")
+        case .rerun:
+            return ("Re-run all jobs of run #\(run.runNumber)?",
+                    "\(target). Starts attempt \(run.runAttempt + 1) of every job on the same commit.", "Re-run")
+        case .rerunFailed:
+            return ("Re-run failed jobs of run #\(run.runNumber)?",
+                    "\(target). Starts attempt \(run.runAttempt + 1) of the failed and cancelled jobs and the jobs that need them, on the same commit.",
+                    "Re-run")
+        }
+    }
+}
+
+/// What the log viewer shows: one step or the whole job, and search matches.
+enum LogFilter {
+    /// End-of-group markers carry no text and are hidden.
+    static func lines(_ log: [CoreLogLine], step: Int64?) -> [CoreLogLine] {
+        log.filter { $0.kind != .endGroup && (step == nil || $0.stepNumber == step) }
+    }
+
+    /// Line numbers containing the query, ignoring case; empty for a blank query.
+    static func matches(_ lines: [CoreLogLine], query: String) -> [Int64] {
+        let needle = query.trimmingCharacters(in: .whitespaces)
+        guard !needle.isEmpty else { return [] }
+        return lines.compactMap { $0.text.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) == nil ? nil : $0.number }
+    }
+
+    /// The job to open first: the first failed one, else the first.
+    static func defaultJob(_ jobs: [CoreRunJob]) -> CoreRunJob? {
+        jobs.first { $0.outcome == .failed } ?? jobs.first
+    }
+
+    /// The step to open first: the first failed one, else the whole job.
+    static func defaultStep(_ job: CoreRunJob) -> Int64? {
+        job.steps.first { $0.outcome == .failed }?.number
+    }
+}
+
+enum RunDuration {
+    static func text(from start: Date?, to end: Date?) -> String? {
+        guard let start, let end, end >= start else { return nil }
+        return Duration.seconds(end.timeIntervalSince(start).rounded())
+            .formatted(.units(allowed: [.hours, .minutes, .seconds], width: .narrow))
+    }
+}
+
+// MARK: Views
+
+/// One run (screen S08): actions, summary, jobs and steps, and the selected
+/// job's log.
+struct RunInspectorView: View {
+    let run: CoreWorkflowRun
+    let workspaceID: UUID
+    let hub: CoreHub
+    @State private var actions: RunActionModel
+    @State private var jobs: CoreGitHubResult<CoreRunJob>?
+    @State private var selectedJobID: Int64?
+    @State private var selectedStep: Int64?
+    @Environment(\.openURL) private var openURL
+
+    init(run: CoreWorkflowRun, workspaceID: UUID, hub: CoreHub) {
+        self.run = run
+        self.workspaceID = workspaceID
+        self.hub = hub
+        _actions = State(initialValue: RunActionModel(hub: hub, workspaceID: workspaceID))
+    }
+
+    private var selectedJob: CoreRunJob? { jobs?.items.first { $0.id == selectedJobID } }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            toolbar
+            DesignDivider()
+            summary
+            if let text = actions.statusText { actionStatus(text) }
+            DesignDivider()
+            HStack(spacing: 0) {
+                jobList.frame(width: 250)
+                DesignDivider(vertical: true)
+                Group {
+                    if let job = selectedJob {
+                        JobLogView(job: job, step: selectedStep, workspaceID: workspaceID, hub: hub) { selectedStep = nil }
+                            .id(job.id)
+                    } else {
+                        Color.clear
+                    }
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .task(id: "\(run.id)-\(run.status)-\(run.runAttempt)-\(run.updatedAt?.timeIntervalSince1970 ?? 0)") {
+            let result = await hub.jobs(workspaceID: workspaceID, runID: run.id)
+            jobs = result
+            if !result.items.contains(where: { $0.id == selectedJobID }), let job = LogFilter.defaultJob(result.items) {
+                selectedJobID = job.id
+                selectedStep = LogFilter.defaultStep(job)
+            }
+        }
+        .confirmationDialog(confirmationTitle, isPresented: confirmationShown, titleVisibility: .visible) {
+            if let pending = actions.pending {
+                let text = RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run)
+                Button(text.button, role: pending.action == .cancel ? .destructive : nil) {
+                    Task { await actions.confirm(current: run) }
+                }
+                Button(pending.action == .cancel ? "Keep Running" : "Not Now", role: .cancel) { actions.dismiss() }
+            }
+        } message: {
+            if let pending = actions.pending {
+                Text(RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run).message)
+            }
+        }
+    }
+
+    private var confirmationShown: Binding<Bool> {
+        Binding(get: { actions.pending != nil }, set: { shown in if !shown, actions.pending != nil { actions.dismiss() } })
+    }
+
+    private var confirmationTitle: String {
+        guard let pending = actions.pending else { return "" }
+        return RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run).title
+    }
+
+    // MARK: Header
+
+    private var toolbar: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 0) {
+                Text("Run #\(run.runNumber) · \(run.name)").foregroundStyle(RunnirTheme.foreground)
+                if run.title != run.name {
+                    Text(" / \(run.title)").foregroundStyle(RunnirTheme.secondaryForeground)
+                }
+            }
+            .font(.system(size: 15, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+            Spacer(minLength: 12)
+            if let url = run.htmlURL { Button("Open on GitHub") { openURL(url) }.buttonStyle(DesignButtonStyle()) }
+            Button("Cancel Run") { Task { await actions.prepare(.cancel, for: run) } }
+                .buttonStyle(DesignButtonStyle())
+                .disabled(!run.outcome.isActive || actions.isBusy)
+                .help(run.outcome.isActive ? "Ask GitHub to cancel this run" : "Only queued or running runs can be cancelled")
+            rerunButton
+        }
+        .padding(.horizontal, 20).frame(height: 52)
+    }
+
+    @ViewBuilder private var rerunButton: some View {
+        if run.outcome.isActive {
+            Button { } label: { Label("Re-run (finished runs only)", systemImage: "arrow.clockwise") }
+                .buttonStyle(DesignButtonStyle(primary: true)).disabled(true)
+        } else if run.canRerunFailedJobs {
+            Menu {
+                Button(CoreRunAction.rerun.title) { Task { await actions.prepare(.rerun, for: run) } }
+            } label: {
+                Label(CoreRunAction.rerunFailed.title, systemImage: "arrow.clockwise")
+            } primaryAction: {
+                Task { await actions.prepare(.rerunFailed, for: run) }
+            }
+            .menuStyle(.borderedButton).fixedSize().disabled(actions.isBusy)
+            .help("Re-run the failed and cancelled jobs; the menu re-runs every job")
+        } else {
+            Button { Task { await actions.prepare(.rerun, for: run) } } label: {
+                Label(CoreRunAction.rerun.title, systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(DesignButtonStyle(primary: true)).disabled(actions.isBusy)
+        }
+    }
+
+    private var summary: some View {
+        HStack(spacing: 14) {
+            HStack(spacing: 6) {
+                RunOutcomeIcon(outcome: run.outcome, size: 13)
+                Text(run.outcome.label).foregroundStyle(RunnirTheme.foreground)
+            }
+            Text("\(run.branch) · \(run.headSHA.prefix(7))").font(.system(size: 12, design: .monospaced))
+            Text("Attempt \(run.runAttempt)")
+            Text(run.actor.map { "\(eventLabel) by \($0)" } ?? eventLabel)
+            if !run.outcome.isActive, let duration = RunDuration.text(from: run.createdAt, to: run.updatedAt) {
+                Text(duration)
+            }
+            Spacer(minLength: 8)
+            if run.outcome.isActive {
+                Text("Live · updating every \(Int(hub.githubPollInterval.components.seconds)) s").foregroundStyle(RunnirTheme.mutedForeground)
+            } else if let updated = run.updatedAt {
+                Text("Updated \(updated.formatted(.relative(presentation: .named)))").foregroundStyle(RunnirTheme.mutedForeground)
+            }
+        }
+        .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
+        .padding(.horizontal, 20).frame(height: 40)
+    }
+
+    private var eventLabel: String {
+        run.event.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
+    private func actionStatus(_ text: String) -> some View {
+        HStack(spacing: 8) {
+            if case .failed = actions.phase {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(RunnirTheme.warning)
+            } else if actions.isBusy {
+                ProgressView().controlSize(.small)
+            } else {
+                Image(systemName: "info.circle").foregroundStyle(RunnirTheme.info)
+            }
+            Text(text).fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            if !actions.isBusy { Button("Dismiss") { actions.dismiss() }.buttonStyle(.link) }
+        }
+        .font(.system(size: 12)).padding(.horizontal, 20).padding(.vertical, 8)
+        .background(RunnirTheme.surface)
+    }
+
+    // MARK: Jobs and steps
+
+    private var jobList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                switch jobs {
+                case nil:
+                    HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Loading jobs...") }
+                        .font(.system(size: 12)).padding(10)
+                case .some(let result) where result.access != .ok:
+                    Text(RunActionModel.describe(result.access).replacingOccurrences(of: "change runs", with: "see jobs"))
+                        .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(10)
+                case .some(let result) where result.items.isEmpty:
+                    Text("This run has no jobs yet.").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(10)
+                case .some(let result):
+                    ForEach(result.items) { job in
+                        jobRow(job)
+                        if job.id == selectedJobID {
+                            ForEach(job.steps) { step in stepRow(step) }
+                        }
+                    }
+                }
+            }
+            .padding(8)
+        }
+    }
+
+    private func jobRow(_ job: CoreRunJob) -> some View {
+        Button {
+            if selectedJobID == job.id {
+                selectedStep = nil
+            } else {
+                selectedJobID = job.id
+                selectedStep = LogFilter.defaultStep(job)
+            }
+        } label: {
+            HStack(spacing: 8) {
+                RunOutcomeIcon(outcome: job.outcome, size: 13)
+                Text(job.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                Spacer(minLength: 6)
+                Text(timing(job.outcome, from: job.startedAt, to: job.completedAt))
+                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+            }
+            .padding(.horizontal, 8).frame(height: 30).contentShape(Rectangle())
+            .background(job.id == selectedJobID && selectedStep == nil ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .help(job.id == selectedJobID ? "Show the whole job log" : "Show this job")
+    }
+
+    private func stepRow(_ step: CoreRunStep) -> some View {
+        Button { selectedStep = step.number } label: {
+            HStack(spacing: 8) {
+                RunOutcomeIcon(outcome: step.outcome, size: 11)
+                Text(step.name).font(.system(size: 12)).lineLimit(1)
+                Spacer(minLength: 6)
+                Text(timing(step.outcome, from: step.startedAt, to: step.completedAt))
+                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+            }
+            .padding(.leading, 28).padding(.trailing, 8).frame(height: 26).contentShape(Rectangle())
+            .background(step.number == selectedStep ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func timing(_ outcome: CoreRunOutcome, from start: Date?, to end: Date?) -> String {
+        switch outcome {
+        case .running: "running"
+        case .queued: "queued"
+        case .skipped: "skipped"
+        default: RunDuration.text(from: start, to: end) ?? ""
+        }
+    }
+}
+
+/// The selected job's log, filtered to one step, with search and wrapping.
+private struct JobLogView: View {
+    let job: CoreRunJob
+    let step: Int64?
+    let workspaceID: UUID
+    let hub: CoreHub
+    let showWholeJob: () -> Void
+    @State private var log: CoreJobLog?
+    @State private var query = ""
+    @State private var matches: [Int64] = []
+    @State private var matchIndex = 0
+    @State private var wrap = true
+    @Environment(\.openURL) private var openURL
+
+    private var stepName: String? {
+        guard let step else { return nil }
+        return job.steps.first { $0.number == step }?.name
+    }
+
+    private var visible: [CoreLogLine] { LogFilter.lines(log?.lines ?? [], step: step) }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            DesignDivider()
+            content.frame(maxWidth: .infinity, maxHeight: .infinity)
+            DesignDivider()
+            footer
+        }
+        .task(id: "\(job.id)-\(job.status)") {
+            log = nil
+            log = await hub.jobLog(workspaceID: workspaceID, jobID: job.id)
+            updateMatches()
+        }
+        .onChange(of: query) { updateMatches() }
+        .onChange(of: step) { updateMatches() }
+    }
+
+    private func updateMatches() {
+        matches = LogFilter.matches(visible, query: query)
+        matchIndex = 0
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Text(stepName.map { "\(job.name) › \($0)" } ?? job.name)
+                .font(.system(size: 13, weight: .medium)).lineLimit(1)
+            Spacer(minLength: 8)
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(RunnirTheme.mutedForeground)
+                TextField("Search log", text: $query).textFieldStyle(.plain).frame(width: 150)
+                    .onSubmit { step(by: 1) }
+                if !query.isEmpty {
+                    Text(matches.isEmpty ? "0 of 0" : "\(matchIndex + 1) of \(matches.count)")
+                        .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).monospacedDigit()
+                    Button { step(by: -1) } label: { Image(systemName: "chevron.up") }.buttonStyle(.borderless).disabled(matches.isEmpty)
+                    Button { step(by: 1) } label: { Image(systemName: "chevron.down") }.buttonStyle(.borderless).disabled(matches.isEmpty)
+                }
+            }
+            .font(.system(size: 12)).padding(.horizontal, 8).frame(height: 26)
+            .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
+            Toggle("Wrap", isOn: $wrap).toggleStyle(.checkbox).font(.system(size: 12))
+        }
+        .padding(.horizontal, 14).frame(height: 44)
+    }
+
+    private func step(by offset: Int) {
+        guard !matches.isEmpty else { return }
+        matchIndex = (matchIndex + offset + matches.count) % matches.count
+    }
+
+    @ViewBuilder private var content: some View {
+        switch log {
+        case nil:
+            HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Loading log...").font(.system(size: 12)) }
+        case .some(let log) where log.access != .ok:
+            placeholder("exclamationmark.triangle", "The log could not be loaded",
+                        RunActionModel.describe(log.access).replacingOccurrences(of: "change runs", with: "read logs"))
+        case .some(let log) where log.availability == .notReady:
+            placeholder("hourglass", "The log appears when this job finishes",
+                        "GitHub serves a job's log once the job has completed. The step list on the left updates while it runs; Open on GitHub shows the live output.")
+        case .some(let log) where log.availability == .expired:
+            placeholder("clock.arrow.circlepath", "Logs for this job have expired",
+                        "GitHub keeps logs for a limited time. The job result and step list are still available.")
+        case .some:
+            if visible.isEmpty {
+                placeholder("text.alignleft", step == nil ? "This job wrote no output" : "No output from this step",
+                            step == nil ? "" : "Lines are matched to steps by time, so a step's output can appear under a neighbouring step.",
+                            showAll: step != nil)
+            } else {
+                lines
+            }
+        }
+    }
+
+    private var lines: some View {
+        let current = matches.isEmpty ? nil : matches[min(matchIndex, matches.count - 1)]
+        let matched = Set(matches)
+        let width = CGFloat(String(visible.last?.number ?? 0).count) * 7.5 + 4
+        return ScrollViewReader { proxy in
+            ScrollView(wrap ? .vertical : [.vertical, .horizontal]) {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(visible) { line in
+                        LogLineRow(line: line, numberWidth: width, wrap: wrap,
+                                   highlight: line.number == current ? .current : matched.contains(line.number) ? .match : nil)
+                            .id(line.number)
+                    }
+                }
+                .padding(.vertical, 6)
+                .textSelection(.enabled)
+            }
+            .onAppear { scrollToInterest(proxy) }
+            .onChange(of: step) { scrollToInterest(proxy) }
+            .onChange(of: current) { if let current { proxy.scrollTo(current, anchor: .center) } }
+        }
+    }
+
+    /// Opens on the first error, the way a failing step is usually read.
+    private func scrollToInterest(_ proxy: ScrollViewProxy) {
+        if let error = visible.first(where: { $0.kind == .error }) {
+            proxy.scrollTo(error.number, anchor: .center)
+        } else if let first = visible.first {
+            proxy.scrollTo(first.number, anchor: .top)
+        }
+    }
+
+    private func placeholder(_ symbol: String, _ title: String, _ detail: String, showAll: Bool = false) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: symbol).font(.system(size: 22)).foregroundStyle(RunnirTheme.mutedForeground)
+            Text(title).font(.system(size: 14, weight: .medium))
+            if !detail.isEmpty {
+                Text(detail).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                    .multilineTextAlignment(.center).frame(maxWidth: 420)
+            }
+            HStack(spacing: 8) {
+                if showAll { Button("Show Whole Job", action: showWholeJob).buttonStyle(DesignButtonStyle()) }
+                if let url = job.htmlURL { Button("Open on GitHub") { openURL(url) }.buttonStyle(DesignButtonStyle()) }
+            }
+        }
+        .padding(24)
+    }
+
+    private var footer: some View {
+        HStack(spacing: 8) {
+            footerText
+            Spacer()
+            if log?.truncated == true, let url = job.htmlURL {
+                Button("Full log on GitHub") { openURL(url) }.buttonStyle(.link)
+            }
+        }
+        .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+        .padding(.horizontal, 14).frame(height: 30)
+    }
+
+    @ViewBuilder private var footerText: some View {
+        switch log {
+        case nil:
+            Text("Loading...")
+        case .some(let log) where log.access != .ok:
+            Label("Log not loaded", systemImage: "exclamationmark.triangle")
+        case .some(let log) where log.availability == .notReady:
+            Label("Waiting for the job to finish", systemImage: "hourglass")
+        case .some(let log) where log.availability == .expired:
+            Label("No log available · expired", systemImage: "clock.arrow.circlepath")
+        case .some(let log):
+            let total = LogFilter.lines(log.lines, step: nil).count
+            let scope = stepName.map { "\(visible.count) of \(total) lines · \($0)" } ?? "\(total) lines"
+            Label(log.truncated ? "Showing the end of the log · \(scope)" : "Log complete · \(scope)",
+                  systemImage: log.truncated ? "scissors" : "checkmark.circle")
+        }
+    }
+}
+
+private struct LogLineRow: View {
+    enum Highlight { case match, current }
+    let line: CoreLogLine
+    let numberWidth: CGFloat
+    let wrap: Bool
+    let highlight: Highlight?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(String(line.number)).foregroundStyle(RunnirTheme.mutedForeground)
+                .frame(width: numberWidth, alignment: .trailing)
+            Text(line.kind == .group ? "▸ \(line.text)" : line.text)
+                .fontWeight(line.kind == .group ? .semibold : .regular)
+                .foregroundStyle(color)
+                .lineLimit(wrap ? nil : 1)
+                .fixedSize(horizontal: !wrap, vertical: true)
+                .frame(maxWidth: wrap ? .infinity : nil, alignment: .leading)
+        }
+        .font(.system(size: 12, design: .monospaced))
+        .padding(.horizontal, 12).padding(.vertical, 1)
+        .background(background)
+    }
+
+    private var color: Color {
+        switch line.kind {
+        case .error: RunnirTheme.destructive
+        case .warning: RunnirTheme.warning
+        case .notice, .command: RunnirTheme.info
+        case .debug: RunnirTheme.mutedForeground
+        case .plain, .group, .endGroup: RunnirTheme.foreground
+        }
+    }
+
+    private var background: Color {
+        switch highlight {
+        case .current: RunnirTheme.warning.opacity(0.35)
+        case .match: RunnirTheme.warning.opacity(0.15)
+        case nil: line.kind == .error ? RunnirTheme.destructive.opacity(0.12) : .clear
+        }
+    }
+}
