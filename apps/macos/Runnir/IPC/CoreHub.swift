@@ -256,6 +256,77 @@ final class CoreHub {
         }
     }
 
+    // MARK: Dispatch
+
+    /// How long and how often to look for the run a dispatch started.
+    @ObservationIgnored var runLookupTimeout: Duration = .seconds(60)
+    @ObservationIgnored var runLookupInterval: Duration = .seconds(3)
+
+    private func serviceAndCoreID(_ workspaceID: UUID) async -> (any CoreServicing, String)? {
+        guard isReady, let coreID = sessions[workspaceID]?.coreID, let service = try? await provider.service() else { return nil }
+        return (service, coreID)
+    }
+
+    func refs(workspaceID: UUID) async -> CoreGitHubRefs {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID),
+              let refs = try? await service.listGitHubRefs(repositoryID: coreID) else {
+            return CoreGitHubRefs(access: .unavailable, defaultBranch: "", branches: [], tags: [])
+        }
+        if refs.access == .tokenRejected { await onGitHubTokenRejected?() }
+        return refs
+    }
+
+    func describeDispatch(workspaceID: UUID, workflowPath: String, ref: String) async -> CoreDispatchDefinition {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID),
+              let definition = try? await service.describeWorkflowDispatch(repositoryID: coreID, workflowPath: workflowPath, ref: ref) else {
+            return CoreDispatchDefinition(access: .unavailable, dispatchable: false, inputs: [], parseError: nil)
+        }
+        if definition.access == .tokenRejected { await onGitHubTokenRejected?() }
+        return definition
+    }
+
+    func prepareDispatch(workspaceID: UUID, workflowID: Int64, ref: String, inputs: [String: String]) async -> CorePreparedDispatch {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID),
+              let prepared = try? await service.prepareWorkflowDispatch(repositoryID: coreID, workflowID: workflowID, ref: ref, inputs: inputs) else {
+            return CorePreparedDispatch(access: .unavailable, dispatchID: nil, expiresAt: nil, problems: [], workflowPath: "")
+        }
+        if prepared.access == .tokenRejected { await onGitHubTokenRejected?() }
+        return prepared
+    }
+
+    /// Sends a prepared dispatch. nil means the confirmation expired or was
+    /// already used, or the Core was not reachable: nothing was sent.
+    func confirmDispatch(workspaceID: UUID, dispatchID: String) async -> CoreDispatchResult? {
+        guard let (service, _) = await serviceAndCoreID(workspaceID),
+              let result = try? await service.confirmWorkflowDispatch(dispatchID: dispatchID) else { return nil }
+        if result.access == .tokenRejected { await onGitHubTokenRejected?() }
+        return result
+    }
+
+    /// Finds the run a dispatch started: the run GitHub named, or the newest
+    /// workflow_dispatch run of that workflow on that branch created at or
+    /// after the dispatch and unknown before it. Reloads runs until found or
+    /// until `runLookupTimeout`; nil means it has not appeared yet. Never sends
+    /// the dispatch again.
+    func locateDispatchedRun(workspaceID: UUID, workflowID: Int64, ref: String, dispatchedAt: Date,
+                             knownRunIDs: Set<Int64>, reportedRunID: Int64?) async -> CoreWorkflowRun? {
+        let clock = ContinuousClock()
+        let deadline = clock.now + runLookupTimeout
+        while !Task.isCancelled {
+            await loadGitHubActivity(workspaceID: workspaceID)
+            guard let session = sessions[workspaceID] else { return nil }
+            let match = session.runs.first { run in
+                if let reportedRunID { return run.id == reportedRunID }
+                return !knownRunIDs.contains(run.id) && run.workflowID == workflowID && run.event == "workflow_dispatch"
+                    && run.branch == ref && (run.createdAt ?? .distantPast) >= dispatchedAt.addingTimeInterval(-30)
+            }
+            if let match { return match }
+            if clock.now >= deadline { return nil }
+            try? await Task.sleep(for: runLookupInterval)
+        }
+        return nil
+    }
+
     /// Jobs and steps of one run, read on demand.
     func jobs(workspaceID: UUID, runID: Int64) async -> CoreGitHubResult<CoreRunJob> {
         guard let coreID = sessions[workspaceID]?.coreID, isReady,

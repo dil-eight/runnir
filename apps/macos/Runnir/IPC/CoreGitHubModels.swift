@@ -122,3 +122,55 @@ enum CoreRunOutcome: Equatable, Sendable {
         }
     }
 }
+
+// MARK: Dispatch
+
+struct CoreGitHubRefs: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    let defaultBranch: String
+    let branches: [String]
+    let tags: [String]
+}
+
+enum CoreDispatchInputKind: Equatable, Sendable {
+    case string, boolean, choice, number, environment
+}
+
+struct CoreDispatchInput: Equatable, Identifiable, Sendable {
+    let name: String
+    let description: String
+    let kind: CoreDispatchInputKind
+    let required: Bool
+    let defaultValue: String
+    let options: [String]
+    var id: String { name }
+}
+
+/// Whether a workflow can be started by hand at a ref, from the file GitHub
+/// will run.
+struct CoreDispatchDefinition: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    let dispatchable: Bool
+    let inputs: [CoreDispatchInput]
+    let parseError: String?
+}
+
+/// A validated dispatch waiting for the user's confirmation, or the reasons it
+/// cannot run.
+struct CorePreparedDispatch: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    let dispatchID: String?
+    let expiresAt: Date?
+    let problems: [String]
+    let workflowPath: String
+}
+
+struct CoreDispatchResult: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    /// Set when GitHub accepted the request.
+    let dispatchedAt: Date?
+    /// The new run when GitHub said which one it started.
+    let runID: Int64?
+    /// GitHub's reason when it refused the request.
+    let rejection: String?
+}

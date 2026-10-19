@@ -282,12 +282,28 @@ struct DesktopWorkspaceView: View {
         .ignoresSafeArea()
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
+        .sheet(item: Binding(get: { state.runWorkflowRequest }, set: { state.runWorkflowRequest = $0 })) { request in
+            if let session, let hub = desktop.core {
+                RunWorkflowSheet(model: DispatchFormModel(workspaceID: workspace.id, hub: hub, workflows: session.remoteWorkflows,
+                                                          workflowID: request.workflowID, currentBranch: session.branch)) { run in
+                    state.selectedRunID = run.id
+                    state.selectedSection = .runs
+                }
+            }
+        }
         .sheet(isPresented: Binding(get: { state.showingSwitcher }, set: { state.showingSwitcher = $0 })) {
             WorkspaceSwitcherView(desktop: desktop, currentWorkspaceID: workspace.id, windowID: windowID)
         }
     }
 
     private var session: RepositorySession? { desktop.core?.session(for: workspace.id) }
+
+    private var runWorkflowHelp: String {
+        if session?.githubRepository == nil { return "This working tree has no GitHub remote" }
+        if desktop.github?.user == nil { return "Connect GitHub to run workflows" }
+        if session?.githubAccess != .ok { return "Runnir can't reach this repository on GitHub" }
+        return "Start a workflow_dispatch workflow on GitHub"
+    }
 
     private var coreSummary: String { session?.summary ?? "Working tree" }
     private var coreDetail: String { session?.detail ?? "Branch and workflows reported by Runnir Core" }
@@ -349,8 +365,10 @@ struct DesktopWorkspaceView: View {
                     Task { await desktop.core?.refresh(workspaceID: workspace.id) }
                 }
                 .disabled(reader == nil || files.isLoading || session?.isRefreshing == true).help("Refresh local workflows")
-                Button {} label: { Label("Run Workflow...", systemImage: "play") }
-                    .buttonStyle(DesignButtonStyle(primary: true)).disabled(true).help("GitHub dispatch is not implemented")
+                Button { state.runWorkflowRequest = RunWorkflowRequest(workflowID: nil) } label: { Label("Run Workflow...", systemImage: "play") }
+                    .buttonStyle(DesignButtonStyle(primary: true))
+                    .disabled(session?.githubRepository == nil || desktop.github?.user == nil || session?.githubAccess != .ok)
+                    .help(runWorkflowHelp)
             }
             ProjectLink().buttonStyle(.plain)
         }
@@ -430,10 +448,12 @@ struct DesktopWorkspaceView: View {
         case .repositories: RepositoriesView()
         case .workflows:
             if let session, let hub = desktop.core {
-                WorkspaceWorkflowsView(session: session, hub: hub, github: desktop.github) { run in
+                WorkspaceWorkflowsView(session: session, hub: hub, github: desktop.github, showRun: { run in
                     state.selectedRunID = run.id
                     state.selectedSection = .runs
-                }
+                }, runWorkflow: { workflow in
+                    state.runWorkflowRequest = RunWorkflowRequest(workflowID: workflow.id)
+                })
             } else {
                 WorkflowsView()
             }
