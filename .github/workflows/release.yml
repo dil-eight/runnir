@@ -20,7 +20,7 @@ jobs:
         goos: [darwin, linux, windows]
         goarch: [arm64, amd64]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: core/go.mod
@@ -47,7 +47,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Select newest Xcode
         # Swift package dependencies (gRPC, SwiftNIO) need Swift 6.2 or newer.
