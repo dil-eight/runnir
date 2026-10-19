@@ -24,8 +24,9 @@ var (
 	ErrInvalid     = errors.New("unexpected GitHub response")
 )
 
-// RejectedError is GitHub refusing a request it understood (HTTP 422), for
-// example a workflow without a workflow_dispatch trigger at that ref.
+// RejectedError is GitHub refusing a request it understood (HTTP 422 or 409),
+// for example a workflow without a workflow_dispatch trigger at that ref, or
+// cancelling a run that already finished.
 type RejectedError struct{ Message string }
 
 func (e *RejectedError) Error() string {
@@ -81,6 +82,7 @@ type Run struct {
 	Name         string
 	DisplayTitle string
 	RunNumber    int64
+	RunAttempt   int64
 	Event        string
 	Status       string
 	Conclusion   string
@@ -93,10 +95,12 @@ type Run struct {
 }
 
 type Step struct {
-	Number     int64
-	Name       string
-	Status     string
-	Conclusion string
+	Number      int64
+	Name        string
+	Status      string
+	Conclusion  string
+	StartedAt   time.Time
+	CompletedAt time.Time
 }
 
 type Job struct {
@@ -148,44 +152,63 @@ func (c *Client) Runs(ctx context.Context, owner, name, branch string, limit int
 		query.Set("branch", branch)
 	}
 	var body struct {
-		WorkflowRuns []struct {
-			ID           int64     `json:"id"`
-			WorkflowID   int64     `json:"workflow_id"`
-			Name         string    `json:"name"`
-			DisplayTitle string    `json:"display_title"`
-			RunNumber    int64     `json:"run_number"`
-			Event        string    `json:"event"`
-			Status       string    `json:"status"`
-			Conclusion   *string   `json:"conclusion"`
-			HeadBranch   string    `json:"head_branch"`
-			HeadSHA      string    `json:"head_sha"`
-			HTMLURL      string    `json:"html_url"`
-			CreatedAt    time.Time `json:"created_at"`
-			UpdatedAt    time.Time `json:"updated_at"`
-			Actor        *struct {
-				Login string `json:"login"`
-			} `json:"actor"`
-		} `json:"workflow_runs"`
+		WorkflowRuns []runJSON `json:"workflow_runs"`
 	}
 	if err := c.get(ctx, repoPath(owner, name, "/actions/runs"), query, &body); err != nil {
 		return nil, err
 	}
 	runs := make([]Run, 0, len(body.WorkflowRuns))
 	for _, r := range body.WorkflowRuns {
-		run := Run{
-			ID: r.ID, WorkflowID: r.WorkflowID, Name: r.Name, DisplayTitle: r.DisplayTitle, RunNumber: r.RunNumber,
-			Event: r.Event, Status: r.Status, Branch: r.HeadBranch, HeadSHA: r.HeadSHA, HTMLURL: r.HTMLURL,
-			CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
-		}
-		if r.Conclusion != nil {
-			run.Conclusion = *r.Conclusion
-		}
-		if r.Actor != nil {
-			run.Actor = r.Actor.Login
-		}
-		runs = append(runs, run)
+		runs = append(runs, r.run())
 	}
 	return runs, nil
+}
+
+// Run reads one workflow run.
+func (c *Client) Run(ctx context.Context, owner, name string, runID int64) (Run, error) {
+	if runID <= 0 {
+		return Run{}, ErrInvalid
+	}
+	var body runJSON
+	if err := c.get(ctx, repoPath(owner, name, fmt.Sprintf("/actions/runs/%d", runID)), nil, &body); err != nil {
+		return Run{}, err
+	}
+	return body.run(), nil
+}
+
+type runJSON struct {
+	ID           int64     `json:"id"`
+	WorkflowID   int64     `json:"workflow_id"`
+	Name         string    `json:"name"`
+	DisplayTitle string    `json:"display_title"`
+	RunNumber    int64     `json:"run_number"`
+	RunAttempt   int64     `json:"run_attempt"`
+	Event        string    `json:"event"`
+	Status       string    `json:"status"`
+	Conclusion   *string   `json:"conclusion"`
+	HeadBranch   string    `json:"head_branch"`
+	HeadSHA      string    `json:"head_sha"`
+	HTMLURL      string    `json:"html_url"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Actor        *struct {
+		Login string `json:"login"`
+	} `json:"actor"`
+}
+
+func (r runJSON) run() Run {
+	run := Run{
+		ID: r.ID, WorkflowID: r.WorkflowID, Name: r.Name, DisplayTitle: r.DisplayTitle, RunNumber: r.RunNumber,
+		RunAttempt: r.RunAttempt, Event: r.Event, Status: r.Status, Branch: r.HeadBranch, HeadSHA: r.HeadSHA,
+		HTMLURL: r.HTMLURL, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+	}
+	if r.Conclusion != nil {
+		run.Conclusion = *r.Conclusion
+	}
+	if r.Actor != nil {
+		run.Actor = r.Actor.Login
+	}
+	return run
 }
 
 // Jobs lists the jobs of one run with their steps (up to 100 jobs).
@@ -194,21 +217,7 @@ func (c *Client) Jobs(ctx context.Context, owner, name string, runID int64) ([]J
 		return nil, ErrInvalid
 	}
 	var body struct {
-		Jobs []struct {
-			ID          int64      `json:"id"`
-			Name        string     `json:"name"`
-			Status      string     `json:"status"`
-			Conclusion  *string    `json:"conclusion"`
-			StartedAt   *time.Time `json:"started_at"`
-			CompletedAt *time.Time `json:"completed_at"`
-			HTMLURL     string     `json:"html_url"`
-			Steps       []struct {
-				Number     int64   `json:"number"`
-				Name       string  `json:"name"`
-				Status     string  `json:"status"`
-				Conclusion *string `json:"conclusion"`
-			} `json:"steps"`
-		} `json:"jobs"`
+		Jobs []jobJSON `json:"jobs"`
 	}
 	path := repoPath(owner, name, fmt.Sprintf("/actions/runs/%d/jobs", runID))
 	if err := c.get(ctx, path, url.Values{"per_page": {"100"}}, &body); err != nil {
@@ -216,26 +225,63 @@ func (c *Client) Jobs(ctx context.Context, owner, name string, runID int64) ([]J
 	}
 	jobs := make([]Job, 0, len(body.Jobs))
 	for _, j := range body.Jobs {
-		job := Job{ID: j.ID, Name: j.Name, Status: j.Status, HTMLURL: j.HTMLURL}
-		if j.Conclusion != nil {
-			job.Conclusion = *j.Conclusion
-		}
-		if j.StartedAt != nil {
-			job.StartedAt = *j.StartedAt
-		}
-		if j.CompletedAt != nil {
-			job.CompletedAt = *j.CompletedAt
-		}
-		for _, s := range j.Steps {
-			step := Step{Number: s.Number, Name: s.Name, Status: s.Status}
-			if s.Conclusion != nil {
-				step.Conclusion = *s.Conclusion
-			}
-			job.Steps = append(job.Steps, step)
-		}
-		jobs = append(jobs, job)
+		jobs = append(jobs, j.job())
 	}
 	return jobs, nil
+}
+
+// Job reads one job with its steps.
+func (c *Client) Job(ctx context.Context, owner, name string, jobID int64) (Job, error) {
+	if jobID <= 0 {
+		return Job{}, ErrInvalid
+	}
+	var body jobJSON
+	if err := c.get(ctx, repoPath(owner, name, fmt.Sprintf("/actions/jobs/%d", jobID)), nil, &body); err != nil {
+		return Job{}, err
+	}
+	return body.job(), nil
+}
+
+type jobJSON struct {
+	ID          int64      `json:"id"`
+	Name        string     `json:"name"`
+	Status      string     `json:"status"`
+	Conclusion  *string    `json:"conclusion"`
+	StartedAt   *time.Time `json:"started_at"`
+	CompletedAt *time.Time `json:"completed_at"`
+	HTMLURL     string     `json:"html_url"`
+	Steps       []struct {
+		Number      int64      `json:"number"`
+		Name        string     `json:"name"`
+		Status      string     `json:"status"`
+		Conclusion  *string    `json:"conclusion"`
+		StartedAt   *time.Time `json:"started_at"`
+		CompletedAt *time.Time `json:"completed_at"`
+	} `json:"steps"`
+}
+
+func (j jobJSON) job() Job {
+	job := Job{ID: j.ID, Name: j.Name, Status: j.Status, HTMLURL: j.HTMLURL,
+		StartedAt: deref(j.StartedAt), CompletedAt: deref(j.CompletedAt)}
+	if j.Conclusion != nil {
+		job.Conclusion = *j.Conclusion
+	}
+	for _, s := range j.Steps {
+		step := Step{Number: s.Number, Name: s.Name, Status: s.Status,
+			StartedAt: deref(s.StartedAt), CompletedAt: deref(s.CompletedAt)}
+		if s.Conclusion != nil {
+			step.Conclusion = *s.Conclusion
+		}
+		job.Steps = append(job.Steps, step)
+	}
+	return job
+}
+
+func deref(t *time.Time) time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	return *t
 }
 
 func repoPath(owner, name, suffix string) string {
@@ -253,8 +299,8 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 	return nil
 }
 
-// send performs one request and maps GitHub's failure statuses. A 422 is
-// returned as *RejectedError with GitHub's message, which never holds the
+// send performs one request and maps GitHub's failure statuses. A 422 or 409
+// is returned as *RejectedError with GitHub's message, which never holds the
 // token.
 func (c *Client) send(ctx context.Context, method, path string, query url.Values, body []byte, accept string) ([]byte, int, error) {
 	token, ok := c.credential.Token()
@@ -305,7 +351,7 @@ func (c *Client) send(ctx context.Context, method, path string, query url.Values
 		return nil, status, &RateLimitError{Reset: rateLimitReset(response)}
 	case status == http.StatusForbidden, status == http.StatusNotFound:
 		return nil, status, ErrNotVisible
-	case status == http.StatusUnprocessableEntity:
+	case status == http.StatusUnprocessableEntity, status == http.StatusConflict:
 		var problem struct {
 			Message string `json:"message"`
 		}

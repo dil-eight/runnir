@@ -40,6 +40,9 @@ const (
 	RunnirCore_DescribeWorkflowDispatch_FullMethodName = "/runnir.core.v1.RunnirCore/DescribeWorkflowDispatch"
 	RunnirCore_PrepareWorkflowDispatch_FullMethodName  = "/runnir.core.v1.RunnirCore/PrepareWorkflowDispatch"
 	RunnirCore_ConfirmWorkflowDispatch_FullMethodName  = "/runnir.core.v1.RunnirCore/ConfirmWorkflowDispatch"
+	RunnirCore_GetJobLog_FullMethodName                = "/runnir.core.v1.RunnirCore/GetJobLog"
+	RunnirCore_PrepareRunAction_FullMethodName         = "/runnir.core.v1.RunnirCore/PrepareRunAction"
+	RunnirCore_ConfirmRunAction_FullMethodName         = "/runnir.core.v1.RunnirCore/ConfirmRunAction"
 )
 
 // RunnirCoreClient is the client API for RunnirCore service.
@@ -75,6 +78,14 @@ type RunnirCoreClient interface {
 	// single-use confirmation that expires; only Confirm sends it to GitHub.
 	PrepareWorkflowDispatch(ctx context.Context, in *PrepareWorkflowDispatchRequest, opts ...grpc.CallOption) (*PrepareWorkflowDispatchResponse, error)
 	ConfirmWorkflowDispatch(ctx context.Context, in *ConfirmWorkflowDispatchRequest, opts ...grpc.CallOption) (*ConfirmWorkflowDispatchResponse, error)
+	// The end of one job's log (at most 2 MiB of text), split into lines that
+	// are tagged with their kind and the step that wrote them.
+	GetJobLog(ctx context.Context, in *GetJobLogRequest, opts ...grpc.CallOption) (*GetJobLogResponse, error)
+	// Cancelling or re-running a run takes two calls, like a dispatch: Prepare
+	// checks the run's current state and returns a single-use confirmation;
+	// only Confirm sends the request to GitHub, once.
+	PrepareRunAction(ctx context.Context, in *PrepareRunActionRequest, opts ...grpc.CallOption) (*PrepareRunActionResponse, error)
+	ConfirmRunAction(ctx context.Context, in *ConfirmRunActionRequest, opts ...grpc.CallOption) (*ConfirmRunActionResponse, error)
 }
 
 type runnirCoreClient struct {
@@ -254,6 +265,36 @@ func (c *runnirCoreClient) ConfirmWorkflowDispatch(ctx context.Context, in *Conf
 	return out, nil
 }
 
+func (c *runnirCoreClient) GetJobLog(ctx context.Context, in *GetJobLogRequest, opts ...grpc.CallOption) (*GetJobLogResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetJobLogResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_GetJobLog_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) PrepareRunAction(ctx context.Context, in *PrepareRunActionRequest, opts ...grpc.CallOption) (*PrepareRunActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PrepareRunActionResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_PrepareRunAction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) ConfirmRunAction(ctx context.Context, in *ConfirmRunActionRequest, opts ...grpc.CallOption) (*ConfirmRunActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConfirmRunActionResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ConfirmRunAction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnirCoreServer is the server API for RunnirCore service.
 // All implementations must embed UnimplementedRunnirCoreServer
 // for forward compatibility.
@@ -287,6 +328,14 @@ type RunnirCoreServer interface {
 	// single-use confirmation that expires; only Confirm sends it to GitHub.
 	PrepareWorkflowDispatch(context.Context, *PrepareWorkflowDispatchRequest) (*PrepareWorkflowDispatchResponse, error)
 	ConfirmWorkflowDispatch(context.Context, *ConfirmWorkflowDispatchRequest) (*ConfirmWorkflowDispatchResponse, error)
+	// The end of one job's log (at most 2 MiB of text), split into lines that
+	// are tagged with their kind and the step that wrote them.
+	GetJobLog(context.Context, *GetJobLogRequest) (*GetJobLogResponse, error)
+	// Cancelling or re-running a run takes two calls, like a dispatch: Prepare
+	// checks the run's current state and returns a single-use confirmation;
+	// only Confirm sends the request to GitHub, once.
+	PrepareRunAction(context.Context, *PrepareRunActionRequest) (*PrepareRunActionResponse, error)
+	ConfirmRunAction(context.Context, *ConfirmRunActionRequest) (*ConfirmRunActionResponse, error)
 	mustEmbedUnimplementedRunnirCoreServer()
 }
 
@@ -344,6 +393,15 @@ func (UnimplementedRunnirCoreServer) PrepareWorkflowDispatch(context.Context, *P
 }
 func (UnimplementedRunnirCoreServer) ConfirmWorkflowDispatch(context.Context, *ConfirmWorkflowDispatchRequest) (*ConfirmWorkflowDispatchResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ConfirmWorkflowDispatch not implemented")
+}
+func (UnimplementedRunnirCoreServer) GetJobLog(context.Context, *GetJobLogRequest) (*GetJobLogResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetJobLog not implemented")
+}
+func (UnimplementedRunnirCoreServer) PrepareRunAction(context.Context, *PrepareRunActionRequest) (*PrepareRunActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PrepareRunAction not implemented")
+}
+func (UnimplementedRunnirCoreServer) ConfirmRunAction(context.Context, *ConfirmRunActionRequest) (*ConfirmRunActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ConfirmRunAction not implemented")
 }
 func (UnimplementedRunnirCoreServer) mustEmbedUnimplementedRunnirCoreServer() {}
 func (UnimplementedRunnirCoreServer) testEmbeddedByValue()                    {}
@@ -647,6 +705,60 @@ func _RunnirCore_ConfirmWorkflowDispatch_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_GetJobLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetJobLogRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).GetJobLog(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_GetJobLog_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).GetJobLog(ctx, req.(*GetJobLogRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_PrepareRunAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PrepareRunActionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).PrepareRunAction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_PrepareRunAction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).PrepareRunAction(ctx, req.(*PrepareRunActionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_ConfirmRunAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfirmRunActionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ConfirmRunAction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ConfirmRunAction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ConfirmRunAction(ctx, req.(*ConfirmRunActionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnirCore_ServiceDesc is the grpc.ServiceDesc for RunnirCore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -713,6 +825,18 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ConfirmWorkflowDispatch",
 			Handler:    _RunnirCore_ConfirmWorkflowDispatch_Handler,
+		},
+		{
+			MethodName: "GetJobLog",
+			Handler:    _RunnirCore_GetJobLog_Handler,
+		},
+		{
+			MethodName: "PrepareRunAction",
+			Handler:    _RunnirCore_PrepareRunAction_Handler,
+		},
+		{
+			MethodName: "ConfirmRunAction",
+			Handler:    _RunnirCore_ConfirmRunAction_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

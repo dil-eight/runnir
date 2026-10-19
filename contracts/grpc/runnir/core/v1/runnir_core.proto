@@ -47,6 +47,15 @@ service RunnirCore {
   // single-use confirmation that expires; only Confirm sends it to GitHub.
   rpc PrepareWorkflowDispatch(PrepareWorkflowDispatchRequest) returns (PrepareWorkflowDispatchResponse);
   rpc ConfirmWorkflowDispatch(ConfirmWorkflowDispatchRequest) returns (ConfirmWorkflowDispatchResponse);
+
+  // The end of one job's log (at most 2 MiB of text), split into lines that
+  // are tagged with their kind and the step that wrote them.
+  rpc GetJobLog(GetJobLogRequest) returns (GetJobLogResponse);
+  // Cancelling or re-running a run takes two calls, like a dispatch: Prepare
+  // checks the run's current state and returns a single-use confirmation;
+  // only Confirm sends the request to GitHub, once.
+  rpc PrepareRunAction(PrepareRunActionRequest) returns (PrepareRunActionResponse);
+  rpc ConfirmRunAction(ConfirmRunActionRequest) returns (ConfirmRunActionResponse);
 }
 
 message HealthCheckRequest {}
@@ -249,6 +258,8 @@ message WorkflowRun {
   string html_url = 12;
   google.protobuf.Timestamp created_at = 13;
   google.protobuf.Timestamp updated_at = 14;
+  // 1 for the first attempt; each re-run adds one.
+  int64 run_attempt = 15;
 }
 
 message ListRunJobsRequest {
@@ -277,6 +288,8 @@ message RunStep {
   string name = 2;
   string status = 3;
   string conclusion = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp completed_at = 6;
 }
 
 message ListGitHubRefsRequest {
@@ -353,4 +366,89 @@ message ConfirmWorkflowDispatchResponse {
   int64 run_id = 3;
   // GitHub's reason when it refused the request (status is OK then).
   string rejection = 4;
+}
+
+message GetJobLogRequest {
+  string repository_id = 1;
+  int64 job_id = 2;
+}
+
+enum JobLogAvailability {
+  JOB_LOG_AVAILABILITY_UNSPECIFIED = 0;
+  JOB_LOG_AVAILABILITY_AVAILABLE = 1;
+  // GitHub no longer has the log: its retention passed or it was deleted.
+  JOB_LOG_AVAILABILITY_EXPIRED = 2;
+  // The job has not finished; GitHub serves the log once it completes.
+  JOB_LOG_AVAILABILITY_NOT_READY = 3;
+}
+
+enum LogLineKind {
+  LOG_LINE_KIND_UNSPECIFIED = 0;
+  LOG_LINE_KIND_PLAIN = 1;
+  LOG_LINE_KIND_ERROR = 2;
+  LOG_LINE_KIND_WARNING = 3;
+  LOG_LINE_KIND_NOTICE = 4;
+  LOG_LINE_KIND_COMMAND = 5;
+  // The title of a collapsible group (##[group]).
+  LOG_LINE_KIND_GROUP = 6;
+  LOG_LINE_KIND_END_GROUP = 7;
+  LOG_LINE_KIND_DEBUG = 8;
+}
+
+message LogLine {
+  // Counts from 1 in the full log, including lines dropped by truncation.
+  int64 number = 1;
+  // Without the timestamp, terminal colors and the workflow command marker.
+  string text = 2;
+  LogLineKind kind = 3;
+  // The step running when the line was written (matched by time); 0 if none.
+  int64 step_number = 4;
+}
+
+message GetJobLogResponse {
+  GitHubStatus status = 1;
+  JobLogAvailability availability = 2;
+  repeated LogLine lines = 3;
+  // Earlier lines were dropped to keep the response bounded.
+  bool truncated = 4;
+}
+
+enum RunAction {
+  RUN_ACTION_UNSPECIFIED = 0;
+  RUN_ACTION_CANCEL = 1;
+  // A new attempt of every job.
+  RUN_ACTION_RERUN = 2;
+  // A new attempt of the failed and cancelled jobs and the jobs that need them.
+  RUN_ACTION_RERUN_FAILED = 3;
+}
+
+message PrepareRunActionRequest {
+  string repository_id = 1;
+  int64 run_id = 2;
+  RunAction action = 3;
+}
+
+message PrepareRunActionResponse {
+  GitHubStatus status = 1;
+  // Empty when `problems` is not.
+  string action_id = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  // Readable reasons the action cannot be taken now, for example a run that
+  // finished before it could be cancelled.
+  repeated string problems = 4;
+  // The run as GitHub reported it while preparing.
+  WorkflowRun run = 5;
+}
+
+message ConfirmRunActionRequest {
+  string action_id = 1;
+}
+
+message ConfirmRunActionResponse {
+  GitHubStatus status = 1;
+  // When GitHub accepted the request. Cancelling and re-running then happen
+  // asynchronously; the run's status shows the outcome.
+  google.protobuf.Timestamp accepted_at = 2;
+  // GitHub's reason when it refused the request (status is OK then).
+  string rejection = 3;
 }

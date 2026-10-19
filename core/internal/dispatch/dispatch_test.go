@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"runnir/core/internal/approval"
 	"runnir/core/internal/scanner"
 )
 
@@ -56,7 +57,7 @@ func TestAConfirmationExpires(t *testing.T) {
 func TestPendingPreparationsAreBounded(t *testing.T) {
 	c := &clock{now: time.Unix(1_000, 0)}
 	store := NewStore(time.Minute, c.Now)
-	for i := 0; i < maxPending; i++ {
+	for i := 0; i < approval.MaxPending; i++ {
 		if _, err := store.Prepare(request()); err != nil {
 			t.Fatal(err)
 		}

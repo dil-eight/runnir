@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"runnir/core/internal/approval"
 	"runnir/core/internal/buildinfo"
 	"runnir/core/internal/dispatch"
 	"runnir/core/internal/events"
@@ -30,6 +31,7 @@ type service struct {
 	credential   *github.Credential
 	github       *github.Client
 	dispatches   *dispatch.Store
+	runActions   *approval.Store[runAction]
 }
 
 func (s *service) HealthCheck(context.Context, *corev1.HealthCheckRequest) (*corev1.HealthCheckResponse, error) {
