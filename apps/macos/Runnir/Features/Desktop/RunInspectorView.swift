@@ -62,9 +62,31 @@ final class RunActionModel {
         }
     }
 
-    /// Sends the prepared action once and follows the run until it changes.
+    /// The user's confirmation, taken synchronously so that the dialog
+    /// closing right after the button press cannot discard it.
+    struct Confirmed: Equatable {
+        let action: CoreRunAction
+        let prepared: CorePreparedRunAction
+    }
+
+    /// Takes the pending confirmation and moves to sending; nil when there is
+    /// none (dismissed, expired or already taken).
+    func takeConfirmation() -> Confirmed? {
+        guard case .confirming(let action, let prepared) = phase, prepared.actionID != nil else { return nil }
+        phase = .sending(action)
+        return Confirmed(action: action, prepared: prepared)
+    }
+
     func confirm(current run: CoreWorkflowRun) async {
-        guard case .confirming(let action, let prepared) = phase, let actionID = prepared.actionID else { return }
+        guard let confirmed = takeConfirmation() else { return }
+        await send(confirmed, current: run)
+    }
+
+    /// Sends a taken confirmation once and follows the run until it shows
+    /// the action.
+    func send(_ confirmed: Confirmed, current run: CoreWorkflowRun) async {
+        let action = confirmed.action, prepared = confirmed.prepared
+        guard let actionID = prepared.actionID else { return }
         phase = .sending(action)
         guard let result = await hub.confirmRunAction(workspaceID: workspaceID, actionID: actionID) else {
             phase = .failed("The confirmation expired or the Core was not reachable. Nothing was sent; try again.")
@@ -82,7 +104,7 @@ final class RunActionModel {
         let before = prepared.run ?? run
         follow?.cancel()
         follow = Task { [weak self, hub, workspaceID] in
-            let changed = await hub.followRunChange(workspaceID: workspaceID, from: before)
+            let changed = await hub.followRunChange(workspaceID: workspaceID, from: before, action: action)
             guard let self, !Task.isCancelled, case .requested = self.phase else { return }
             self.phase = changed == nil
                 ? .notice("GitHub accepted the request, but the run has not changed yet. Reload runs in a moment.")
@@ -100,6 +122,7 @@ final class RunActionModel {
         }
     }
 
+    /// Why a change could not be made.
     static func describe(_ access: CoreGitHubAccess) -> String {
         switch access {
         case .signedOut, .tokenRejected: "Connect GitHub to change runs."
@@ -107,6 +130,17 @@ final class RunActionModel {
         case .rateLimited: "GitHub is limiting requests. Nothing was changed; try again later."
         case .noRemote: "This working tree has no origin on github.com."
         case .ok, .unavailable: "GitHub could not be reached. Nothing was changed."
+        }
+    }
+
+    /// Why jobs or a log could not be read.
+    static func describeRead(_ access: CoreGitHubAccess) -> String {
+        switch access {
+        case .signedOut, .tokenRejected: "Connect GitHub to see jobs and logs."
+        case .notVisible: "Runnir can't read this repository on GitHub. Install Runnir Desktop on it, then try again."
+        case .rateLimited: "GitHub is limiting requests. Try again later."
+        case .noRemote: "This working tree has no origin on github.com."
+        case .ok, .unavailable: "GitHub could not be reached."
         }
     }
 
@@ -216,7 +250,8 @@ struct RunInspectorView: View {
             if let pending = actions.pending {
                 let text = RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run)
                 Button(text.button, role: pending.action == .cancel ? .destructive : nil) {
-                    Task { await actions.confirm(current: run) }
+                    guard let confirmed = actions.takeConfirmation() else { return }
+                    Task { await actions.send(confirmed, current: run) }
                 }
                 Button(pending.action == .cancel ? "Keep Running" : "Not Now", role: .cancel) { actions.dismiss() }
             }
@@ -334,7 +369,7 @@ struct RunInspectorView: View {
                     HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Loading jobs...") }
                         .font(.system(size: 12)).padding(10)
                 case .some(let result) where result.access != .ok:
-                    Text(RunActionModel.describe(result.access).replacingOccurrences(of: "change runs", with: "see jobs"))
+                    Text(RunActionModel.describeRead(result.access))
                         .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(10)
                 case .some(let result) where result.items.isEmpty:
                     Text("This run has no jobs yet.").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(10)
@@ -407,6 +442,10 @@ private struct JobLogView: View {
     let hub: CoreHub
     let showWholeJob: () -> Void
     @State private var log: CoreJobLog?
+    /// The shown lines, kept so that a render or keystroke does not filter
+    /// up to 50,000 lines again.
+    @State private var visible: [CoreLogLine] = []
+    @State private var totalLines = 0
     @State private var query = ""
     @State private var matches: [Int64] = []
     @State private var matchIndex = 0
@@ -418,7 +457,10 @@ private struct JobLogView: View {
         return job.steps.first { $0.number == step }?.name
     }
 
-    private var visible: [CoreLogLine] { LogFilter.lines(log?.lines ?? [], step: step) }
+    /// How often and how long to ask again for the log of a job that has just
+    /// finished, while GitHub is still storing it.
+    static let settleRetryInterval: Duration = .seconds(5)
+    static let settleRetries = 24
 
     var body: some View {
         VStack(spacing: 0) {
@@ -430,11 +472,28 @@ private struct JobLogView: View {
         }
         .task(id: "\(job.id)-\(job.status)") {
             log = nil
-            log = await hub.jobLog(workspaceID: workspaceID, jobID: job.id)
-            updateMatches()
+            refreshLines()
+            var retries = 0
+            while !Task.isCancelled {
+                let result = await hub.jobLog(workspaceID: workspaceID, jobID: job.id)
+                guard !Task.isCancelled else { return }
+                log = result
+                refreshLines()
+                guard result.access == .ok, result.availability == .notReady, !job.outcome.isActive,
+                      retries < Self.settleRetries else { break }
+                retries += 1
+                try? await Task.sleep(for: Self.settleRetryInterval)
+            }
         }
         .onChange(of: query) { updateMatches() }
-        .onChange(of: step) { updateMatches() }
+        .onChange(of: step) { refreshLines() }
+    }
+
+    private func refreshLines() {
+        let all = LogFilter.lines(log?.lines ?? [], step: nil)
+        totalLines = all.count
+        visible = step == nil ? all : all.filter { $0.stepNumber == step }
+        updateMatches()
     }
 
     private func updateMatches() {
@@ -454,8 +513,12 @@ private struct JobLogView: View {
                 if !query.isEmpty {
                     Text(matches.isEmpty ? "0 of 0" : "\(matchIndex + 1) of \(matches.count)")
                         .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).monospacedDigit()
-                    Button { step(by: -1) } label: { Image(systemName: "chevron.up") }.buttonStyle(.borderless).disabled(matches.isEmpty)
-                    Button { step(by: 1) } label: { Image(systemName: "chevron.down") }.buttonStyle(.borderless).disabled(matches.isEmpty)
+                    Button { step(by: -1) } label: { Image(systemName: "chevron.up") }
+                        .buttonStyle(.borderless).disabled(matches.isEmpty)
+                        .help("Previous match").accessibilityLabel("Previous match")
+                    Button { step(by: 1) } label: { Image(systemName: "chevron.down") }
+                        .buttonStyle(.borderless).disabled(matches.isEmpty)
+                        .help("Next match").accessibilityLabel("Next match")
                 }
             }
             .font(.system(size: 12)).padding(.horizontal, 8).frame(height: 26)
@@ -476,11 +539,13 @@ private struct JobLogView: View {
         case nil:
             HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Loading log...").font(.system(size: 12)) }
         case .some(let log) where log.access != .ok:
-            placeholder("exclamationmark.triangle", "The log could not be loaded",
-                        RunActionModel.describe(log.access).replacingOccurrences(of: "change runs", with: "read logs"))
-        case .some(let log) where log.availability == .notReady:
+            placeholder("exclamationmark.triangle", "The log could not be loaded", RunActionModel.describeRead(log.access))
+        case .some(let log) where log.availability == .notReady && job.outcome.isActive:
             placeholder("hourglass", "The log appears when this job finishes",
                         "GitHub serves a job's log once the job has completed. The step list on the left updates while it runs; Open on GitHub shows the live output.")
+        case .some(let log) where log.availability == .notReady:
+            placeholder("hourglass", "The log is not ready yet",
+                        "The job has just finished and GitHub is still storing its log. Runnir checks again every few seconds.")
         case .some(let log) where log.availability == .expired:
             placeholder("clock.arrow.circlepath", "Logs for this job have expired",
                         "GitHub keeps logs for a limited time. The job result and step list are still available.")
@@ -561,14 +626,17 @@ private struct JobLogView: View {
         case .some(let log) where log.access != .ok:
             Label("Log not loaded", systemImage: "exclamationmark.triangle")
         case .some(let log) where log.availability == .notReady:
-            Label("Waiting for the job to finish", systemImage: "hourglass")
+            Label(job.outcome.isActive ? "Waiting for the job to finish" : "Waiting for GitHub to store the log", systemImage: "hourglass")
         case .some(let log) where log.availability == .expired:
             Label("No log available · expired", systemImage: "clock.arrow.circlepath")
         case .some(let log):
-            let total = LogFilter.lines(log.lines, step: nil).count
-            let scope = stepName.map { "\(visible.count) of \(total) lines · \($0)" } ?? "\(total) lines"
-            Label(log.truncated ? "Showing the end of the log · \(scope)" : "Log complete · \(scope)",
-                  systemImage: log.truncated ? "scissors" : "checkmark.circle")
+            let scope = stepName.map { "\(visible.count) of \(totalLines) lines · \($0)" } ?? "\(totalLines) lines"
+            if log.stoppedEarly {
+                Label("Very large log: showing part of it · \(scope)", systemImage: "scissors")
+            } else {
+                Label(log.truncated ? "Showing the end of the log · \(scope)" : "Log complete · \(scope)",
+                      systemImage: log.truncated ? "scissors" : "checkmark.circle")
+            }
         }
     }
 }

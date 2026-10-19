@@ -280,7 +280,8 @@ struct GRPCCoreService: CoreServicing {
                 }
                 return CoreLogLine(number: line.number, text: line.text, kind: kind, stepNumber: line.stepNumber)
             },
-            truncated: response.truncated
+            truncated: response.truncated,
+            stoppedEarly: response.stoppedEarly
         )
     }
 

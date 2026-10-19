@@ -374,24 +374,33 @@ final class CoreHub {
         return result
     }
 
-    /// After GitHub accepted a cancel or re-run, reloads runs until the run's
-    /// status, attempt or update time changes, or until `runLookupTimeout`.
-    /// Returns the changed run, or nil when no change showed up in time. An
-    /// active run then keeps being polled as usual.
-    func followRunChange(workspaceID: UUID, from before: CoreWorkflowRun) async -> CoreWorkflowRun? {
+    /// After GitHub accepted a cancel or re-run, reloads runs until the run
+    /// shows it (see `runShows`), or until `runLookupTimeout`. Returns the
+    /// changed run, or nil when no change showed up in time. An active run
+    /// then keeps being polled as usual.
+    func followRunChange(workspaceID: UUID, from before: CoreWorkflowRun, action: CoreRunAction) async -> CoreWorkflowRun? {
         let clock = ContinuousClock()
         let deadline = clock.now + runLookupTimeout
         while !Task.isCancelled {
             await loadGitHubActivity(workspaceID: workspaceID)
             guard let session = sessions[workspaceID] else { return nil }
-            if let run = session.runs.first(where: { $0.id == before.id }),
-               run.status != before.status || run.runAttempt != before.runAttempt || run.updatedAt != before.updatedAt {
+            if let run = session.runs.first(where: { $0.id == before.id }), Self.runShows(action, before: before, now: run) {
                 return run
             }
             if clock.now >= deadline { return nil }
             try? await Task.sleep(for: runLookupInterval)
         }
         return nil
+    }
+
+    /// Whether a run reflects an accepted action. An active run changes all the
+    /// time, so a cancel counts only once the run has finished; a re-run once
+    /// a new attempt exists or the run is going again.
+    nonisolated static func runShows(_ action: CoreRunAction, before: CoreWorkflowRun, now: CoreWorkflowRun) -> Bool {
+        switch action {
+        case .cancel: now.status == "completed"
+        case .rerun, .rerunFailed: now.runAttempt > before.runAttempt || now.status != "completed"
+        }
     }
 
     // MARK: Windows

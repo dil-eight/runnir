@@ -52,8 +52,11 @@ struct CoreWorkflowRun: Equatable, Identifiable, Sendable {
 
     var outcome: CoreRunOutcome { CoreRunOutcome(status: status, conclusion: conclusion) }
     var title: String { displayTitle.isEmpty ? name : displayTitle }
-    /// GitHub re-runs failed and cancelled jobs only when the run ended that way.
-    var canRerunFailedJobs: Bool { outcome == .failed || outcome == .cancelled }
+    /// GitHub re-runs failed jobs only for a run that ended with failed or
+    /// cancelled jobs; a startup failure has no jobs to re-run.
+    var canRerunFailedJobs: Bool {
+        status == "completed" && ["failure", "cancelled", "timed_out"].contains(conclusion ?? "")
+    }
 }
 
 struct CoreRunStep: Equatable, Identifiable, Sendable {
@@ -211,6 +214,8 @@ struct CoreJobLog: Equatable, Sendable {
     let lines: [CoreLogLine]
     /// Earlier lines were dropped to keep the log bounded.
     let truncated: Bool
+    /// The log is larger than the Core reads: the lines end before the log does.
+    var stoppedEarly = false
 
     static func failed(_ access: CoreGitHubAccess) -> CoreJobLog {
         CoreJobLog(access: access, availability: .available, lines: [], truncated: false)

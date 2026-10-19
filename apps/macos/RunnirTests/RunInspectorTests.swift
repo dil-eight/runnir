@@ -74,6 +74,51 @@ struct RunInspectorTests {
     }
 
     @Test
+    func aTakenConfirmationIsSentEvenIfTheDialogClosesFirst() async {
+        let finished = run()
+        let (hub, provider, workspace) = await rig(runs: [finished])
+        let model = RunActionModel(hub: hub, workspaceID: workspace)
+        await model.prepare(.rerun, for: finished)
+
+        // The dialog button takes the confirmation synchronously; closing
+        // the dialog right after must not discard it.
+        let confirmed = model.takeConfirmation()
+        #expect(confirmed?.action == .rerun)
+        #expect(model.pending == nil)
+        model.dismiss()
+        #expect(model.takeConfirmation() == nil, "a confirmation is taken once")
+        if let confirmed { await model.send(confirmed, current: finished) }
+        #expect(provider.core.confirmedActions == ["action_1"])
+    }
+
+    @Test
+    func aCancelIsFollowedUntilTheRunFinishesNotJustUntilItUpdates() async {
+        let active = run(status: "in_progress", conclusion: nil, updated: Date(timeIntervalSince1970: 1_000))
+        let (hub, provider, workspace) = await rig(runs: [active])
+        // Jobs progressing change updated_at while the run keeps going.
+        provider.core.setRuns(CoreGitHubResult(access: .ok, items: [run(status: "in_progress", conclusion: nil, updated: Date(timeIntervalSince1970: 1_050))]), for: "/repo/linked")
+        #expect(await hub.followRunChange(workspaceID: workspace, from: active, action: .cancel) == nil)
+        provider.core.setRuns(CoreGitHubResult(access: .ok, items: [run(status: "completed", conclusion: "cancelled", updated: Date(timeIntervalSince1970: 1_090))]), for: "/repo/linked")
+        #expect(await hub.followRunChange(workspaceID: workspace, from: active, action: .cancel)?.conclusion == "cancelled")
+    }
+
+    @Test
+    func aReRunShowsAsANewAttemptOrAnActiveRun() {
+        let before = run(attempt: 1)
+        #expect(!CoreHub.runShows(.rerunFailed, before: before, now: run(attempt: 1, updated: Date())))
+        #expect(CoreHub.runShows(.rerunFailed, before: before, now: run(conclusion: "success", attempt: 2)))
+        #expect(CoreHub.runShows(.rerun, before: before, now: run(status: "queued", conclusion: nil)))
+        #expect(!CoreHub.runShows(.cancel, before: run(status: "in_progress", conclusion: nil), now: run(status: "in_progress", conclusion: nil, updated: Date())))
+    }
+
+    @Test
+    func readProblemsDoNotTalkAboutWriteAccess() {
+        #expect(!RunActionModel.describeRead(.notVisible).contains("write"))
+        #expect(RunActionModel.describe(.notVisible).contains("write"))
+        #expect(RunActionModel.describeRead(.signedOut) == "Connect GitHub to see jobs and logs.")
+    }
+
+    @Test
     func anAcceptedActionWithoutAVisibleChangeEndsWithANotice() async {
         let active = run(status: "in_progress", conclusion: nil)
         let (hub, _, workspace) = await rig(runs: [active])
@@ -99,6 +144,8 @@ struct RunInspectorTests {
     func reRunningFailedJobsNeedsAFailedOrCancelledRun() {
         #expect(run(conclusion: "failure").canRerunFailedJobs)
         #expect(run(conclusion: "cancelled").canRerunFailedJobs)
+        #expect(run(conclusion: "timed_out").canRerunFailedJobs)
+        #expect(!run(conclusion: "startup_failure").canRerunFailedJobs, "a startup failure has no jobs to re-run")
         #expect(!run(conclusion: "success").canRerunFailedJobs)
         #expect(!run(status: "in_progress", conclusion: nil).canRerunFailedJobs)
     }
