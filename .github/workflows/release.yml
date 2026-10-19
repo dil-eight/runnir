@@ -58,7 +58,7 @@ jobs:
           go-version-file: core/go.mod
           cache: false
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           pattern: core-*
           merge-multiple: true
