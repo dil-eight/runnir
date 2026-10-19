@@ -90,6 +90,10 @@ protocol CoreServicing: Sendable {
     func startWorkflow(repositoryID: String, workflowID: String, ref: String?) async throws -> CoreExecution
     /// Hands the signed-in user's GitHub token to the Core's memory; nil clears it.
     func setGitHubCredential(_ token: String?) async throws
+    /// GitHub Actions data for the repository's origin on github.com.
+    func listGitHubWorkflows(repositoryID: String) async throws -> CoreGitHubResult<CoreGitHubWorkflow>
+    func listWorkflowRuns(repositoryID: String, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun>
+    func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob>
     /// The first element is `.ready`. The stream fails with
     /// `.resourceExhausted` when the subscriber falls behind and with
     /// `.unavailable` when the Core goes away; callers resubscribe and reload.

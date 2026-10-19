@@ -251,6 +251,15 @@ final class GitHubSession {
         }
     }
 
+    /// GitHub refused the token on some request: forget it and ask the user
+    /// to sign in again.
+    func tokenWasRejected() async {
+        guard user != nil else { return }
+        try? await credentials.removeToken()
+        connection = .signedOut(.sessionExpired)
+        onCredentialChange?()
+    }
+
     // MARK: Sign out
 
     /// Deletes the local token. Authorization at GitHub stays until the user
