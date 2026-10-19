@@ -313,9 +313,11 @@ struct CoreHubTests {
         #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
 
         hub.attach(windowID: window, workspaceID: workspace, path: "/repo/new")
-        #expect(await eventually { hub.session(for: workspace)?.coreID == FakeCore.id(for: "/repo/new") })
+        // coreID is set before the workflow list arrives; wait for the open to finish.
+        #expect(await eventually {
+            hub.session(for: workspace)?.coreID == FakeCore.id(for: "/repo/new") && hub.session(for: workspace)?.phase == .ready
+        })
         #expect(await eventually { provider.core.closeCalls == [FakeCore.id(for: "/repo/old")] })
-        #expect(hub.session(for: workspace)?.phase == .ready)
     }
 
     @Test
@@ -327,7 +329,9 @@ struct CoreHubTests {
         #expect(await eventually { provider.core.openCalls.contains("/repo/old") })
         hub.attach(windowID: window, workspaceID: workspace, path: "/repo/new")
 
-        #expect(await eventually { hub.session(for: workspace)?.coreID == FakeCore.id(for: "/repo/new") })
+        #expect(await eventually {
+            hub.session(for: workspace)?.coreID == FakeCore.id(for: "/repo/new") && hub.session(for: workspace)?.phase == .ready
+        })
         // The late result of the old open must neither overwrite the session nor leak.
         #expect(await eventually { provider.core.closeCalls.contains(FakeCore.id(for: "/repo/old")) })
         try? await Task.sleep(for: .milliseconds(100))
@@ -382,7 +386,9 @@ struct CoreHubTests {
         hub.attach(windowID: window, workspaceID: workspace, path: "/repo/new")
         await refresh.value
 
-        #expect(await eventually { hub.session(for: workspace)?.coreID == FakeCore.id(for: "/repo/new") })
+        #expect(await eventually {
+            hub.session(for: workspace)?.coreID == FakeCore.id(for: "/repo/new") && hub.session(for: workspace)?.phase == .ready
+        })
         #expect(hub.session(for: workspace)?.branch == "new-branch")
     }
 
