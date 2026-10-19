@@ -72,6 +72,27 @@ func TestLinesBelongToTheStepRunningWhenTheyWereWritten(t *testing.T) {
 	}
 }
 
+func TestTailKeepsTheLastLinesAndCountsTheRest(t *testing.T) {
+	data := []byte("a\nb\nc\nd\n")
+	kept, dropped := Tail(data, 2)
+	if string(kept) != "c\nd\n" || dropped != 2 {
+		t.Fatalf("tail 2 = %q, dropped %d", kept, dropped)
+	}
+	for _, limit := range []int{4, 10} {
+		if kept, dropped := Tail(data, limit); string(kept) != string(data) || dropped != 0 {
+			t.Fatalf("tail %d = %q, dropped %d", limit, kept, dropped)
+		}
+	}
+	last, before := Tail([]byte("a\nb\nc"), 1)
+	if string(last) != "c" || before != 2 {
+		t.Fatalf("no final newline = %q, dropped %d", last, before)
+	}
+	lines := Parse(last, int64(before)+1, nil)
+	if len(lines) != 1 || lines[0].Number != 3 {
+		t.Fatalf("numbering after tail = %+v", lines)
+	}
+}
+
 func TestLongAndInvalidLinesAreBounded(t *testing.T) {
 	long := strings.Repeat("é", MaxLineBytes) // two bytes per rune
 	lines := Parse([]byte(long+"\n\xff\xfebroken\n"), 1, nil)

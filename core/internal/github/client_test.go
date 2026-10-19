@@ -132,6 +132,15 @@ func TestStatusesMapToActionableErrors(t *testing.T) {
 	if _, err := refused.Run(context.Background(), "o", "r", 9); !errors.Is(err, ErrNotVisible) {
 		t.Fatalf("forbidden read = %v", err)
 	}
+	// Missing installation or permission stays NOT_VISIBLE, which the app
+	// can help fix.
+	notInstalled, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(403)
+		_, _ = w.Write([]byte(`{"message":"Resource not accessible by integration"}`))
+	})
+	if err := notInstalled.CancelRun(context.Background(), "o", "r", 9); !errors.Is(err, ErrNotVisible) {
+		t.Fatalf("not accessible by integration = %v", err)
+	}
 }
 
 func TestNoTokenMeansNoRequest(t *testing.T) {

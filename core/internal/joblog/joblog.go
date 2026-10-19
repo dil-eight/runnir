@@ -56,6 +56,22 @@ var (
 	}
 )
 
+// Tail keeps the last maxLines lines of data and returns how many lines it
+// dropped, so that a log of many short lines is cut before it is parsed.
+func Tail(data []byte, maxLines int) ([]byte, int) {
+	body := bytes.TrimSuffix(data, []byte("\n"))
+	end := len(body)
+	for i := 0; i < maxLines; i++ {
+		newline := bytes.LastIndexByte(body[:end], '\n')
+		if newline < 0 {
+			return data, 0
+		}
+		end = newline
+	}
+	start := end + 1
+	return data[start:], bytes.Count(data[:start], []byte("\n"))
+}
+
 // Parse splits data into lines numbered from firstLine. Steps that never
 // started (zero StartedAt), such as skipped ones, receive no lines.
 func Parse(data []byte, firstLine int64, steps []Step) []Line {

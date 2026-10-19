@@ -18,6 +18,10 @@ import (
 
 const maxLogLines = 50_000
 
+// jobLogBudget bounds GetJobLog's download; the app waits 150 seconds. A
+// variable so tests can shorten it.
+var jobLogBudget = 2 * time.Minute
+
 // runAction is exactly what ConfirmRunAction sends to GitHub.
 type runAction struct {
 	RepositoryID string
@@ -48,7 +52,13 @@ func (s *service) GetJobLog(ctx context.Context, request *corev1.GetJobLogReques
 		out.Availability = corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_NOT_READY
 		return out, nil
 	}
-	log, logErr := s.github.JobLog(ctx, owner, name, request.GetJobId(), 0)
+	// Bound the whole download so the Core answers before the app gives up.
+	logCtx, cancel := context.WithTimeout(ctx, jobLogBudget)
+	defer cancel()
+	log, logErr := s.github.JobLog(logCtx, owner, name, request.GetJobId(), 0)
+	if errors.Is(logErr, context.DeadlineExceeded) && ctx.Err() == nil {
+		logErr = github.ErrUnavailable
+	}
 	if errors.Is(logErr, github.ErrLogUnavailable) {
 		out.Availability = missingLogAvailability(job, time.Now())
 		return out, nil
@@ -65,16 +75,14 @@ func (s *service) GetJobLog(ctx context.Context, request *corev1.GetJobLogReques
 			steps = append(steps, joblog.Step{Number: step.Number, StartedAt: step.StartedAt})
 		}
 	}
-	lines := joblog.Parse(log.Data, int64(log.DroppedLines)+1, steps)
+	// Many short lines cost more on the wire and in memory than their text:
+	// cut to the last maxLogLines before parsing, which keeps the response
+	// well under the client's 4 MiB message limit.
+	data, skipped := joblog.Tail(log.Data, maxLogLines)
+	lines := joblog.Parse(data, int64(log.DroppedLines+skipped)+1, steps)
 	out.Availability = corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_AVAILABLE
-	out.Truncated = log.Truncated
+	out.Truncated = log.Truncated || skipped > 0
 	out.StoppedEarly = log.StoppedEarly
-	// Many short lines cost more on the wire than their text; keep the
-	// response well under the client's 4 MiB message limit.
-	if len(lines) > maxLogLines {
-		lines = lines[len(lines)-maxLogLines:]
-		out.Truncated = true
-	}
 	for _, line := range lines {
 		out.Lines = append(out.Lines, &corev1.LogLine{Number: line.Number, Text: line.Text, Kind: lineKind(line.Kind), StepNumber: line.Step})
 	}

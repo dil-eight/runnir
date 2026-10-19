@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -350,9 +351,10 @@ func (c *Client) send(ctx context.Context, method, path string, query url.Values
 		return nil, status, ErrUnauthorized
 	case status == http.StatusTooManyRequests, status == http.StatusForbidden && isRateLimited(response):
 		return nil, status, &RateLimitError{Reset: rateLimitReset(response)}
-	case status == http.StatusForbidden && method != http.MethodGet:
+	case status == http.StatusForbidden && method != http.MethodGet && !missingAccess(data):
 		// A refused change carries GitHub's reason, for example a run too
-		// old to re-run or an organization policy; reads keep NOT_VISIBLE.
+		// old to re-run or an organization policy. Missing installation or
+		// permission, and refused reads, stay NOT_VISIBLE.
 		return nil, status, &RejectedError{Message: problemMessage(data)}
 	case status == http.StatusForbidden, status == http.StatusNotFound:
 		return nil, status, ErrNotVisible
@@ -371,6 +373,12 @@ func problemMessage(data []byte) string {
 	}
 	_ = json.Unmarshal(data, &problem)
 	return problem.Message
+}
+
+// missingAccess recognizes GitHub's answer when the app is not installed on
+// the repository or lacks the permission, which the app can help fix.
+func missingAccess(data []byte) bool {
+	return strings.Contains(strings.ToLower(problemMessage(data)), "not accessible by integration")
 }
 
 func isRateLimited(response *http.Response) bool {

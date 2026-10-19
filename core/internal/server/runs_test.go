@@ -63,6 +63,15 @@ func (f *fakeRunsGitHub) handler() http.HandlerFunc {
 			finished := time.Now().UTC().Format(time.RFC3339)
 			_, _ = w.Write([]byte(`{"id":16,"name":"build","status":"completed","conclusion":"success","completed_at":"` + finished + `",
 				"steps":[{"number":1,"name":"Set up job","status":"completed","conclusion":"success","started_at":"` + finished + `"}]}`))
+		case r.URL.Path == "/repos/o/r/actions/jobs/17":
+			_, _ = w.Write([]byte(strings.NewReplacer("%d", "17", "%s", "completed", "conclusion\":%s", "conclusion\":\"success\"").Replace(jobJSON)))
+		case r.URL.Path == "/repos/o/r/actions/jobs/17/logs":
+			http.Redirect(w, r, "/blob/slow", http.StatusFound)
+		case r.URL.Path == "/blob/slow":
+			f.mu.Unlock()
+			time.Sleep(500 * time.Millisecond)
+			f.mu.Lock()
+			_, _ = w.Write([]byte("too late\n"))
 		case r.URL.Path == "/repos/o/r/actions/jobs/15/logs", r.URL.Path == "/repos/o/r/actions/jobs/16/logs":
 			w.WriteHeader(http.StatusNotFound)
 		case r.URL.Path == "/repos/o/r/actions/jobs/13/logs":
@@ -161,6 +170,17 @@ func TestJobLogLinesCarryKindAndStep(t *testing.T) {
 	}
 	if _, err := client.GetJobLog(ctx, &corev1.GetJobLogRequest{RepositoryId: id}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("no job id = %v", err)
+	}
+}
+
+func TestASlowLogDownloadGivesUpWithinItsBudget(t *testing.T) {
+	previous := jobLogBudget
+	jobLogBudget = 100 * time.Millisecond
+	t.Cleanup(func() { jobLogBudget = previous })
+	client, id, _, ctx := runsRig(t)
+	slow, err := client.GetJobLog(ctx, &corev1.GetJobLogRequest{RepositoryId: id, JobId: 17})
+	if err != nil || slow.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_UNAVAILABLE || len(slow.Lines) != 0 {
+		t.Fatalf("slow download = %v, %v", slow, err)
 	}
 }
 
