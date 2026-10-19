@@ -9,7 +9,8 @@ protocol CoreConnection: Sendable {
 }
 
 protocol CoreConnecting: Sendable {
-    func connect(socketPath: String) async throws -> any CoreConnection
+    /// `clientSecret` is the per-launch secret every call presents.
+    func connect(socketPath: String, clientSecret: String) async throws -> any CoreConnection
 }
 
 /// The Core child process. The supervisor owns it; closing our end of its
@@ -25,7 +26,8 @@ protocol CoreProcessHandle: Sendable {
 }
 
 protocol CoreProcessLaunching: Sendable {
-    func launch(socketPath: String) throws -> any CoreProcessHandle
+    /// Starts the Core and hands it `clientSecret` (on stdin, never argv or env).
+    func launch(socketPath: String, clientSecret: String) throws -> any CoreProcessHandle
 }
 
 // MARK: State
@@ -187,9 +189,11 @@ actor CoreProcessSupervisor {
             socketIsStale = false
         }
 
+        // A fresh secret per launch: only this app can use the Core it starts.
+        let secret = Self.makeClientSecret()
         let handle: any CoreProcessHandle
         do {
-            handle = try launcher.launch(socketPath: socketPath)
+            handle = try launcher.launch(socketPath: socketPath, clientSecret: secret)
         } catch let error as CoreSupervisorError {
             return try await fail(error)
         } catch {
@@ -213,7 +217,7 @@ actor CoreProcessSupervisor {
                 return try await fail(status == Self.helperExitAlreadyRunning ? .alreadyRunning : .processExited(status))
             }
             if connection == nil, FileManager.default.fileExists(atPath: socketPath) {
-                connection = try? await connector.connect(socketPath: socketPath)
+                connection = try? await connector.connect(socketPath: socketPath, clientSecret: secret)
             }
             if let connection {
                 let remaining = deadline - clock.now
@@ -234,6 +238,12 @@ actor CoreProcessSupervisor {
             if clock.now >= deadline { return try await fail(.timedOut) }
             try? await Task.sleep(for: pollInterval)
         }
+    }
+
+    /// 32 random bytes as hex, from the system's cryptographic generator.
+    static func makeClientSecret() -> String {
+        var generator = SystemRandomNumberGenerator()
+        return (0..<32).map { _ in String(format: "%02x", UInt8.random(in: .min ... .max, using: &generator)) }.joined()
     }
 
     /// Runs `operation` but gives up after `limit`, so one stuck call cannot

@@ -116,6 +116,32 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .serverStreaming
             )
         }
+        /// Namespace for "SetGitHubCredential" metadata.
+        internal enum SetGitHubCredential: Sendable {
+            /// Request type for "SetGitHubCredential".
+            internal typealias Input = Runnir_Core_V1_SetGitHubCredentialRequest
+            /// Response type for "SetGitHubCredential".
+            internal typealias Output = Runnir_Core_V1_SetGitHubCredentialResponse
+            /// Descriptor for "SetGitHubCredential".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "SetGitHubCredential",
+                type: .unary
+            )
+        }
+        /// Namespace for "ClearGitHubCredential" metadata.
+        internal enum ClearGitHubCredential: Sendable {
+            /// Request type for "ClearGitHubCredential".
+            internal typealias Input = Runnir_Core_V1_ClearGitHubCredentialRequest
+            /// Response type for "ClearGitHubCredential".
+            internal typealias Output = Runnir_Core_V1_ClearGitHubCredentialResponse
+            /// Descriptor for "ClearGitHubCredential".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ClearGitHubCredential",
+                type: .unary
+            )
+        }
         /// Descriptors for all methods in the "runnir.core.v1.RunnirCore" service.
         internal static let descriptors: [GRPCCore.MethodDescriptor] = [
             HealthCheck.descriptor,
@@ -124,7 +150,9 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             RefreshRepository.descriptor,
             ListWorkflows.descriptor,
             StartWorkflow.descriptor,
-            SubscribeEvents.descriptor
+            SubscribeEvents.descriptor,
+            SetGitHubCredential.descriptor,
+            ClearGitHubCredential.descriptor
         ]
     }
 }
@@ -256,6 +284,39 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SubscribeEventsRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_CoreEvent>
+
+        /// Handle the "SetGitHubCredential" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The app hands the signed-in user's GitHub token to the Core's memory. It
+        /// > is never written to disk, logged, sent in events or returned by any call.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_SetGitHubCredentialRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_SetGitHubCredentialResponse` messages.
+        func setGitHubCredential(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SetGitHubCredentialRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SetGitHubCredentialResponse>
+
+        /// Handle the "ClearGitHubCredential" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ClearGitHubCredentialRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ClearGitHubCredentialResponse` messages.
+        func clearGitHubCredential(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ClearGitHubCredentialRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>
     }
 
     /// Service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -371,6 +432,39 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.ServerRequest<Runnir_Core_V1_SubscribeEventsRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_CoreEvent>
+
+        /// Handle the "SetGitHubCredential" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The app hands the signed-in user's GitHub token to the Core's memory. It
+        /// > is never written to disk, logged, sent in events or returned by any call.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SetGitHubCredentialRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_SetGitHubCredentialResponse` message.
+        func setGitHubCredential(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_SetGitHubCredentialRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SetGitHubCredentialResponse>
+
+        /// Handle the "ClearGitHubCredential" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClearGitHubCredentialRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ClearGitHubCredentialResponse` message.
+        func clearGitHubCredential(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ClearGitHubCredentialRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>
     }
 
     /// Simple service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -485,6 +579,39 @@ extension Runnir_Core_V1_RunnirCore {
             response: GRPCCore.RPCWriter<Runnir_Core_V1_CoreEvent>,
             context: GRPCCore.ServerContext
         ) async throws
+
+        /// Handle the "SetGitHubCredential" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The app hands the signed-in user's GitHub token to the Core's memory. It
+        /// > is never written to disk, logged, sent in events or returned by any call.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_SetGitHubCredentialRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_SetGitHubCredentialResponse` to respond with.
+        func setGitHubCredential(
+            request: Runnir_Core_V1_SetGitHubCredentialRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_SetGitHubCredentialResponse
+
+        /// Handle the "ClearGitHubCredential" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ClearGitHubCredentialRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ClearGitHubCredentialResponse` to respond with.
+        func clearGitHubCredential(
+            request: Runnir_Core_V1_ClearGitHubCredentialRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ClearGitHubCredentialResponse
     }
 }
 
@@ -564,6 +691,28 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_CoreEvent>(),
             handler: { request, context in
                 try await self.subscribeEvents(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.SetGitHubCredential.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SetGitHubCredentialRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SetGitHubCredentialResponse>(),
+            handler: { request, context in
+                try await self.setGitHubCredential(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ClearGitHubCredential.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ClearGitHubCredentialRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ClearGitHubCredentialResponse>(),
+            handler: { request, context in
+                try await self.clearGitHubCredential(
                     request: request,
                     context: context
                 )
@@ -650,6 +799,28 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
             context: context
         )
         return response
+    }
+
+    internal func setGitHubCredential(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SetGitHubCredentialRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SetGitHubCredentialResponse> {
+        let response = try await self.setGitHubCredential(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func clearGitHubCredential(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ClearGitHubCredentialRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse> {
+        let response = try await self.clearGitHubCredential(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
     }
 }
 
@@ -748,6 +919,32 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
                 )
                 return [:]
             }
+        )
+    }
+
+    internal func setGitHubCredential(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_SetGitHubCredentialRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SetGitHubCredentialResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_SetGitHubCredentialResponse>(
+            message: try await self.setGitHubCredential(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func clearGitHubCredential(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ClearGitHubCredentialRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>(
+            message: try await self.clearGitHubCredential(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
         )
     }
 }
@@ -900,6 +1097,49 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_CoreEvent>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.StreamingClientResponse<Runnir_Core_V1_CoreEvent>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "SetGitHubCredential" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The app hands the signed-in user's GitHub token to the Core's memory. It
+        /// > is never written to disk, logged, sent in events or returned by any call.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SetGitHubCredentialRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SetGitHubCredentialRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_SetGitHubCredentialResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func setGitHubCredential<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SetGitHubCredentialRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SetGitHubCredentialRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SetGitHubCredentialResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SetGitHubCredentialResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ClearGitHubCredential" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClearGitHubCredentialRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ClearGitHubCredentialRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ClearGitHubCredentialResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func clearGitHubCredential<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ClearGitHubCredentialRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ClearGitHubCredentialRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ClearGitHubCredentialResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
     }
 
@@ -1134,6 +1374,71 @@ extension Runnir_Core_V1_RunnirCore {
                 onResponse: handleResponse
             )
         }
+
+        /// Call the "SetGitHubCredential" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The app hands the signed-in user's GitHub token to the Core's memory. It
+        /// > is never written to disk, logged, sent in events or returned by any call.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SetGitHubCredentialRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SetGitHubCredentialRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_SetGitHubCredentialResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func setGitHubCredential<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SetGitHubCredentialRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SetGitHubCredentialRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SetGitHubCredentialResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SetGitHubCredentialResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.SetGitHubCredential.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ClearGitHubCredential" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClearGitHubCredentialRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ClearGitHubCredentialRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ClearGitHubCredentialResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func clearGitHubCredential<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ClearGitHubCredentialRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ClearGitHubCredentialRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ClearGitHubCredentialResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ClearGitHubCredential.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
     }
 }
 
@@ -1316,6 +1621,61 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SubscribeEventsRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_CoreEvent>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SetGitHubCredential" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The app hands the signed-in user's GitHub token to the Core's memory. It
+    /// > is never written to disk, logged, sent in events or returned by any call.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_SetGitHubCredentialRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func setGitHubCredential<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_SetGitHubCredentialRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SetGitHubCredentialResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.setGitHubCredential(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SetGitHubCredentialRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SetGitHubCredentialResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ClearGitHubCredential" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ClearGitHubCredentialRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func clearGitHubCredential<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ClearGitHubCredentialRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.clearGitHubCredential(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ClearGitHubCredentialRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ClearGitHubCredentialResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -1528,6 +1888,69 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.subscribeEvents(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SetGitHubCredential" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The app hands the signed-in user's GitHub token to the Core's memory. It
+    /// > is never written to disk, logged, sent in events or returned by any call.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func setGitHubCredential<Result>(
+        _ message: Runnir_Core_V1_SetGitHubCredentialRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SetGitHubCredentialResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_SetGitHubCredentialRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.setGitHubCredential(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ClearGitHubCredential" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func clearGitHubCredential<Result>(
+        _ message: Runnir_Core_V1_ClearGitHubCredentialRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ClearGitHubCredentialRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.clearGitHubCredential(
             request: request,
             options: options,
             onResponse: handleResponse

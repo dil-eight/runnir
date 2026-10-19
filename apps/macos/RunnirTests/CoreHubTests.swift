@@ -20,6 +20,9 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     private var refreshError: CoreServiceError?
     private var openIDs: Set<String> = []
     private var continuations: [AsyncThrowingStream<CoreEvent, any Error>.Continuation] = []
+    private var _credentialCalls: [String?] = []
+    var credentialCalls: [String?] { lock.withLock { _credentialCalls } }
+    func setGitHubCredential(_ token: String?) async throws { lock.withLock { _credentialCalls.append(token) } }
 
     var openCalls: [String] { lock.withLock { _openCalls } }
     var closeCalls: [String] { lock.withLock { _closeCalls } }
@@ -489,6 +492,26 @@ struct CoreHubTests {
         let workspace = UUID()
         hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
         #expect(await eventually { hub.session(for: workspace)?.githubRepository == "o/r" })
+    }
+
+    @Test
+    func theCoreGetsTheTokenWhenReadyAgainAfterRecoveryAndLosesItOnSignOut() async {
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        var token: String? = "ghu_signed_in"
+        hub.githubTokenProvider = { token }
+        hub.startMonitoring()
+        provider.ready()
+        #expect(await eventually { provider.core.credentialCalls == ["ghu_signed_in"] })
+
+        provider.emit(.lost(.processExited(9)))
+        #expect(await eventually { hub.status == .lost })
+        await hub.recover()
+        #expect(await eventually { provider.core.credentialCalls == ["ghu_signed_in", "ghu_signed_in"] })
+
+        token = nil
+        hub.githubCredentialChanged()
+        #expect(await eventually { provider.core.credentialCalls.last == .some(nil) })
     }
 
     @Test

@@ -126,6 +126,25 @@ struct CoreProcessIntegrationTests {
     }
 
     @Test
+    func aClientWithoutTheLaunchSecretIsRefused() async throws {
+        let (supervisor, socket) = Self.makeSupervisor()
+        try await supervisor.start()
+        let intruder = try await GRPCCoreConnector().connect(socketPath: socket, clientSecret: String(repeating: "0", count: 64))
+        // Health stays open; everything else needs the secret.
+        #expect(try await intruder.service.healthCheck().protocolVersion == 1)
+        await #expect(throws: CoreServiceError.self) {
+            _ = try await intruder.service.openRepository(path: try Self.tempRepository())
+        }
+        await intruder.close()
+        // The app's own connection keeps working and can hand over a token.
+        let service = try await supervisor.service()
+        try await service.setGitHubCredential("ghu_test_token")
+        _ = try await service.openRepository(path: try Self.tempRepository())
+        try await service.setGitHubCredential(nil)
+        await supervisor.stop()
+    }
+
+    @Test
     func theCoreExitsWhenTheParentSideClosesStdin() async throws {
         let (supervisor, socket) = Self.makeSupervisor()
         try await supervisor.start()

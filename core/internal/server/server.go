@@ -14,6 +14,7 @@ import (
 	"runnir/core/internal/events"
 	"runnir/core/internal/execution"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
+	"runnir/core/internal/github"
 	"runnir/core/internal/repository"
 	"runnir/core/internal/scanner"
 )
@@ -26,6 +27,8 @@ const shutdownGrace = 5 * time.Second
 
 // Options tunes a server; the zero value uses production defaults.
 type Options struct {
+	// ClientSecret, when set, is required on every call except HealthCheck.
+	ClientSecret []byte
 	// EventBuffer is the per-subscriber event queue length.
 	EventBuffer int
 	// MaxExecutions is the number of concurrent workflow executions (default 3).
@@ -83,8 +86,14 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 		bus.Publish(fromRepository(e))
 	})
 	defer repositories.Shutdown()
-	grpcServer := grpc.NewServer()
-	corev1.RegisterRunnirCoreServer(grpcServer, &service{repositories: repositories, events: bus, executions: executions})
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(authUnary(options.ClientSecret)),
+		grpc.StreamInterceptor(authStream(options.ClientSecret)),
+	)
+	credential := &github.Credential{}
+	corev1.RegisterRunnirCoreServer(grpcServer, &service{
+		repositories: repositories, events: bus, executions: executions, credential: credential,
+	})
 
 	done := make(chan error, 1)
 	go func() { done <- grpcServer.Serve(listener) }()

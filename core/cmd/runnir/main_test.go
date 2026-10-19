@@ -144,3 +144,56 @@ func TestServeStopsWhenStdinCloses(t *testing.T) {
 		t.Fatal("serve did not stop after stdin closed")
 	}
 }
+
+func TestServeRequiresAWellFormedSecretWhenAsked(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("serve is not supported on windows")
+	}
+	for _, stdin := range []string{"", "short\n", strings.Repeat("z", 40) + "\n"} {
+		var out, diagnostics bytes.Buffer
+		code := run([]string{"serve", "--socket", "/tmp/rn-unused.sock", "--client-secret-stdin"}, strings.NewReader(stdin), &out, &diagnostics)
+		if code != 2 {
+			t.Errorf("stdin %q: exit %d, want 2", stdin, code)
+		}
+	}
+}
+
+func TestServeReadsTheSecretThenWatchesStdin(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("serve is not supported on windows")
+	}
+	dir, err := os.MkdirTemp("/tmp", "rn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	socket := filepath.Join(dir, "core.sock")
+	reader, writer := io.Pipe()
+	result := make(chan int, 1)
+	go func() {
+		var out, diagnostics bytes.Buffer
+		result <- run([]string{"serve", "--socket", socket, "--exit-on-stdin-eof", "--client-secret-stdin"}, reader, &out, &diagnostics)
+	}()
+	if _, err := writer.Write([]byte("0123456789abcdef0123456789abcdef\n")); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if info, err := os.Stat(socket); err == nil && info.Mode()&os.ModeSocket != 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("socket did not appear")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	writer.Close()
+	select {
+	case code := <-result:
+		if code != 0 {
+			t.Fatalf("exit code %d", code)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("serve did not stop after stdin closed")
+	}
+}

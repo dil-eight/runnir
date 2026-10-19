@@ -64,6 +64,8 @@ final class GitHubSession {
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private let clock = ContinuousClock()
     @ObservationIgnored private var signInTask: Task<Void, Never>?
+    /// Called whenever the usable token appears or goes away.
+    @ObservationIgnored var onCredentialChange: (@MainActor () -> Void)?
 
     /// Where a user revokes Runnir's authorization at GitHub.
     static let authorizationsURL = URL(string: "https://github.com/settings/apps/authorizations")!
@@ -84,6 +86,12 @@ final class GitHubSession {
     var user: GitHubUser? {
         if case .signedIn(let user) = connection { return user }
         return nil
+    }
+
+    /// The token, only while signed in and confirmed by GitHub.
+    func currentToken() async -> String? {
+        guard user != nil else { return nil }
+        return try? await credentials.token()
     }
 
     // MARK: Restore
@@ -201,9 +209,11 @@ final class GitHubSession {
     private func confirmUser(onRejected problem: GitHubSignInProblem) async {
         do {
             connection = .signedIn(try await api.getCurrentUser())
+            onCredentialChange?()
         } catch GitHubAPIError.authenticationFailed {
             try? await credentials.removeToken()
             connection = .signedOut(problem)
+            onCredentialChange?()
         } catch GitHubAPIError.networkUnavailable {
             connection = .offline
         } catch GitHubAPIError.rateLimited {
@@ -230,6 +240,7 @@ final class GitHubSession {
         } catch GitHubAPIError.authenticationFailed {
             try? await credentials.removeToken()
             connection = .signedOut(.sessionExpired)
+            onCredentialChange?()
             return .signedOut
         } catch GitHubAPIError.rateLimited {
             return .failed(GitHubSignInProblem.rateLimited.message)
@@ -253,6 +264,7 @@ final class GitHubSession {
         } catch {
             connection = .signedOut(.keychain)
         }
+        onCredentialChange?()
     }
 
     private func cancelSignInIfRunning() {
