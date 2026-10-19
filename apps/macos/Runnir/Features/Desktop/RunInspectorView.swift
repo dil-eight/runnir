@@ -112,6 +112,14 @@ final class RunActionModel {
         }
     }
 
+    /// Stops following an accepted action, for example when the run's screen
+    /// closes, so GitHub is not polled for a view nobody sees.
+    func stopFollowing() {
+        follow?.cancel()
+        follow = nil
+        if case .requested = phase { phase = .idle }
+    }
+
     var statusText: String? {
         switch phase {
         case .preparing(let action): "Checking the run before \(action == .cancel ? "cancelling" : "re-running")..."
@@ -185,6 +193,16 @@ enum LogFilter {
     static func defaultStep(_ job: CoreRunJob) -> Int64? {
         job.steps.first { $0.outcome == .failed }?.number
     }
+
+    /// A failed reload keeps the jobs already shown, marked stale, instead of
+    /// replacing them with an error and closing the log.
+    static func reloadedJobs(previous: CoreGitHubResult<CoreRunJob>?, new: CoreGitHubResult<CoreRunJob>)
+        -> (jobs: CoreGitHubResult<CoreRunJob>, stale: Bool) {
+        if new.access != .ok, let previous, previous.access == .ok, !previous.items.isEmpty {
+            return (previous, true)
+        }
+        return (new, false)
+    }
 }
 
 enum RunDuration {
@@ -205,6 +223,7 @@ struct RunInspectorView: View {
     let hub: CoreHub
     @State private var actions: RunActionModel
     @State private var jobs: CoreGitHubResult<CoreRunJob>?
+    @State private var jobsStale = false
     @State private var selectedJobID: Int64?
     @State private var selectedStep: Int64?
     @Environment(\.openURL) private var openURL
@@ -239,13 +258,16 @@ struct RunInspectorView: View {
             }
         }
         .task(id: "\(run.id)-\(run.status)-\(run.runAttempt)-\(run.updatedAt?.timeIntervalSince1970 ?? 0)") {
-            let result = await hub.jobs(workspaceID: workspaceID, runID: run.id)
-            jobs = result
+            let reloaded = LogFilter.reloadedJobs(previous: jobs, new: await hub.jobs(workspaceID: workspaceID, runID: run.id))
+            jobs = reloaded.jobs
+            jobsStale = reloaded.stale
+            let result = reloaded.jobs
             if !result.items.contains(where: { $0.id == selectedJobID }), let job = LogFilter.defaultJob(result.items) {
                 selectedJobID = job.id
                 selectedStep = LogFilter.defaultStep(job)
             }
         }
+        .onDisappear { actions.stopFollowing() }
         .confirmationDialog(confirmationTitle, isPresented: confirmationShown, titleVisibility: .visible) {
             if let pending = actions.pending {
                 let text = RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run)
@@ -380,6 +402,10 @@ struct RunInspectorView: View {
                             ForEach(job.steps) { step in stepRow(step) }
                         }
                     }
+                    if jobsStale {
+                        Label("Could not reload from GitHub; showing the last jobs.", systemImage: "exclamationmark.triangle")
+                            .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).padding(10)
+                    }
                 }
             }
             .padding(8)
@@ -449,6 +475,8 @@ private struct JobLogView: View {
     @State private var query = ""
     @State private var matches: [Int64] = []
     @State private var matchIndex = 0
+    /// Changes after the shown lines are recomputed, so scrolling uses them.
+    @State private var linesVersion = 0
     @State private var wrap = true
     @Environment(\.openURL) private var openURL
 
@@ -493,6 +521,7 @@ private struct JobLogView: View {
         let all = LogFilter.lines(log?.lines ?? [], step: nil)
         totalLines = all.count
         visible = step == nil ? all : all.filter { $0.stepNumber == step }
+        linesVersion += 1
         updateMatches()
     }
 
@@ -509,14 +538,14 @@ private struct JobLogView: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(RunnirTheme.mutedForeground)
                 TextField("Search log", text: $query).textFieldStyle(.plain).frame(width: 150)
-                    .onSubmit { step(by: 1) }
+                    .onSubmit { moveMatch(by: 1) }
                 if !query.isEmpty {
                     Text(matches.isEmpty ? "0 of 0" : "\(matchIndex + 1) of \(matches.count)")
                         .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).monospacedDigit()
-                    Button { step(by: -1) } label: { Image(systemName: "chevron.up") }
+                    Button { moveMatch(by: -1) } label: { Image(systemName: "chevron.up") }
                         .buttonStyle(.borderless).disabled(matches.isEmpty)
                         .help("Previous match").accessibilityLabel("Previous match")
-                    Button { step(by: 1) } label: { Image(systemName: "chevron.down") }
+                    Button { moveMatch(by: 1) } label: { Image(systemName: "chevron.down") }
                         .buttonStyle(.borderless).disabled(matches.isEmpty)
                         .help("Next match").accessibilityLabel("Next match")
                 }
@@ -529,7 +558,7 @@ private struct JobLogView: View {
         .padding(.horizontal, 14).frame(height: 44)
     }
 
-    private func step(by offset: Int) {
+    private func moveMatch(by offset: Int) {
         guard !matches.isEmpty else { return }
         matchIndex = (matchIndex + offset + matches.count) % matches.count
     }
@@ -577,7 +606,7 @@ private struct JobLogView: View {
                 .textSelection(.enabled)
             }
             .onAppear { scrollToInterest(proxy) }
-            .onChange(of: step) { scrollToInterest(proxy) }
+            .onChange(of: linesVersion) { scrollToInterest(proxy) }
             .onChange(of: current) { if let current { proxy.scrollTo(current, anchor: .center) } }
         }
     }

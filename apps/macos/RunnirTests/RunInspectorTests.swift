@@ -112,6 +112,36 @@ struct RunInspectorTests {
     }
 
     @Test
+    func leavingTheRunStopsFollowingIt() async {
+        let finished = run()
+        let (hub, provider, workspace) = await rig(runs: [finished])
+        hub.runLookupTimeout = .seconds(30)
+        let model = RunActionModel(hub: hub, workspaceID: workspace)
+        await model.prepare(.rerun, for: finished)
+        await model.confirm(current: finished) // the run never changes
+        #expect(model.phase == .requested(.rerun))
+        model.stopFollowing()
+        #expect(model.phase == .idle)
+        try? await Task.sleep(for: .milliseconds(50))
+        let calls = provider.core.runsCalls.count
+        try? await Task.sleep(for: .milliseconds(150))
+        #expect(provider.core.runsCalls.count == calls, "no more reloads after leaving")
+    }
+
+    @Test
+    func aFailedReloadKeepsTheJobsShown() {
+        let job = CoreRunJob(id: 1, name: "build", status: "in_progress", conclusion: nil, startedAt: nil, completedAt: nil, htmlURL: nil, steps: [])
+        let loaded = CoreGitHubResult(access: .ok, items: [job])
+        let limited = CoreGitHubResult<CoreRunJob>(access: .rateLimited(until: nil), items: [])
+        let kept = LogFilter.reloadedJobs(previous: loaded, new: limited)
+        #expect(kept.jobs == loaded && kept.stale)
+        let first = LogFilter.reloadedJobs(previous: nil, new: limited)
+        #expect(first.jobs == limited && !first.stale, "with nothing shown yet, the problem is shown")
+        let fresh = LogFilter.reloadedJobs(previous: loaded, new: CoreGitHubResult(access: .ok, items: []))
+        #expect(fresh.jobs.items.isEmpty && !fresh.stale)
+    }
+
+    @Test
     func readProblemsDoNotTalkAboutWriteAccess() {
         #expect(!RunActionModel.describeRead(.notVisible).contains("write"))
         #expect(RunActionModel.describe(.notVisible).contains("write"))
