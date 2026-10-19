@@ -65,13 +65,14 @@ private struct Rig {
     let opened = OpenedURLs()
     let session: GitHubSession
 
-    init(credentials: any CredentialStoring = InMemoryCredentialStore()) {
+    init(credentials: any CredentialStoring = InMemoryCredentialStore(), offlineRetry: [Duration] = []) {
         self.credentials = credentials
         let opened = opened
         let sleeper = sleeper
         session = GitHubSession(deviceFlow: flow, credentials: credentials, api: api,
                                 openURL: { opened.urls.append($0) },
-                                sleep: { try await sleeper.sleep($0) })
+                                sleep: { try await sleeper.sleep($0) },
+                                offlineRetryDelays: offlineRetry)
     }
 }
 
@@ -166,6 +167,36 @@ struct GitHubSessionTests {
         await rig.flow.set(answers: [.success(.authorized(token: "t"))])
         rig.session.signIn()
         #expect(await eventually { rig.session.connection == .signedOut(.keychain) })
+    }
+
+    @Test
+    func anOfflineLaunchRecoversByItselfWhenGitHubAnswersAgain() async throws {
+        let rig = Rig(credentials: InMemoryCredentialStore(token: "t"), offlineRetry: [.seconds(30), .seconds(60)])
+        var changes = 0
+        rig.session.onCredentialChange = { changes += 1 }
+        await rig.api.set(.failure(.networkUnavailable))
+        await rig.session.restore()
+        #expect(rig.session.connection == .offline)
+        #expect(await eventually { rig.sleeper.sleeps.count >= 2 }, "it keeps trying while offline")
+        #expect(Array(rig.sleeper.sleeps.prefix(2)) == [.seconds(30), .seconds(60)])
+
+        await rig.api.set(.success(GitHubUser(id: 1, login: "octocat", name: nil)))
+        #expect(await eventually { rig.session.user?.login == "octocat" })
+        #expect(changes >= 1, "the Core is told about the token")
+        let settled = rig.sleeper.sleeps.count
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(rig.sleeper.sleeps.count == settled, "no retries once signed in")
+    }
+
+    @Test
+    func signingOutStopsTheOfflineRetry() async throws {
+        let rig = Rig(credentials: InMemoryCredentialStore(token: "t"), offlineRetry: [.seconds(30)])
+        await rig.api.set(.failure(.networkUnavailable))
+        await rig.session.restore()
+        await rig.session.signOut()
+        await rig.api.set(.success(GitHubUser(id: 1, login: "octocat", name: nil)))
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(rig.session.connection == .signedOut(nil))
     }
 
     @Test

@@ -315,6 +315,10 @@ struct DesktopWorkspaceView: View {
                 Image(systemName: "exclamationmark.triangle").foregroundStyle(RunnirTheme.warning)
                 Text(bannerText(core.status)).font(.system(size: 12))
                 Spacer(minLength: 4)
+                if let log = CoreProcessSupervisor.logURL, FileManager.default.fileExists(atPath: log.path) {
+                    Button("Show Log") { NSWorkspace.shared.activateFileViewerSelecting([log]) }
+                        .help("The Core's diagnostics for this and the previous launch")
+                }
                 Button("Restart Core") { Task { await core.recover() } }
             }
             .buttonStyle(DesignButtonStyle()).padding(.horizontal, 20).frame(height: 40)
@@ -325,7 +329,7 @@ struct DesktopWorkspaceView: View {
 
     private func bannerText(_ status: CoreHub.Status) -> String {
         switch status {
-        case .lost: "Runnir Core stopped unexpectedly. Workflow data may be out of date."
+        case .lost: "Runnir Core stopped or stopped responding. Workflow data may be out of date."
         case .failed(let reason): "Runnir Core is not running. \(reason)"
         default: ""
         }

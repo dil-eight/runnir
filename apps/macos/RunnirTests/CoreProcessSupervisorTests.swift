@@ -149,14 +149,16 @@ private struct Rig {
     let health: FakeHealth
     let socketPath: String
 
-    init(failures: Int = 0, protocolVersion: Int = 1, processID: Int32 = 0, timeout: Duration = .seconds(2)) {
+    init(failures: Int = 0, protocolVersion: Int = 1, processID: Int32 = 0, timeout: Duration = .seconds(2),
+         liveness: Duration = .seconds(600)) {
         health = FakeHealth(failuresBeforeSuccess: failures, protocolVersion: protocolVersion, processID: processID)
         launcher = FakeLauncher()
         connector = FakeConnector(health: health)
         socketPath = makeSocketPath()
         supervisor = CoreProcessSupervisor(
             launcher: launcher, connector: connector, socketPath: socketPath,
-            healthTimeout: timeout, pollInterval: .milliseconds(5)
+            healthTimeout: timeout, pollInterval: .milliseconds(5),
+            livenessInterval: liveness, livenessTimeout: .milliseconds(50), livenessFailureLimit: 2
         )
     }
 }
@@ -340,6 +342,19 @@ struct CoreProcessSupervisorTests {
     }
 
     @Test
+    func eachCopyOfTheAppGetsItsOwnSocket() {
+        let debug = CoreProcessSupervisor.instanceTag(for: URL(fileURLWithPath: "/Users/me/DerivedData/Build/Products/Debug/Runnir.app"))
+        let installed = CoreProcessSupervisor.instanceTag(for: URL(fileURLWithPath: "/Applications/Runnir.app"))
+        #expect(debug != installed)
+        #expect(debug == CoreProcessSupervisor.instanceTag(for: URL(fileURLWithPath: "/Users/me/DerivedData/Build/Products/Debug/Runnir.app/")))
+        #expect(debug.count == 8)
+        let tmp = URL(fileURLWithPath: "/tmp", isDirectory: true)
+        #expect(CoreProcessSupervisor.socketPath(in: tmp, instance: debug) == "/tmp/runnir-core-\(debug).sock")
+        let deep = URL(fileURLWithPath: "/" + String(repeating: "d", count: 80), isDirectory: true)
+        #expect(CoreProcessSupervisor.socketPath(in: deep, instance: debug).hasSuffix("/rc-\(debug).sock"))
+    }
+
+    @Test
     func eachLaunchGetsAFreshSecretThatTheConnectionPresents() async throws {
         let rig = Rig()
         try await rig.supervisor.start()
@@ -361,6 +376,33 @@ struct CoreProcessSupervisorTests {
         try await rig.supervisor.start()
         rig.supervisor.terminateImmediately()
         #expect(rig.launcher.handles[0].terminatedNow)
+        await rig.supervisor.stop()
+    }
+}
+
+@Suite(.timeLimit(.minutes(1)))
+struct CoreLivenessTests {
+    @Test
+    func aCoreThatStopsAnsweringIsReportedLostAndStopped() async throws {
+        let rig = Rig(liveness: .milliseconds(20))
+        try await rig.supervisor.start()
+        await rig.health.setHangs(true)
+        #expect(await eventuallyAsync { await rig.supervisor.state == .lost(.unresponsive) })
+        #expect(rig.launcher.handles[0].terminated, "the hung process is stopped so a restart can take the lock")
+        await rig.health.setHangs(false)
+        try await rig.supervisor.recover()
+        #expect(rig.launcher.launches == 2)
+        await rig.supervisor.stop()
+    }
+
+    @Test
+    func aHealthyCoreStaysRunning() async throws {
+        let rig = Rig(liveness: .milliseconds(10))
+        try await rig.supervisor.start()
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(await rig.supervisor.state == .running(CoreHealth(coreVersion: "test", protocolVersion: 1, openRepositoryCount: 0,
+                                                                   residentMemoryBytes: 1, processID: 0)))
+        #expect(await rig.health.calls > 3, "health was checked while running")
         await rig.supervisor.stop()
     }
 }
@@ -407,6 +449,29 @@ struct ProcessCoreHandleTests {
 
 @Suite(.timeLimit(.minutes(1)))
 struct ProcessCoreLauncherTests {
+    /// The Core's standard error lands in the log, and the previous launch's
+    /// log is kept beside it.
+    @Test
+    func theCoreWritesItsDiagnosticsToALogAndTheLastOneIsKept() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let helper = directory.appendingPathComponent("fake-core")
+        try "#!/bin/sh\nread secret\necho \"run $RUN failed\" >&2\n".write(to: helper, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
+        let log = directory.appendingPathComponent("Logs/core.log")
+        let launcher = ProcessCoreLauncher(executableURL: helper, logURL: log)
+
+        for _ in 0..<2 {
+            let handle = try launcher.launch(socketPath: directory.appendingPathComponent("s").path, clientSecret: String(repeating: "a", count: 64))
+            _ = await handle.waitForExit()
+        }
+        let current = try String(contentsOf: log, encoding: .utf8)
+        let previous = try String(contentsOf: directory.appendingPathComponent("Logs/core.previous.log"), encoding: .utf8)
+        #expect(current.contains("failed") && previous.contains("failed"))
+        #expect(!current.contains(String(repeating: "a", count: 64)), "the secret never reaches the log")
+    }
+
     /// Writing the secret to a child that already went away must fail the
     /// launch, not raise SIGPIPE, which would end the test process (and the app).
     @Test

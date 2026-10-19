@@ -2,9 +2,11 @@ import Foundation
 import Darwin
 
 /// Launches the bundled helper with Foundation `Process`: no shell, a reduced
-/// environment, and a stdin pipe whose closing stops the Core.
+/// environment, and a stdin pipe whose closing stops the Core. Its standard
+/// error goes to `logURL` when given; the Core never writes credentials there.
 struct ProcessCoreLauncher: CoreProcessLaunching {
     let executableURL: URL
+    var logURL: URL? = nil
 
     func launch(socketPath: String, clientSecret: String) throws -> any CoreProcessHandle {
         guard FileManager.default.isExecutableFile(atPath: executableURL.path) else {
@@ -18,7 +20,7 @@ struct ProcessCoreLauncher: CoreProcessLaunching {
         process.currentDirectoryURL = executableURL.deletingLastPathComponent()
         process.standardInput = stdin
         process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
+        process.standardError = logURL.flatMap(Self.openLog) ?? FileHandle.nullDevice
 
         let handle = ProcessCoreHandle(process: process, stdin: stdin)
         process.terminationHandler = { finished in handle.markExited(finished.terminationStatus) }
@@ -37,6 +39,24 @@ struct ProcessCoreLauncher: CoreProcessLaunching {
             throw CoreSupervisorError.launchFailed
         }
         return handle
+    }
+
+    /// Starts a fresh log for this launch and keeps the previous one, which
+    /// holds what a Core that just failed wrote. nil when it cannot be created.
+    static func openLog(at url: URL) -> FileHandle? {
+        let manager = FileManager.default
+        do {
+            try manager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let previous = url.deletingPathExtension().appendingPathExtension("previous.log")
+            if manager.fileExists(atPath: url.path) {
+                try? manager.removeItem(at: previous)
+                try? manager.moveItem(at: url, to: previous)
+            }
+            guard manager.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]) else { return nil }
+            return try FileHandle(forWritingTo: url)
+        } catch {
+            return nil
+        }
     }
 
     /// Writes the secret line. A child that already exited has closed its

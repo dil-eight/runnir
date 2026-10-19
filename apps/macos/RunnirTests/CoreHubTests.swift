@@ -717,7 +717,36 @@ struct CoreHubTests {
 
         provider.core.endEvents(throwing: CoreServiceError.resourceExhausted)
         #expect(await eventually { provider.core.subscriptions == 2 })
-        #expect(provider.core.openCalls.count == 2)
+        #expect(await eventually { provider.core.openCalls.count == 2 })
+    }
+
+    @Test
+    func aDroppedEventStreamIsResubscribedWhileTheCoreRuns() async {
+        let (hub, provider) = await readyHub()
+        hub.eventRetryDelay = .milliseconds(10)
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+
+        // The stream ends without the Core going away.
+        provider.core.endEvents(throwing: CoreServiceError.unavailable)
+        #expect(await eventually { provider.core.subscriptions == 2 })
+        #expect(await eventually { provider.core.openCalls.count == 2 }, "missed events are made up by a reload")
+        #expect(hub.status == .ready(version: "fake"))
+    }
+
+    @Test
+    func runsAreReadAgainWhileNothingIsActive() async {
+        let (hub, provider) = await readyHub()
+        hub.githubIdlePollInterval = .milliseconds(30)
+        let path = "/repo/linked"
+        provider.core.setRuns(CoreGitHubResult(access: .ok, items: [run(1, status: "completed", conclusion: "success")]), for: path)
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: path)
+        #expect(await eventually { hub.session(for: workspace)?.runs.count == 1 })
+        provider.core.setRuns(CoreGitHubResult(access: .ok, items: [run(2, status: "queued", conclusion: nil),
+                                                                    run(1, status: "completed", conclusion: "success")]), for: path)
+        #expect(await eventually { hub.session(for: workspace)?.runs.count == 2 }, "a new run appears without a manual reload")
     }
 
     @Test

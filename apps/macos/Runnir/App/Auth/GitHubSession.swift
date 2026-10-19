@@ -67,6 +67,8 @@ final class GitHubSession {
     /// Identifies the current sign-in, so a cancelled one that finishes late
     /// cannot clear the handle of the sign-in that replaced it.
     @ObservationIgnored private var signInID: UUID?
+    @ObservationIgnored private let offlineRetryDelays: [Duration]
+    @ObservationIgnored private var offlineRetry: Task<Void, Never>?
     /// Called whenever the usable token appears or goes away.
     @ObservationIgnored var onCredentialChange: (@MainActor () -> Void)?
 
@@ -78,12 +80,14 @@ final class GitHubSession {
          credentials: any CredentialStoring,
          api: any GitHubService,
          openURL: @escaping @MainActor (URL) -> Void,
-         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+         offlineRetryDelays: [Duration] = [.seconds(30), .seconds(60), .seconds(120), .seconds(300)]) {
         self.deviceFlow = deviceFlow
         self.credentials = credentials
         self.api = api
         self.openURL = openURL
         self.sleep = sleep
+        self.offlineRetryDelays = offlineRetryDelays
     }
 
     var user: GitHubUser? {
@@ -102,6 +106,7 @@ final class GitHubSession {
     /// Confirms a saved token with GitHub. A rejected token is deleted; a
     /// network failure keeps it and reports `.offline`.
     func restore() async {
+        stopOfflineRetry()
         connection = .restoring
         let token: String?
         do { token = try await credentials.token() } catch {
@@ -121,6 +126,7 @@ final class GitHubSession {
     /// polls until the user approves, declines or the code expires.
     func signIn() {
         guard signInTask == nil else { return }
+        stopOfflineRetry()
         connection = .requestingCode
         let id = UUID()
         signInID = id
@@ -212,7 +218,32 @@ final class GitHubSession {
         await confirmUser(onRejected: .unexpected)
     }
 
-    private func confirmUser(onRejected problem: GitHubSignInProblem) async {
+    /// While `.offline`, asks GitHub again after each delay in
+    /// `offlineRetryDelays` (the last one repeats) until it answers, so a
+    /// launch without network recovers by itself once it is back.
+    private func scheduleOfflineRetry() {
+        offlineRetry?.cancel()
+        let delays = offlineRetryDelays
+        guard !delays.isEmpty else { return }
+        let sleep = sleep
+        offlineRetry = Task { [weak self] in
+            var attempt = 0
+            while !Task.isCancelled {
+                do { try await sleep(delays[min(attempt, delays.count - 1)]) } catch { return }
+                guard let self, !Task.isCancelled, self.connection == .offline else { return }
+                attempt += 1
+                await self.confirmUser(onRejected: .sessionExpired, retryWhenOffline: false)
+                guard self.connection == .offline else { return }
+            }
+        }
+    }
+
+    private func stopOfflineRetry() {
+        offlineRetry?.cancel()
+        offlineRetry = nil
+    }
+
+    private func confirmUser(onRejected problem: GitHubSignInProblem, retryWhenOffline: Bool = true) async {
         do {
             connection = .signedIn(try await api.getCurrentUser())
             onCredentialChange?()
@@ -224,6 +255,7 @@ final class GitHubSession {
                 GitHubAPIError.serverError, GitHubAPIError.invalidResponse {
             // GitHub is unreachable or failing for now; the saved sign-in stays.
             connection = .offline
+            if retryWhenOffline { scheduleOfflineRetry() }
         } catch {
             connection = .signedOut(.unexpected)
         }
@@ -261,6 +293,7 @@ final class GitHubSession {
     /// to sign in again.
     func tokenWasRejected() async {
         guard user != nil else { return }
+        stopOfflineRetry()
         try? await credentials.removeToken()
         connection = .signedOut(.sessionExpired)
         onCredentialChange?()
@@ -273,6 +306,7 @@ final class GitHubSession {
     /// client secret, which the app does not have.
     func signOut() async {
         cancelSignInIfRunning()
+        stopOfflineRetry()
         do {
             try await credentials.removeToken()
             connection = .signedOut(nil)

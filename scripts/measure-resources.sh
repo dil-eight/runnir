@@ -94,7 +94,6 @@ YAML
     done
 }
 
-core_socket="$(getconf DARWIN_USER_TEMP_DIR)runnir-core.sock"
 call() { grpcurl -plaintext -import-path "$root/contracts/grpc" -proto runnir/core/v1/runnir_core.proto "$@"; }
 
 printf '| Repos | App MB | Core MB | Total MB | App CPU %% | Core CPU %% | Core processes |\n'
@@ -112,7 +111,6 @@ for count in $counts; do
     mkdir -p "$state"
     import_paths=$(echo "$repos" | tr ' ' ':' | sed 's/^://')
 
-    rm -f "$core_socket"
     RUNNIR_UI_TEST_STATE_DIRECTORY="$state" RUNNIR_UI_TEST_IMPORT_PATHS="$import_paths" \
         "$app/Contents/MacOS/Runnir" --ui-testing >/dev/null 2>&1 &
     app_pid=$!
@@ -123,6 +121,10 @@ for count in $counts; do
     while [ "$waited" -lt 60 ]; do
         sleep 1
         waited=$((waited + 1))
+        # Each app copy has its own socket; read it from the Core's arguments.
+        core_socket=$(ps -o args= -p "$(pgrep -P "$app_pid" -f 'runnir-core serve' | head -1)" 2>/dev/null \
+            | sed -n 's/.*--socket \([^ ]*\).*/\1/p' || true)
+        [ -n "$core_socket" ] || continue
         opened=$(call "unix://$core_socket" runnir.core.v1.RunnirCore/HealthCheck 2>/dev/null \
             | awk -F'[:,]' '/openRepositoryCount/ {gsub(/ /, "", $2); print $2}' || true)
         [ "${opened:-0}" = "$count" ] && break
