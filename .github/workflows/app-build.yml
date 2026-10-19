@@ -5,23 +5,26 @@ name: App Build
 # built by release.yml.
 on:
   pull_request:
-    paths:
+    paths: &app-inputs
       - "apps/**"
       - "core/**"
       - "contracts/**"
+      - "docs/design/assets/**"
       - "scripts/build-core-macos.sh"
       - ".github/workflows/app-build.yml"
   push:
     branches: [main]
+    paths: *app-inputs
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# A newer push to the same branch makes the running build obsolete.
+# A newer push to the same pull request makes the running build obsolete;
+# builds on main always finish, so every merge commit keeps its artifact.
 concurrency:
   group: app-build-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   app:

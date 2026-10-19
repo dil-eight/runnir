@@ -1,9 +1,20 @@
 name: CI
 
+# Skipped when a change touches only documentation and design files.
 on:
   pull_request:
+    # Everything except documentation and design files; the design assets the
+    # app bundles as resources (docs/design/assets) still count.
+    paths: &app-inputs
+      - "**"
+      - "!docs/**"
+      - "!**/*.md"
+      - "!**/*.pen"
+      - "docs/design/assets/**"
   push:
     branches: [main]
+    paths: *app-inputs
+  workflow_dispatch:
 
 permissions:
   contents: read
