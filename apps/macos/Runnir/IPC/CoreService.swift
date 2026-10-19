@@ -94,6 +94,12 @@ protocol CoreServicing: Sendable {
     func listGitHubWorkflows(repositoryID: String) async throws -> CoreGitHubResult<CoreGitHubWorkflow>
     func listWorkflowRuns(repositoryID: String, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun>
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob>
+    func listGitHubRefs(repositoryID: String) async throws -> CoreGitHubRefs
+    func describeWorkflowDispatch(repositoryID: String, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition
+    /// Validates a dispatch in the Core; nothing is sent to GitHub yet.
+    func prepareWorkflowDispatch(repositoryID: String, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch
+    /// Sends a prepared dispatch once. Throws when the confirmation expired or was used.
+    func confirmWorkflowDispatch(dispatchID: String) async throws -> CoreDispatchResult
     /// The first element is `.ready`. The stream fails with
     /// `.resourceExhausted` when the subscriber falls behind and with
     /// `.unavailable` when the Core goes away; callers resubscribe and reload.

@@ -37,6 +37,30 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         }
     }
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { lock.withLock { jobsResult } }
+    private var _confirmed: [String] = []
+    var confirmed: [String] { lock.withLock { _confirmed } }
+    var dispatchDefinition = CoreDispatchDefinition(access: .ok, dispatchable: true, inputs: [], parseError: nil)
+    var preparedProblems: [String] = []
+    func listGitHubRefs(repositoryID: String) async throws -> CoreGitHubRefs {
+        CoreGitHubRefs(access: .ok, defaultBranch: "main", branches: ["main", "feature"], tags: ["v1.0"])
+    }
+    func describeWorkflowDispatch(repositoryID: String, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition {
+        lock.withLock { dispatchDefinition }
+    }
+    func prepareWorkflowDispatch(repositoryID: String, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch {
+        lock.withLock {
+            preparedProblems.isEmpty
+                ? CorePreparedDispatch(access: .ok, dispatchID: "dispatch_1", expiresAt: Date().addingTimeInterval(120), problems: [], workflowPath: ".github/workflows/ci.yml")
+                : CorePreparedDispatch(access: .ok, dispatchID: nil, expiresAt: nil, problems: preparedProblems, workflowPath: ".github/workflows/ci.yml")
+        }
+    }
+    func confirmWorkflowDispatch(dispatchID: String) async throws -> CoreDispatchResult {
+        try lock.withLock {
+            guard !_confirmed.contains(dispatchID) else { throw CoreServiceError.failedPrecondition("used") }
+            _confirmed.append(dispatchID)
+            return CoreDispatchResult(access: .ok, dispatchedAt: Date(), runID: nil, rejection: nil)
+        }
+    }
     var credentialCalls: [String?] { lock.withLock { _credentialCalls } }
     func setGitHubCredential(_ token: String?) async throws { lock.withLock { _credentialCalls.append(token) } }
 

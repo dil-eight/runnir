@@ -176,6 +176,70 @@ struct GRPCCoreService: CoreServicing {
         })
     }
 
+    func listGitHubRefs(repositoryID: String) async throws -> CoreGitHubRefs {
+        let response = try await call {
+            try await client.listGitHubRefs(.with { $0.repositoryID = repositoryID }, options: Self.options(Self.callTimeout))
+        }
+        return CoreGitHubRefs(access: Self.map(response.status), defaultBranch: response.defaultBranch,
+                              branches: response.branches, tags: response.tags)
+    }
+
+    func describeWorkflowDispatch(repositoryID: String, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition {
+        let response = try await call {
+            try await client.describeWorkflowDispatch(.with {
+                $0.repositoryID = repositoryID
+                $0.workflowPath = workflowPath
+                $0.ref = ref
+            }, options: Self.options(Self.callTimeout))
+        }
+        return CoreDispatchDefinition(
+            access: Self.map(response.status),
+            dispatchable: response.dispatchable,
+            inputs: response.inputs.map { input in
+                let kind: CoreDispatchInputKind = switch input.type {
+                case .boolean: .boolean
+                case .choice: .choice
+                case .number: .number
+                case .environment: .environment
+                default: .string
+                }
+                return CoreDispatchInput(name: input.name, description: input.description_p, kind: kind,
+                                         required: input.required, defaultValue: input.defaultValue, options: input.options)
+            },
+            parseError: response.parseError.isEmpty ? nil : response.parseError
+        )
+    }
+
+    func prepareWorkflowDispatch(repositoryID: String, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch {
+        let response = try await call {
+            try await client.prepareWorkflowDispatch(.with {
+                $0.repositoryID = repositoryID
+                $0.workflowID = workflowID
+                $0.ref = ref
+                $0.inputs = inputs
+            }, options: Self.options(Self.callTimeout))
+        }
+        return CorePreparedDispatch(
+            access: Self.map(response.status),
+            dispatchID: response.dispatchID.isEmpty ? nil : response.dispatchID,
+            expiresAt: response.hasExpiresAt ? response.expiresAt.date : nil,
+            problems: response.problems,
+            workflowPath: response.workflowPath
+        )
+    }
+
+    func confirmWorkflowDispatch(dispatchID: String) async throws -> CoreDispatchResult {
+        let response = try await call {
+            try await client.confirmWorkflowDispatch(.with { $0.dispatchID = dispatchID }, options: Self.options(Self.callTimeout))
+        }
+        return CoreDispatchResult(
+            access: Self.map(response.status),
+            dispatchedAt: response.hasDispatchedAt ? response.dispatchedAt.date : nil,
+            runID: response.runID == 0 ? nil : response.runID,
+            rejection: response.rejection.isEmpty ? nil : response.rejection
+        )
+    }
+
     static func map(_ status: Runnir_Core_V1_GitHubStatus) -> CoreGitHubAccess {
         switch status.access {
         case .ok: .ok

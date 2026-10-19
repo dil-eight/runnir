@@ -11,6 +11,8 @@ final class AppState {
     var showingSwitcher = false
     /// The run shown in the Runs section.
     var selectedRunID: Int64?
+    /// Shows the Run Workflow sheet.
+    var runWorkflowRequest: RunWorkflowRequest?
 }
 
 enum AuthenticationState: Equatable, Sendable {

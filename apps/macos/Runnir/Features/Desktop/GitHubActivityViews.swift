@@ -269,6 +269,7 @@ struct WorkspaceWorkflowsView: View {
     let hub: CoreHub
     let github: GitHubSession?
     let showRun: (CoreWorkflowRun) -> Void
+    let runWorkflow: (CoreGitHubWorkflow) -> Void
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -296,6 +297,10 @@ struct WorkspaceWorkflowsView: View {
                         }
                         if let latest {
                             Button("Last run") { showRun(latest) }.buttonStyle(.link).font(.system(size: 12))
+                        }
+                        if workflow.state == "active" {
+                            Button("Run...") { runWorkflow(workflow) }.buttonStyle(.link).font(.system(size: 12))
+                                .help("Start this workflow by hand if it has a workflow_dispatch trigger")
                         }
                         if let url = workflow.htmlURL {
                             Button { openURL(url) } label: { Image(systemName: "arrow.up.right.square") }
