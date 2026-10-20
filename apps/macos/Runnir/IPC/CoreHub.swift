@@ -403,6 +403,34 @@ final class CoreHub {
         }
     }
 
+    // MARK: Editing
+
+    enum WorkflowSaveOutcome: Equatable {
+        /// Written; the digest of the file now on disk.
+        case saved(String)
+        /// The file changed on disk since it was loaded; nothing was written.
+        case conflict
+        case failed(String)
+    }
+
+    func saveWorkflowFile(workspaceID: UUID, workflowID: String, content: String, baseSHA256: String,
+                          overwrite: Bool) async -> WorkflowSaveOutcome {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else {
+            return .failed("Runnir Core is not ready. Files are saved by the Core; your changes are still in the editor.")
+        }
+        do {
+            let result = try await service.saveWorkflowFile(repositoryID: coreID, workflowID: workflowID, content: content,
+                                                            baseSHA256: baseSHA256, overwrite: overwrite)
+            return result.conflict ? .conflict : .saved(result.sha256)
+        } catch CoreServiceError.notFound {
+            return .failed("Runnir Core does not know this workflow file yet. Refresh, then save again.")
+        } catch CoreServiceError.invalidArgument(let message), CoreServiceError.failedPrecondition(let message) {
+            return .failed(Self.sentence(message))
+        } catch {
+            return .failed(Self.describe(error))
+        }
+    }
+
     // MARK: Local runs
 
     /// act, the Docker CLI and the container engine as the Core finds them;

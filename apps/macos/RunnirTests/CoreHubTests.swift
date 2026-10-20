@@ -183,6 +183,30 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         throw CoreServiceError.unavailable
     }
 
+    // MARK: Saving files
+
+    /// What the file on disk holds, by path; a save succeeds while its base
+    /// matches, like the Core.
+    var savedFiles: [String: String] = [:]
+    var saveError: CoreServiceError?
+    var saveDelay: Duration?
+    private var _saves: [(workflowID: String, content: String, overwrite: Bool)] = []
+    var saves: [(workflowID: String, content: String, overwrite: Bool)] { lock.withLock { _saves } }
+    func saveWorkflowFile(repositoryID: String, workflowID: String, content: String, baseSHA256: String,
+                          overwrite: Bool) async throws -> CoreWorkflowSave {
+        if let saveDelay { try? await Task.sleep(for: saveDelay) }
+        return try lock.withLock {
+            _saves.append((workflowID, content, overwrite))
+            if let saveError { throw saveError }
+            let current = savedFiles[workflowID] ?? ""
+            if !overwrite, WorkflowDigest.sha256(current) != baseSHA256 {
+                return CoreWorkflowSave(sha256: WorkflowDigest.sha256(current), conflict: true)
+            }
+            savedFiles[workflowID] = content
+            return CoreWorkflowSave(sha256: WorkflowDigest.sha256(content), conflict: false)
+        }
+    }
+
     // MARK: Local runs
 
     static let readyTools = CoreToolReadiness(

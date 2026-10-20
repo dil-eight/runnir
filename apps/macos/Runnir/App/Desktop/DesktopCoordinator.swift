@@ -10,10 +10,16 @@ protocol WorkspaceWindowManaging: AnyObject {
     func attach(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: any RepositoryGranting)
     func showWindow(_ sender: Any?)
     func showSwitcher()
+    /// The workflow file with edits not on disk, if any.
+    var unsavedWorkflowName: String? { get }
+    /// Saves those edits; false when they could not be saved.
+    func saveUnsavedWorkflow() async -> Bool
 }
 
 extension WorkspaceWindowManaging {
     func showSwitcher() {}
+    var unsavedWorkflowName: String? { nil }
+    func saveUnsavedWorkflow() async -> Bool { true }
 }
 
 @MainActor
@@ -35,6 +41,8 @@ final class DesktopCoordinator {
     /// Asks before quitting or closing a window stops a local run; tests
     /// replace it.
     @ObservationIgnored var confirmStoppingLocalRuns: @MainActor (LocalRunStopPrompt) -> Bool = LocalRunStopPrompt.ask
+    /// Asks before unsaved workflow edits would be lost; tests replace it.
+    @ObservationIgnored var confirmUnsavedChanges: @MainActor ([String]) -> UnsavedChoice = UnsavedChangesPrompt.ask(files:)
     let accountState = AppState()
     /// The app's connection to the single Core process; nil in tests that do not need it.
     let core: CoreHub?
@@ -147,7 +155,7 @@ final class DesktopCoordinator {
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = relinkID == nil ? "Import Repository" : "Locate Repository"
-        panel.message = "Choose a local Git working tree. Repository files will only be read."
+        panel.message = "Choose a local Git working tree. Runnir changes a workflow file in it only when you save that file."
         guard panel.runModal() == .OK, let selected = panel.url else { return }
         register(selected: selected, relinkID: relinkID, reuseWindowID: reuseWindowID)
     }
@@ -235,6 +243,21 @@ final class DesktopCoordinator {
             candidate.workspaces[index].lastOpenedAt = Date()
         }
         if let reuseWindowID, let current = windows[reuseWindowID] {
+            if current.record.workspaceID != workspace.id, let name = current.unsavedWorkflowName {
+                switch confirmUnsavedChanges([name]) {
+                case .cancel:
+                    grant.stop()
+                    return
+                case .save:
+                    grant.stop()
+                    Task {
+                        if await current.saveUnsavedWorkflow() { openRegistered(workspace, reuseWindowID: reuseWindowID) }
+                    }
+                    return
+                case .discard:
+                    break
+                }
+            }
             // Another workspace in this window closes the current one when
             // this was its last window, which stops its local run.
             if current.record.workspaceID != workspace.id, let core, let run = core.localRunEnding(withWindow: reuseWindowID),
@@ -320,6 +343,21 @@ final class DesktopCoordinator {
 
     func shouldClose(_ id: UUID) -> Bool {
         if terminationInProgress { return true }
+        if let controller = windows[id], let name = controller.unsavedWorkflowName {
+            switch confirmUnsavedChanges([name]) {
+            case .cancel:
+                return false
+            case .save:
+                // The window closes once the file is saved; a failed save
+                // keeps it open with the reason in the editor.
+                Task {
+                    if await controller.saveUnsavedWorkflow() { controller.window?.performClose(nil) }
+                }
+                return false
+            case .discard:
+                break
+            }
+        }
         // The workspace's last window closes the repository in the Core,
         // which stops its local run.
         if let core, let run = core.localRunEnding(withWindow: id),
@@ -365,6 +403,31 @@ final class DesktopCoordinator {
             }
         }
         try commit(candidate)
+    }
+
+    enum QuitDecision: Equatable {
+        case proceed, cancel, saveFirst
+    }
+
+    /// Whether quitting can go ahead with the unsaved workflow edits of all
+    /// windows: asks once for all of them.
+    func unsavedEditsQuitDecision() -> QuitDecision {
+        let names = windows.values.compactMap(\.unsavedWorkflowName).sorted()
+        guard !names.isEmpty else { return .proceed }
+        switch confirmUnsavedChanges(names) {
+        case .save: return .saveFirst
+        case .discard: return .proceed
+        case .cancel: return .cancel
+        }
+    }
+
+    /// Saves every window's unsaved edits; false when any could not be saved.
+    func saveAllUnsavedWorkflows() async -> Bool {
+        var saved = true
+        for controller in windows.values where controller.unsavedWorkflowName != nil {
+            if !(await controller.saveUnsavedWorkflow()) { saved = false }
+        }
+        return saved
     }
 
     /// Quitting stops the Core and with it every local run; asks first.
@@ -475,15 +538,21 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
     required init?(coder: NSCoder) { nil }
 
     func attach(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: any RepositoryGranting) {
+        // The same workspace with renewed folder access (Locate) keeps the
+        // editor and any edits in it; another workspace starts fresh.
+        let keptFiles = record.workspaceID == self.record.workspaceID ? state?.files : nil
         self.grant?.stop()
         self.grant = grant
         self.record = record
-        installContent(workspace)
+        installContent(workspace, files: keptFiles)
     }
 
-    private func installContent(_ workspace: WorkspaceRecord) {
+    /// The window's editor, for tests.
+    var files: WorkspaceFilesModel? { state?.files }
+
+    private func installContent(_ workspace: WorkspaceRecord, files: WorkspaceFilesModel? = nil) {
         let frame = window?.frame
-        let state = AppState()
+        let state = files.map { AppState(files: $0) } ?? AppState()
         self.state = state
         state.selectedSection = record.section.restored
         window?.title = workspace.name + " - Runnir"
@@ -496,6 +565,19 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
     func showSwitcher() {
         window?.makeKeyAndOrderFront(nil)
         state?.showingSwitcher = true
+    }
+
+    var unsavedWorkflowName: String? {
+        guard let files = state?.files, files.isDirty else { return nil }
+        return files.selected?.name
+    }
+
+    func saveUnsavedWorkflow() async -> Bool {
+        guard let files = state?.files else { return true }
+        guard let core = desktop.core else { return false }
+        let saved = await files.save(hub: core, workspaceID: record.workspaceID)
+        if saved { await files.validate(hub: core, workspaceID: record.workspaceID) }
+        return saved
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool { desktop.shouldClose(record.id) }
@@ -555,7 +637,22 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard desktop.confirmQuitStopsLocalRuns() else { return .terminateCancel }
-        return desktop.prepareToQuit() ? .terminateNow : .terminateCancel
+        switch desktop.unsavedEditsQuitDecision() {
+        case .cancel:
+            return .terminateCancel
+        case .proceed:
+            return finishTermination() ? .terminateNow : .terminateCancel
+        case .saveFirst:
+            // Saving goes through the Core; quit waits for it.
+            Task { @MainActor in
+                let saved = await desktop.saveAllUnsavedWorkflows()
+                sender.reply(toApplicationShouldTerminate: saved && finishTermination())
+            }
+            return .terminateLater
+        }
+    }
+
+    private func finishTermination() -> Bool {
+        desktop.confirmQuitStopsLocalRuns() && desktop.prepareToQuit()
     }
 }

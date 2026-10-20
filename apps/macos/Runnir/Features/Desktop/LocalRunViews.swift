@@ -171,6 +171,8 @@ struct EngineSetupButton: View {
 struct LocalRunSheet: View {
     @Bindable var model: LocalRunReviewModel
     let repositoryPath: String
+    /// The workflow's name when the editor holds changes that are not saved.
+    var unsavedFile: String?
     let onStarted: (LocalRunModel) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -182,6 +184,10 @@ struct LocalRunSheet: View {
                 VStack(alignment: .leading, spacing: 22) {
                     if let error = model.error {
                         Label(error, systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(RunnirTheme.warning)
+                    }
+                    if let unsavedFile {
+                        Label("\(unsavedFile) has unsaved changes. act runs the file as it is saved on disk.", systemImage: "pencil")
+                            .font(.system(size: 12)).foregroundStyle(RunnirTheme.warning)
                     }
                     tools
                     compatibility

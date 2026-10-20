@@ -144,6 +144,22 @@ struct GRPCCoreService: CoreServicing {
         return CoreExecution(id: response.executionID, repositoryID: response.repositoryID, state: Self.map(response.state))
     }
 
+    func saveWorkflowFile(repositoryID: String, workflowID: String, content: String, baseSHA256: String,
+                          overwrite: Bool) async throws -> CoreWorkflowSave {
+        var options = Self.options(Self.callTimeout)
+        options.maxRequestMessageBytes = 4 << 20
+        let response = try await call {
+            try await client.saveWorkflowFile(.with {
+                $0.repositoryID = repositoryID
+                $0.workflowID = workflowID
+                $0.content = content
+                $0.baseSha256 = baseSHA256
+                $0.overwrite = overwrite
+            }, options: options)
+        }
+        return CoreWorkflowSave(sha256: response.sha256, conflict: response.conflict)
+    }
+
     func setGitHubCredential(_ token: String?) async throws {
         if let token {
             _ = try await call { try await client.setGitHubCredential(.with { $0.token = token }, options: Self.options(Self.callTimeout)) }

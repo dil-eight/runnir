@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -41,6 +42,8 @@ type service struct {
 	// actions, kept between runs.
 	home     string
 	actCache string
+	// saveMu serializes workflow file saves.
+	saveMu sync.Mutex
 }
 
 func (s *service) HealthCheck(context.Context, *corev1.HealthCheckRequest) (*corev1.HealthCheckResponse, error) {

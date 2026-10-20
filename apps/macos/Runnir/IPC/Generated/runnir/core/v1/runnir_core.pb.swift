@@ -2370,6 +2370,47 @@ nonisolated struct Runnir_Core_V1_CancelExecutionResponse: Sendable {
   init() {}
 }
 
+nonisolated struct Runnir_Core_V1_SaveWorkflowFileRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var repositoryID: String = String()
+
+  /// Path relative to the repository root, as in Workflow.id.
+  var workflowID: String = String()
+
+  /// The whole new file, UTF-8, at most 1 MiB.
+  var content: String = String()
+
+  /// SHA-256 (hex) of the file as the editor loaded it.
+  var baseSha256: String = String()
+
+  /// Replace the file even though it changed since it was loaded.
+  var overwrite: Bool = false
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_SaveWorkflowFileResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// SHA-256 (hex) of the file now on disk.
+  var sha256: String = String()
+
+  /// The file changed since it was loaded and was left as it is; sha256 is
+  /// then the digest of that version.
+  var conflict: Bool = false
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
 fileprivate nonisolated let _protobuf_package = "runnir.core.v1"
@@ -5683,6 +5724,91 @@ nonisolated extension Runnir_Core_V1_CancelExecutionResponse: SwiftProtobuf.Mess
   }
 
   static func ==(lhs: Runnir_Core_V1_CancelExecutionResponse, rhs: Runnir_Core_V1_CancelExecutionResponse) -> Bool {
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_SaveWorkflowFileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".SaveWorkflowFileRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}workflow_id\0\u{1}content\0\u{3}base_sha256\0\u{1}overwrite\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.repositoryID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.workflowID) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.content) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.baseSha256) }()
+      case 5: try { try decoder.decodeSingularBoolField(value: &self.overwrite) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.repositoryID.isEmpty {
+      try visitor.visitSingularStringField(value: self.repositoryID, fieldNumber: 1)
+    }
+    if !self.workflowID.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowID, fieldNumber: 2)
+    }
+    if !self.content.isEmpty {
+      try visitor.visitSingularStringField(value: self.content, fieldNumber: 3)
+    }
+    if !self.baseSha256.isEmpty {
+      try visitor.visitSingularStringField(value: self.baseSha256, fieldNumber: 4)
+    }
+    if self.overwrite != false {
+      try visitor.visitSingularBoolField(value: self.overwrite, fieldNumber: 5)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_SaveWorkflowFileRequest, rhs: Runnir_Core_V1_SaveWorkflowFileRequest) -> Bool {
+    if lhs.repositoryID != rhs.repositoryID {return false}
+    if lhs.workflowID != rhs.workflowID {return false}
+    if lhs.content != rhs.content {return false}
+    if lhs.baseSha256 != rhs.baseSha256 {return false}
+    if lhs.overwrite != rhs.overwrite {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_SaveWorkflowFileResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".SaveWorkflowFileResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}sha256\0\u{1}conflict\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.sha256) }()
+      case 2: try { try decoder.decodeSingularBoolField(value: &self.conflict) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.sha256.isEmpty {
+      try visitor.visitSingularStringField(value: self.sha256, fieldNumber: 1)
+    }
+    if self.conflict != false {
+      try visitor.visitSingularBoolField(value: self.conflict, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_SaveWorkflowFileResponse, rhs: Runnir_Core_V1_SaveWorkflowFileResponse) -> Bool {
+    if lhs.sha256 != rhs.sha256 {return false}
+    if lhs.conflict != rhs.conflict {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

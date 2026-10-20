@@ -67,11 +67,14 @@ enum RunnirColorToken: String, CaseIterable, Sendable {
         return (isDark ? palette.dark : palette.light).nsColor
     }
 
-    var color: Color {
-        Color(nsColor: NSColor(name: NSColor.Name("runnir.\(rawValue)")) { appearance in
+    /// Follows the view's light or dark appearance, for AppKit views.
+    var nsColor: NSColor {
+        NSColor(name: NSColor.Name("runnir.\(rawValue)")) { appearance in
             resolved(for: appearance)
-        })
+        }
     }
+
+    var color: Color { Color(nsColor: nsColor) }
 }
 
 enum RunnirTheme {
