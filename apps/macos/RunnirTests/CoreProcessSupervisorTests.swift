@@ -40,6 +40,7 @@ private struct FakeService: CoreServicing {
     func closeRepository(id: String) async throws { throw CoreServiceError.unavailable }
     func listWorkflows(repositoryID: String) async throws -> [CoreWorkflow] { throw CoreServiceError.unavailable }
     func startWorkflow(repositoryID: String, workflowID: String, ref: String?) async throws -> CoreExecution { throw CoreServiceError.unavailable }
+    func validateWorkflows(repositoryID: String, workflowID: String?) async throws -> CoreValidationReport { throw CoreServiceError.unavailable }
     func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error> {
         AsyncThrowingStream { $0.finish(throwing: CoreServiceError.unavailable) }
     }
@@ -458,7 +459,7 @@ struct ProcessCoreLauncherTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let helper = directory.appendingPathComponent("fake-core")
-        try "#!/bin/sh\nread secret\necho \"run $RUN failed\" >&2\n".write(to: helper, atomically: true, encoding: .utf8)
+        try "#!/bin/sh\nread secret\necho \"run failed, tmp=$TMPDIR\" >&2\n".write(to: helper, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
         let log = directory.appendingPathComponent("Logs/core.log")
         let launcher = ProcessCoreLauncher(executableURL: helper, logURL: log)
@@ -470,6 +471,7 @@ struct ProcessCoreLauncherTests {
         let current = try String(contentsOf: log, encoding: .utf8)
         let previous = try String(contentsOf: directory.appendingPathComponent("Logs/core.previous.log"), encoding: .utf8)
         #expect(current.contains("failed") && previous.contains("failed"))
+        #expect(current.contains("tmp=" + FileManager.default.temporaryDirectory.path), "the Core gets the app's temporary directory")
         #expect(!current.contains(String(repeating: "a", count: 64)), "the secret never reaches the log")
     }
 

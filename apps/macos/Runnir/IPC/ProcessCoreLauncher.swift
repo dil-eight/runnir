@@ -16,7 +16,9 @@ struct ProcessCoreLauncher: CoreProcessLaunching {
         let stdin = Pipe()
         process.executableURL = executableURL
         process.arguments = ["serve", "--socket", socketPath, "--exit-on-stdin-eof", "--client-secret-stdin"]
-        process.environment = ["LANG": "C"]
+        // TMPDIR is the app's own temporary directory (inside the container
+        // when sandboxed); without it Go would use /tmp, which the sandbox denies.
+        process.environment = ["LANG": "C", "TMPDIR": FileManager.default.temporaryDirectory.path]
         process.currentDirectoryURL = executableURL.deletingLastPathComponent()
         process.standardInput = stdin
         process.standardOutput = FileHandle.nullDevice

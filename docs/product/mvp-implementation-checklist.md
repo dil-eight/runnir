@@ -21,6 +21,7 @@ What exists in code, with tests, against the backlog below. A row stays unaccept
 | --- | --- | --- |
 | B01 | Import, bookmarks (stale refreshed), scoped reads, Locate/relink | Signed sandbox build check of the folder grant |
 | B02 | Discovery and bounded parsing in the Core (both extensions, limits, worktrees, no evaluation) | Signed-build check |
+| B03 | actionlint as a library in the Core, no external process; diagnostics with file, line and column in the Workspace section; repository config honored; reads bounded and kept inside the repository | Shellcheck and pyflakes checks (off by design for now); signed-build check |
 | B05 | Device Flow with the registered app; no secret; token only in Keychain and Core memory | Rate-limit scheduling review |
 | B06 | Restore, sign-out, revoked token, offline launch with retry; real sign-in confirmed by hand | Keychain denial on a signed build |
 | B07 | Workspace linked to its GitHub repository through `origin`; access check through the Core | Account-wide browsing and search (if kept in scope) |
@@ -30,7 +31,7 @@ What exists in code, with tests, against the backlog below. A row stays unaccept
 | B12 | Last 2 MiB / 50,000 lines of a job log, step matching, search, expired and not-ready states | Controlled real logs |
 | B13 | Cancel, re-run all, re-run failed jobs with single-use confirmation; GitHub refusals shown | Controlled real operations |
 
-Not started: B03, B04, B08, B14–B16, B18–B29 beyond the existing window and session foundation.
+Not started: B04, B08, B14–B16, B18–B29 beyond the existing window and session foundation.
 
 ## Prioritized Backlog
 

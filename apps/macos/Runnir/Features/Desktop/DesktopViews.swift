@@ -229,6 +229,53 @@ final class WorkspaceFilesModel {
     var error: String?
     private var sourceTask: Task<Void, Never>?
 
+    /// The last actionlint report from the Core, for every workflow file.
+    private(set) var validation: CoreValidationReport?
+    private(set) var validationError: String?
+    private(set) var isValidating = false
+    /// A line chosen from the diagnostics, highlighted in the source.
+    private(set) var highlightedLine: Int?
+    /// Changes on every choice, so choosing the same line again scrolls back to it.
+    private(set) var revealCount = 0
+
+    func reveal(line: Int) {
+        guard line > 0 else { return }
+        highlightedLine = line
+        revealCount += 1
+    }
+    /// A check was asked for while one was running (after a Refresh, say);
+    /// it runs once more, so the report matches the files on disk.
+    private var validationPending = false
+
+    func validate(hub: CoreHub, workspaceID: UUID) async {
+        guard !isValidating else {
+            validationPending = true
+            return
+        }
+        isValidating = true
+        defer { isValidating = false }
+        repeat {
+            validationPending = false
+            switch await hub.validateWorkflows(workspaceID: workspaceID) {
+            case .report(let report):
+                validation = report
+                validationError = nil
+            case .failed(let message):
+                validationError = message
+            }
+        } while validationPending
+    }
+
+    func validation(for file: LocalWorkflowFile) -> CoreWorkflowValidation? {
+        validation?.validation(for: file.relativePath)
+    }
+
+    /// Problems found in a file, nil while it has not been checked.
+    func problemCount(for file: LocalWorkflowFile) -> Int? {
+        guard let result = validation(for: file) else { return nil }
+        return result.diagnostics.count + (result.problem == nil ? 0 : 1)
+    }
+
     func load(_ reader: RepositoryReader) async {
         guard !isLoading else { return }
         isLoading = true
@@ -242,6 +289,7 @@ final class WorkspaceFilesModel {
     }
 
     func select(_ file: LocalWorkflowFile, reader: RepositoryReader) {
+        if selected != file { highlightedLine = nil }
         selected = file
         source = ""
         sourceTask?.cancel()
@@ -316,6 +364,21 @@ struct DesktopWorkspaceView: View {
 
     private var session: RepositorySession? { desktop.core?.session(for: workspace.id) }
 
+    private var canValidate: Bool { desktop.core != nil && session?.phase == .ready }
+
+    /// Checks the files on disk and reloads the ones shown, so diagnostics
+    /// and the source on screen describe the same content.
+    private func validateWorkflows() {
+        guard let hub = desktop.core else { return }
+        if let reader { Task { await files.load(reader) } }
+        Task { await files.validate(hub: hub, workspaceID: workspace.id) }
+    }
+
+    private func menuTitle(_ file: LocalWorkflowFile) -> String {
+        guard let count = files.problemCount(for: file), count > 0 else { return file.name }
+        return "\(file.name)  ·  \(count) \(count == 1 ? "problem" : "problems")"
+    }
+
     private var runWorkflowHelp: String {
         if session?.githubRepository == nil { return "This working tree has no GitHub remote" }
         if desktop.github?.user == nil { return "Connect GitHub to run workflows" }
@@ -359,7 +422,7 @@ struct DesktopWorkspaceView: View {
             if state.selectedSection == .workspace {
                 Menu {
                     ForEach(files.files) { file in
-                        Button(file.name) { if let reader { files.select(file, reader: reader) } }
+                        Button(menuTitle(file)) { if let reader { files.select(file, reader: reader) } }
                     }
                 } label: {
                     HStack(spacing: 6) {
@@ -375,7 +438,9 @@ struct DesktopWorkspaceView: View {
             Spacer(minLength: 4)
             if state.selectedSection == .workspace {
                 Button("Save") {}.disabled(true).help("Workflow editing is not implemented")
-                Button("Validate") {}.disabled(true).help("actionlint integration is not implemented")
+                Button(files.isValidating ? "Validating..." : "Validate") { validateWorkflows() }
+                    .disabled(!canValidate || files.isValidating)
+                    .help(canValidate ? "Check every workflow file with actionlint, offline" : "Validation runs in Runnir Core, which has not opened this repository yet")
                 Button {} label: { Label("Test Locally...", systemImage: "flask") }
                     .buttonStyle(DesignButtonStyle(primary: true)).disabled(true).help("Local execution is not implemented")
             } else {
@@ -384,7 +449,11 @@ struct DesktopWorkspaceView: View {
                     .lineLimit(1).help(coreDetail)
                 Button("Refresh") {
                     if let reader { Task { await files.load(reader) } }
-                    Task { await desktop.core?.refresh(workspaceID: workspace.id) }
+                    Task {
+                        await desktop.core?.refresh(workspaceID: workspace.id)
+                        // Keep diagnostics in step with the files on disk.
+                        if files.validation != nil { validateWorkflows() }
+                    }
                 }
                 .disabled(reader == nil || files.isLoading || session?.isRefreshing == true).help("Refresh local workflows")
                 Button { state.runWorkflowRequest = RunWorkflowRequest(workflowID: nil) } label: { Label("Run Workflow...", systemImage: "play") }
@@ -464,7 +533,11 @@ struct DesktopWorkspaceView: View {
         case .dashboard, .repositories, .artifacts:
             overview
         case .workspace:
-            LocalWorkflowBrowser(model: files)
+            LocalWorkflowBrowser(model: files, canValidate: canValidate, validate: validateWorkflows)
+                .task(id: canValidate) {
+                    // The first visit checks the files; later ones keep the last report.
+                    if canValidate, files.validation == nil, files.validationError == nil { validateWorkflows() }
+                }
         case .workflows:
             if let session, let hub = desktop.core {
                 WorkspaceWorkflowsView(session: session, hub: hub, github: desktop.github, showRun: { run in
@@ -556,6 +629,8 @@ struct DesktopWorkspaceView: View {
 
 private struct LocalWorkflowBrowser: View {
     @Bindable var model: WorkspaceFilesModel
+    let canValidate: Bool
+    let validate: () -> Void
 
     var body: some View {
         HSplitView {
@@ -577,48 +652,156 @@ private struct LocalWorkflowBrowser: View {
                             }
                             Spacer(minLength: 0)
                         }.padding(14).background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
-                        VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 12) {
                             HStack(spacing: 22) {
-                                Text("Diagnostics").foregroundStyle(RunnirTheme.foreground)
+                                Text(diagnosticsTitle).foregroundStyle(RunnirTheme.foreground)
                                 Text("Local test").foregroundStyle(RunnirTheme.secondaryForeground)
                                 Text("Suggestions · later").foregroundStyle(RunnirTheme.mutedForeground)
                             }.font(.system(size: 13)).padding(.horizontal, 12)
                             DesignDivider()
-                            Text("Validation has not been run. actionlint is not connected.")
-                                .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(.horizontal, 12)
+                            DiagnosticsPanel(model: model, canValidate: canValidate, validate: validate).padding(.horizontal, 12)
                         }
                     }.padding(.horizontal, 24).padding(.vertical, 20)
                 }.frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private var diagnosticsTitle: String {
+        guard let file = model.selected, let count = model.problemCount(for: file), count > 0 else { return "Diagnostics" }
+        return "Diagnostics  \(count)"
+    }
+
     private var sourcePanel: some View {
-        VStack(spacing: 0) {
+        let flagged = Set(model.selected.flatMap { model.validation(for: $0)?.diagnostics.map(\.line) } ?? [])
+        return VStack(spacing: 0) {
                 if let error = model.error {
                     Label(error, systemImage: "exclamationmark.triangle").font(.system(size: 12)).padding(20)
                 } else if model.selected == nil {
                     UnavailableFeature(title: "No workflows", detail: "No YAML files in .github/workflows.", symbol: "doc.text").padding(20)
                 } else {
-                    ScrollView(.vertical) {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(model.sourceLayout.lines.indices, id: \.self) { index in
-                                let line = model.sourceLayout.lines[index]
-                                HStack(alignment: .top, spacing: 14) {
-                                    Text("\(index + 1)").foregroundStyle(RunnirTheme.mutedForeground)
-                                        .lineLimit(1).frame(width: model.sourceLayout.gutterWidth, alignment: .trailing).accessibilityHidden(true)
-                                    Text(line.isEmpty ? AttributedString(" ") : model.sourceLayout.highlightedLines[index])
-                                        .foregroundStyle(RunnirTheme.foreground).textSelection(.enabled)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }.font(.system(size: 12, design: .monospaced)).lineSpacing(3)
-                                    .frame(minHeight: 20, alignment: .top)
-                                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12)
-                            }
-                        }.padding(.vertical, 8)
-                    }.scrollIndicators(.visible)
+                    ScrollViewReader { proxy in
+                        ScrollView(.vertical) {
+                            LazyVStack(alignment: .leading, spacing: 0) {
+                                ForEach(model.sourceLayout.lines.indices, id: \.self) { index in
+                                    let line = model.sourceLayout.lines[index]
+                                    let number = index + 1
+                                    HStack(alignment: .top, spacing: 14) {
+                                        Text("\(number)").foregroundStyle(flagged.contains(number) ? RunnirTheme.destructive : RunnirTheme.mutedForeground)
+                                            .lineLimit(1).frame(width: model.sourceLayout.gutterWidth, alignment: .trailing).accessibilityHidden(true)
+                                        Text(line.isEmpty ? AttributedString(" ") : model.sourceLayout.highlightedLines[index])
+                                            .foregroundStyle(RunnirTheme.foreground).textSelection(.enabled)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }.font(.system(size: 12, design: .monospaced)).lineSpacing(3)
+                                        .frame(minHeight: 20, alignment: .top)
+                                        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12)
+                                        .background(number == model.highlightedLine ? RunnirTheme.destructive.opacity(0.14)
+                                                    : flagged.contains(number) ? RunnirTheme.destructive.opacity(0.06) : .clear)
+                                        .id(number)
+                                }
+                            }.padding(.vertical, 8)
+                        }.scrollIndicators(.visible)
+                        .onChange(of: model.revealCount) {
+                            if let line = model.highlightedLine { withAnimation { proxy.scrollTo(line, anchor: .center) } }
+                        }
+                    }
                 }
                 Spacer(minLength: 0)
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).background(RunnirTheme.editor)
+    }
+}
+
+/// actionlint findings for the selected workflow file, from the Core.
+private struct DiagnosticsPanel: View {
+    @Bindable var model: WorkspaceFilesModel
+    let canValidate: Bool
+    let validate: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let problem = model.validation?.configProblem {
+                Label("The repository's actionlint config was not used: \(problem)", systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.warning).fixedSize(horizontal: false, vertical: true)
+            }
+            content
+        }
+    }
+
+    @ViewBuilder private var content: some View {
+        if model.isValidating && model.validation == nil {
+            HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Checking with actionlint...") }
+                .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+        } else if let message = model.validationError, model.validation == nil {
+            note(message, symbol: "exclamationmark.triangle", tint: RunnirTheme.warning, action: canValidate ? "Try Again" : nil)
+        } else if model.validation == nil {
+            note(canValidate ? "Not checked yet." : "Validation runs in Runnir Core once it has opened this repository.",
+                 symbol: "checklist", tint: RunnirTheme.secondaryForeground, action: canValidate ? "Validate" : nil)
+        } else if let file = model.selected, let result = model.validation(for: file) {
+            if let problem = result.problem {
+                note("Not checked: \(problem).", symbol: "exclamationmark.triangle", tint: RunnirTheme.warning, action: nil)
+            } else if result.diagnostics.isEmpty {
+                note("No problems found by \(model.validation?.validator ?? "actionlint").", symbol: "checkmark.circle",
+                     tint: RunnirTheme.success, action: nil)
+            } else {
+                ForEach(Array(result.diagnostics.enumerated()), id: \.offset) { _, diagnostic in
+                    DiagnosticRow(diagnostic: diagnostic, file: file, selected: diagnostic.line == model.highlightedLine) {
+                        model.reveal(line: diagnostic.line)
+                    }
+                }
+                if result.truncated {
+                    Text("Only the first \(result.diagnostics.count) problems are shown.")
+                        .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                }
+            }
+            if let error = model.validationError {
+                Label("The last check failed: \(error)", systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.warning)
+            }
+        } else {
+            note("This file was not part of the last check. Validate again.", symbol: "clock.arrow.circlepath",
+                 tint: RunnirTheme.secondaryForeground, action: canValidate ? "Validate" : nil)
+        }
+    }
+
+    private func note(_ text: String, symbol: String, tint: Color, action: String?) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: symbol).foregroundStyle(tint)
+            Text(text).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            if let action { Button(action, action: validate).buttonStyle(.link).font(.system(size: 12)) }
+        }
+    }
+}
+
+private struct DiagnosticRow: View {
+    let diagnostic: CoreWorkflowDiagnostic
+    let file: LocalWorkflowFile
+    let selected: Bool
+    let reveal: () -> Void
+
+    var body: some View {
+        Button(action: reveal) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "xmark.octagon.fill").foregroundStyle(RunnirTheme.destructive).font(.system(size: 12))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(diagnostic.message).font(.system(size: 12)).foregroundStyle(RunnirTheme.foreground)
+                        .fixedSize(horizontal: false, vertical: true).multilineTextAlignment(.leading)
+                    Text(position + " · " + diagnostic.kind).font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(RunnirTheme.secondaryForeground)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 5).padding(.horizontal, 6).contentShape(Rectangle())
+            .background(selected ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .help(diagnostic.line > 0 ? "Show line \(diagnostic.line) in the source" : "actionlint gave no position")
+        .accessibilityLabel("\(diagnostic.message), \(position)")
+    }
+
+    private var position: String {
+        diagnostic.line > 0 ? "\(file.name):\(diagnostic.line):\(diagnostic.column)" : file.name
     }
 }
 

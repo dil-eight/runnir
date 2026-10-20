@@ -90,6 +90,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "ValidateWorkflows" metadata.
+        internal enum ValidateWorkflows: Sendable {
+            /// Request type for "ValidateWorkflows".
+            internal typealias Input = Runnir_Core_V1_ValidateWorkflowsRequest
+            /// Response type for "ValidateWorkflows".
+            internal typealias Output = Runnir_Core_V1_ValidateWorkflowsResponse
+            /// Descriptor for "ValidateWorkflows".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ValidateWorkflows",
+                type: .unary
+            )
+        }
         /// Namespace for "StartWorkflow" metadata.
         internal enum StartWorkflow: Sendable {
             /// Request type for "StartWorkflow".
@@ -292,6 +305,7 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             CloseRepository.descriptor,
             RefreshRepository.descriptor,
             ListWorkflows.descriptor,
+            ValidateWorkflows.descriptor,
             StartWorkflow.descriptor,
             SubscribeEvents.descriptor,
             SetGitHubCredential.descriptor,
@@ -406,6 +420,25 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListWorkflowsRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListWorkflowsResponse>
+
+        /// Handle the "ValidateWorkflows" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Checks the workflow files on disk now with actionlint, built into the
+        /// > Core; no external program runs and nothing is sent anywhere.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ValidateWorkflowsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ValidateWorkflowsResponse` messages.
+        func validateWorkflows(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ValidateWorkflowsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ValidateWorkflowsResponse>
 
         /// Handle the "StartWorkflow" method.
         ///
@@ -746,6 +779,25 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListWorkflowsResponse>
 
+        /// Handle the "ValidateWorkflows" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Checks the workflow files on disk now with actionlint, built into the
+        /// > Core; no external program runs and nothing is sent anywhere.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ValidateWorkflowsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ValidateWorkflowsResponse` message.
+        func validateWorkflows(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ValidateWorkflowsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ValidateWorkflowsResponse>
+
         /// Handle the "StartWorkflow" method.
         ///
         /// > Source IDL Documentation:
@@ -1083,6 +1135,25 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_ListWorkflowsResponse
 
+        /// Handle the "ValidateWorkflows" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Checks the workflow files on disk now with actionlint, built into the
+        /// > Core; no external program runs and nothing is sent anywhere.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ValidateWorkflowsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ValidateWorkflowsResponse` to respond with.
+        func validateWorkflows(
+            request: Runnir_Core_V1_ValidateWorkflowsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ValidateWorkflowsResponse
+
         /// Handle the "StartWorkflow" method.
         ///
         /// > Source IDL Documentation:
@@ -1402,6 +1473,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ValidateWorkflows.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ValidateWorkflowsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ValidateWorkflowsResponse>(),
+            handler: { request, context in
+                try await self.validateWorkflows(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.StartWorkflow.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_StartWorkflowRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ExecutionResponse>(),
@@ -1621,6 +1703,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListWorkflowsResponse> {
         let response = try await self.listWorkflows(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func validateWorkflows(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ValidateWorkflowsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ValidateWorkflowsResponse> {
+        let response = try await self.validateWorkflows(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -1854,6 +1947,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListWorkflowsResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_ListWorkflowsResponse>(
             message: try await self.listWorkflows(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func validateWorkflows(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ValidateWorkflowsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ValidateWorkflowsResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ValidateWorkflowsResponse>(
+            message: try await self.validateWorkflows(
                 request: request.message,
                 context: context
             ),
@@ -2167,6 +2273,30 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListWorkflowsResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListWorkflowsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ValidateWorkflows" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Checks the workflow files on disk now with actionlint, built into the
+        /// > Core; no external program runs and nothing is sent anywhere.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ValidateWorkflowsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ValidateWorkflowsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ValidateWorkflowsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func validateWorkflows<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ValidateWorkflowsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ValidateWorkflowsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ValidateWorkflowsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ValidateWorkflowsResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "StartWorkflow" method.
@@ -2664,6 +2794,41 @@ extension Runnir_Core_V1_RunnirCore {
             try await self.client.unary(
                 request: request,
                 descriptor: Runnir_Core_V1_RunnirCore.Method.ListWorkflows.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ValidateWorkflows" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Checks the workflow files on disk now with actionlint, built into the
+        /// > Core; no external program runs and nothing is sent anywhere.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ValidateWorkflowsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ValidateWorkflowsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ValidateWorkflowsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func validateWorkflows<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ValidateWorkflowsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ValidateWorkflowsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ValidateWorkflowsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ValidateWorkflowsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ValidateWorkflows.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -3299,6 +3464,36 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "ValidateWorkflows" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Checks the workflow files on disk now with actionlint, built into the
+    /// > Core; no external program runs and nothing is sent anywhere.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ValidateWorkflowsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func validateWorkflows<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ValidateWorkflowsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ValidateWorkflowsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.validateWorkflows(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ValidateWorkflowsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ValidateWorkflowsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "StartWorkflow" method.
     ///
     /// > Source IDL Documentation:
@@ -3865,6 +4060,40 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.listWorkflows(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ValidateWorkflows" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Checks the workflow files on disk now with actionlint, built into the
+    /// > Core; no external program runs and nothing is sent anywhere.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func validateWorkflows<Result>(
+        _ message: Runnir_Core_V1_ValidateWorkflowsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ValidateWorkflowsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ValidateWorkflowsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.validateWorkflows(
             request: request,
             options: options,
             onResponse: handleResponse

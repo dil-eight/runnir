@@ -110,6 +110,29 @@ struct GRPCCoreService: CoreServicing {
         }
     }
 
+    func validateWorkflows(repositoryID: String, workflowID: String?) async throws -> CoreValidationReport {
+        let response = try await call {
+            try await client.validateWorkflows(.with {
+                $0.repositoryID = repositoryID
+                $0.workflowID = workflowID ?? ""
+            }, options: Self.options(Self.callTimeout))
+        }
+        return CoreValidationReport(
+            workflows: response.workflows.map { workflow in
+                CoreWorkflowValidation(
+                    workflowID: workflow.workflowID,
+                    diagnostics: workflow.diagnostics.map {
+                        CoreWorkflowDiagnostic(line: Int($0.line), column: Int($0.column), kind: $0.kind, message: $0.message)
+                    },
+                    problem: workflow.problem.isEmpty ? nil : workflow.problem,
+                    truncated: workflow.truncated
+                )
+            },
+            validator: response.validator,
+            configProblem: response.configProblem.isEmpty ? nil : response.configProblem
+        )
+    }
+
     func startWorkflow(repositoryID: String, workflowID: String, ref: String?) async throws -> CoreExecution {
         let response = try await call {
             try await client.startWorkflow(.with {

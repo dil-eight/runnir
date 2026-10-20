@@ -29,6 +29,7 @@ const (
 	RunnirCore_CloseRepository_FullMethodName          = "/runnir.core.v1.RunnirCore/CloseRepository"
 	RunnirCore_RefreshRepository_FullMethodName        = "/runnir.core.v1.RunnirCore/RefreshRepository"
 	RunnirCore_ListWorkflows_FullMethodName            = "/runnir.core.v1.RunnirCore/ListWorkflows"
+	RunnirCore_ValidateWorkflows_FullMethodName        = "/runnir.core.v1.RunnirCore/ValidateWorkflows"
 	RunnirCore_StartWorkflow_FullMethodName            = "/runnir.core.v1.RunnirCore/StartWorkflow"
 	RunnirCore_SubscribeEvents_FullMethodName          = "/runnir.core.v1.RunnirCore/SubscribeEvents"
 	RunnirCore_SetGitHubCredential_FullMethodName      = "/runnir.core.v1.RunnirCore/SetGitHubCredential"
@@ -56,6 +57,9 @@ type RunnirCoreClient interface {
 	CloseRepository(ctx context.Context, in *CloseRepositoryRequest, opts ...grpc.CallOption) (*CloseRepositoryResponse, error)
 	RefreshRepository(ctx context.Context, in *RefreshRepositoryRequest, opts ...grpc.CallOption) (*RepositoryResponse, error)
 	ListWorkflows(ctx context.Context, in *ListWorkflowsRequest, opts ...grpc.CallOption) (*ListWorkflowsResponse, error)
+	// Checks the workflow files on disk now with actionlint, built into the
+	// Core; no external program runs and nothing is sent anywhere.
+	ValidateWorkflows(ctx context.Context, in *ValidateWorkflowsRequest, opts ...grpc.CallOption) (*ValidateWorkflowsResponse, error)
 	// Interface only in the MVP: no real GitHub Actions engine yet.
 	StartWorkflow(ctx context.Context, in *StartWorkflowRequest, opts ...grpc.CallOption) (*ExecutionResponse, error)
 	SubscribeEvents(ctx context.Context, in *SubscribeEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CoreEvent], error)
@@ -144,6 +148,16 @@ func (c *runnirCoreClient) ListWorkflows(ctx context.Context, in *ListWorkflowsR
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListWorkflowsResponse)
 	err := c.cc.Invoke(ctx, RunnirCore_ListWorkflows_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) ValidateWorkflows(ctx context.Context, in *ValidateWorkflowsRequest, opts ...grpc.CallOption) (*ValidateWorkflowsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ValidateWorkflowsResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ValidateWorkflows_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -319,6 +333,9 @@ type RunnirCoreServer interface {
 	CloseRepository(context.Context, *CloseRepositoryRequest) (*CloseRepositoryResponse, error)
 	RefreshRepository(context.Context, *RefreshRepositoryRequest) (*RepositoryResponse, error)
 	ListWorkflows(context.Context, *ListWorkflowsRequest) (*ListWorkflowsResponse, error)
+	// Checks the workflow files on disk now with actionlint, built into the
+	// Core; no external program runs and nothing is sent anywhere.
+	ValidateWorkflows(context.Context, *ValidateWorkflowsRequest) (*ValidateWorkflowsResponse, error)
 	// Interface only in the MVP: no real GitHub Actions engine yet.
 	StartWorkflow(context.Context, *StartWorkflowRequest) (*ExecutionResponse, error)
 	SubscribeEvents(*SubscribeEventsRequest, grpc.ServerStreamingServer[CoreEvent]) error
@@ -377,6 +394,9 @@ func (UnimplementedRunnirCoreServer) RefreshRepository(context.Context, *Refresh
 }
 func (UnimplementedRunnirCoreServer) ListWorkflows(context.Context, *ListWorkflowsRequest) (*ListWorkflowsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListWorkflows not implemented")
+}
+func (UnimplementedRunnirCoreServer) ValidateWorkflows(context.Context, *ValidateWorkflowsRequest) (*ValidateWorkflowsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ValidateWorkflows not implemented")
 }
 func (UnimplementedRunnirCoreServer) StartWorkflow(context.Context, *StartWorkflowRequest) (*ExecutionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method StartWorkflow not implemented")
@@ -530,6 +550,24 @@ func _RunnirCore_ListWorkflows_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnirCoreServer).ListWorkflows(ctx, req.(*ListWorkflowsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_ValidateWorkflows_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateWorkflowsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ValidateWorkflows(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ValidateWorkflows_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ValidateWorkflows(ctx, req.(*ValidateWorkflowsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -823,6 +861,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListWorkflows",
 			Handler:    _RunnirCore_ListWorkflows_Handler,
+		},
+		{
+			MethodName: "ValidateWorkflows",
+			Handler:    _RunnirCore_ValidateWorkflows_Handler,
 		},
 		{
 			MethodName: "StartWorkflow",

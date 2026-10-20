@@ -41,6 +41,22 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         return result
     }
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { lock.withLock { jobsResult } }
+    var validationResult: Result<CoreValidationReport, CoreServiceError> = .success(CoreValidationReport(
+        workflows: [CoreWorkflowValidation(workflowID: ".github/workflows/ci.yml",
+                                           diagnostics: [CoreWorkflowDiagnostic(line: 4, column: 3, kind: "job-needs", message: "job \"build\" needs job \"test\" which does not exist")],
+                                           problem: nil, truncated: false)],
+        validator: "actionlint v1.7.12", configProblem: nil))
+    private var _validations = 0
+    var validations: Int { lock.withLock { _validations } }
+    var validationDelay: Duration?
+    func validateWorkflows(repositoryID: String, workflowID: String?) async throws -> CoreValidationReport {
+        let (result, delay) = lock.withLock {
+            _validations += 1
+            return (validationResult, validationDelay)
+        }
+        if let delay { try? await Task.sleep(for: delay) }
+        return try result.get()
+    }
     var repositoryResult = CoreGitHubRepository(access: .ok, fullName: "o/r", visibility: "private", defaultBranch: "main",
                                                 htmlURL: URL(string: "https://github.com/o/r"))
     func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository { lock.withLock { repositoryResult } }
@@ -614,6 +630,53 @@ struct CoreHubTests {
         var unknownReleased = false
         hub.detach(windowID: UUID()) { unknownReleased = true }
         #expect(unknownReleased)
+    }
+
+    @Test
+    func workflowsAreValidatedThroughTheCore() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        #expect(await hub.validateWorkflows(workspaceID: workspace) == .failed("Runnir Core is not ready. Validation runs in the Core."))
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+
+        let files = WorkspaceFilesModel()
+        await files.validate(hub: hub, workspaceID: workspace)
+        let ci = LocalWorkflowFile(relativePath: ".github/workflows/ci.yml")
+        #expect(files.validation?.validator == "actionlint v1.7.12")
+        #expect(files.problemCount(for: ci) == 1)
+        #expect(files.problemCount(for: LocalWorkflowFile(relativePath: ".github/workflows/other.yml")) == nil)
+        #expect(files.validationError == nil)
+
+        // A failed check keeps the last report and says why.
+        provider.core.validationResult = .failure(.accessDenied)
+        await files.validate(hub: hub, workspaceID: workspace)
+        #expect(files.validation != nil)
+        #expect(files.validationError?.contains("cannot read this folder") == true)
+        #expect(provider.core.validations == 2)
+
+        // A check asked for during a running one runs again afterwards.
+        provider.core.validationResult = .success(CoreValidationReport(workflows: [], validator: "actionlint v1.7.12", configProblem: nil))
+        provider.core.validationDelay = .milliseconds(100)
+        let first = Task { await files.validate(hub: hub, workspaceID: workspace) }
+        #expect(await eventually { files.isValidating })
+        await files.validate(hub: hub, workspaceID: workspace)
+        await first.value
+        #expect(provider.core.validations == 4)
+        #expect(files.validationError == nil && files.validation?.workflows.isEmpty == true)
+        // A failure the Core explains keeps its words.
+        provider.core.validationDelay = nil
+        provider.core.validationResult = .failure(.remote(code: 13, message: "the check could not be prepared in the Core's temporary directory"))
+        await files.validate(hub: hub, workspaceID: workspace)
+        #expect(files.validationError == "The check failed in Runnir Core: the check could not be prepared in the Core's temporary directory")
+
+        // Choosing the same diagnostic again scrolls back to it.
+        files.reveal(line: 4)
+        let reveals = files.revealCount
+        files.reveal(line: 4)
+        #expect(files.highlightedLine == 4 && files.revealCount == reveals + 1)
+        files.reveal(line: 0)
+        #expect(files.highlightedLine == 4 && files.revealCount == reveals + 1, "a diagnostic without a position moves nothing")
     }
 
     @Test
