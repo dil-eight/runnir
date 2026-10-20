@@ -48,11 +48,14 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         validator: "actionlint v1.7.12", configProblem: nil))
     private var _validations = 0
     var validations: Int { lock.withLock { _validations } }
+    var validationDelay: Duration?
     func validateWorkflows(repositoryID: String, workflowID: String?) async throws -> CoreValidationReport {
-        try lock.withLock {
+        let (result, delay) = lock.withLock {
             _validations += 1
-            return try validationResult.get()
+            return (validationResult, validationDelay)
         }
+        if let delay { try? await Task.sleep(for: delay) }
+        return try result.get()
     }
     var repositoryResult = CoreGitHubRepository(access: .ok, fullName: "o/r", visibility: "private", defaultBranch: "main",
                                                 htmlURL: URL(string: "https://github.com/o/r"))
@@ -651,6 +654,16 @@ struct CoreHubTests {
         #expect(files.validation != nil)
         #expect(files.validationError?.contains("cannot read this folder") == true)
         #expect(provider.core.validations == 2)
+
+        // A check asked for during a running one runs again afterwards.
+        provider.core.validationResult = .success(CoreValidationReport(workflows: [], validator: "actionlint v1.7.12", configProblem: nil))
+        provider.core.validationDelay = .milliseconds(100)
+        let first = Task { await files.validate(hub: hub, workspaceID: workspace) }
+        #expect(await eventually { files.isValidating })
+        await files.validate(hub: hub, workspaceID: workspace)
+        await first.value
+        #expect(provider.core.validations == 4)
+        #expect(files.validationError == nil && files.validation?.workflows.isEmpty == true)
     }
 
     @Test

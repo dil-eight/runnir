@@ -235,18 +235,27 @@ final class WorkspaceFilesModel {
     private(set) var isValidating = false
     /// A line chosen from the diagnostics, highlighted in the source.
     var highlightedLine: Int?
+    /// A check was asked for while one was running (after a Refresh, say);
+    /// it runs once more, so the report matches the files on disk.
+    private var validationPending = false
 
     func validate(hub: CoreHub, workspaceID: UUID) async {
-        guard !isValidating else { return }
+        guard !isValidating else {
+            validationPending = true
+            return
+        }
         isValidating = true
         defer { isValidating = false }
-        switch await hub.validateWorkflows(workspaceID: workspaceID) {
-        case .report(let report):
-            validation = report
-            validationError = nil
-        case .failed(let message):
-            validationError = message
-        }
+        repeat {
+            validationPending = false
+            switch await hub.validateWorkflows(workspaceID: workspaceID) {
+            case .report(let report):
+                validation = report
+                validationError = nil
+            case .failed(let message):
+                validationError = message
+            }
+        } while validationPending
     }
 
     func validation(for file: LocalWorkflowFile) -> CoreWorkflowValidation? {

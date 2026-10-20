@@ -128,11 +128,13 @@ func Workflows(ctx context.Context, root, only string) (Report, error) {
 		}
 		result := Result{WorkflowID: file.ID, Problem: file.Problem}
 		if file.Problem == "" {
-			fileProject := project
+			path, fileProject := filepath.Join(stage, filepath.FromSlash(file.ID)), project
 			if climbsOut(file.Data) {
-				fileProject = nil
+				// Without a project. actionlint looks one up by walking up from
+				// a path that exists, so give it one that does not.
+				path, fileProject = filepath.Join(stage, "unlinked", filepath.FromSlash(file.ID)), nil
 			}
-			found, err := linter.Lint(filepath.Join(stage, filepath.FromSlash(file.ID)), file.Data, fileProject)
+			found, err := linter.Lint(path, file.Data, fileProject)
 			if err != nil {
 				result.Problem = "actionlint could not check this file"
 			} else {

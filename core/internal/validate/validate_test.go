@@ -195,6 +195,35 @@ func TestUnreadableFilesAreReportedNotChecked(t *testing.T) {
 	}
 }
 
+func TestAFileCheckedWithoutAProjectFindsNoneAboveTheCopies(t *testing.T) {
+	// The temporary directory sits inside a repository that a project
+	// lookup walking up from the copies would find and use.
+	host := repo(t)
+	write(t, host, ".github/workflows/host.yml", valid)
+	write(t, host, ".github/workflows/hosted.yml", "on:\n  workflow_call:\n    inputs:\n      host_only: {type: string, required: true}\n")
+	t.Setenv("TMPDIR", filepath.Join(host, "tmp"))
+	if err := os.MkdirAll(filepath.Join(host, "tmp"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	root := repo(t)
+	write(t, root, ".github/workflows/escape.yml", `on: push
+jobs:
+  call:
+    uses: ./../x.yml
+  other:
+    uses: ./.github/workflows/hosted.yml
+`)
+	report, err := Workflows(context.Background(), root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range result(t, report, ".github/workflows/escape.yml").Diagnostics {
+		if strings.Contains(d.Message, "host_only") {
+			t.Fatalf("the repository around the temporary directory was used: %+v", d)
+		}
+	}
+}
+
 func TestClimbingOutIsDetectedAnywhere(t *testing.T) {
 	cases := map[string]bool{
 		"jobs:\n  a:\n    uses: ./../x.yml\n":                          true,
