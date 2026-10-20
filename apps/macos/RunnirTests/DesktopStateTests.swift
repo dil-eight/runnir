@@ -113,7 +113,8 @@ struct DesktopStateTests {
 
     @Test func aWindowSavedOnARetiredSectionOpensOnOverview() {
         #expect(AppSection.repositories.restored == .dashboard)
-        for section in AppSection.allCases where section != .repositories {
+        #expect(AppSection.artifacts.restored == .dashboard)
+        for section in AppSection.allCases where !AppSection.retired.contains(section) {
             #expect(section.restored == section)
         }
     }

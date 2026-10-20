@@ -34,6 +34,7 @@ const (
 	RunnirCore_SetGitHubCredential_FullMethodName      = "/runnir.core.v1.RunnirCore/SetGitHubCredential"
 	RunnirCore_ClearGitHubCredential_FullMethodName    = "/runnir.core.v1.RunnirCore/ClearGitHubCredential"
 	RunnirCore_ListGitHubWorkflows_FullMethodName      = "/runnir.core.v1.RunnirCore/ListGitHubWorkflows"
+	RunnirCore_GetGitHubRepository_FullMethodName      = "/runnir.core.v1.RunnirCore/GetGitHubRepository"
 	RunnirCore_ListWorkflowRuns_FullMethodName         = "/runnir.core.v1.RunnirCore/ListWorkflowRuns"
 	RunnirCore_ListRunJobs_FullMethodName              = "/runnir.core.v1.RunnirCore/ListRunJobs"
 	RunnirCore_ListGitHubRefs_FullMethodName           = "/runnir.core.v1.RunnirCore/ListGitHubRefs"
@@ -67,6 +68,9 @@ type RunnirCoreClient interface {
 	// repositories open in the Core can be queried. GitHub-side problems are
 	// reported in `status`, not as call errors.
 	ListGitHubWorkflows(ctx context.Context, in *ListGitHubWorkflowsRequest, opts ...grpc.CallOption) (*ListGitHubWorkflowsResponse, error)
+	// The GitHub repository itself: whether the token can see it, and its
+	// visibility and default branch.
+	GetGitHubRepository(ctx context.Context, in *GetGitHubRepositoryRequest, opts ...grpc.CallOption) (*GetGitHubRepositoryResponse, error)
 	ListWorkflowRuns(ctx context.Context, in *ListWorkflowRunsRequest, opts ...grpc.CallOption) (*ListWorkflowRunsResponse, error)
 	ListRunJobs(ctx context.Context, in *ListRunJobsRequest, opts ...grpc.CallOption) (*ListRunJobsResponse, error)
 	// Branches and tags a workflow can run on.
@@ -205,6 +209,16 @@ func (c *runnirCoreClient) ListGitHubWorkflows(ctx context.Context, in *ListGitH
 	return out, nil
 }
 
+func (c *runnirCoreClient) GetGitHubRepository(ctx context.Context, in *GetGitHubRepositoryRequest, opts ...grpc.CallOption) (*GetGitHubRepositoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGitHubRepositoryResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_GetGitHubRepository_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnirCoreClient) ListWorkflowRuns(ctx context.Context, in *ListWorkflowRunsRequest, opts ...grpc.CallOption) (*ListWorkflowRunsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListWorkflowRunsResponse)
@@ -317,6 +331,9 @@ type RunnirCoreServer interface {
 	// repositories open in the Core can be queried. GitHub-side problems are
 	// reported in `status`, not as call errors.
 	ListGitHubWorkflows(context.Context, *ListGitHubWorkflowsRequest) (*ListGitHubWorkflowsResponse, error)
+	// The GitHub repository itself: whether the token can see it, and its
+	// visibility and default branch.
+	GetGitHubRepository(context.Context, *GetGitHubRepositoryRequest) (*GetGitHubRepositoryResponse, error)
 	ListWorkflowRuns(context.Context, *ListWorkflowRunsRequest) (*ListWorkflowRunsResponse, error)
 	ListRunJobs(context.Context, *ListRunJobsRequest) (*ListRunJobsResponse, error)
 	// Branches and tags a workflow can run on.
@@ -375,6 +392,9 @@ func (UnimplementedRunnirCoreServer) ClearGitHubCredential(context.Context, *Cle
 }
 func (UnimplementedRunnirCoreServer) ListGitHubWorkflows(context.Context, *ListGitHubWorkflowsRequest) (*ListGitHubWorkflowsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListGitHubWorkflows not implemented")
+}
+func (UnimplementedRunnirCoreServer) GetGitHubRepository(context.Context, *GetGitHubRepositoryRequest) (*GetGitHubRepositoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGitHubRepository not implemented")
 }
 func (UnimplementedRunnirCoreServer) ListWorkflowRuns(context.Context, *ListWorkflowRunsRequest) (*ListWorkflowRunsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListWorkflowRuns not implemented")
@@ -597,6 +617,24 @@ func _RunnirCore_ListGitHubWorkflows_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_GetGitHubRepository_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGitHubRepositoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).GetGitHubRepository(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_GetGitHubRepository_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).GetGitHubRepository(ctx, req.(*GetGitHubRepositoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnirCore_ListWorkflowRuns_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListWorkflowRunsRequest)
 	if err := dec(in); err != nil {
@@ -801,6 +839,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListGitHubWorkflows",
 			Handler:    _RunnirCore_ListGitHubWorkflows_Handler,
+		},
+		{
+			MethodName: "GetGitHubRepository",
+			Handler:    _RunnirCore_GetGitHubRepository_Handler,
 		},
 		{
 			MethodName: "ListWorkflowRuns",

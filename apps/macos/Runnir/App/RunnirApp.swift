@@ -8,7 +8,6 @@ struct RunnirApp: App {
         Settings {
             SettingsView(github: delegate.github)
                 .environment(delegate.desktop.accountState)
-                .environment(\.appEnvironment, AppEnvironment.live)
         }
         .commands {
             CommandGroup(replacing: .newItem) {

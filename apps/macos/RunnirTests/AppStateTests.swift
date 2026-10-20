@@ -8,6 +8,6 @@ struct AppStateTests {
         let state = AppState()
 
         #expect(state.selectedSection == .dashboard)
-        #expect(state.authenticationState == .unknown)
+        #expect(state.selectedRunID == nil && state.runWorkflowRequest == nil && !state.showingSwitcher)
     }
 }

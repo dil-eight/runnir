@@ -67,6 +67,22 @@ func (s *service) ListGitHubWorkflows(ctx context.Context, request *corev1.ListG
 	return out, nil
 }
 
+func (s *service) GetGitHubRepository(ctx context.Context, request *corev1.GetGitHubRepositoryRequest) (*corev1.GetGitHubRepositoryResponse, error) {
+	owner, name, problem, err := s.githubTarget(request.GetRepositoryId())
+	if err != nil || problem != nil {
+		return &corev1.GetGitHubRepositoryResponse{Status: problem}, err
+	}
+	repository, fetchErr := s.github.Repository(ctx, owner, name)
+	result, err := s.githubStatus(fetchErr)
+	if err != nil {
+		return nil, err
+	}
+	return &corev1.GetGitHubRepositoryResponse{
+		Status: result, FullName: repository.FullName, Visibility: repository.Visibility,
+		DefaultBranch: repository.DefaultBranch, HtmlUrl: repository.HTMLURL,
+	}, nil
+}
+
 func (s *service) ListWorkflowRuns(ctx context.Context, request *corev1.ListWorkflowRunsRequest) (*corev1.ListWorkflowRunsResponse, error) {
 	if request.GetLimit() > 100 {
 		return nil, status.Error(codes.InvalidArgument, "limit must be 100 or less")

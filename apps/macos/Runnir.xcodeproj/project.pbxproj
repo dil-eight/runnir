@@ -8,24 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		A00000000000000000000001 /* RunnirApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010001 /* RunnirApp.swift */; };
-		A00000000000000000000002 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010002 /* AppEnvironment.swift */; };
 		A00000000000000000000003 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010003 /* AppState.swift */; };
 		A00000000000000000000004 /* AppSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010004 /* AppSection.swift */; };
-		A00000000000000000000005 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010005 /* RootView.swift */; };
-		A00000000000000000000006 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010006 /* EmptyStateView.swift */; };
 		A00000000000000000000007 /* RunnirTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010007 /* RunnirTheme.swift */; };
-		A00000000000000000000008 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010008 /* DashboardView.swift */; };
-		A00000000000000000000009 /* HeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010009 /* HeaderView.swift */; };
-		A0000000000000000000000A /* AuthenticationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001000A /* AuthenticationView.swift */; };
-		A0000000000000000000000B /* RepositoriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001000B /* RepositoriesView.swift */; };
-		A0000000000000000000000C /* WorkflowsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001000C /* WorkflowsView.swift */; };
-		A0000000000000000000000D /* RunsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001000D /* RunsView.swift */; };
-		A0000000000000000000000E /* ArtifactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001000E /* ArtifactsView.swift */; };
 		A0000000000000000000000F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000001000F /* SettingsView.swift */; };
 		A00000000000000000000010 /* Repository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010010 /* Repository.swift */; };
 		A00000000000000000000011 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010011 /* Workflow.swift */; };
-		A00000000000000000000012 /* WorkflowRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010012 /* WorkflowRun.swift */; };
-		A00000000000000000000013 /* Artifact.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010013 /* Artifact.swift */; };
 		A00000000000000000000014 /* GitHubUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010014 /* GitHubUser.swift */; };
 		A00000000000000000000015 /* GitHubDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010015 /* GitHubDTOs.swift */; };
 		A00000000000000000000016 /* GitHubService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000010016 /* GitHubService.swift */; };
@@ -107,24 +95,12 @@
 
 /* Begin PBXFileReference section */
 		A00000000000000000010001 /* RunnirApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnirApp.swift; sourceTree = "<group>"; };
-		A00000000000000000010002 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		A00000000000000000010003 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		A00000000000000000010004 /* AppSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSection.swift; sourceTree = "<group>"; };
-		A00000000000000000010005 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
-		A00000000000000000010006 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		A00000000000000000010007 /* RunnirTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnirTheme.swift; sourceTree = "<group>"; };
-		A00000000000000000010008 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
-		A00000000000000000010009 /* HeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderView.swift; sourceTree = "<group>"; };
-		A0000000000000000001000A /* AuthenticationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationView.swift; sourceTree = "<group>"; };
-		A0000000000000000001000B /* RepositoriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoriesView.swift; sourceTree = "<group>"; };
-		A0000000000000000001000C /* WorkflowsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowsView.swift; sourceTree = "<group>"; };
-		A0000000000000000001000D /* RunsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunsView.swift; sourceTree = "<group>"; };
-		A0000000000000000001000E /* ArtifactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactsView.swift; sourceTree = "<group>"; };
 		A0000000000000000001000F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A00000000000000000010010 /* Repository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repository.swift; sourceTree = "<group>"; };
 		A00000000000000000010011 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
-		A00000000000000000010012 /* WorkflowRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowRun.swift; sourceTree = "<group>"; };
-		A00000000000000000010013 /* Artifact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artifact.swift; sourceTree = "<group>"; };
 		A00000000000000000010014 /* GitHubUser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubUser.swift; sourceTree = "<group>"; };
 		A00000000000000000010015 /* GitHubDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubDTOs.swift; sourceTree = "<group>"; };
 		A00000000000000000010016 /* GitHubService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubService.swift; sourceTree = "<group>"; };
@@ -197,25 +173,19 @@
 		B00000000000000000000021 = {isa = PBXGroup; children = (B00000000000000000000011, B00000000000000000000012, B00000000000000000000013, E00000000000000000000011, E00000000000000000000012, F00000000000000000000001, F00000000000000000000002, F00000000000000000000003, F00000000000000000000004, F00000000000000000000005, F00000000000000000000006, H00000000000000000000001, H00000000000000000000002, H00000000000000000000003, K00000000000000000000001, K00000000000000000000002, K00000000000000000000003, K00000000000000000000004, K00000000000000000000005, L00000000000000000000001, L00000000000000000000002, M00000000000000000000001, M00000000000000000000002, N00000000000000000000001, P00000000000000000000001, Q00000000000000000000001, R00000000000000000000001, S00000000000000000000001, U00000000000000000000001, U00000000000000000000002); name = "Core IPC"; sourceTree = "<group>"; };
 		A00000000000000000050099 /* Products */ = {isa = PBXGroup; children = (A00000000000000000030001, A00000000000000000030002, A00000000000000000030003); name = Products; sourceTree = "<group>"; };
 		A00000000000000000050001 /* Runnir */ = {isa = PBXGroup; children = (A00000000000000000051001, A00000000000000000051002, A00000000000000000051003, A00000000000000000051004, A00000000000000000051005, T00000000000000000000002, A0000000000000000001001E); path = Runnir; sourceTree = "<group>"; };
-		A00000000000000000051001 /* App */ = {isa = PBXGroup; children = (A00000000000000000010001, A00000000000000000010002, A00000000000000000010003, A00000000000000000051011); path = App; sourceTree = "<group>"; };
-		A00000000000000000051011 /* Navigation */ = {isa = PBXGroup; children = (A00000000000000000010004, A00000000000000000010005); path = Navigation; sourceTree = "<group>"; };
-		A00000000000000000051002 /* Features */ = {isa = PBXGroup; children = (A00000000000000000052001, A00000000000000000052002, A00000000000000000052003, A00000000000000000052004, A00000000000000000052005, A00000000000000000052006); path = Features; sourceTree = "<group>"; };
-		A00000000000000000052001 /* Authentication */ = {isa = PBXGroup; children = (A0000000000000000001000A); path = Authentication; sourceTree = "<group>"; };
-		A00000000000000000052002 /* Dashboard */ = {isa = PBXGroup; children = (A00000000000000000010008, A00000000000000000010009); path = Dashboard; sourceTree = "<group>"; };
-		A00000000000000000052003 /* Repositories */ = {isa = PBXGroup; children = (A0000000000000000001000B); path = Repositories; sourceTree = "<group>"; };
-		A00000000000000000052004 /* Workflows */ = {isa = PBXGroup; children = (A0000000000000000001000C); path = Workflows; sourceTree = "<group>"; };
-		A00000000000000000052005 /* Runs */ = {isa = PBXGroup; children = (A0000000000000000001000D); path = Runs; sourceTree = "<group>"; };
-		A00000000000000000052006 /* Artifacts */ = {isa = PBXGroup; children = (A0000000000000000001000E); path = Artifacts; sourceTree = "<group>"; };
+		A00000000000000000051001 /* App */ = {isa = PBXGroup; children = (A00000000000000000010001, A00000000000000000010003, A00000000000000000051011); path = App; sourceTree = "<group>"; };
+		A00000000000000000051011 /* Navigation */ = {isa = PBXGroup; children = (A00000000000000000010004); path = Navigation; sourceTree = "<group>"; };
+		A00000000000000000051002 /* Features */ = {isa = PBXGroup; children = (A00000000000000000052001); path = Features; sourceTree = "<group>"; };
+		A00000000000000000052001 /* Authentication */ = {isa = PBXGroup; children = (); path = Authentication; sourceTree = "<group>"; };
 		A00000000000000000051003 /* Core */ = {isa = PBXGroup; children = (A00000000000000000053001, A00000000000000000053002, A00000000000000000053003, A00000000000000000053004); path = Core; sourceTree = "<group>"; };
-		A00000000000000000053001 /* Models */ = {isa = PBXGroup; children = (A00000000000000000010010, A00000000000000000010011, A00000000000000000010012, A00000000000000000010013); path = Models; sourceTree = "<group>"; };
+		A00000000000000000053001 /* Models */ = {isa = PBXGroup; children = (A00000000000000000010010, A00000000000000000010011); path = Models; sourceTree = "<group>"; };
 		A00000000000000000053002 /* GitHub */ = {isa = PBXGroup; children = (A00000000000000000053101, A00000000000000000053102, A00000000000000000053103); path = GitHub; sourceTree = "<group>"; };
 		A00000000000000000053101 /* Models */ = {isa = PBXGroup; children = (A00000000000000000010014, A00000000000000000010015); path = Models; sourceTree = "<group>"; };
 		A00000000000000000053102 /* Services */ = {isa = PBXGroup; children = (A00000000000000000010016); path = Services; sourceTree = "<group>"; };
 		A00000000000000000053103 /* API */ = {isa = PBXGroup; children = (A00000000000000000010017, A00000000000000000010018, A00000000000000000010019, J00000000000000000000001); path = API; sourceTree = "<group>"; };
 		A00000000000000000053003 /* Security */ = {isa = PBXGroup; children = (A0000000000000000001001A, A0000000000000000001001B, A0000000000000000001001C); path = Security; sourceTree = "<group>"; };
 		A00000000000000000053004 /* Networking */ = {isa = PBXGroup; children = (A0000000000000000001001D); path = Networking; sourceTree = "<group>"; };
-		A00000000000000000051004 /* DesignSystem */ = {isa = PBXGroup; children = (A00000000000000000054001, A00000000000000000054002); path = DesignSystem; sourceTree = "<group>"; };
-		A00000000000000000054001 /* Components */ = {isa = PBXGroup; children = (A00000000000000000010006); path = Components; sourceTree = "<group>"; };
+		A00000000000000000051004 /* DesignSystem */ = {isa = PBXGroup; children = ( A00000000000000000054002); path = DesignSystem; sourceTree = "<group>"; };
 		A00000000000000000054002 /* Theme */ = {isa = PBXGroup; children = (A00000000000000000010007); path = Theme; sourceTree = "<group>"; };
 		A00000000000000000051005 /* Settings */ = {isa = PBXGroup; children = (A0000000000000000001000F); path = Features/Settings; sourceTree = "<group>"; };
 		A00000000000000000050031 /* RunnirTests */ = {isa = PBXGroup; children = (J00000000000000000000002, A00000000000000000010031, A00000000000000000010032, A00000000000000000010033, A00000000000000000010034, A00000000000000000010035); path = RunnirTests; sourceTree = "<group>"; };
@@ -294,7 +264,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A00000000000000000070001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (U00000000000000000010001, R00000000000000000010001, P00000000000000000010001, N00000000000000000010001, M00000000000000000010001, L00000000000000000010001, K00000000000000000010001, K00000000000000000010002, K00000000000000000010003, J00000000000000000010001, H00000000000000000010001, F00000000000000000010001, F00000000000000000010002, F00000000000000000010003, F00000000000000000010004, E00000000000000000000001, E00000000000000000000002, D00000000000000000000001, D00000000000000000000002, D00000000000000000000003, D00000000000000000000004, B00000000000000000000001, B00000000000000000000002, A00000000000000000000001, A00000000000000000000002, A00000000000000000000003, A00000000000000000000004, A00000000000000000000005, A00000000000000000000006, A00000000000000000000007, A00000000000000000000008, A00000000000000000000009, A0000000000000000000000A, A0000000000000000000000B, A0000000000000000000000C, A0000000000000000000000D, A0000000000000000000000E, A0000000000000000000000F, A00000000000000000000010, A00000000000000000000011, A00000000000000000000012, A00000000000000000000013, A00000000000000000000014, A00000000000000000000015, A00000000000000000000016, A00000000000000000000017, A00000000000000000000018, A00000000000000000000019, A0000000000000000000001A, A0000000000000000000001B, A0000000000000000000001C, A0000000000000000000001D); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000070001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (U00000000000000000010001, R00000000000000000010001, P00000000000000000010001, N00000000000000000010001, M00000000000000000010001, L00000000000000000010001, K00000000000000000010001, K00000000000000000010002, K00000000000000000010003, J00000000000000000010001, H00000000000000000010001, F00000000000000000010001, F00000000000000000010002, F00000000000000000010003, F00000000000000000010004, E00000000000000000000001, E00000000000000000000002, D00000000000000000000001, D00000000000000000000002, D00000000000000000000003, D00000000000000000000004, B00000000000000000000001, B00000000000000000000002, A00000000000000000000001, A00000000000000000000003, A00000000000000000000004, A00000000000000000000007, A0000000000000000000000F, A00000000000000000000010, A00000000000000000000011, A00000000000000000000014, A00000000000000000000015, A00000000000000000000016, A00000000000000000000017, A00000000000000000000018, A00000000000000000000019, A0000000000000000000001A, A0000000000000000000001B, A0000000000000000000001C, A0000000000000000000001D); runOnlyForDeploymentPostprocessing = 0; };
 		A00000000000000000070002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (U00000000000000000010002, S00000000000000000010001, Q00000000000000000010001, M00000000000000000010002, L00000000000000000010002, K00000000000000000010004, K00000000000000000010005, J00000000000000000010002, H00000000000000000010003, H00000000000000000010002, F00000000000000000010005, F00000000000000000010006, D00000000000000000000005, B00000000000000000000003, A00000000000000000000031, A00000000000000000000032, A00000000000000000000033, A00000000000000000000034, A00000000000000000000035); runOnlyForDeploymentPostprocessing = 0; };
 		A00000000000000000070003 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000041); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */

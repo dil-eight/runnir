@@ -19,6 +19,36 @@ type Refs struct {
 	Tags          []string
 }
 
+// Repository is what the app shows about a linked GitHub repository.
+type Repository struct {
+	FullName      string
+	Visibility    string
+	DefaultBranch string
+	HTMLURL       string
+}
+
+// Repository reads one repository; NOT_VISIBLE when the token cannot see it.
+func (c *Client) Repository(ctx context.Context, owner, name string) (Repository, error) {
+	var body struct {
+		FullName      string `json:"full_name"`
+		Visibility    string `json:"visibility"`
+		Private       bool   `json:"private"`
+		DefaultBranch string `json:"default_branch"`
+		HTMLURL       string `json:"html_url"`
+	}
+	if err := c.get(ctx, repoPath(owner, name, ""), nil, &body); err != nil {
+		return Repository{}, err
+	}
+	visibility := body.Visibility
+	if visibility == "" {
+		visibility = "public"
+		if body.Private {
+			visibility = "private"
+		}
+	}
+	return Repository{FullName: body.FullName, Visibility: visibility, DefaultBranch: body.DefaultBranch, HTMLURL: body.HTMLURL}, nil
+}
+
 // Refs lists up to 300 branches and 100 tags, plus the default branch.
 func (c *Client) Refs(ctx context.Context, owner, name string) (Refs, error) {
 	var repository struct {

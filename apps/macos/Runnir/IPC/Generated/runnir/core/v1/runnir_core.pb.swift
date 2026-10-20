@@ -763,6 +763,49 @@ nonisolated struct Runnir_Core_V1_GitHubStatus: Sendable {
   fileprivate var _retryAfter: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
 }
 
+nonisolated struct Runnir_Core_V1_GetGitHubRepositoryRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var repositoryID: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_GetGitHubRepositoryResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var status: Runnir_Core_V1_GitHubStatus {
+    get {_status ?? Runnir_Core_V1_GitHubStatus()}
+    set {_status = newValue}
+  }
+  /// Returns true if `status` has been explicitly set.
+  var hasStatus: Bool {self._status != nil}
+  /// Clears the value of `status`. Subsequent reads from it will return its default value.
+  mutating func clearStatus() {self._status = nil}
+
+  /// "owner/name" as GitHub spells it.
+  var fullName: String = String()
+
+  /// "public", "private" or "internal".
+  var visibility: String = String()
+
+  var defaultBranch: String = String()
+
+  var htmlURL: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _status: Runnir_Core_V1_GitHubStatus? = nil
+}
+
 nonisolated struct Runnir_Core_V1_ListGitHubWorkflowsRequest: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -2223,6 +2266,90 @@ nonisolated extension Runnir_Core_V1_GitHubStatus: SwiftProtobuf.Message, SwiftP
   static func ==(lhs: Runnir_Core_V1_GitHubStatus, rhs: Runnir_Core_V1_GitHubStatus) -> Bool {
     if lhs.access != rhs.access {return false}
     if lhs._retryAfter != rhs._retryAfter {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_GetGitHubRepositoryRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".GetGitHubRepositoryRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.repositoryID) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.repositoryID.isEmpty {
+      try visitor.visitSingularStringField(value: self.repositoryID, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_GetGitHubRepositoryRequest, rhs: Runnir_Core_V1_GetGitHubRepositoryRequest) -> Bool {
+    if lhs.repositoryID != rhs.repositoryID {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_GetGitHubRepositoryResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".GetGitHubRepositoryResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{3}full_name\0\u{1}visibility\0\u{3}default_branch\0\u{3}html_url\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularMessageField(value: &self._status) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.fullName) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.visibility) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.defaultBranch) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.htmlURL) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    try { if let v = self._status {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+    } }()
+    if !self.fullName.isEmpty {
+      try visitor.visitSingularStringField(value: self.fullName, fieldNumber: 2)
+    }
+    if !self.visibility.isEmpty {
+      try visitor.visitSingularStringField(value: self.visibility, fieldNumber: 3)
+    }
+    if !self.defaultBranch.isEmpty {
+      try visitor.visitSingularStringField(value: self.defaultBranch, fieldNumber: 4)
+    }
+    if !self.htmlURL.isEmpty {
+      try visitor.visitSingularStringField(value: self.htmlURL, fieldNumber: 5)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_GetGitHubRepositoryResponse, rhs: Runnir_Core_V1_GetGitHubRepositoryResponse) -> Bool {
+    if lhs._status != rhs._status {return false}
+    if lhs.fullName != rhs.fullName {return false}
+    if lhs.visibility != rhs.visibility {return false}
+    if lhs.defaultBranch != rhs.defaultBranch {return false}
+    if lhs.htmlURL != rhs.htmlURL {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

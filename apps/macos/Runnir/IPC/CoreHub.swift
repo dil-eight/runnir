@@ -352,6 +352,18 @@ final class CoreHub {
         return nil
     }
 
+    /// The linked GitHub repository as the Core sees it with the current token.
+    func githubRepository(workspaceID: UUID) async -> CoreGitHubRepository {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return .failed(.unavailable) }
+        do {
+            let repository = try await service.gitHubRepository(repositoryID: coreID)
+            if repository.access == .tokenRejected { await onGitHubTokenRejected?() }
+            return repository
+        } catch {
+            return .failed(.unavailable)
+        }
+    }
+
     /// Jobs and steps of one run, read on demand.
     func jobs(workspaceID: UUID, runID: Int64) async -> CoreGitHubResult<CoreRunJob> {
         guard let coreID = sessions[workspaceID]?.coreID, isReady,

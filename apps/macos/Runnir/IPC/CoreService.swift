@@ -92,6 +92,8 @@ protocol CoreServicing: Sendable {
     func setGitHubCredential(_ token: String?) async throws
     /// GitHub Actions data for the repository's origin on github.com.
     func listGitHubWorkflows(repositoryID: String) async throws -> CoreGitHubResult<CoreGitHubWorkflow>
+    /// Whether the token can see the linked GitHub repository, and its details.
+    func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository
     func listWorkflowRuns(repositoryID: String, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun>
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob>
     func listGitHubRefs(repositoryID: String) async throws -> CoreGitHubRefs

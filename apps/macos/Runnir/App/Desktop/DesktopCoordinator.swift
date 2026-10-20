@@ -441,7 +441,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
         window?.title = workspace.name + " - Runnir"
         window?.contentViewController = NSHostingController(rootView:
             DesktopWorkspaceView(desktop: desktop, workspace: workspace, windowID: record.id, reader: grant?.reader)
-                .environment(state).environment(\.appEnvironment, AppEnvironment.live))
+                .environment(state))
         if let frame { window?.setFrame(frame, display: false) }
     }
 

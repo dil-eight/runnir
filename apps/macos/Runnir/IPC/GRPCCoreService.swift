@@ -138,6 +138,14 @@ struct GRPCCoreService: CoreServicing {
         })
     }
 
+    func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository {
+        let response = try await call {
+            try await client.getGitHubRepository(.with { $0.repositoryID = repositoryID }, options: Self.options(Self.callTimeout))
+        }
+        return CoreGitHubRepository(access: Self.map(response.status), fullName: response.fullName, visibility: response.visibility,
+                                    defaultBranch: response.defaultBranch, htmlURL: URL(string: response.htmlURL))
+    }
+
     func listWorkflowRuns(repositoryID: String, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> {
         let response = try await call {
             try await client.listWorkflowRuns(.with {
