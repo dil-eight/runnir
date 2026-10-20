@@ -32,8 +32,13 @@ import (
 	"runnir/core/internal/scanner"
 )
 
-// ErrUnknownWorkflow: the requested workflow file does not exist.
-var ErrUnknownWorkflow = errors.New("no such workflow file")
+var (
+	// ErrUnknownWorkflow: the requested workflow file does not exist.
+	ErrUnknownWorkflow = errors.New("no such workflow file")
+	// ErrPrepare: the private copy for actionlint could not be made, for
+	// example because the temporary directory is not writable.
+	ErrPrepare = errors.New("the check could not be prepared")
+)
 
 const (
 	maxDiagnostics = 200
@@ -90,17 +95,17 @@ func Workflows(ctx context.Context, root, only string) (Report, error) {
 
 	stage, err := os.MkdirTemp("", "runnir-actionlint-")
 	if err != nil {
-		return Report{}, fmt.Errorf("prepare check: %w", err)
+		return Report{}, fmt.Errorf("%w: %w", ErrPrepare, err)
 	}
 	defer os.RemoveAll(stage)
 	workflows := filepath.Join(stage, ".github", "workflows")
 	if err := os.MkdirAll(workflows, 0o700); err != nil {
-		return Report{}, fmt.Errorf("prepare check: %w", err)
+		return Report{}, fmt.Errorf("%w: %w", ErrPrepare, err)
 	}
 	for _, file := range files {
 		if file.Problem == "" {
 			if err := os.WriteFile(filepath.Join(stage, filepath.FromSlash(file.ID)), file.Data, 0o600); err != nil {
-				return Report{}, fmt.Errorf("prepare check: %w", err)
+				return Report{}, fmt.Errorf("%w: %w", ErrPrepare, err)
 			}
 		}
 	}
@@ -116,7 +121,7 @@ func Workflows(ctx context.Context, root, only string) (Report, error) {
 		WorkingDir: stage,
 	})
 	if err != nil {
-		return Report{}, fmt.Errorf("prepare check: %w", err)
+		return Report{}, fmt.Errorf("%w: %w", ErrPrepare, err)
 	}
 
 	for _, file := range files {

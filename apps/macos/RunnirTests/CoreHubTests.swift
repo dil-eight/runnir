@@ -664,6 +664,19 @@ struct CoreHubTests {
         await first.value
         #expect(provider.core.validations == 4)
         #expect(files.validationError == nil && files.validation?.workflows.isEmpty == true)
+        // A failure the Core explains keeps its words.
+        provider.core.validationDelay = nil
+        provider.core.validationResult = .failure(.remote(code: 13, message: "the check could not be prepared in the Core's temporary directory"))
+        await files.validate(hub: hub, workspaceID: workspace)
+        #expect(files.validationError == "The check failed in Runnir Core: the check could not be prepared in the Core's temporary directory")
+
+        // Choosing the same diagnostic again scrolls back to it.
+        files.reveal(line: 4)
+        let reveals = files.revealCount
+        files.reveal(line: 4)
+        #expect(files.highlightedLine == 4 && files.revealCount == reveals + 1)
+        files.reveal(line: 0)
+        #expect(files.highlightedLine == 4 && files.revealCount == reveals + 1, "a diagnostic without a position moves nothing")
     }
 
     @Test

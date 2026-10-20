@@ -393,6 +393,9 @@ final class CoreHub {
         }
         do {
             return .report(try await service.validateWorkflows(repositoryID: coreID, workflowID: nil))
+        } catch CoreServiceError.remote(_, let message) where !message.isEmpty {
+            // The Core explains a failed check itself.
+            return .failed("The check failed in Runnir Core: \(message)")
         } catch {
             return .failed(Self.describe(error))
         }

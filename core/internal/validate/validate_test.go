@@ -5,8 +5,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func write(t *testing.T, root, rel, content string) {
@@ -238,5 +240,39 @@ func TestClimbingOutIsDetectedAnywhere(t *testing.T) {
 		if got := climbsOut([]byte(doc)); got != want {
 			t.Errorf("climbsOut(%q) = %v, want %v", doc, got, want)
 		}
+	}
+}
+
+func TestAnUnwritableTemporaryDirectoryIsAPrepareError(t *testing.T) {
+	root := repo(t)
+	write(t, root, ".github/workflows/ci.yml", valid)
+	t.Setenv("TMPDIR", filepath.Join(root, "does-not-exist"))
+	if _, err := Workflows(context.Background(), root, ""); !errors.Is(err, ErrPrepare) {
+		t.Fatalf("err = %v, want ErrPrepare", err)
+	}
+}
+
+func TestAnAliasBombStaysCheap(t *testing.T) {
+	root := repo(t)
+	var b strings.Builder
+	b.WriteString("on: push\na0: &a0 [x, x, x, x, x, x, x, x, x]\n")
+	for i := 1; i < 9; i++ {
+		b.WriteString("a" + strconv.Itoa(i) + ": &a" + strconv.Itoa(i) + " [" +
+			strings.TrimSuffix(strings.Repeat("*a"+strconv.Itoa(i-1)+", ", 9), ", ") + "]\n")
+	}
+	b.WriteString("jobs:\n  build:\n    runs-on: ubuntu-latest\n    env:\n      X: *a8\n    steps:\n      - run: echo hi\n")
+	write(t, root, ".github/workflows/bomb.yml", b.String())
+	done := make(chan error, 1)
+	go func() {
+		_, err := Workflows(context.Background(), root, "")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("nine levels of nine aliases were expanded")
 	}
 }

@@ -234,7 +234,15 @@ final class WorkspaceFilesModel {
     private(set) var validationError: String?
     private(set) var isValidating = false
     /// A line chosen from the diagnostics, highlighted in the source.
-    var highlightedLine: Int?
+    private(set) var highlightedLine: Int?
+    /// Changes on every choice, so choosing the same line again scrolls back to it.
+    private(set) var revealCount = 0
+
+    func reveal(line: Int) {
+        guard line > 0 else { return }
+        highlightedLine = line
+        revealCount += 1
+    }
     /// A check was asked for while one was running (after a Refresh, say);
     /// it runs once more, so the report matches the files on disk.
     private var validationPending = false
@@ -358,8 +366,11 @@ struct DesktopWorkspaceView: View {
 
     private var canValidate: Bool { desktop.core != nil && session?.phase == .ready }
 
+    /// Checks the files on disk and reloads the ones shown, so diagnostics
+    /// and the source on screen describe the same content.
     private func validateWorkflows() {
         guard let hub = desktop.core else { return }
+        if let reader { Task { await files.load(reader) } }
         Task { await files.validate(hub: hub, workspaceID: workspace.id) }
     }
 
@@ -690,8 +701,8 @@ private struct LocalWorkflowBrowser: View {
                                 }
                             }.padding(.vertical, 8)
                         }.scrollIndicators(.visible)
-                        .onChange(of: model.highlightedLine) { _, line in
-                            if let line { withAnimation { proxy.scrollTo(line, anchor: .center) } }
+                        .onChange(of: model.revealCount) {
+                            if let line = model.highlightedLine { withAnimation { proxy.scrollTo(line, anchor: .center) } }
                         }
                     }
                 }
@@ -734,7 +745,7 @@ private struct DiagnosticsPanel: View {
             } else {
                 ForEach(Array(result.diagnostics.enumerated()), id: \.offset) { _, diagnostic in
                     DiagnosticRow(diagnostic: diagnostic, file: file, selected: diagnostic.line == model.highlightedLine) {
-                        model.highlightedLine = diagnostic.line > 0 ? diagnostic.line : nil
+                        model.reveal(line: diagnostic.line)
                     }
                 }
                 if result.truncated {

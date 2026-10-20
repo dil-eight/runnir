@@ -119,6 +119,8 @@ func (s *service) ValidateWorkflows(ctx context.Context, request *corev1.Validat
 	switch {
 	case errors.Is(err, validate.ErrUnknownWorkflow):
 		return nil, status.Error(codes.NotFound, "workflow not found")
+	case errors.Is(err, validate.ErrPrepare):
+		return nil, status.Error(codes.Internal, "the check could not be prepared in the Core's temporary directory")
 	case err != nil:
 		return nil, rpcError(err)
 	}
