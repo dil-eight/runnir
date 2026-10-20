@@ -32,16 +32,25 @@ final class DispatchFormModel {
     var values: [String: String] = [:]
     private(set) var problems: [String] = []
     private(set) var step: Step = .editing
+    /// The preset last applied or saved, when it belongs to this workflow.
+    private(set) var appliedPresetID: UUID?
+    /// What a preset could not apply: a branch or inputs that no longer exist.
+    private(set) var presetNotes: [String] = []
 
+    @ObservationIgnored let presets: DispatchPresetLibrary?
     @ObservationIgnored private let hub: CoreHub
     @ObservationIgnored private let currentBranch: String
+    /// A preset whose input values wait for the definition at its branch.
+    @ObservationIgnored private var pendingPreset: DispatchPreset?
     @ObservationIgnored private var definitionGeneration = 0
     /// The defaults of the loaded definition, to tell typed values apart.
     @ObservationIgnored private var loadedDefaults: [String: String] = [:]
 
-    init(workspaceID: UUID, hub: CoreHub, workflows: [CoreGitHubWorkflow], workflowID: Int64?, currentBranch: String) {
+    init(workspaceID: UUID, hub: CoreHub, workflows: [CoreGitHubWorkflow], workflowID: Int64?, currentBranch: String,
+         presets: DispatchPresetLibrary? = nil) {
         self.workspaceID = workspaceID
         self.hub = hub
+        self.presets = presets
         self.workflows = workflows.filter { $0.state == "active" }
         self.currentBranch = currentBranch
         selectedWorkflowID = workflowID ?? self.workflows.first?.id
@@ -52,6 +61,7 @@ final class DispatchFormModel {
     /// Loads refs, picks the current branch when GitHub has it (else the
     /// default branch), then the workflow's definition at that ref.
     func load() async {
+        presets?.prepare()
         let refs = await hub.refs(workspaceID: workspaceID)
         self.refs = refs
         if refs.access == .ok {
@@ -62,6 +72,9 @@ final class DispatchFormModel {
 
     func select(workflowID: Int64) {
         selectedWorkflowID = workflowID
+        appliedPresetID = nil
+        pendingPreset = nil
+        presetNotes = []
         Task { await loadDefinition() }
     }
 
@@ -83,6 +96,120 @@ final class DispatchFormModel {
         let defaults = Self.initialValues(for: loaded.inputs)
         values = Self.carryOver(values, previousDefaults: loadedDefaults, into: defaults, inputs: loaded.inputs)
         loadedDefaults = defaults
+        // A preset waits for a definition it can be checked against.
+        if let preset = pendingPreset, loaded.access == .ok, loaded.parseError == nil {
+            pendingPreset = nil
+            overlay(preset, inputs: loaded.inputs)
+        }
+    }
+
+    // MARK: Presets
+
+    /// Presets saved for the selected workflow in this workspace.
+    var availablePresets: [DispatchPreset] {
+        guard let path = selectedWorkflow?.path, let presets else { return [] }
+        return presets.presets(workspaceID: workspaceID, workflowPath: path)
+    }
+
+    var appliedPreset: DispatchPreset? {
+        guard let appliedPresetID else { return nil }
+        return availablePresets.first { $0.id == appliedPresetID }
+    }
+
+    /// The values a preset would keep: every known input that does not look
+    /// secret.
+    var presetValues: [String: String] {
+        let saved = Set((definition?.inputs ?? []).filter { !DispatchPreset.looksSecret($0) }.map(\.name))
+        return values.filter { saved.contains($0.key) }
+    }
+
+    /// Inputs with a value that a preset leaves out because they look secret.
+    var inputsLeftOutOfPresets: [String] {
+        (definition?.inputs ?? []).filter { DispatchPreset.looksSecret($0) && !(values[$0.name] ?? "").isEmpty }.map(\.name)
+    }
+
+    /// The form no longer matches the applied preset.
+    var presetIsModified: Bool {
+        guard let preset = appliedPreset else { return false }
+        return preset.ref != ref || preset.inputs != presetValues
+    }
+
+    var canSavePreset: Bool {
+        presets?.isAvailable == true && selectedWorkflow != nil && !ref.isEmpty
+            && definition?.access == .ok && definition?.dispatchable == true && !isLoadingDefinition
+    }
+
+    /// Applies a preset: its branch, then the workflow's defaults with the
+    /// preset's values on top. What no longer fits is listed in `presetNotes`.
+    func apply(_ preset: DispatchPreset) {
+        appliedPresetID = preset.id
+        presetNotes = []
+        let known = (refs?.branches ?? []) + (refs?.tags ?? [])
+        if preset.ref != ref, known.contains(preset.ref) {
+            pendingPreset = preset
+            select(ref: preset.ref)
+            return
+        }
+        if preset.ref != ref {
+            presetNotes.append("The preset's branch \(preset.ref) no longer exists on GitHub; \(ref) is kept.")
+        }
+        if let definition, !isLoadingDefinition, definition.access == .ok, definition.parseError == nil {
+            overlay(preset, inputs: definition.inputs)
+        } else {
+            pendingPreset = preset
+        }
+    }
+
+    private func overlay(_ preset: DispatchPreset, inputs: [CoreDispatchInput]) {
+        var next = Self.initialValues(for: inputs)
+        let byName = Dictionary(uniqueKeysWithValues: inputs.map { ($0.name, $0) })
+        for (name, value) in preset.inputs.sorted(by: { $0.key < $1.key }) {
+            guard let input = byName[name] else {
+                presetNotes.append("\"\(name)\" is no longer an input of this workflow on \(ref).")
+                continue
+            }
+            switch input.kind {
+            case .choice where !input.options.contains(value):
+                presetNotes.append("\"\(name)\" no longer offers \(value); the default is used.")
+            case .boolean where value != "true" && value != "false":
+                presetNotes.append("\"\(name)\" is now a boolean; the default is used.")
+            default:
+                next[name] = value
+            }
+        }
+        values = next
+    }
+
+    /// Saves the current branch and values as a new preset and applies it.
+    @discardableResult
+    func saveAsPreset(named name: String) -> Bool {
+        guard canSavePreset, let workflow = selectedWorkflow,
+              let preset = presets?.add(name: name, workspaceID: workspaceID, workflowPath: workflow.path, ref: ref, inputs: presetValues) else {
+            return false
+        }
+        appliedPresetID = preset.id
+        presetNotes = []
+        return true
+    }
+
+    /// Writes the current branch and values into the applied preset.
+    @discardableResult
+    func updateAppliedPreset() -> Bool {
+        guard canSavePreset, let id = appliedPresetID, presets?.update(id, ref: ref, inputs: presetValues) == true else { return false }
+        presetNotes = []
+        return true
+    }
+
+    @discardableResult
+    func renameAppliedPreset(to name: String) -> Bool {
+        guard let id = appliedPresetID else { return false }
+        return presets?.rename(id, to: name) == true
+    }
+
+    func deleteAppliedPreset() {
+        guard let id = appliedPresetID, presets?.delete(id) == true else { return }
+        appliedPresetID = nil
+        presetNotes = []
     }
 
     /// Keeps what the user changed for inputs that still exist after a branch
@@ -193,6 +320,14 @@ struct RunWorkflowSheet: View {
     @State var model: DispatchFormModel
     let showRun: (CoreWorkflowRun) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var presetPrompt: PresetPrompt?
+    @State private var presetName = ""
+    @State private var confirmingDelete = false
+
+    private enum PresetPrompt: Identifiable {
+        case save, rename
+        var id: Self { self }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -204,6 +339,10 @@ struct RunWorkflowSheet: View {
             ScrollView { content.padding(20) }.frame(minHeight: 260, maxHeight: 460)
             DesignDivider()
             HStack(spacing: 8) {
+                if case .editing = model.step, model.presets != nil {
+                    Text(presetFootnote).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                }
                 Spacer()
                 footer
             }.buttonStyle(DesignButtonStyle()).padding(16)
@@ -212,6 +351,70 @@ struct RunWorkflowSheet: View {
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
         .task { await model.load() }
+        .alert(presetPrompt == .rename ? "Rename Preset" : "Save Preset", isPresented: Binding(
+            get: { presetPrompt != nil }, set: { if !$0 { presetPrompt = nil } })) {
+            TextField("Name", text: $presetName)
+            Button(presetPrompt == .rename ? "Rename" : "Save") {
+                if presetPrompt == .rename { model.renameAppliedPreset(to: presetName) } else { model.saveAsPreset(named: presetName) }
+                presetPrompt = nil
+            }
+            .disabled(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Cancel", role: .cancel) { presetPrompt = nil }
+        } message: {
+            Text(presetPrompt == .rename ? "A new name for this preset." : "The branch and input values are saved on this Mac.")
+        }
+        .confirmationDialog("Delete the preset \(model.appliedPreset?.name ?? "")?", isPresented: $confirmingDelete) {
+            Button("Delete Preset", role: .destructive) { model.deleteAppliedPreset() }
+        } message: {
+            Text("Only the saved values are removed. Runs started with it are not affected.")
+        }
+    }
+
+    private var presetFootnote: String {
+        let leftOut = model.inputsLeftOutOfPresets
+        guard !leftOut.isEmpty else {
+            return "Presets stay on this Mac. Inputs that look like secrets are never saved; do not put secrets in other inputs."
+        }
+        return "Presets stay on this Mac. Not saved because they look secret: \(leftOut.joined(separator: ", "))."
+    }
+
+    @ViewBuilder private var presetControl: some View {
+        if let presets = model.presets {
+            LabeledContent("Preset") {
+                Menu {
+                    ForEach(model.availablePresets) { preset in
+                        Button { model.apply(preset) } label: {
+                            if preset.id == model.appliedPresetID { Label(preset.name, systemImage: "checkmark") } else { Text(preset.name) }
+                        }
+                    }
+                    if !model.availablePresets.isEmpty { Divider() }
+                    Button("Save as New Preset...") { presetName = ""; presetPrompt = .save }.disabled(!model.canSavePreset)
+                    if let applied = model.appliedPreset {
+                        Button("Update \"\(applied.name)\"") { model.updateAppliedPreset() }
+                            .disabled(!model.canSavePreset || !model.presetIsModified)
+                        Button("Rename \"\(applied.name)\"...") { presetName = applied.name; presetPrompt = .rename }
+                        Button("Delete \"\(applied.name)\"...", role: .destructive) { confirmingDelete = true }
+                    }
+                } label: {
+                    Label(presetTitle, systemImage: "bookmark")
+                }
+                .fixedSize()
+                .disabled(!presets.isAvailable)
+            }
+            if let problem = presets.problem {
+                Label(problem, systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(RunnirTheme.warning)
+            }
+            ForEach(model.presetNotes, id: \.self) { note in
+                Label(note, systemImage: "info.circle").font(.system(size: 12)).foregroundStyle(RunnirTheme.warning)
+            }
+        }
+    }
+
+    private var presetTitle: String {
+        guard let applied = model.appliedPreset else {
+            return model.availablePresets.isEmpty ? "No presets" : "Choose a preset"
+        }
+        return model.presetIsModified ? "\(applied.name) · modified" : applied.name
     }
 
     @ViewBuilder private var content: some View {
@@ -257,6 +460,7 @@ struct RunWorkflowSheet: View {
             } else {
                 progress("Loading branches...")
             }
+            presetControl
             DesignDivider()
             definitionSection
             if !model.problems.isEmpty {

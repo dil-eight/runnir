@@ -343,7 +343,8 @@ struct DesktopWorkspaceView: View {
         .sheet(item: Binding(get: { state.runWorkflowRequest }, set: { state.runWorkflowRequest = $0 })) { request in
             if let session, let hub = desktop.core {
                 RunWorkflowSheet(model: DispatchFormModel(workspaceID: workspace.id, hub: hub, workflows: session.remoteWorkflows,
-                                                          workflowID: request.workflowID, currentBranch: session.branch)) { run in
+                                                          workflowID: request.workflowID, currentBranch: session.branch,
+                                                          presets: desktop.presets)) { run in
                     state.selectedRunID = run.id
                     state.selectedSection = .runs
                 }
