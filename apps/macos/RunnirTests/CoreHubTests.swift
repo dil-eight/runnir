@@ -207,6 +207,43 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         }
     }
 
+    /// Where create and rename change files on disk, like the Core; nil
+    /// changes nothing on disk.
+    var workflowRoot: URL?
+    var fileChangeError: CoreServiceError?
+    private var _fileChanges: [String] = []
+    /// "create <name>" and "rename <id> <name>", in order.
+    var fileChanges: [String] { lock.withLock { _fileChanges } }
+    func createWorkflowFile(repositoryID: String, fileName: String, content: String) async throws -> String {
+        try lock.withLock {
+            _fileChanges.append("create \(fileName)")
+            if let fileChangeError { throw fileChangeError }
+            let id = ".github/workflows/\(fileName)"
+            if let workflowRoot {
+                let url = workflowRoot.appendingPathComponent(id)
+                guard !FileManager.default.fileExists(atPath: url.path) else {
+                    throw CoreServiceError.alreadyExists("a file with that name already exists in .github/workflows")
+                }
+                try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try (content.isEmpty ? "name: starter\n" : content).write(to: url, atomically: true, encoding: .utf8)
+            }
+            return id
+        }
+    }
+
+    func renameWorkflowFile(repositoryID: String, workflowID: String, newFileName: String) async throws -> String {
+        try lock.withLock {
+            _fileChanges.append("rename \(workflowID) \(newFileName)")
+            if let fileChangeError { throw fileChangeError }
+            let id = ".github/workflows/\(newFileName)"
+            if let workflowRoot {
+                try FileManager.default.moveItem(at: workflowRoot.appendingPathComponent(workflowID), to: workflowRoot.appendingPathComponent(id))
+            }
+            savedFiles[id] = savedFiles.removeValue(forKey: workflowID)
+            return id
+        }
+    }
+
     // MARK: Local runs
 
     static let readyTools = CoreToolReadiness(

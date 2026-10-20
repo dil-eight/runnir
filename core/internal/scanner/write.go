@@ -108,10 +108,7 @@ func SaveWorkflowFile(root, id string, content []byte, baseSHA256 string, overwr
 		}
 		return SaveResult{}, fmt.Errorf("replace the workflow file: %w", err)
 	}
-	if dir, err := repo.Open(workflowsDir); err == nil {
-		_ = dir.Sync()
-		_ = dir.Close()
-	}
+	syncWorkflowsDir(repo)
 	return SaveResult{SHA256: SHA256(content)}, nil
 }
 

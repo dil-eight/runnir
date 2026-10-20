@@ -1,6 +1,6 @@
 # MVP v0.1 Implementation Checklist
 
-Status: acceptance backlog, updated 2026-10-19 (see Progress below). Desktop foundation is partially implemented; [verification](../architecture/desktop-foundation-verification.md) lists evidence and remaining gates. Unchecked entries are not fully accepted, even where partial code exists. Priorities apply to product requirements; execution order also follows dependencies. See the [specification](specification.md) and [gap analysis](../architecture/gap-analysis.md).
+Status: acceptance backlog, updated 2026-10-20 (see Progress below). Desktop foundation is partially implemented; [verification](../architecture/desktop-foundation-verification.md) lists evidence and remaining gates. Unchecked entries are not fully accepted, even where partial code exists. Priorities apply to product requirements; execution order also follows dependencies. See the [specification](specification.md) and [gap analysis](../architecture/gap-analysis.md).
 
 Design planning: [Pen production plan](../design/pen-production-plan.md), [screen/state matrix](../design/screens-and-states.md) and [reusable components](../design/reusable-components.md). Design completion does not mark a functional requirement implemented.
 
@@ -13,7 +13,7 @@ Design planning: [Pen production plan](../design/pen-production-plan.md), [scree
 
 These checks describe source foundations, not complete MVP features or a fresh test run.
 
-## Progress (2026-10-19)
+## Progress (2026-10-20)
 
 What exists in code, with tests, against the backlog below. A row stays unaccepted until its full evidence column is met, including the controlled real integrations.
 
@@ -22,12 +22,12 @@ What exists in code, with tests, against the backlog below. A row stays unaccept
 | B01 | Import, bookmarks (stale refreshed), scoped reads, Locate/relink | Developer ID signed build check |
 | B02 | Discovery and bounded parsing in the Core (both extensions, limits, worktrees, no evaluation) | Developer ID signed build check |
 | B03 | actionlint as a library in the Core, no external process; diagnostics with file, line and column in the Workspace section; repository config honored; reads bounded and kept inside the repository | Shellcheck and pyflakes checks (off by design for now); signed-build check |
-| B04 | Workflow editor in the Workspace: line numbers, YAML colors, diagnostics marked, undo and find; Save through the Core with an atomic write inside the repository, refused when the file changed on disk since it was loaded (Reload from Disk or Save Anyway); edits kept when a reload finds a change; read-only files open read-only; save, don't save or cancel before switching files, switching workspaces, closing the window or quitting; saved files are checked again | New files and renames |
+| B04 | Workflow editor in the Workspace: line numbers, YAML colors, diagnostics marked, undo and find; Save through the Core with an atomic write inside the repository, refused when the file changed on disk since it was loaded (Reload from Disk or Save Anyway); edits kept when a reload finds a change; read-only files open read-only; save, don't save or cancel before switching files, switching workspaces, closing the window or quitting; saved files are checked again; new workflow files (a starter that runs by hand) and renames through the Core, never replacing a file, with the editor's unsaved edits, presets and star kept across a rename | — |
 | B05 | Device Flow with the registered app; no secret; token only in Keychain and Core memory | Rate-limit scheduling review |
 | B06 | Restore, sign-out, revoked token, offline launch with retry; real sign-in confirmed by hand | Keychain denial on a signed build |
 | B07 | Workspace linked to its GitHub repository through `origin`; access check through the Core | Account-wide browsing and search (if kept in scope) |
 | B08 | Favorite workflows per workspace (star in Overview and Workflows; favorites first in tabs, lists and the editor's menu), kept on this Mac across restarts; Overview tabs show each workflow's latest GitHub run, the selected workflow's last run as a pipeline (columns from the jobs' needs, status and time per job, matrix jobs combined), recent runs, saved presets to run, a stale-data banner when GitHub cannot be reached, and isolated job-loading errors | Account-wide repository search and favorites (open UX decision); a real-GitHub check of the pipeline |
-| B09 | Branch and tag selection; typed inputs, defaults, required and choice validation in the Core; device-private presets per workspace and workflow (branch and values, survive restart, stale branch or inputs reported, inputs that look secret never saved) | Portable `.runnir` presets (B25); presets follow a renamed workflow file |
+| B09 | Branch and tag selection; typed inputs, defaults, required and choice validation in the Core; device-private presets per workspace and workflow (branch and values, survive restart, stale branch or inputs reported, inputs that look secret never saved); presets follow a workflow file renamed in Runnir | Portable `.runnir` presets (B25) |
 | B10 | Single-use confirmation; send once, no retries; run located by polling | Controlled real dispatch |
 | B11 | Runs, jobs and steps, active and idle polling, rate-limit states | — |
 | B12 | Last 2 MiB / 50,000 lines of a job log, step matching, search, expired and not-ready states | Controlled real logs |

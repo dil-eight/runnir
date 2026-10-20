@@ -338,6 +338,13 @@ final class DesktopCoordinator {
         catch { message = "Registration could not be removed. Repository files were not changed." }
     }
 
+    /// A workflow file of a workspace was renamed: its presets and star go
+    /// with it.
+    func workflowRenamed(workspaceID: UUID, from oldPath: String, to newPath: String) {
+        presets.moveWorkflow(workspaceID: workspaceID, from: oldPath, to: newPath)
+        favorites.moveWorkflow(workspaceID: workspaceID, from: oldPath, to: newPath)
+    }
+
     func selectSection(_ section: AppSection, windowID: UUID) {
         guard let index = snapshot.windows.firstIndex(where: { $0.id == windowID }) else { return }
         var candidate = snapshot

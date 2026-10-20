@@ -33,6 +33,22 @@ struct WorkflowFavoritesTests {
         #expect(again.paths(workspaceID: other).isEmpty)
     }
 
+    @Test func aRenamedWorkflowKeepsItsStarInPlace() throws {
+        let folder = directory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let workspace = UUID()
+        let favorites = WorkflowFavorites(store: FileWorkflowFavoritesStore(directory: folder))
+        for name in ["release.yml", "ci.yml", "build.yml"] { favorites.toggle(".github/workflows/" + name, workspaceID: workspace) }
+        favorites.moveWorkflow(workspaceID: workspace, from: ".github/workflows/ci.yml", to: ".github/workflows/test.yml")
+        #expect(favorites.paths(workspaceID: workspace) == [".github/workflows/release.yml", ".github/workflows/test.yml", ".github/workflows/build.yml"])
+        // A star left on the new name by an earlier file goes, so the list stays unique.
+        favorites.moveWorkflow(workspaceID: workspace, from: ".github/workflows/test.yml", to: ".github/workflows/build.yml")
+        #expect(favorites.paths(workspaceID: workspace) == [".github/workflows/release.yml", ".github/workflows/build.yml"])
+        favorites.moveWorkflow(workspaceID: workspace, from: ".github/workflows/none.yml", to: ".github/workflows/x.yml")
+        let restarted = WorkflowFavorites(store: FileWorkflowFavoritesStore(directory: folder))
+        #expect(restarted.paths(workspaceID: workspace) == [".github/workflows/release.yml", ".github/workflows/build.yml"])
+    }
+
     @Test func anUnreadableFileTurnsFavoritesOffAndIsLeftAlone() throws {
         let folder = directory()
         defer { try? FileManager.default.removeItem(at: folder) }

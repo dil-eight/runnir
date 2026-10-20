@@ -115,6 +115,66 @@ struct WorkflowEditingTests {
         #expect(!model.isWritable)
     }
 
+    @Test func aNewFileIsCreatedByTheCoreAndListed() async throws {
+        let (root, reader, hub, core, workspace) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        core.workflowRoot = root
+        let model = await loaded(reader)
+        model.source = "edited\n"
+
+        let outcome = await model.create(fileName: "deploy.yml", hub: hub, workspaceID: workspace, reader: reader)
+        #expect(outcome == .done(".github/workflows/deploy.yml"))
+        #expect(core.fileChanges == ["create deploy.yml"])
+        #expect(model.files.map(\.name) == ["ci.yml", "deploy.yml"])
+        // Opening it is the caller's step, which asks about these edits first.
+        #expect(model.selected?.name == "ci.yml" && model.source == "edited\n")
+
+        core.fileChangeError = .alreadyExists("a file with that name already exists in .github/workflows")
+        #expect(await model.create(fileName: "ci.yml", hub: hub, workspaceID: workspace, reader: reader)
+                == .failed("A file with that name already exists in .github/workflows."))
+        #expect(model.files.map(\.name) == ["ci.yml", "deploy.yml"])
+    }
+
+    @Test func renamingKeepsTheEditsAndSavesUnderTheNewName() async throws {
+        let (root, reader, hub, core, workspace) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        core.workflowRoot = root
+        let model = await loaded(reader)
+        let base = model.savedDigest
+        model.source = Self.original + "# edited\n"
+
+        let outcome = await model.renameSelected(to: "build.yml", hub: hub, workspaceID: workspace, reader: reader)
+        #expect(outcome == .done(".github/workflows/build.yml"))
+        #expect(core.fileChanges == ["rename .github/workflows/ci.yml build.yml"])
+        #expect(model.files.map(\.name) == ["build.yml"])
+        #expect(model.selected?.relativePath == ".github/workflows/build.yml")
+        #expect(model.source == Self.original + "# edited\n" && model.isDirty && model.savedDigest == base)
+
+        #expect(await model.save(hub: hub, workspaceID: workspace))
+        #expect(core.saves.last?.workflowID == ".github/workflows/build.yml")
+    }
+
+    @Test func aRefusedRenameChangesNothing() async throws {
+        let (root, reader, hub, core, workspace) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let model = await loaded(reader)
+        core.fileChangeError = .invalidArgument("use letters, digits, dots, dashes and underscores")
+        #expect(await model.renameSelected(to: "a b.yml", hub: hub, workspaceID: workspace, reader: reader)
+                == .failed("Use letters, digits, dots, dashes and underscores."))
+        #expect(model.selected?.name == "ci.yml" && model.files.map(\.name) == ["ci.yml"])
+    }
+
+    @Test func typedNamesBecomeWorkflowFileNames() {
+        #expect(WorkflowFileName.normalized("  deploy ") == "deploy.yml")
+        #expect(WorkflowFileName.normalized("deploy.yaml") == "deploy.yaml")
+        #expect(WorkflowFileName.normalized("Deploy.YML") == "Deploy.YML")
+        #expect(WorkflowFileName.normalized("deploy.json") == "deploy.json.yml")
+        #expect(WorkflowFileName.normalized("   ") == "")
+        let files = ["workflow.yml", "Workflow-2.yml"].map { LocalWorkflowFile(relativePath: ".github/workflows/" + $0) }
+        #expect(WorkflowFileName.suggestion(avoiding: []) == "workflow.yml")
+        #expect(WorkflowFileName.suggestion(avoiding: files) == "workflow-3.yml")
+    }
+
     @Test func lineStartsCountEveryLineBreak() {
         #expect(CodeEditor.lineStarts(of: "") == [0])
         #expect(CodeEditor.lineStarts(of: "a") == [0])

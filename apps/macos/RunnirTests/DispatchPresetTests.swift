@@ -90,6 +90,24 @@ struct DispatchPresetLibraryTests {
     }
 
     @Test
+    func presetsFollowARenamedWorkflowFile() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let library = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: directory))
+        let workspace = UUID(), other = UUID()
+        let old = ".github/workflows/deploy.yml", new = ".github/workflows/release.yml"
+        let moved = try #require(library.add(name: "Staging", workspaceID: workspace, workflowPath: old, ref: "main", inputs: [:]))
+        _ = library.add(name: "Kept", workspaceID: other, workflowPath: old, ref: "main", inputs: [:])
+
+        library.moveWorkflow(workspaceID: workspace, from: old, to: new)
+        let reread = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: directory))
+        reread.prepare()
+        #expect(reread.presets(workspaceID: workspace, workflowPath: new).map(\.id) == [moved.id])
+        #expect(reread.presets(workspaceID: workspace, workflowPath: old).isEmpty)
+        #expect(reread.presets(workspaceID: other, workflowPath: old).map(\.name) == ["Kept"], "another workspace's file is another file")
+    }
+
+    @Test
     func anUnreadableFileTurnsPresetsOffWithoutOverwritingIt() {
         let store = FailingPresetStore()
         let library = DispatchPresetLibrary(store: store)

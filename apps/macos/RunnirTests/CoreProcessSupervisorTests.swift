@@ -68,6 +68,8 @@ private struct FakeService: CoreServicing {
     func cancelExecution(executionID: String) async throws { throw CoreServiceError.unavailable }
     func saveWorkflowFile(repositoryID: String, workflowID: String, content: String, baseSHA256: String,
                           overwrite: Bool) async throws -> CoreWorkflowSave { throw CoreServiceError.unavailable }
+    func createWorkflowFile(repositoryID: String, fileName: String, content: String) async throws -> String { throw CoreServiceError.unavailable }
+    func renameWorkflowFile(repositoryID: String, workflowID: String, newFileName: String) async throws -> String { throw CoreServiceError.unavailable }
 }
 
 private final class FakeConnection: CoreConnection, @unchecked Sendable {
