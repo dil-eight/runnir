@@ -31,7 +31,23 @@ enum UnsavedChangesPrompt {
     }
 
     @MainActor static func ask(files: [String]) -> UnsavedChoice {
-        switch alert(for: files).runModal() {
+        choice(alert(for: files).runModal())
+    }
+
+    /// Asks in a sheet on `window`. AppKit shows it once a sheet still on
+    /// the window (one that is closing, say) is gone, so the two never
+    /// stack. Without a window it asks in a dialog.
+    @MainActor static func ask(fileName: String, sheetOn window: NSWindow?) async -> UnsavedChoice {
+        guard let window else { return ask(fileName: fileName) }
+        let alert = alert(for: [fileName])
+        let response = await withCheckedContinuation { continuation in
+            alert.beginSheetModal(for: window) { continuation.resume(returning: $0) }
+        }
+        return choice(response)
+    }
+
+    static func choice(_ response: NSApplication.ModalResponse) -> UnsavedChoice {
+        switch response {
         case .alertFirstButtonReturn: .save
         case .alertSecondButtonReturn: .discard
         default: .cancel

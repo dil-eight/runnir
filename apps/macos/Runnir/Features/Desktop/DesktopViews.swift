@@ -527,23 +527,26 @@ struct DesktopWorkspaceView: View {
         Task { await files.validate(hub: hub, workspaceID: workspace.id) }
     }
 
-    /// Opens another file in the editor, asking first when the open one has
-    /// edits that are not saved.
+    /// Opens another file in the editor, asking first, in a sheet on this
+    /// window, when the open one has edits that are not saved.
     private func open(_ file: LocalWorkflowFile) {
         guard let reader, file != files.selected else { return }
         guard files.isDirty, let current = files.selected else {
             files.select(file, reader: reader)
             return
         }
-        switch UnsavedChangesPrompt.ask(fileName: current.name) {
-        case .save:
-            Task {
+        Task {
+            let choice = await UnsavedChangesPrompt.ask(fileName: current.name, sheetOn: desktop.window(windowID))
+            // Answered for the file that was open when asked.
+            guard files.selected == current else { return }
+            switch choice {
+            case .save:
                 if await saveAndRevalidate() { files.select(file, reader: reader) }
+            case .discard:
+                files.select(file, reader: reader)
+            case .cancel:
+                break
             }
-        case .discard:
-            files.select(file, reader: reader)
-        case .cancel:
-            break
         }
     }
 

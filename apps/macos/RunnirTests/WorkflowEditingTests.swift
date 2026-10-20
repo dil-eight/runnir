@@ -191,6 +191,10 @@ struct WorkflowEditingTests {
         #expect(alert.buttons.map(\.title) == ["Save", "Don't Save", "Cancel"])
         #expect(alert.buttons[0].keyEquivalent == "\r")
         #expect(UnsavedChangesPrompt.title(for: ["ci.yml", "release.yml"]) == "Do you want to save the changes you made to 2 workflow files?")
+        #expect(UnsavedChangesPrompt.choice(.alertFirstButtonReturn) == .save)
+        #expect(UnsavedChangesPrompt.choice(.alertSecondButtonReturn) == .discard)
+        #expect(UnsavedChangesPrompt.choice(.alertThirdButtonReturn) == .cancel)
+        #expect(UnsavedChangesPrompt.choice(.abort) == .cancel)
     }
 
     @Test func tokenizerKeepsTheOldColors() {

@@ -143,6 +143,9 @@ final class DesktopCoordinator {
         }
     }
 
+    /// The window of a workspace window record, for sheets shown on it.
+    func window(_ windowID: UUID) -> NSWindow? { windows[windowID]?.window }
+
     func openCount(_ workspaceID: UUID) -> Int {
         windows.values.filter { $0.record.workspaceID == workspaceID }.count
     }
