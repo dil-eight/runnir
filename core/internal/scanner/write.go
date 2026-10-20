@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	// ErrReadOnly: the file's permissions do not allow writing it.
-	ErrReadOnly = errors.New("the workflow file is read-only")
+	// ErrReadOnly: the permissions of the file or its folder do not allow
+	// replacing it.
+	ErrReadOnly = errors.New("the workflow file or its folder is read-only")
 	// ErrTooLargeToSave: the new content is over the 1 MiB file limit.
 	ErrTooLargeToSave = errors.New("the workflow file would be larger than 1 MiB")
 	// ErrNotText: the new content is not UTF-8 text.
@@ -102,6 +103,9 @@ func SaveWorkflowFile(root, id string, content []byte, baseSHA256 string, overwr
 	}
 	if err := repo.Rename(temporary, target); err != nil {
 		_ = repo.Remove(temporary)
+		if errors.Is(err, fs.ErrPermission) {
+			return SaveResult{}, ErrReadOnly
+		}
 		return SaveResult{}, fmt.Errorf("replace the workflow file: %w", err)
 	}
 	if dir, err := repo.Open(workflowsDir); err == nil {
@@ -143,7 +147,9 @@ func writeTemporary(repo *os.Root, name string, content []byte, perm fs.FileMode
 	}
 	temporary := path.Join(workflowsDir, "."+name+".runnir-"+hex.EncodeToString(suffix[:])+".tmp")
 	file, err := repo.OpenFile(temporary, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
-	if err != nil {
+	if errors.Is(err, fs.ErrPermission) {
+		return "", ErrReadOnly
+	} else if err != nil {
 		return "", fmt.Errorf("create the temporary file: %w", err)
 	}
 	_, writeErr := file.Write(content)

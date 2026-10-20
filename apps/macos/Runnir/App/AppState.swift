@@ -16,5 +16,9 @@ final class AppState {
     /// Shows the Run Locally review sheet.
     var localRunRequest: LocalRunRequest?
     /// The workflow files of this window and the one in its editor.
-    let files = WorkspaceFilesModel()
+    let files: WorkspaceFilesModel
+
+    init(files: WorkspaceFilesModel = WorkspaceFilesModel()) {
+        self.files = files
+    }
 }

@@ -189,11 +189,13 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     /// matches, like the Core.
     var savedFiles: [String: String] = [:]
     var saveError: CoreServiceError?
+    var saveDelay: Duration?
     private var _saves: [(workflowID: String, content: String, overwrite: Bool)] = []
     var saves: [(workflowID: String, content: String, overwrite: Bool)] { lock.withLock { _saves } }
     func saveWorkflowFile(repositoryID: String, workflowID: String, content: String, baseSHA256: String,
                           overwrite: Bool) async throws -> CoreWorkflowSave {
-        try lock.withLock {
+        if let saveDelay { try? await Task.sleep(for: saveDelay) }
+        return try lock.withLock {
             _saves.append((workflowID, content, overwrite))
             if let saveError { throw saveError }
             let current = savedFiles[workflowID] ?? ""

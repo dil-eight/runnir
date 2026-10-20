@@ -538,15 +538,21 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
     required init?(coder: NSCoder) { nil }
 
     func attach(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: any RepositoryGranting) {
+        // The same workspace with renewed folder access (Locate) keeps the
+        // editor and any edits in it; another workspace starts fresh.
+        let keptFiles = record.workspaceID == self.record.workspaceID ? state?.files : nil
         self.grant?.stop()
         self.grant = grant
         self.record = record
-        installContent(workspace)
+        installContent(workspace, files: keptFiles)
     }
 
-    private func installContent(_ workspace: WorkspaceRecord) {
+    /// The window's editor, for tests.
+    var files: WorkspaceFilesModel? { state?.files }
+
+    private func installContent(_ workspace: WorkspaceRecord, files: WorkspaceFilesModel? = nil) {
         let frame = window?.frame
-        let state = AppState()
+        let state = files.map { AppState(files: $0) } ?? AppState()
         self.state = state
         state.selectedSection = record.section.restored
         window?.title = workspace.name + " - Runnir"

@@ -138,4 +138,50 @@ struct WorkflowEditingTests {
         #expect(tokens.map(\.token) == [.key, .string, .comment])
         #expect(tokens.first?.range == NSRange(location: 2, length: 4))
     }
+
+    @Test func aSaveThatEndsAfterAReloadLeavesTheReloadAlone() async throws {
+        let (root, reader, hub, core, workspace) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let model = await loaded(reader)
+        core.saveDelay = .milliseconds(300)
+        model.source = "mine\n"
+        let save = Task { await model.save(hub: hub, workspaceID: workspace) }
+        try await Task.sleep(for: .milliseconds(50))
+        model.reloadFromDisk(reader: reader)
+        _ = await eventually { model.savedDigest != nil }
+        #expect(await save.value == false)
+        #expect(model.source == Self.original)
+        #expect(model.savedDigest == WorkflowDigest.sha256(Self.original))
+        #expect(!model.isDirty)
+    }
+
+    @Test func locatingTheSameWorkspaceKeepsTheEdits() async throws {
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        let workspace = WorkspaceRecord(id: UUID(), path: root.path, name: "repo", bookmark: Data(), lastOpenedAt: Date())
+        let record = WorkspaceWindowRecord(id: UUID(), workspaceID: workspace.id)
+        let controller = WorkspaceWindowController(record: record, workspace: workspace, grant: nil, desktop: DesktopCoordinator())
+        let files = try #require(controller.files)
+        files.source = "edited"
+
+        controller.attach(record: record, workspace: workspace, grant: StubGrant(root: root))
+        #expect(controller.files === files)
+
+        let other = WorkspaceRecord(id: UUID(), path: root.path, name: "other", bookmark: Data(), lastOpenedAt: Date())
+        controller.attach(record: WorkspaceWindowRecord(id: record.id, workspaceID: other.id), workspace: other, grant: StubGrant(root: root))
+        #expect(controller.files !== files)
+        controller.close()
+    }
+}
+
+@MainActor
+private final class StubGrant: RepositoryGranting {
+    let url: URL
+    let reader: RepositoryReader
+    init(root: URL) {
+        url = root
+        reader = try! RepositoryReader(root: root)
+    }
+    func stop() {}
 }

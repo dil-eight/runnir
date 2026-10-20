@@ -144,3 +144,21 @@ func TestSaveNeverFollowsSymlinks(t *testing.T) {
 		}
 	}
 }
+
+func TestSaveRefusesAReadOnlyFolder(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Getuid() == 0 {
+		t.Skip("POSIX permissions as a normal user")
+	}
+	root, file, original := saveFixture(t)
+	dir := filepath.Dir(file)
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(dir, 0o755)
+	if _, err := SaveWorkflowFile(root, ".github/workflows/ci.yml", []byte("x\n"), SHA256(original), false); !errors.Is(err, ErrReadOnly) {
+		t.Fatalf("err = %v", err)
+	}
+	if data, _ := os.ReadFile(file); string(data) != string(original) {
+		t.Fatalf("file changed: %q", data)
+	}
+}

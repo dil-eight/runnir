@@ -250,6 +250,9 @@ final class WorkspaceFilesModel {
     var isLoading = false
     var error: String?
     private var sourceTask: Task<Void, Never>?
+    /// Changes whenever another file or version is loaded, so a save that
+    /// finishes afterwards does not overwrite what is shown now.
+    private var loadGeneration = 0
 
     /// The editor holds changes that are not on disk.
     var isDirty: Bool { selected != nil && savedDigest != nil && source != savedSource }
@@ -323,6 +326,7 @@ final class WorkspaceFilesModel {
     /// callers ask first (see `isDirty`).
     func select(_ file: LocalWorkflowFile, reader: RepositoryReader) {
         if selected != file { highlightedLine = nil }
+        loadGeneration += 1
         selected = file
         source = ""
         savedSource = ""
@@ -362,8 +366,12 @@ final class WorkspaceFilesModel {
         isSaving = true
         defer { isSaving = false }
         let content = source
-        switch await hub.saveWorkflowFile(workspaceID: workspaceID, workflowID: file.relativePath, content: content,
-                                          baseSHA256: base, overwrite: overwrite) {
+        let generation = loadGeneration
+        let outcome = await hub.saveWorkflowFile(workspaceID: workspaceID, workflowID: file.relativePath, content: content,
+                                                 baseSHA256: base, overwrite: overwrite)
+        // Another file, or the disk version, was loaded while saving.
+        guard generation == loadGeneration else { return false }
+        switch outcome {
         case .saved(let digest):
             // Typing during the save stays an edit on top of what was saved.
             savedSource = content

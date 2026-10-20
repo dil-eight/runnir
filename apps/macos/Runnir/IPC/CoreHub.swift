@@ -423,7 +423,7 @@ final class CoreHub {
                                                             baseSHA256: baseSHA256, overwrite: overwrite)
             return result.conflict ? .conflict : .saved(result.sha256)
         } catch CoreServiceError.notFound {
-            return .failed("This workflow is no longer in the working tree. Refresh, then save again.")
+            return .failed("Runnir Core does not know this workflow file yet. Refresh, then save again.")
         } catch CoreServiceError.invalidArgument(let message), CoreServiceError.failedPrecondition(let message) {
             return .failed(Self.sentence(message))
         } catch {

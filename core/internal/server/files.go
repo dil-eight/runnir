@@ -23,11 +23,15 @@ func (s *service) SaveWorkflowFile(ctx context.Context, request *corev1.SaveWork
 	if err != nil {
 		return nil, err
 	}
+	// One save at a time, so two windows saving the same file cannot both
+	// pass the check for the version they started from.
+	s.saveMu.Lock()
 	result, err := scanner.SaveWorkflowFile(info.Path, workflow.ID, []byte(request.GetContent()),
 		request.GetBaseSha256(), request.GetOverwrite())
+	s.saveMu.Unlock()
 	switch {
 	case errors.Is(err, scanner.ErrReadOnly):
-		return nil, status.Error(codes.FailedPrecondition, "the workflow file is read-only")
+		return nil, status.Error(codes.FailedPrecondition, "the workflow file or its folder is read-only")
 	case errors.Is(err, scanner.ErrTooLargeToSave):
 		return nil, status.Error(codes.InvalidArgument, "the workflow file would be larger than 1 MiB")
 	case errors.Is(err, scanner.ErrNotText):
