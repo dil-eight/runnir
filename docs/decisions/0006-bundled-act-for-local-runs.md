@@ -30,7 +30,13 @@ Local runs (FR-06) execute workflows with [act](https://github.com/nektos/act) o
 - Updating act is a deliberate change: bump `third_party/act`, run the local-run tests, including `go test -tags e2e ./internal/localrun/` against a real engine, and update `TestedActVersion` in the Core.
 - act's dependencies (including Docker and go-git libraries) are redistributed in the bundled binary. Their license notices still have to be collected for a release. Only act's own license ships today.
 - Known vulnerabilities in the bundled act are Runnir's to handle. `third_party/act` raises act's dependencies where a fixed version is compatible: go-git 5.19.3, golang.org/x/crypto 0.58.0 and the x/net, x/sys and related modules they need, which fixes 18 findings that govulncheck reports for act 0.2.89 as released. CI scans the bundled act every week and on changes. GO-2026-6253 in moby/go-archive (a crafted tar archive can be written outside its extraction directory) stays open: the fixed versions remove an API act 0.2.89 uses. act reaches that package when it builds the image of a local Docker action (`uses: ./path` with a Dockerfile). It stays listed as a known finding until an act release supports the fixed version.
-- A local run belongs to its workspace: closing the workspace's last window closes the repository in the Core, which stops the run and removes its containers. There is no warning yet, either for that or when quitting.
+- A local run belongs to its workspace and to the app. Three actions stop a running local run and remove its containers:
+  - quitting Runnir;
+  - closing the workspace's last window, which closes the repository in the Core;
+  - opening another workspace in that window.
+
+  Runnir asks before each of them.
+- act keeps one shared named volume, `act-toolcache`, for tools that actions download, and reuses it across runs. It is not removed after a run; deleting it in the container engine only costs later runs those downloads.
 - If the Core is killed during a run instead of being stopped (a crash, or a forced restart after it stopped answering), act is not interrupted. It may keep running until it fails to write its output, and its containers may remain.
 - Containers act creates for services, or for jobs that set their own `container:` image, do not get Runnir's label or limits, because act passes container options only to job containers without a `container:` section. act removes those containers itself when it ends or is interrupted. If act has to be killed after the grace period, Runnir says that containers may remain.
 

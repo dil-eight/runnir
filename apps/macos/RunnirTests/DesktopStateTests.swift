@@ -224,6 +224,45 @@ struct DesktopCoordinatorTests {
         #expect(try fixture.store.load().workspaces == [fixture.original])
     }
 
+    @Test func switchingAWindowAwayFromARunningWorkspaceAsksFirst() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let other = WorkspaceRecord(id: UUID(), path: fixture.relocated.path, name: "other", bookmark: Data(), lastOpenedAt: Date())
+        try fixture.store.save(DesktopSnapshot(workspaces: [fixture.original, other]))
+        let provider = FakeProvider()
+        let plan = CoreLocalRunPlan(workflowID: ".github/workflows/probe.yml", event: "push")
+        provider.core.preparedLocalRun = CorePreparedLocalRun(readiness: FakeCore.readyTools, plan: plan, confirmationID: "local_1", expiresAt: Date())
+        provider.core.localOutputs = [CoreLocalRunOutput(
+            executionID: "exec_1", repositoryID: "repo", state: .running, phase: .running, lines: [], discarded: false,
+            lastSequence: 0, jobs: [], plan: plan, startedAt: Date(), finishedAt: nil, exitCode: nil, message: nil, cleanupProblem: nil)]
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        _ = await eventually { hub.status == .ready(version: "fake") }
+
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: fixture.store, core: hub, makeGrant: factory.makeGrant,
+                                             makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        let window = try #require(factory.windows.first)
+        _ = await eventually { hub.session(for: fixture.original.id)?.phase == .ready }
+        let review = LocalRunReviewModel(workspaceID: fixture.original.id, workflowID: plan.workflowID, jobs: [], hub: hub)
+        await review.prepare()
+        review.trusted = true
+        let run = try #require(await review.run())
+
+        var asked: [LocalRunStopPrompt.Action] = []
+        coordinator.confirmStoppingLocalRuns = { asked.append($0.action); return false }
+        coordinator.openRegistered(other, reuseWindowID: window.record.id)
+        #expect(asked == [.switchWorkspace])
+        #expect(window.record.workspaceID == fixture.original.id)
+        #expect(hub.session(for: fixture.original.id)?.localRun === run)
+        #expect(factory.grants.count == 2 && factory.grants[1].stopped, "the other workspace's folder access is released")
+        #expect(coordinator.snapshot.windows.first?.workspaceID == fixture.original.id)
+        run.stopFollowing()
+    }
+
     @Test func theWindowLimitSaysSoInsteadOfBlamingTheFolder() async throws {
         let fixture = try CoordinatorFixture()
         defer { fixture.remove() }

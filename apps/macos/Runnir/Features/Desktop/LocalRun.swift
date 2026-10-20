@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 enum WorkspaceTab: Equatable {
@@ -10,6 +11,68 @@ struct LocalRunRequest: Identifiable, Equatable {
     /// ".github/workflows/<name>", as the Core names workflows.
     let workflowID: String
     let jobID: String?
+}
+
+/// What to ask before quitting or closing a window stops local runs. The
+/// Core cannot keep a run going without the app, and runs are never resumed.
+struct LocalRunStopPrompt: Equatable {
+    enum Action: Equatable {
+        case quit, closeWindow, switchWorkspace
+    }
+
+    let action: Action
+    /// One entry per run, such as "ci.yml in mobile-app".
+    let runs: [String]
+
+    var title: String {
+        switch action {
+        case .quit: runs.count == 1 ? "Quit Runnir and stop the local run?" : "Quit Runnir and stop \(runs.count) local runs?"
+        case .closeWindow: "Close the window and stop the local run?"
+        case .switchWorkspace: "Switch workspaces and stop the local run?"
+        }
+    }
+
+    var detail: String {
+        let list = ListFormatter.localizedString(byJoining: runs)
+        let one = runs.count == 1
+        switch action {
+        case .quit:
+            return "\(list) \(one ? "is" : "are") still going. Quitting stops \(one ? "it" : "them") and removes \(one ? "its" : "their") containers. Runnir does not resume runs."
+        case .closeWindow:
+            return "\(list) is still going. Closing the workspace's last window stops the run and removes its containers."
+        case .switchWorkspace:
+            return "\(list) is still going. Opening another workspace in this window closes this one, which stops the run and removes its containers."
+        }
+    }
+
+    var confirmTitle: String {
+        switch action {
+        case .quit: "Stop and Quit"
+        case .closeWindow: "Stop Run and Close"
+        case .switchWorkspace: "Stop Run and Switch"
+        }
+    }
+
+    /// The alert for the prompt. The stop button comes first and is marked
+    /// destructive, so macOS gives it no Return key; Cancel takes Escape and
+    /// the keyboard focus, so a stray Space keeps the run going.
+    @MainActor static func alert(for prompt: LocalRunStopPrompt) -> NSAlert {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = prompt.title
+        alert.informativeText = prompt.detail
+        let confirm = alert.addButton(withTitle: prompt.confirmTitle)
+        confirm.hasDestructiveAction = true
+        let cancel = alert.addButton(withTitle: "Cancel")
+        cancel.keyEquivalent = "\u{1b}"
+        alert.window.initialFirstResponder = cancel
+        return alert
+    }
+
+    /// Shows the prompt as an alert; true when the user chose to stop.
+    @MainActor static func ask(_ prompt: LocalRunStopPrompt) -> Bool {
+        alert(for: prompt).runModal() == .alertFirstButtonReturn
+    }
 }
 
 /// The user's choice in Settings: run with the act installed on this Mac

@@ -32,6 +32,9 @@ final class DesktopCoordinator {
     @ObservationIgnored private var geometryTask: Task<Void, Never>?
     @ObservationIgnored private var bootTask: Task<Void, Never>?
     @ObservationIgnored var terminationInProgress = false
+    /// Asks before quitting or closing a window stops a local run; tests
+    /// replace it.
+    @ObservationIgnored var confirmStoppingLocalRuns: @MainActor (LocalRunStopPrompt) -> Bool = LocalRunStopPrompt.ask
     let accountState = AppState()
     /// The app's connection to the single Core process; nil in tests that do not need it.
     let core: CoreHub?
@@ -232,6 +235,13 @@ final class DesktopCoordinator {
             candidate.workspaces[index].lastOpenedAt = Date()
         }
         if let reuseWindowID, let current = windows[reuseWindowID] {
+            // Another workspace in this window closes the current one when
+            // this was its last window, which stops its local run.
+            if current.record.workspaceID != workspace.id, let core, let run = core.localRunEnding(withWindow: reuseWindowID),
+               !confirmStoppingLocalRuns(LocalRunStopPrompt(action: .switchWorkspace, runs: [core.describe(run)])) {
+                grant.stop()
+                return
+            }
             candidate.associate(windowID: reuseWindowID, workspaceID: workspace.id)
             guard let record = candidate.windows.first(where: { $0.id == reuseWindowID }) else {
                 grant.stop()
@@ -310,6 +320,12 @@ final class DesktopCoordinator {
 
     func shouldClose(_ id: UUID) -> Bool {
         if terminationInProgress { return true }
+        // The workspace's last window closes the repository in the Core,
+        // which stops its local run.
+        if let core, let run = core.localRunEnding(withWindow: id),
+           !confirmStoppingLocalRuns(LocalRunStopPrompt(action: .closeWindow, runs: [core.describe(run)])) {
+            return false
+        }
         var candidate = snapshot
         candidate.closeWindow(id)
         do { try commit(candidate); return true }
@@ -349,6 +365,14 @@ final class DesktopCoordinator {
             }
         }
         try commit(candidate)
+    }
+
+    /// Quitting stops the Core and with it every local run; asks first.
+    func confirmQuitStopsLocalRuns() -> Bool {
+        guard let core else { return true }
+        let runs = core.activeLocalRuns
+        guard !runs.isEmpty else { return true }
+        return confirmStoppingLocalRuns(LocalRunStopPrompt(action: .quit, runs: runs.map(core.describe)))
     }
 
     func prepareToQuit() -> Bool {
@@ -531,6 +555,7 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        desktop.prepareToQuit() ? .terminateNow : .terminateCancel
+        guard desktop.confirmQuitStopsLocalRuns() else { return .terminateCancel }
+        return desktop.prepareToQuit() ? .terminateNow : .terminateCancel
     }
 }

@@ -468,6 +468,29 @@ final class CoreHub {
         }
     }
 
+    /// Local runs still going, which quitting would stop. Without a running
+    /// Core there is nothing to stop, whatever the last report said.
+    var activeLocalRuns: [LocalRunModel] {
+        guard isReady else { return [] }
+        return sessions.values.compactMap(\.localRun).filter { !$0.isFinished }.sorted { $0.executionID < $1.executionID }
+    }
+
+    /// The local run that closing this window would stop: the window is the
+    /// last one of its workspace, which closes the repository in the Core,
+    /// and the workspace's run is still going.
+    func localRunEnding(withWindow windowID: UUID) -> LocalRunModel? {
+        guard isReady, let workspaceID = windowWorkspace[windowID], let session = sessions[workspaceID],
+              session.windowIDs == [windowID], let run = session.localRun, !run.isFinished else { return nil }
+        return run
+    }
+
+    /// "ci.yml in mobile-app", for prompts.
+    func describe(_ run: LocalRunModel) -> String {
+        let file = URL(fileURLWithPath: run.plan.workflowID).lastPathComponent
+        guard let path = sessions[run.workspaceID]?.path else { return file }
+        return "\(file) in \(URL(fileURLWithPath: path).lastPathComponent)"
+    }
+
     func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput {
         guard isReady, let service = try? await provider.service() else { throw CoreServiceError.unavailable }
         return try await service.localRunOutput(executionID: executionID, after: after)

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import Runnir
@@ -80,6 +81,17 @@ struct LocalRunTests {
         #expect(CoreHub.sentence("the workflow file changed after the review; review the run again")
                 == "The workflow file changed after the review; review the run again.")
         #expect(CoreHub.sentence("Done.") == "Done.")
+    }
+
+    @Test func runningJobTimeCountsToNow() {
+        let start = Date(timeIntervalSince1970: 0)
+        let running = CoreLocalRunJobStatus(id: "lint", state: .running, startedAt: start)
+        #expect(LocalRunText.jobSubtitle(running, now: start.addingTimeInterval(29)) == "Running · 00:29")
+        #expect(LocalRunText.jobSubtitle(running, now: start.addingTimeInterval(52)) == "Running · 00:52")
+        let done = CoreLocalRunJobStatus(id: "lint", state: .failed, startedAt: start, finishedAt: start.addingTimeInterval(51))
+        #expect(LocalRunText.jobSubtitle(done, now: start.addingTimeInterval(300)) == "Failed · 00:51")
+        #expect(LocalRunText.jobSubtitle(CoreLocalRunJobStatus(id: "ios", state: .unsupported, reason: "Not supported locally: macOS runner"),
+                                         now: start) == "Not supported locally: macOS runner")
     }
 
     @Test func elapsedTimeFormat() {
@@ -209,5 +221,121 @@ struct LocalRunTests {
         #expect(fake.confirmedLocalRuns.count == 1)
         #expect(hub.session(for: workspace)?.localRun === run)
         run.stopFollowing()
+    }
+
+    // MARK: Quitting and closing during a run
+
+    @Test func stopPromptsSayWhatStops() {
+        let one = LocalRunStopPrompt(action: .quit, runs: ["ci.yml in mobile-app"])
+        #expect(one.title == "Quit Runnir and stop the local run?")
+        #expect(one.detail == "ci.yml in mobile-app is still going. Quitting stops it and removes its containers. Runnir does not resume runs.")
+        #expect(one.confirmTitle == "Stop and Quit")
+        let two = LocalRunStopPrompt(action: .quit, runs: ["ci.yml in a", "release.yml in b"])
+        #expect(two.title == "Quit Runnir and stop 2 local runs?")
+        #expect(two.detail.contains("are still going. Quitting stops them and removes their containers."))
+        #expect(LocalRunStopPrompt(action: .closeWindow, runs: ["ci.yml in a"]).confirmTitle == "Stop Run and Close")
+        #expect(LocalRunStopPrompt(action: .switchWorkspace, runs: ["ci.yml in a"]).title == "Switch workspaces and stop the local run?")
+    }
+
+    @Test func stopAlertKeepsTheRunOnEscapeAndSpace() {
+        let alert = LocalRunStopPrompt.alert(for: LocalRunStopPrompt(action: .quit, runs: ["ci.yml in a"]))
+        #expect(alert.buttons.map(\.title) == ["Stop and Quit", "Cancel"])
+        #expect(alert.buttons[0].hasDestructiveAction)
+        #expect(alert.buttons[1].keyEquivalent == "\u{1b}")
+        #expect(alert.window.initialFirstResponder === alert.buttons[1])
+        // macOS keeps Return off a destructive button even though its key
+        // equivalent still reads "\r": the alert does not handle it.
+        alert.layout()
+        let returnKey = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                                         windowNumber: alert.window.windowNumber, context: nil, characters: "\r",
+                                         charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36)
+        #expect(returnKey.map { alert.window.performKeyEquivalent(with: $0) } == false)
+    }
+
+    /// A hub with workspace /repo/a open in `window` and a run going in it.
+    private func runningHub(window: UUID) async throws -> (CoreHub, UUID, LocalRunModel) {
+        let provider = FakeProvider()
+        provider.core.preparedLocalRun = prepared()
+        provider.core.localOutputs = [output(lines: 1...1)]
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        _ = await eventually { hub.status == .ready(version: "fake") }
+        let workspace = UUID()
+        hub.attach(windowID: window, workspaceID: workspace, path: "/repo/a")
+        _ = await eventually { hub.session(for: workspace)?.phase == .ready }
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        await review.prepare()
+        review.trusted = true
+        let run = try #require(await review.run())
+        return (hub, workspace, run)
+    }
+
+    @Test func onlyTheWorkspacesLastWindowStopsItsRun() async throws {
+        let first = UUID()
+        let (hub, workspace, run) = try await runningHub(window: first)
+        #expect(hub.localRunEnding(withWindow: first) === run)
+        #expect(hub.activeLocalRuns.count == 1)
+        #expect(hub.describe(run) == "ci.yml in a")
+
+        let second = UUID()
+        hub.attach(windowID: second, workspaceID: workspace, path: "/repo/a")
+        #expect(hub.localRunEnding(withWindow: first) == nil)
+        #expect(hub.localRunEnding(withWindow: second) == nil)
+        #expect(hub.localRunEnding(withWindow: UUID()) == nil)
+        run.stopFollowing()
+    }
+
+    @Test func quittingAndClosingAskWhileARunIsGoing() async throws {
+        let window = UUID()
+        let (hub, _, run) = try await runningHub(window: window)
+        let desktop = DesktopCoordinator(core: hub)
+        var asked: [LocalRunStopPrompt] = []
+        desktop.confirmStoppingLocalRuns = { asked.append($0); return false }
+
+        #expect(!desktop.confirmQuitStopsLocalRuns())
+        #expect(!desktop.shouldClose(window))
+        #expect(asked == [LocalRunStopPrompt(action: .quit, runs: ["ci.yml in a"]),
+                          LocalRunStopPrompt(action: .closeWindow, runs: ["ci.yml in a"])])
+
+        desktop.confirmStoppingLocalRuns = { _ in true }
+        #expect(desktop.confirmQuitStopsLocalRuns())
+        run.stopFollowing()
+    }
+
+    @Test func nothingIsStoppedWhenTheCoreIsGone() async throws {
+        let window = UUID()
+        let provider = FakeProvider()
+        provider.core.preparedLocalRun = prepared()
+        provider.core.localOutputs = [output(lines: 1...1)]
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        _ = await eventually { hub.status == .ready(version: "fake") }
+        let workspace = UUID()
+        hub.attach(windowID: window, workspaceID: workspace, path: "/repo/a")
+        _ = await eventually { hub.session(for: workspace)?.phase == .ready }
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        await review.prepare()
+        review.trusted = true
+        let run = try #require(await review.run())
+        #expect(hub.activeLocalRuns.count == 1)
+
+        provider.emit(.lost(.processExited(9)))
+        _ = await eventually { hub.status == .lost }
+        // The run's last report says running, but no Core is left to stop it.
+        #expect(!run.isFinished)
+        #expect(hub.activeLocalRuns.isEmpty)
+        #expect(hub.localRunEnding(withWindow: window) == nil)
+        run.stopFollowing()
+    }
+
+    @Test func quittingWithoutARunDoesNotAsk() async {
+        let (hub, _, _) = await hub()
+        let desktop = DesktopCoordinator(core: hub)
+        var asked = false
+        desktop.confirmStoppingLocalRuns = { _ in asked = true; return false }
+        #expect(desktop.confirmQuitStopsLocalRuns())
+        #expect(!asked)
     }
 }

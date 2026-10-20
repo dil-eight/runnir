@@ -64,6 +64,22 @@ enum LocalRunText {
             : String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
 
+    /// "Running · 00:42" for the job list; the time runs to `now` until
+    /// the job finishes.
+    static func jobSubtitle(_ job: CoreLocalRunJobStatus, now: Date) -> String {
+        let duration = job.startedAt.map { " · " + elapsed(from: $0, to: job.finishedAt ?? now) } ?? ""
+        switch job.state {
+        case .waiting: return "Queued"
+        case .running: return "Running" + duration
+        case .succeeded: return "Succeeded" + duration
+        case .failed: return "Failed" + duration
+        case .cancelled: return "Cancelled"
+        case .skipped, .unsupported: return job.reason.isEmpty ? "Skipped" : job.reason
+        case .notRun: return job.reason.isEmpty ? "Did not run" : job.reason
+        case .unknown: return "Unknown"
+        }
+    }
+
     static func abbreviated(_ path: String) -> String {
         let home = NSHomeDirectory()
         return path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
@@ -409,7 +425,10 @@ struct LocalRunView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(job.name.isEmpty ? job.id : job.name).font(.system(size: 13, weight: .medium))
                                     .foregroundStyle(job.state == .unsupported ? RunnirTheme.secondaryForeground : RunnirTheme.foreground)
-                                Text(subtitle(job)).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(2)
+                                // A running job's time keeps counting between reports.
+                                TimelineView(.periodic(from: .now, by: job.state == .running ? 1 : 3600)) { context in
+                                    Text(LocalRunText.jobSubtitle(job, now: context.date))
+                                }.font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(2)
                             }
                             Spacer(minLength: 0)
                         }
@@ -423,20 +442,6 @@ struct LocalRunView: View {
                         .background(run.selectedJobID == nil ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
                 }.buttonStyle(.plain).foregroundStyle(RunnirTheme.secondaryForeground)
             }.padding(8)
-        }
-    }
-
-    private func subtitle(_ job: CoreLocalRunJobStatus) -> String {
-        let duration: String? = job.startedAt.map { LocalRunText.elapsed(from: $0, to: job.finishedAt ?? Date()) }
-        switch job.state {
-        case .waiting: return "Queued"
-        case .running: return "Running" + (duration.map { " · \($0)" } ?? "")
-        case .succeeded: return "Succeeded" + (duration.map { " · \($0)" } ?? "")
-        case .failed: return "Failed" + (duration.map { " · \($0)" } ?? "")
-        case .cancelled: return "Cancelled"
-        case .skipped, .unsupported: return job.reason.isEmpty ? "Skipped" : job.reason
-        case .notRun: return job.reason.isEmpty ? "Did not run" : job.reason
-        case .unknown: return "Unknown"
         }
     }
 
@@ -457,7 +462,7 @@ struct LocalRunView: View {
             lines
             DesignDivider()
             Label(run.isFinished ? "The run's containers and temporary files were removed when it ended."
-                  : "Stopping removes the run's containers and temporary files. Quitting Runnir stops the run.", systemImage: "info.circle")
+                  : "Stopping removes the run's containers and temporary files. Quitting Runnir or closing this workspace asks what to do with this run.", systemImage: "info.circle")
                 .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 .padding(.horizontal, 16).frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
