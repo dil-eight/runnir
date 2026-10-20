@@ -195,6 +195,7 @@ struct WorkspaceWorkflowsView: View {
     let session: RepositorySession
     let hub: CoreHub
     let github: GitHubSession?
+    var favorites: WorkflowFavorites?
     let showRun: (CoreWorkflowRun) -> Void
     let runWorkflow: (CoreGitHubWorkflow) -> Void
     @Environment(\.openURL) private var openURL
@@ -207,9 +208,19 @@ struct WorkspaceWorkflowsView: View {
                         Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
                     }.padding(.bottom, 12)
                 }
-                ForEach(session.remoteWorkflows) { workflow in
+                ForEach(favorites?.ordered(session.remoteWorkflows, workspaceID: session.workspaceID, path: \.path) ?? session.remoteWorkflows) { workflow in
                     let latest = session.runs.first { $0.workflowID == workflow.id }
+                    let favorite = favorites?.isFavorite(workflow.path, workspaceID: session.workspaceID) ?? false
                     HStack(spacing: 10) {
+                        if let favorites, WorkflowFavorites.canFavorite(workflow.path) {
+                            Button { favorites.toggle(workflow.path, workspaceID: session.workspaceID) } label: {
+                                Image(systemName: favorite ? "star.fill" : "star")
+                                    .foregroundStyle(favorite ? RunnirTheme.warning : RunnirTheme.mutedForeground)
+                            }
+                            .buttonStyle(.borderless).disabled(!favorites.isAvailable)
+                            .help(favorite ? "Remove from favorites" : "Add to favorites; favorites come first")
+                            .accessibilityLabel(favorite ? "Remove \(workflow.name) from favorites" : "Add \(workflow.name) to favorites")
+                        }
                         if let latest { RunOutcomeIcon(outcome: latest.outcome) } else {
                             Image(systemName: "circle.dashed").foregroundStyle(RunnirTheme.secondaryForeground)
                         }

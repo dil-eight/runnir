@@ -15,6 +15,8 @@ final class AppState {
     var workspaceTab: WorkspaceTab = .editor
     /// Shows the Run Locally review sheet.
     var localRunRequest: LocalRunRequest?
+    /// The workflow selected in the Overview, kept while switching sections.
+    var overviewWorkflowPath: String?
     /// The workflow files of this window and the one in its editor.
     let files: WorkspaceFilesModel
 

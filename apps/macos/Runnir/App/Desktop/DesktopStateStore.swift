@@ -74,15 +74,7 @@ struct FileDesktopStateStore: DesktopStateStoring {
     var stateURL: URL { directory.appendingPathComponent("desktop-state.json") }
 
     static func live() throws -> FileDesktopStateStore {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing"),
-           let path = ProcessInfo.processInfo.environment["RUNNIR_UI_TEST_STATE_DIRECTORY"] {
-            return FileDesktopStateStore(directory: URL(fileURLWithPath: path, isDirectory: true))
-        }
-        #endif
-        let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                 appropriateFor: nil, create: false)
-        return FileDesktopStateStore(directory: support.appendingPathComponent("Runnir", isDirectory: true))
+        FileDesktopStateStore(directory: try RunnirSupportDirectory.url())
     }
 
     func load() throws -> DesktopSnapshot {
@@ -135,5 +127,22 @@ enum AtomicFile {
         guard directoryDescriptor >= 0 else { throw DesktopStoreError.ioFailure }
         defer { Darwin.close(directoryDescriptor) }
         guard fsync(directoryDescriptor) == 0 else { throw DesktopStoreError.ioFailure }
+    }
+}
+
+/// Where Runnir keeps its files: ~/Library/Application Support/Runnir, or,
+/// for UI tests of a Debug build, the folder they name, so a test run never
+/// writes into the user's own session, presets or favorites.
+enum RunnirSupportDirectory {
+    static func url() throws -> URL {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing"),
+           let path = ProcessInfo.processInfo.environment["RUNNIR_UI_TEST_STATE_DIRECTORY"] {
+            return URL(fileURLWithPath: path, isDirectory: true)
+        }
+        #endif
+        let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                                 appropriateFor: nil, create: false)
+        return support.appendingPathComponent("Runnir", isDirectory: true)
     }
 }

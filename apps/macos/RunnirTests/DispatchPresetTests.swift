@@ -165,6 +165,30 @@ struct DispatchPresetFormTests {
     }
 
     @Test
+    func aPresetChosenOnTheOverviewIsAppliedWhenTheSheetOpens() async throws {
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        provider.core.setBranch("feature", for: "/repo/linked")
+        provider.core.dispatchDefinition = CoreDispatchDefinition(access: .ok, dispatchable: true, inputs: inputs, parseError: nil)
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        _ = await eventually { hub.session(for: workspace)?.githubAccess == .ok }
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let library = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: directory))
+        let preset = try #require(library.add(name: "Production", workspaceID: workspace, workflowPath: workflow.path,
+                                              ref: "feature", inputs: ["environment": "production"]))
+
+        let form = DispatchFormModel(workspaceID: workspace, hub: hub, workflows: [workflow], workflowID: workflow.id,
+                                     currentBranch: "feature", presets: library, presetID: preset.id)
+        await form.load()
+        #expect(await eventually { form.values["environment"] == "production" })
+        #expect(form.appliedPresetID == preset.id)
+    }
+
+    @Test
     func applyingAPresetSwitchesBranchThenFillsTheInputs() async throws {
         let (form, library, _, directory) = await rig()
         defer { try? FileManager.default.removeItem(at: directory) }

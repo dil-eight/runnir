@@ -789,7 +789,10 @@ struct CoreHubTests {
         provider.core.runsDelay = .milliseconds(200)
         let workspace = UUID()
         hub.attach(windowID: UUID(), workspaceID: workspace, path: path)
-        #expect(await eventually { hub.session(for: workspace)?.isLoadingGitHub == true })
+        // The load is marked before it asks the Core, so wait for the Core
+        // to have been asked; otherwise the first load could already read
+        // the answer meant for the second.
+        #expect(await eventually { hub.session(for: workspace)?.isLoadingGitHub == true && !provider.core.runsCalls.isEmpty })
 
         // The token arrives meanwhile and a load is asked for again.
         provider.core.runsDelay = nil
@@ -800,7 +803,7 @@ struct CoreHubTests {
         #expect(hub.session(for: workspace)?.runs.count == 1)
         // At least the first load and the one asked for during it; the Core's
         // own credential push may add another.
-        #expect(provider.core.runsCalls.count >= 2)
+        #expect(await eventually { provider.core.runsCalls.count >= 2 })
     }
 
     private func run(_ id: Int64, status: String, conclusion: String?) -> CoreWorkflowRun {
