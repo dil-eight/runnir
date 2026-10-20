@@ -251,6 +251,43 @@ struct DesktopCoordinatorTests {
         #expect(try fixture.store.load().workspaces == [fixture.relocated])
     }
 
+    @Test func aStaleBookmarkOrMovedFolderUpdatesTheSavedWorkspace() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let factory = TestWindowFactory()
+        factory.resolvedPath = fixture.relocated.path
+        factory.refreshedBookmark = Data([1, 2, 3])
+        let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant,
+                                             makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        let window = try #require(factory.windows.first)
+        #expect(window.workspace.path == fixture.relocated.path)
+        let saved = try #require(try fixture.store.load().workspaces.first)
+        #expect(saved.id == fixture.original.id)
+        #expect(saved.path == fixture.relocated.path)
+        #expect(saved.bookmark == Data([1, 2, 3]))
+        #expect(saved.name == "fixture", "a name that is not the folder name is kept")
+        #expect(coordinator.message == nil)
+    }
+
+    @Test func aRenamedFolderRenamesAWorkspaceNamedAfterIt() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        var named = fixture.original
+        named.name = URL(fileURLWithPath: fixture.original.path).lastPathComponent
+        try fixture.store.save(DesktopSnapshot(workspaces: [named]))
+        let factory = TestWindowFactory()
+        factory.resolvedPath = fixture.relocated.path
+        let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant,
+                                             makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(named)
+        let saved = try #require(try fixture.store.load().workspaces.first)
+        #expect(saved.name == URL(fileURLWithPath: fixture.relocated.path).lastPathComponent)
+        #expect(factory.windows.first?.workspace.name == saved.name)
+    }
+
     @Test func failedGrantPreparationRollsBackAllWindowsAndRegistry() async throws {
         let fixture = try CoordinatorFixture()
         defer { fixture.remove() }
@@ -350,10 +387,13 @@ private final class ControlledDesktopStore: DesktopStateStoring, @unchecked Send
 private final class TestRepositoryGrant: RepositoryGranting {
     let url: URL
     let reader: RepositoryReader
+    let refreshedBookmark: Data?
     var stopped = false
-    init(_ workspace: WorkspaceRecord) throws {
-        url = URL(fileURLWithPath: workspace.path)
+    /// `resolvedPath` stands for a bookmark that now points at a moved folder.
+    init(_ workspace: WorkspaceRecord, resolvedPath: String? = nil, refreshedBookmark: Data? = nil) throws {
+        url = URL(fileURLWithPath: resolvedPath ?? workspace.path)
         reader = try RepositoryReader(root: url)
+        self.refreshedBookmark = refreshedBookmark
     }
     func stop() { stopped = true }
 }
@@ -384,10 +424,12 @@ private final class TestWindowFactory {
     var grants: [TestRepositoryGrant] = []
     var calls = 0
     var failGrantOnCall: Int?
+    var resolvedPath: String?
+    var refreshedBookmark: Data?
     func makeGrant(_ workspace: WorkspaceRecord) throws -> any RepositoryGranting {
         calls += 1
         if calls == failGrantOnCall { throw RepositoryAccessError.unavailable }
-        let grant = try TestRepositoryGrant(workspace)
+        let grant = try TestRepositoryGrant(workspace, resolvedPath: resolvedPath, refreshedBookmark: refreshedBookmark)
         grants.append(grant)
         return grant
     }

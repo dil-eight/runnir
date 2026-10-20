@@ -46,6 +46,9 @@ final class RepositorySession: Identifiable {
     fileprivate(set) var isLoadingGitHub = false
     fileprivate(set) var githubLoadedAt: Date?
     @ObservationIgnored fileprivate var githubPoll: Task<Void, Never>?
+    /// A load was asked for while one was running; run another after it,
+    /// because what the Core may read (the token) can have changed meanwhile.
+    @ObservationIgnored fileprivate var githubReloadPending = false
     @ObservationIgnored fileprivate var windowIDs: Set<UUID> = []
     @ObservationIgnored fileprivate var appliedSequence: UInt64 = 0
 
@@ -114,6 +117,12 @@ final class CoreHub {
     @ObservationIgnored var onGitHubTokenRejected: (@MainActor () async -> Void)?
     /// How often runs are re-read while any of them is queued or running.
     @ObservationIgnored var githubPollInterval: Duration = .seconds(20)
+    /// How often runs are re-read otherwise, so new pushes and runs started
+    /// elsewhere show up without a manual reload.
+    @ObservationIgnored var githubIdlePollInterval: Duration = .seconds(300)
+    /// First wait before subscribing to events again after the stream ended
+    /// while the Core still runs; doubles up to 30 seconds.
+    @ObservationIgnored var eventRetryDelay: Duration = .milliseconds(500)
 
     init(provider: any CoreProviding) {
         self.provider = provider
@@ -208,21 +217,37 @@ final class CoreHub {
 
     /// Reads the newest runs and the workflows of the repository's GitHub
     /// origin. While a run is queued or running, reads again after
-    /// `githubPollInterval`.
+    /// `githubPollInterval`. A call during a running load is not dropped: the
+    /// load runs once more when the current one ends.
     func loadGitHubActivity(workspaceID: UUID) async {
-        guard let session = sessions[workspaceID], let coreID = session.coreID, isReady, !session.isLoadingGitHub else { return }
+        guard let session = sessions[workspaceID], session.coreID != nil, isReady else { return }
         guard session.githubRepository != nil else {
             session.githubAccess = .noRemote
             return
         }
+        guard !session.isLoadingGitHub else {
+            session.githubReloadPending = true
+            return
+        }
         session.isLoadingGitHub = true
         defer { session.isLoadingGitHub = false }
+        repeat {
+            session.githubReloadPending = false
+            guard await loadGitHubActivityOnce(session) else { return }
+        } while session.githubReloadPending && sessions[workspaceID] === session && isReady
+        scheduleGitHubPoll(for: session)
+    }
+
+    /// One read of runs and workflows; false when it was cancelled.
+    private func loadGitHubActivityOnce(_ session: RepositorySession) async -> Bool {
+        let workspaceID = session.workspaceID
+        guard let coreID = session.coreID else { return true }
         func isCurrent() -> Bool { sessions[workspaceID] === session && session.coreID == coreID }
         do {
             let service = try await provider.service()
             let runs = try await service.listWorkflowRuns(repositoryID: coreID, branch: nil, limit: 30)
             let workflows = runs.access == .ok ? try await service.listGitHubWorkflows(repositoryID: coreID) : nil
-            guard isCurrent() else { return }
+            guard isCurrent() else { return true }
             session.githubAccess = runs.access
             switch runs.access {
             case .ok:
@@ -237,17 +262,17 @@ final class CoreHub {
             }
             if runs.access == .tokenRejected { await onGitHubTokenRejected?() }
         } catch is CancellationError {
-            return
+            return false
         } catch {
             if isCurrent() { session.githubAccess = .unavailable }
         }
-        scheduleGitHubPoll(for: session)
+        return true
     }
 
     private func scheduleGitHubPoll(for session: RepositorySession) {
         session.githubPoll?.cancel()
-        guard session.runs.contains(where: { $0.outcome.isActive }) else { return }
-        let interval = githubPollInterval
+        guard session.githubRepository != nil else { return }
+        let interval = session.runs.contains(where: { $0.outcome.isActive }) ? githubPollInterval : githubIdlePollInterval
         let workspaceID = session.workspaceID
         session.githubPoll = Task { [weak self] in
             try? await Task.sleep(for: interval)
@@ -557,25 +582,42 @@ final class CoreHub {
 
     // MARK: Events
 
+    /// Listens to Core events for as long as the Core runs. When the stream
+    /// ends while the Core is still up (the subscriber fell behind, or the
+    /// channel dropped), it subscribes again and reloads every repository,
+    /// because events may have been missed. Losing the Core cancels this.
     private func startEvents() {
         eventTask?.cancel()
         let provider = provider
+        let firstDelay = eventRetryDelay
         eventTask = Task { [weak self] in
+            var resubscribing = false
+            var delay = firstDelay
             while !Task.isCancelled {
+                var fellBehind = false
                 do {
                     let service = try await provider.service()
-                    for try await event in service.events(repositoryIDs: []) {
+                    // Subscribe before reloading, so nothing in between is lost.
+                    let stream = service.events(repositoryIDs: [])
+                    if resubscribing { await self?.resync() }
+                    for try await event in stream {
                         guard let self else { return }
                         self.apply(event)
+                        delay = firstDelay
                     }
-                    return
                 } catch let error as CoreServiceError where error == .resourceExhausted {
-                    // We fell behind: reload everything, then listen again.
-                    guard let self else { return }
-                    await self.resync()
-                } catch {
-                    // The supervisor reports a lost Core; nothing to retry here.
+                    fellBehind = true
+                } catch is CancellationError {
                     return
+                } catch {
+                    // The channel dropped or the Core is going away; the
+                    // supervisor reports a lost Core and cancels this task.
+                }
+                guard !Task.isCancelled, self?.isReady == true else { return }
+                resubscribing = true
+                if !fellBehind {
+                    try? await Task.sleep(for: delay)
+                    delay = min(delay * 2, .seconds(30))
                 }
             }
         }

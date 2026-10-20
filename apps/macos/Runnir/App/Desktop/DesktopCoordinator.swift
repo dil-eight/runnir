@@ -211,6 +211,7 @@ final class DesktopCoordinator {
     private func open(_ workspace: WorkspaceRecord, reuseWindowID: UUID? = nil) throws {
         guard !isLoading else { throw DesktopStoreError.invalidState }
         let grant = try makeGrant(workspace)
+        let workspace = reconcile(workspace, with: grant)
         var candidate = snapshot
         if let index = candidate.workspaces.firstIndex(where: { $0.id == workspace.id }) {
             candidate.workspaces[index].lastOpenedAt = Date()
@@ -239,13 +240,38 @@ final class DesktopCoordinator {
     }
 
     private func restore(_ record: WorkspaceWindowRecord) {
-        guard let workspace = snapshot.workspaces.first(where: { $0.id == record.workspaceID }) else { return }
+        guard var workspace = snapshot.workspaces.first(where: { $0.id == record.workspaceID }) else { return }
         let grant = try? makeGrant(workspace)
+        if let grant { workspace = reconcile(workspace, with: grant) }
         let controller = makeWorkspaceWindow(record, workspace, grant, self)
         windows[record.id] = controller
         // Without a grant the folder is missing; the window offers to locate it.
         if grant != nil { core?.attach(windowID: record.id, workspaceID: workspace.id, path: workspace.path) }
         controller.showWindow(nil)
+    }
+
+    /// Keeps a workspace record in step with what its grant resolved: a fresh
+    /// bookmark for a stale one, and the folder's current path after a move,
+    /// so the next launch and the Core use the right folder. A name that was
+    /// the old folder name follows a rename. When saving fails the resolved
+    /// values are still used for this session.
+    private func reconcile(_ workspace: WorkspaceRecord, with grant: any RepositoryGranting) -> WorkspaceRecord {
+        var updated = workspace
+        if let bookmark = grant.refreshedBookmark { updated.bookmark = bookmark }
+        if grant.url.path != workspace.path {
+            updated.path = grant.url.path
+            if workspace.name == URL(fileURLWithPath: workspace.path).lastPathComponent {
+                updated.name = grant.url.lastPathComponent
+            }
+        }
+        guard updated != workspace,
+              let index = snapshot.workspaces.firstIndex(where: { $0.id == workspace.id }) else { return updated }
+        var candidate = snapshot
+        candidate.workspaces[index].bookmark = updated.bookmark
+        candidate.workspaces[index].path = updated.path
+        candidate.workspaces[index].name = updated.name
+        try? commit(candidate)
+        return updated
     }
 
     func removeRegistration(_ workspace: WorkspaceRecord) {

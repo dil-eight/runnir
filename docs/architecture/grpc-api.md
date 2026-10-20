@@ -5,10 +5,10 @@ Status: implemented in the Core and used by the desktop app, 2026-10-17. Decisio
 ## Process And Transport
 
 - One Core per app instance. The app launches the bundled `runnir-core serve --socket PATH --exit-on-stdin-eof` with Foundation `Process`. Closing a window never stops it; quitting does.
-- gRPC over a Unix domain socket, mode 0600, at `<per-user temporary directory>/runnir-core.sock` (inside the container when sandboxed). No TCP listener. Paths over 103 bytes are refused.
+- gRPC over a Unix domain socket, mode 0600, at `<per-user temporary directory>/runnir-core-<tag>.sock` (inside the container when sandboxed), where the tag is derived from the app bundle's path so that two copies of the app (a Debug build and an installed release) each run their own Core. The Core's standard error goes to `~/Library/Logs/Runnir/core.log` (inside the container when sandboxed); the previous launch's log is kept as `core.previous.log`. No TCP listener. Paths over 103 bytes are refused.
 - An advisory `flock` on `PATH.lock` allows one Core per socket. A second instance exits with status 3 and does not touch the running Core's socket. A stale socket is removed only while holding the lock. Other exit statuses: 0 clean stop, 1 failure, 2 usage.
 - The Core stops on SIGINT or SIGTERM, or when stdin closes (the parent died). Stopping cancels running executions, ends event streams (`UNAVAILABLE`) and removes the socket.
-- The app (`CoreProcessSupervisor`) waits for a `HealthCheck` that reports protocol version 1 and the pid of the child it launched; a Core answering with another pid is not accepted. When the child exits, the state becomes `lost` and each workspace window offers "Restart Core". There is no automatic restart.
+- The app (`CoreProcessSupervisor`) waits for a `HealthCheck` that reports protocol version 1 and the pid of the child it launched; a Core answering with another pid is not accepted. While it runs, the supervisor asks for `HealthCheck` every 15 seconds; two unanswered checks in a row (3 seconds each) count as a hung Core, which is stopped so it releases the instance lock. When the child exits or hangs, the state becomes `lost` and each workspace window offers "Restart Core" and "Show Log". There is no automatic restart. If the event stream ends while the Core still runs, the app subscribes again (with backoff up to 30 seconds) and reloads every open repository, because events may have been missed. GitHub runs are re-read every 20 seconds while one is queued or running and every 5 minutes otherwise.
 
 ## Calls
 

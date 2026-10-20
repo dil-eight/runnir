@@ -30,11 +30,15 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     func listGitHubWorkflows(repositoryID: String) async throws -> CoreGitHubResult<CoreGitHubWorkflow> {
         CoreGitHubResult(access: .ok, items: [CoreGitHubWorkflow(id: 1, name: "CI", path: ".github/workflows/ci.yml", state: "active", htmlURL: nil)])
     }
+    /// Answers with the result set when the call started, after this delay.
+    var runsDelay: Duration?
     func listWorkflowRuns(repositoryID: String, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> {
-        lock.withLock {
+        let (result, delay) = lock.withLock {
             _runsCalls.append(repositoryID)
-            return runsResults[repositoryID] ?? CoreGitHubResult(access: .ok, items: [])
+            return (runsResults[repositoryID] ?? CoreGitHubResult(access: .ok, items: []), runsDelay)
         }
+        if let delay { try? await Task.sleep(for: delay) }
+        return result
     }
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { lock.withLock { jobsResult } }
     private var _confirmed: [String] = []
@@ -580,6 +584,29 @@ struct CoreHubTests {
         #expect(await eventually { provider.core.credentialCalls.last == .some(nil) })
     }
 
+    @Test
+    func aLoadAskedForDuringAnotherRunsAfterIt() async {
+        let (hub, provider) = await readyHub()
+        let path = "/repo/linked"
+        // The first load answers "signed out" slowly, as before the token arrives.
+        provider.core.setRuns(CoreGitHubResult(access: .signedOut, items: []), for: path)
+        provider.core.runsDelay = .milliseconds(200)
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: path)
+        #expect(await eventually { hub.session(for: workspace)?.isLoadingGitHub == true })
+
+        // The token arrives meanwhile and a load is asked for again.
+        provider.core.runsDelay = nil
+        provider.core.setRuns(CoreGitHubResult(access: .ok, items: [run(1, status: "completed", conclusion: "success")]), for: path)
+        await hub.loadGitHubActivity(workspaceID: workspace)
+
+        #expect(await eventually { hub.session(for: workspace)?.githubAccess == .ok })
+        #expect(hub.session(for: workspace)?.runs.count == 1)
+        // At least the first load and the one asked for during it; the Core's
+        // own credential push may add another.
+        #expect(provider.core.runsCalls.count >= 2)
+    }
+
     private func run(_ id: Int64, status: String, conclusion: String?) -> CoreWorkflowRun {
         CoreWorkflowRun(id: id, workflowID: 1, name: "CI", displayTitle: "Change \(id)", runNumber: id, event: "push",
                         status: status, conclusion: conclusion, branch: "main", headSHA: "abc", actor: nil,
@@ -690,7 +717,36 @@ struct CoreHubTests {
 
         provider.core.endEvents(throwing: CoreServiceError.resourceExhausted)
         #expect(await eventually { provider.core.subscriptions == 2 })
-        #expect(provider.core.openCalls.count == 2)
+        #expect(await eventually { provider.core.openCalls.count == 2 })
+    }
+
+    @Test
+    func aDroppedEventStreamIsResubscribedWhileTheCoreRuns() async {
+        let (hub, provider) = await readyHub()
+        hub.eventRetryDelay = .milliseconds(10)
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+
+        // The stream ends without the Core going away.
+        provider.core.endEvents(throwing: CoreServiceError.unavailable)
+        #expect(await eventually { provider.core.subscriptions == 2 })
+        #expect(await eventually { provider.core.openCalls.count == 2 }, "missed events are made up by a reload")
+        #expect(hub.status == .ready(version: "fake"))
+    }
+
+    @Test
+    func runsAreReadAgainWhileNothingIsActive() async {
+        let (hub, provider) = await readyHub()
+        hub.githubIdlePollInterval = .milliseconds(30)
+        let path = "/repo/linked"
+        provider.core.setRuns(CoreGitHubResult(access: .ok, items: [run(1, status: "completed", conclusion: "success")]), for: path)
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: path)
+        #expect(await eventually { hub.session(for: workspace)?.runs.count == 1 })
+        provider.core.setRuns(CoreGitHubResult(access: .ok, items: [run(2, status: "queued", conclusion: nil),
+                                                                    run(1, status: "completed", conclusion: "success")]), for: path)
+        #expect(await eventually { hub.session(for: workspace)?.runs.count == 2 }, "a new run appears without a manual reload")
     }
 
     @Test

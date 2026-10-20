@@ -9,12 +9,14 @@ private actor ScriptedDeviceFlow: DeviceFlowServicing {
     var requestError: DeviceFlowError?
     var answers: [Result<DeviceTokenPoll, DeviceFlowError>] = []
     var polls = 0
+    var requests = 0
 
     func set(answers: [Result<DeviceTokenPoll, DeviceFlowError>]) { self.answers = answers }
     func set(requestError: DeviceFlowError?) { self.requestError = requestError }
     func set(authorization: DeviceAuthorization) { self.authorization = authorization }
 
     func requestAuthorization() async throws -> DeviceAuthorization {
+        requests += 1
         if let requestError { throw requestError }
         return authorization
     }
@@ -63,13 +65,14 @@ private struct Rig {
     let opened = OpenedURLs()
     let session: GitHubSession
 
-    init(credentials: any CredentialStoring = InMemoryCredentialStore()) {
+    init(credentials: any CredentialStoring = InMemoryCredentialStore(), offlineRetry: [Duration] = []) {
         self.credentials = credentials
         let opened = opened
         let sleeper = sleeper
         session = GitHubSession(deviceFlow: flow, credentials: credentials, api: api,
                                 openURL: { opened.urls.append($0) },
-                                sleep: { try await sleeper.sleep($0) })
+                                sleep: { try await sleeper.sleep($0) },
+                                offlineRetryDelays: offlineRetry)
     }
 }
 
@@ -167,6 +170,51 @@ struct GitHubSessionTests {
     }
 
     @Test
+    func anOfflineLaunchRecoversByItselfWhenGitHubAnswersAgain() async throws {
+        let rig = Rig(credentials: InMemoryCredentialStore(token: "t"), offlineRetry: [.seconds(30), .seconds(60)])
+        var changes = 0
+        rig.session.onCredentialChange = { changes += 1 }
+        await rig.api.set(.failure(.networkUnavailable))
+        await rig.session.restore()
+        #expect(rig.session.connection == .offline)
+        #expect(await eventually { rig.sleeper.sleeps.count >= 2 }, "it keeps trying while offline")
+        #expect(Array(rig.sleeper.sleeps.prefix(2)) == [.seconds(30), .seconds(60)])
+
+        await rig.api.set(.success(GitHubUser(id: 1, login: "octocat", name: nil)))
+        #expect(await eventually { rig.session.user?.login == "octocat" })
+        #expect(changes >= 1, "the Core is told about the token")
+        let settled = rig.sleeper.sleeps.count
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(rig.sleeper.sleeps.count == settled, "no retries once signed in")
+    }
+
+    @Test
+    func signingOutStopsTheOfflineRetry() async throws {
+        let rig = Rig(credentials: InMemoryCredentialStore(token: "t"), offlineRetry: [.seconds(30)])
+        await rig.api.set(.failure(.networkUnavailable))
+        await rig.session.restore()
+        await rig.session.signOut()
+        await rig.api.set(.success(GitHubUser(id: 1, login: "octocat", name: nil)))
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(rig.session.connection == .signedOut(nil))
+    }
+
+    @Test
+    func aCancelledSignInFinishingLateDoesNotFreeTheNextOne() async {
+        let rig = Rig()
+        rig.session.signIn()
+        #expect(await eventually { if case .waiting = rig.session.connection { true } else { false } })
+        rig.session.cancelSignIn()
+        rig.session.signIn()
+        // Let the cancelled sign-in run to its end.
+        try? await Task.sleep(for: .milliseconds(100))
+        rig.session.signIn() // must be ignored: one sign-in is still running
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(await rig.flow.requests == 2)
+        rig.session.cancelSignIn()
+    }
+
+    @Test
     func restoreConfirmsASavedTokenAndDropsARevokedOne() async throws {
         let saved = Rig(credentials: InMemoryCredentialStore(token: "t"))
         await saved.session.restore()
@@ -183,6 +231,15 @@ struct GitHubSessionTests {
         await offline.session.restore()
         #expect(offline.session.connection == .offline)
         #expect(try await offline.credentials.token() == "t")
+
+        // A failing GitHub is not a signed-out user: the sign-in is kept.
+        for failure: GitHubAPIError in [.serverError(statusCode: 502), .invalidResponse] {
+            let outage = Rig(credentials: InMemoryCredentialStore(token: "t"))
+            await outage.api.set(.failure(failure))
+            await outage.session.restore()
+            #expect(outage.session.connection == .offline)
+            #expect(try await outage.credentials.token() == "t")
+        }
 
         let none = Rig()
         await none.session.restore()

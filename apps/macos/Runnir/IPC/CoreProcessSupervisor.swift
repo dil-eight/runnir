@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 // MARK: Seams
@@ -46,6 +47,8 @@ enum CoreSupervisorError: Error, Equatable, Sendable {
 
 enum CoreLossReason: Equatable, Sendable {
     case processExited(Int32)
+    /// The process was alive but stopped answering health checks; it was stopped.
+    case unresponsive
 }
 
 enum CoreConnectionState: Equatable, Sendable {
@@ -71,6 +74,9 @@ actor CoreProcessSupervisor {
     private let socketPath: String
     private let healthTimeout: Duration
     private let pollInterval: Duration
+    private let livenessInterval: Duration
+    private let livenessTimeout: Duration
+    private let livenessFailureLimit: Int
 
     private(set) var state: CoreConnectionState = .stopped {
         didSet { if oldValue != state { for (_, continuation) in observers { continuation.yield(state) } } }
@@ -80,48 +86,76 @@ actor CoreProcessSupervisor {
     private var process: (any CoreProcessHandle)?
     private var connection: (any CoreConnection)?
     private var monitor: Task<Void, Never>?
+    private var liveness: Task<Void, Never>?
     private var startTask: Task<CoreHealth, any Error>?
     private var generation = 0
     private var earlyExit: Int32?
     private var socketIsStale = false
     private nonisolated let quitHandle = QuitHandle()
 
+    /// While running, the Core is asked for its health every
+    /// `livenessInterval`; after `livenessFailureLimit` unanswered checks in a
+    /// row it counts as lost and is stopped, so a hung process cannot keep the
+    /// instance lock and block a restart.
     init(launcher: any CoreProcessLaunching,
          connector: any CoreConnecting,
          socketPath: String,
          healthTimeout: Duration = .seconds(5),
-         pollInterval: Duration = .milliseconds(25)) {
+         pollInterval: Duration = .milliseconds(25),
+         livenessInterval: Duration = .seconds(15),
+         livenessTimeout: Duration = .seconds(3),
+         livenessFailureLimit: Int = 2) {
         self.launcher = launcher
         self.connector = connector
         self.socketPath = socketPath
         self.healthTimeout = healthTimeout
         self.pollInterval = pollInterval
+        self.livenessInterval = livenessInterval
+        self.livenessTimeout = livenessTimeout
+        self.livenessFailureLimit = max(1, livenessFailureLimit)
     }
 
     /// The app's supervisor: bundled helper, gRPC over a socket in the
-    /// per-user temporary directory (inside the container when sandboxed).
+    /// per-user temporary directory (inside the container when sandboxed),
+    /// and the Core's diagnostics in `logURL`.
     static func bundled() -> CoreProcessSupervisor {
-        CoreProcessSupervisor(
+        let bundle = Bundle.main.bundleURL
+        return CoreProcessSupervisor(
             launcher: ProcessCoreLauncher(
-                executableURL: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/runnir-core")
+                executableURL: bundle.appendingPathComponent("Contents/Helpers/runnir-core"),
+                logURL: logURL
             ),
             connector: GRPCCoreConnector(),
-            socketPath: socketPath(in: FileManager.default.temporaryDirectory)
+            socketPath: socketPath(in: FileManager.default.temporaryDirectory, instance: instanceTag(for: bundle))
         )
     }
 
+    /// Where the Core's standard error goes: Library/Logs/Runnir/core.log
+    /// (inside the container when sandboxed). The previous launch's log is
+    /// kept as core.previous.log.
+    static let logURL: URL? = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?
+        .appendingPathComponent("Logs/Runnir/core.log")
+
     static let maxSocketPathBytes = 103
+
+    /// Tells copies of the app apart (a Debug build, an installed release),
+    /// so each runs its own Core instead of finding the other's socket taken.
+    static func instanceTag(for bundleURL: URL) -> String {
+        SHA256.hash(data: Data(bundleURL.standardizedFileURL.path.utf8))
+            .prefix(4).map { String(format: "%02x", $0) }.joined()
+    }
 
     /// A socket path inside `directory` that fits a Unix socket address: the
     /// descriptive name when it fits, else a short one. A directory too deep
     /// for either yields the descriptive path, and the start fails clearly with
     /// `socketPathTooLong` instead of the Core exiting with a bare status.
-    static func socketPath(in directory: URL) -> String {
-        for name in ["runnir-core.sock", "rc.sock"] {
+    static func socketPath(in directory: URL, instance: String = "") -> String {
+        let suffix = instance.isEmpty ? "" : "-" + instance
+        for name in ["runnir-core\(suffix).sock", "rc\(suffix).sock"] {
             let path = directory.appendingPathComponent(name).path
             if path.utf8.count <= maxSocketPathBytes { return path }
         }
-        return directory.appendingPathComponent("runnir-core.sock").path
+        return directory.appendingPathComponent("runnir-core\(suffix).sock").path
     }
 
     /// Emits the current state first, then every change.
@@ -232,6 +266,7 @@ actor CoreProcessSupervisor {
                         return try await fail(.incompatibleProtocol(health.protocolVersion))
                     }
                     state = .running(health)
+                    startLiveness(generation: current, service: connection.service)
                     return health
                 }
             }
@@ -274,10 +309,46 @@ actor CoreProcessSupervisor {
         throw error
     }
 
+    private func startLiveness(generation current: Int, service: any CoreServicing) {
+        liveness?.cancel()
+        let interval = livenessInterval, timeout = livenessTimeout, limit = livenessFailureLimit
+        liveness = Task { [weak self] in
+            var misses = 0
+            while !Task.isCancelled {
+                try? await Task.sleep(for: interval)
+                guard !Task.isCancelled else { return }
+                let answered = await Self.bounded(by: timeout) { (try? await service.healthCheck()) != nil } ?? false
+                misses = answered ? 0 : misses + 1
+                if misses >= limit {
+                    await self?.becameUnresponsive(generation: current)
+                    return
+                }
+            }
+        }
+    }
+
+    /// The Core stopped answering while its process lives: report it lost and
+    /// stop the process, which also releases its instance lock.
+    private func becameUnresponsive(generation current: Int) async {
+        guard current == generation, case .running = state else { return }
+        let oldConnection = connection
+        let oldProcess = process
+        liveness = nil
+        connection = nil
+        process = nil
+        quitHandle.clear()
+        socketIsStale = true
+        state = .lost(.unresponsive)
+        await oldConnection?.close()
+        await oldProcess?.terminate()
+    }
+
     private func processExited(generation exitedGeneration: Int, status: Int32) async {
         guard exitedGeneration == generation else { return }
         switch state {
         case .running:
+            liveness?.cancel()
+            liveness = nil
             let old = connection
             connection = nil
             process = nil
@@ -295,6 +366,8 @@ actor CoreProcessSupervisor {
     private func teardown() async {
         monitor?.cancel()
         monitor = nil
+        liveness?.cancel()
+        liveness = nil
         let oldConnection = connection
         let oldProcess = process
         connection = nil
