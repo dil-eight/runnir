@@ -9,10 +9,20 @@ struct BrandLogo: View {
     var width: CGFloat? = nil
     var wordmarkOnly = false
 
+    /// Decoded once per variant instead of on every redraw.
+    @MainActor private static var cache: [String: NSImage] = [:]
+
+    @MainActor private static func image(named name: String) -> NSImage? {
+        if let cached = cache[name] { return cached }
+        guard let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "assets"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        cache[name] = image
+        return image
+    }
+
     var body: some View {
         let name = (markOnly ? "logo-mark-" : wordmarkOnly ? "logo-wordmark-" : "logo-horizontal-") + (scheme == .dark ? "light" : "dark")
-        if let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "assets"),
-           let image = NSImage(contentsOf: url) {
+        if let image = Self.image(named: name) {
             Image(nsImage: image).resizable().scaledToFit().frame(width: width, height: height).accessibilityLabel("Runnir")
         } else {
             Text("Runnir").font(.title2.weight(.semibold))
@@ -289,6 +299,14 @@ struct DesktopWorkspaceView: View {
                     state.selectedRunID = run.id
                     state.selectedSection = .runs
                 }
+            } else {
+                VStack(alignment: .leading, spacing: 16) {
+                    UnavailableFeature(title: "Runnir Core is not ready",
+                                       detail: "Workflows can be started once the Core has opened this repository.", symbol: "hourglass")
+                    HStack { Spacer(); Button("Close") { state.runWorkflowRequest = nil }.keyboardShortcut(.cancelAction) }
+                        .buttonStyle(DesignButtonStyle())
+                }
+                .padding(20).frame(width: 420)
             }
         }
         .sheet(isPresented: Binding(get: { state.showingSwitcher }, set: { state.showingSwitcher = $0 })) {
@@ -400,8 +418,6 @@ struct DesktopWorkspaceView: View {
             .contextMenu {
                 Button("Open Quickly...") { state.showingSwitcher = true }
                 Button("Workspace Manager...") { desktop.showManager() }
-                Divider()
-                Button("Artifacts...") { state.selectedSection = .artifacts }
             }
             Color.clear.frame(height: 10)
             VStack(spacing: 2) {
@@ -445,11 +461,10 @@ struct DesktopWorkspaceView: View {
 
     @ViewBuilder private var content: some View {
         switch state.selectedSection {
-        case .dashboard:
+        case .dashboard, .repositories, .artifacts:
             overview
         case .workspace:
             LocalWorkflowBrowser(model: files)
-        case .repositories: RepositoriesView()
         case .workflows:
             if let session, let hub = desktop.core {
                 WorkspaceWorkflowsView(session: session, hub: hub, github: desktop.github, showRun: { run in
@@ -459,17 +474,24 @@ struct DesktopWorkspaceView: View {
                     state.runWorkflowRequest = RunWorkflowRequest(workflowID: workflow.id)
                 })
             } else {
-                WorkflowsView()
+                coreUnavailable
             }
         case .runs:
             if let session, let hub = desktop.core {
                 WorkspaceRunsView(session: session, hub: hub, github: desktop.github,
                                   selectedRunID: Binding(get: { state.selectedRunID }, set: { state.selectedRunID = $0 }))
             } else {
-                RunsView()
+                coreUnavailable
             }
-        case .artifacts: ArtifactsView()
         }
+    }
+
+    /// Shown in a GitHub section while no Core session exists for this window.
+    private var coreUnavailable: some View {
+        UnavailableFeature(title: "Waiting for Runnir Core",
+                           detail: "GitHub workflows and runs appear here once the Core has opened this repository.",
+                           symbol: "hourglass")
+            .padding(24).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var overview: some View {
@@ -484,7 +506,8 @@ struct DesktopWorkspaceView: View {
                             }
                         }
                     }.scrollIndicators(.hidden)
-                    GitHubLinkCard(repository: session?.githubRepository, coreReady: session?.phase == .ready, github: desktop.github)
+                    GitHubLinkCard(repository: session?.githubRepository, coreReady: session?.phase == .ready, github: desktop.github,
+                                   hub: desktop.core, workspaceID: workspace.id)
                         .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
                 }
                 DesignDivider()
@@ -662,14 +685,18 @@ struct UnavailableFeature: View {
 }
 
 /// Shows which GitHub repository this working tree belongs to (from its origin
-/// remote) and whether Runnir can see it, with the step that fixes it when not.
+/// remote) and whether Runnir can see it, with the step that fixes it when
+/// not. The Core reads the repository with the same token it uses for runs, so
+/// the card and the run lists agree.
 private struct GitHubLinkCard: View {
     let repository: String?
     let coreReady: Bool
     let github: GitHubSession?
+    let hub: CoreHub?
+    let workspaceID: UUID
     var installationURL: URL = GitHubAppConfiguration.runnirDesktop.installationURL
     @Environment(\.openURL) private var openURL
-    @State private var access: GitHubRepositoryAccess?
+    @State private var details: CoreGitHubRepository?
     @State private var attempt = 0
     @State private var showingConnect = false
 
@@ -686,26 +713,29 @@ private struct GitHubLinkCard: View {
         .sheet(isPresented: $showingConnect) { if let github { GitHubConnectView(session: github) } }
     }
 
-    private var checkKey: String { "\(repository ?? "")|\(github?.user?.login ?? "")|\(attempt)" }
+    private var checkKey: String { "\(repository ?? "")|\(github?.user?.login ?? "")|\(coreReady)|\(attempt)" }
 
     private func check() async {
-        guard let repository, let github, github.user != nil else { access = nil; return }
-        access = nil
-        access = await github.access(to: repository)
+        details = nil
+        guard repository != nil, coreReady, github?.user != nil, let hub else { return }
+        details = await hub.githubRepository(workspaceID: workspaceID)
     }
 
-    private enum Display { case reading, noRemote, signedOut, checking, linked(Repository), notVisible, failed(String) }
+    private enum Display { case reading, noRemote, signedOut, checking, linked(CoreGitHubRepository), notVisible, failed(String) }
 
     private var display: Display {
-        guard let repository else { return coreReady ? .noRemote : .reading }
-        _ = repository
+        guard repository != nil else { return coreReady ? .noRemote : .reading }
         guard let github, github.user != nil else { return .signedOut }
-        switch access {
-        case nil: return .checking
-        case .signedOut: return .signedOut
-        case .accessible(let linked): return .linked(linked)
+        guard let details else { return .checking }
+        switch details.access {
+        case .ok: return .linked(details)
+        case .noRemote: return .noRemote
+        case .signedOut, .tokenRejected: return .signedOut
         case .notVisible: return .notVisible
-        case .failed(let message): return .failed(message)
+        case .rateLimited(let until):
+            return .failed(until.map { "GitHub is limiting requests until \($0.formatted(date: .omitted, time: .shortened))." }
+                           ?? "GitHub is limiting requests. Try again in a moment.")
+        case .unavailable: return .failed("GitHub could not be reached. Try again in a moment.")
         }
     }
 
@@ -716,7 +746,7 @@ private struct GitHubLinkCard: View {
         case .noRemote: return "No GitHub remote"
         case .signedOut: return name
         case .checking: return "Checking access to \(name)..."
-        case .linked(let linked): return linked.fullName
+        case .linked(let linked): return linked.fullName.isEmpty ? name : linked.fullName
         case .notVisible: return "Runnir can't see \(name)"
         case .failed: return name
         }
@@ -727,7 +757,7 @@ private struct GitHubLinkCard: View {
         case .reading, .checking: return nil
         case .noRemote: return "This working tree has no origin remote on github.com, so there are no GitHub runs to show for it."
         case .signedOut: return "Connect GitHub to see workflow runs and job status for this repository."
-        case .linked(let linked): return "\(linked.visibility.rawValue.capitalized) · default branch \(linked.defaultBranch)"
+        case .linked(let linked): return "\(linked.visibility.capitalized) · default branch \(linked.defaultBranch)"
         case .notVisible:
             return "Runnir Desktop only sees repositories it is installed on. Install it on this repository on GitHub, then check again."
         case .failed(let message): return message
@@ -755,7 +785,9 @@ private struct GitHubLinkCard: View {
         case .signedOut:
             Button("Connect GitHub...") { showingConnect = true }
         case .linked(let linked):
-            Button("Open on GitHub") { openURL(URL(string: "https://github.com/\(linked.fullName)")!) }
+            if let url = linked.htmlURL ?? URL(string: "https://github.com/\(linked.fullName)") {
+                Button("Open on GitHub") { openURL(url) }
+            }
         case .notVisible:
             Button("Give Runnir Access...") { openURL(installationURL) }
             Button("Check Again") { attempt += 1 }

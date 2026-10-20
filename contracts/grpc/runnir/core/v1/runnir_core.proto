@@ -35,6 +35,9 @@ service RunnirCore {
   // repositories open in the Core can be queried. GitHub-side problems are
   // reported in `status`, not as call errors.
   rpc ListGitHubWorkflows(ListGitHubWorkflowsRequest) returns (ListGitHubWorkflowsResponse);
+  // The GitHub repository itself: whether the token can see it, and its
+  // visibility and default branch.
+  rpc GetGitHubRepository(GetGitHubRepositoryRequest) returns (GetGitHubRepositoryResponse);
   rpc ListWorkflowRuns(ListWorkflowRunsRequest) returns (ListWorkflowRunsResponse);
   rpc ListRunJobs(ListRunJobsRequest) returns (ListRunJobsResponse);
 
@@ -210,6 +213,20 @@ message GitHubStatus {
   GithubAccess access = 1;
   // When RATE_LIMITED: when GitHub accepts requests again.
   google.protobuf.Timestamp retry_after = 2;
+}
+
+message GetGitHubRepositoryRequest {
+  string repository_id = 1;
+}
+
+message GetGitHubRepositoryResponse {
+  GitHubStatus status = 1;
+  // "owner/name" as GitHub spells it.
+  string full_name = 2;
+  // "public", "private" or "internal".
+  string visibility = 3;
+  string default_branch = 4;
+  string html_url = 5;
 }
 
 message ListGitHubWorkflowsRequest {

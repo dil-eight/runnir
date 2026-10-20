@@ -36,6 +36,8 @@ final class DispatchFormModel {
     @ObservationIgnored private let hub: CoreHub
     @ObservationIgnored private let currentBranch: String
     @ObservationIgnored private var definitionGeneration = 0
+    /// The defaults of the loaded definition, to tell typed values apart.
+    @ObservationIgnored private var loadedDefaults: [String: String] = [:]
 
     init(workspaceID: UUID, hub: CoreHub, workflows: [CoreGitHubWorkflow], workflowID: Int64?, currentBranch: String) {
         self.workspaceID = workspaceID
@@ -78,7 +80,26 @@ final class DispatchFormModel {
         guard generation == definitionGeneration else { return }
         isLoadingDefinition = false
         definition = loaded
-        values = Self.initialValues(for: loaded.inputs)
+        let defaults = Self.initialValues(for: loaded.inputs)
+        values = Self.carryOver(values, previousDefaults: loadedDefaults, into: defaults, inputs: loaded.inputs)
+        loadedDefaults = defaults
+    }
+
+    /// Keeps what the user changed for inputs that still exist after a branch
+    /// or workflow change; untouched inputs take the new defaults. A choice
+    /// keeps its value only when it is still one of the options.
+    static func carryOver(_ current: [String: String], previousDefaults: [String: String],
+                          into defaults: [String: String], inputs: [CoreDispatchInput]) -> [String: String] {
+        var values = defaults
+        for input in inputs {
+            guard let previous = current[input.name], previous != previousDefaults[input.name] else { continue }
+            switch input.kind {
+            case .choice where !input.options.contains(previous): continue
+            case .boolean where previous != "true" && previous != "false": continue
+            default: values[input.name] = previous
+            }
+        }
+        return values
     }
 
     /// GitHub's own defaults: the declared default, false for a boolean, the

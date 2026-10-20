@@ -64,8 +64,6 @@ func handle(method string, params json.RawMessage) (any, *ipc.Error) {
 
 // serve runs the local gRPC server until SIGINT/SIGTERM or, with
 // --exit-on-stdin-eof, until the parent closes our stdin (including by dying).
-// serve runs the local gRPC server until SIGINT/SIGTERM or, with
-// --exit-on-stdin-eof, until the parent closes our stdin (including by dying).
 // With --client-secret-stdin the first stdin line is a per-launch secret that
 // every call except HealthCheck must present; it never appears in argv or env.
 func serve(args []string, input io.Reader, diagnostics io.Writer) int {

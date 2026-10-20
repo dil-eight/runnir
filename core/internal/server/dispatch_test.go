@@ -44,7 +44,9 @@ func (f *fakeDispatchGitHub) handler(t *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/repos/o/r":
-			_, _ = w.Write([]byte(`{"default_branch":"main"}`))
+			_, _ = w.Write([]byte(`{"full_name":"O/r","private":true,"visibility":"private","default_branch":"main","html_url":"https://github.com/O/r"}`))
+		case r.URL.Path == "/repos/o/hidden":
+			w.WriteHeader(http.StatusNotFound)
 		case r.URL.Path == "/repos/o/r/branches":
 			_, _ = w.Write([]byte(`[{"name":"main"},{"name":"release/1.0"}]`))
 		case r.URL.Path == "/repos/o/r/tags":
@@ -129,6 +131,31 @@ func TestRefsAndDispatchDefinitionAtARef(t *testing.T) {
 	broken, err := client.DescribeWorkflowDispatch(ctx, &corev1.DescribeWorkflowDispatchRequest{RepositoryId: id, WorkflowPath: ".github/workflows/deploy.yml", Ref: "broken"})
 	if err != nil || broken.ParseError == "" {
 		t.Fatalf("broken = %v, %v", broken, err)
+	}
+}
+
+func TestRepositoryDetailsComeFromGitHub(t *testing.T) {
+	client, id, _, ctx := dispatchRig(t)
+	repository, err := client.GetGitHubRepository(ctx, &corev1.GetGitHubRepositoryRequest{RepositoryId: id})
+	if err != nil || repository.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_OK || repository.FullName != "O/r" ||
+		repository.Visibility != "private" || repository.DefaultBranch != "main" || repository.HtmlUrl != "https://github.com/O/r" {
+		t.Fatalf("repository = %v, %v", repository, err)
+	}
+	hidden, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: linkedRepository(t, "git@github.com:o/hidden.git")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	notVisible, err := client.GetGitHubRepository(ctx, &corev1.GetGitHubRepositoryRequest{RepositoryId: hidden.Repository.Id})
+	if err != nil || notVisible.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_NOT_VISIBLE || notVisible.FullName != "" {
+		t.Fatalf("not visible = %v, %v", notVisible, err)
+	}
+	local, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: linkedRepository(t, "https://gitlab.com/o/r.git")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	noRemote, err := client.GetGitHubRepository(ctx, &corev1.GetGitHubRepositoryRequest{RepositoryId: local.Repository.Id})
+	if err != nil || noRemote.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_NO_REMOTE {
+		t.Fatalf("no remote = %v, %v", noRemote, err)
 	}
 }
 

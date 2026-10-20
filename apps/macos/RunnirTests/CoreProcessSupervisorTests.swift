@@ -47,6 +47,7 @@ private struct FakeService: CoreServicing {
     func listGitHubWorkflows(repositoryID: String) async throws -> CoreGitHubResult<CoreGitHubWorkflow> { CoreGitHubResult(access: .ok, items: []) }
     func listWorkflowRuns(repositoryID: String, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> { CoreGitHubResult(access: .ok, items: []) }
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { CoreGitHubResult(access: .ok, items: []) }
+    func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository { .failed(.ok) }
     func listGitHubRefs(repositoryID: String) async throws -> CoreGitHubRefs { CoreGitHubRefs(access: .ok, defaultBranch: "main", branches: ["main"], tags: []) }
     func describeWorkflowDispatch(repositoryID: String, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition {
         CoreDispatchDefinition(access: .ok, dispatchable: false, inputs: [], parseError: nil)

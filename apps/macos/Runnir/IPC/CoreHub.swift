@@ -352,6 +352,18 @@ final class CoreHub {
         return nil
     }
 
+    /// The linked GitHub repository as the Core sees it with the current token.
+    func githubRepository(workspaceID: UUID) async -> CoreGitHubRepository {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return .failed(.unavailable) }
+        do {
+            let repository = try await service.gitHubRepository(repositoryID: coreID)
+            if repository.access == .tokenRejected { await onGitHubTokenRejected?() }
+            return repository
+        } catch {
+            return .failed(.unavailable)
+        }
+    }
+
     /// Jobs and steps of one run, read on demand.
     func jobs(workspaceID: UUID, runID: Int64) async -> CoreGitHubResult<CoreRunJob> {
         guard let coreID = sessions[workspaceID]?.coreID, isReady,
@@ -459,19 +471,29 @@ final class CoreHub {
     }
 
     /// Releases a window. The repository stays open in the Core while another
-    /// window shows it and closes with the last one.
-    func detach(windowID: UUID) {
-        guard let workspaceID = windowWorkspace.removeValue(forKey: windowID) else { return }
-        release(windowID: windowID, from: workspaceID)
+    /// window shows it and closes with the last one. `afterRelease` runs once
+    /// the Core no longer needs this window's folder access: after the close
+    /// request finished, or at once when nothing is closed. The app keeps the
+    /// security-scoped access until then.
+    func detach(windowID: UUID, afterRelease: (@MainActor () -> Void)? = nil) {
+        guard let workspaceID = windowWorkspace.removeValue(forKey: windowID) else {
+            afterRelease?()
+            return
+        }
+        release(windowID: windowID, from: workspaceID, then: afterRelease)
     }
 
-    private func release(windowID: UUID, from workspaceID: UUID) {
-        guard let session = sessions[workspaceID] else { return }
+    private func release(windowID: UUID, from workspaceID: UUID, then afterRelease: (@MainActor () -> Void)? = nil) {
+        guard let session = sessions[workspaceID] else { afterRelease?(); return }
         session.windowIDs.remove(windowID)
-        guard session.windowIDs.isEmpty else { return }
+        guard session.windowIDs.isEmpty else { afterRelease?(); return }
         session.githubPoll?.cancel()
         sessions[workspaceID] = nil
-        if let coreID = session.coreID { closeInCore(coreID, path: session.path) }
+        if let coreID = session.coreID {
+            closeInCore(coreID, path: session.path, then: afterRelease)
+        } else {
+            afterRelease?()
+        }
     }
 
     private func isShown(_ path: String) -> Bool { sessions.values.contains { $0.path == path } }
@@ -479,8 +501,10 @@ final class CoreHub {
     /// Closes a repository in the Core unless a window shows its path again.
     /// Core contexts are shared by path and closing is global, so a close that
     /// raced with a reopen of the same path is followed by a fresh open.
-    private func closeInCore(_ repositoryID: String, path: String) {
+    private func closeInCore(_ repositoryID: String, path: String, then afterClose: (@MainActor () -> Void)? = nil) {
         Task {
+            var finished = afterClose
+            defer { finished?() }
             guard !isShown(path) else { return }
             // A missing Core or repository means there is nothing left to close.
             guard let service = try? await provider.service() else { return }
@@ -491,6 +515,9 @@ final class CoreHub {
                 // No close happened, so no event will come to clear the mark.
                 ownCloses.remove(repositoryID)
             }
+            // The close is done; a reopen below uses another window's access.
+            finished?()
+            finished = nil
             if let reopened = sessions.values.first(where: { $0.path == path }) {
                 await open(reopened, force: true)
             }

@@ -113,7 +113,8 @@ struct DesktopStateTests {
 
     @Test func aWindowSavedOnARetiredSectionOpensOnOverview() {
         #expect(AppSection.repositories.restored == .dashboard)
-        for section in AppSection.allCases where section != .repositories {
+        #expect(AppSection.artifacts.restored == .dashboard)
+        for section in AppSection.allCases where !AppSection.retired.contains(section) {
             #expect(section.restored == section)
         }
     }
@@ -221,6 +222,21 @@ struct DesktopCoordinatorTests {
         #expect(!coordinator.isLoading)
         #expect(coordinator.prepareToQuit())
         #expect(try fixture.store.load().workspaces == [fixture.original])
+    }
+
+    @Test func theWindowLimitSaysSoInsteadOfBlamingTheFolder() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let full = (0..<DesktopSnapshot.maxWindows).map { _ in WorkspaceWindowRecord(id: UUID(), workspaceID: fixture.original.id) }
+        try fixture.store.save(DesktopSnapshot(workspaces: [fixture.original], windows: full))
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant,
+                                             makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        #expect(coordinator.message == DesktopCoordinator.tooManyWindowsMessage)
+        #expect(factory.windows.isEmpty && factory.calls == 0, "no window and no folder access is attempted")
+        #expect(try fixture.store.load().windows.count == DesktopSnapshot.maxWindows)
     }
 
     @Test func relinkRebindsEveryOpenWindowAndPreservesIdentityAndNavigation() async throws {

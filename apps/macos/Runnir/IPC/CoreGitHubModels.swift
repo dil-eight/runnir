@@ -22,6 +22,20 @@ struct CoreGitHubResult<Item: Sendable>: Sendable {
 
 extension CoreGitHubResult: Equatable where Item: Equatable {}
 
+/// The GitHub repository a working tree is linked to, as the Core reads it.
+struct CoreGitHubRepository: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    let fullName: String
+    /// "public", "private" or "internal".
+    let visibility: String
+    let defaultBranch: String
+    let htmlURL: URL?
+
+    static func failed(_ access: CoreGitHubAccess) -> CoreGitHubRepository {
+        CoreGitHubRepository(access: access, fullName: "", visibility: "", defaultBranch: "", htmlURL: nil)
+    }
+}
+
 struct CoreGitHubWorkflow: Equatable, Identifiable, Sendable {
     let id: Int64
     let name: String

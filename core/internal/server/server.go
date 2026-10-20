@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"time"
 
@@ -68,11 +67,12 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 	if err := os.Remove(socketPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("remove stale socket: %w", err)
 	}
-	listener, err := net.Listen("unix", socketPath)
+	listener, err := listenOwnerOnly(socketPath)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
 	}
 	defer os.Remove(socketPath)
+	// Still restricted explicitly, for platforms without a creation mask.
 	if err := os.Chmod(socketPath, 0o600); err != nil {
 		_ = listener.Close()
 		return fmt.Errorf("restrict socket: %w", err)

@@ -41,6 +41,9 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         return result
     }
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { lock.withLock { jobsResult } }
+    var repositoryResult = CoreGitHubRepository(access: .ok, fullName: "o/r", visibility: "private", defaultBranch: "main",
+                                                htmlURL: URL(string: "https://github.com/o/r"))
+    func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository { lock.withLock { repositoryResult } }
     private var _confirmed: [String] = []
     var confirmed: [String] { lock.withLock { _confirmed } }
     var dispatchDefinition = CoreDispatchDefinition(access: .ok, dispatchable: true, inputs: [], parseError: nil)
@@ -582,6 +585,52 @@ struct CoreHubTests {
         token = nil
         hub.githubCredentialChanged()
         #expect(await eventually { provider.core.credentialCalls.last == .some(nil) })
+    }
+
+    @Test
+    func folderAccessEndsOnlyAfterTheCoreClosedTheRepository() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        let first = UUID(), second = UUID()
+        hub.attach(windowID: first, workspaceID: workspace, path: "/repo/a")
+        hub.attach(windowID: second, workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+
+        // Another window still shows the repository: nothing to wait for.
+        var firstReleased = false
+        hub.detach(windowID: first) { firstReleased = true }
+        #expect(firstReleased)
+        #expect(provider.core.closeCalls.isEmpty)
+
+        // The last window: released only once the Core has closed it.
+        var closedBeforeRelease: Bool?
+        hub.detach(windowID: second) {
+            closedBeforeRelease = provider.core.closeCalls == [FakeCore.id(for: "/repo/a")]
+        }
+        #expect(closedBeforeRelease == nil, "the close is still on its way")
+        #expect(await eventually { closedBeforeRelease != nil })
+        #expect(closedBeforeRelease == true)
+
+        var unknownReleased = false
+        hub.detach(windowID: UUID()) { unknownReleased = true }
+        #expect(unknownReleased)
+    }
+
+    @Test
+    func theLinkedRepositoryIsReadThroughTheCore() async {
+        let (hub, provider) = await readyHub()
+        var rejected = 0
+        hub.onGitHubTokenRejected = { rejected += 1 }
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+        let linked = await hub.githubRepository(workspaceID: workspace)
+        #expect(linked.fullName == "o/r" && linked.visibility == "private" && linked.access == .ok)
+
+        provider.core.repositoryResult = .failed(.tokenRejected)
+        #expect(await hub.githubRepository(workspaceID: workspace).access == .tokenRejected)
+        #expect(rejected == 1, "a rejected token signs the account out")
+        #expect(await hub.githubRepository(workspaceID: UUID()).access == .unavailable)
     }
 
     @Test

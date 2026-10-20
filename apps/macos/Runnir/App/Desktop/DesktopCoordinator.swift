@@ -148,6 +148,11 @@ final class DesktopCoordinator {
     /// Registers a chosen folder and opens it in a window. The open panel and the
     /// debug import hook both end here.
     private func register(selected: URL, relinkID: UUID? = nil, reuseWindowID: UUID? = nil) {
+        // A new window would not fit: say so before saving a registration.
+        if relinkID == nil, reuseWindowID == nil, snapshot.windows.count >= DesktopSnapshot.maxWindows {
+            message = Self.tooManyWindowsMessage
+            return
+        }
         let accessing = selected.startAccessingSecurityScopedResource()
         defer { if accessing { selected.stopAccessingSecurityScopedResource() } }
         do {
@@ -175,6 +180,8 @@ final class DesktopCoordinator {
             }
         } catch RepositoryAccessError.notRepository {
             message = "This folder is not a Git working tree. Choose a folder containing a .git marker."
+        } catch DesktopStoreError.tooManyWindows {
+            message = Self.tooManyWindowsMessage
         } catch {
             message = "The repository could not be opened. Check folder access or choose Locate to grant access again."
         }
@@ -203,13 +210,17 @@ final class DesktopCoordinator {
         }
     }
 
+    static let tooManyWindowsMessage = "Runnir keeps at most \(DesktopSnapshot.maxWindows) windows open. Close a window to open another."
+
     func openRegistered(_ workspace: WorkspaceRecord, reuseWindowID: UUID? = nil) {
         do { try open(workspace, reuseWindowID: reuseWindowID) }
+        catch DesktopStoreError.tooManyWindows { message = Self.tooManyWindowsMessage }
         catch { message = "Workspace unavailable. Locate the folder to restore access; existing windows are unchanged." }
     }
 
     private func open(_ workspace: WorkspaceRecord, reuseWindowID: UUID? = nil) throws {
         guard !isLoading else { throw DesktopStoreError.invalidState }
+        if reuseWindowID == nil, snapshot.windows.count >= DesktopSnapshot.maxWindows { throw DesktopStoreError.tooManyWindows }
         let grant = try makeGrant(workspace)
         let workspace = reconcile(workspace, with: grant)
         var candidate = snapshot
@@ -303,8 +314,14 @@ final class DesktopCoordinator {
 
     func didClose(_ id: UUID) {
         guard !terminationInProgress else { return }
-        windows.removeValue(forKey: id)?.grant?.stop()
-        core?.detach(windowID: id)
+        let grant = windows.removeValue(forKey: id)?.grant
+        // The folder access ends only once the Core has closed the repository,
+        // so a scan still running in the Core never loses it midway.
+        if let core {
+            core.detach(windowID: id) { grant?.stop() }
+        } else {
+            grant?.stop()
+        }
     }
 
     func geometryChanged() {
@@ -441,7 +458,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
         window?.title = workspace.name + " - Runnir"
         window?.contentViewController = NSHostingController(rootView:
             DesktopWorkspaceView(desktop: desktop, workspace: workspace, windowID: record.id, reader: grant?.reader)
-                .environment(state).environment(\.appEnvironment, AppEnvironment.live))
+                .environment(state))
         if let frame { window?.setFrame(frame, display: false) }
     }
 

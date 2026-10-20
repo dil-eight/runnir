@@ -29,13 +29,16 @@ struct WindowGeometry: Codable, Equatable, Sendable {
 }
 
 struct DesktopSnapshot: Codable, Equatable, Sendable {
+    static let maxWorkspaces = 200
+    static let maxWindows = 50
+
     var version = 1
     var workspaces: [WorkspaceRecord] = []
     var windows: [WorkspaceWindowRecord] = []
 
     func validate() throws {
         let workspaceIDs = Set(workspaces.map(\.id))
-        guard version == 1, workspaces.count <= 200, windows.count <= 50,
+        guard version == 1, workspaces.count <= Self.maxWorkspaces, windows.count <= Self.maxWindows,
               workspaceIDs.count == workspaces.count,
               Set(windows.map(\.id)).count == windows.count,
               workspaces.allSatisfy({ $0.path.hasPrefix("/") && !$0.name.isEmpty && $0.bookmark.count <= 65536 }),
@@ -57,6 +60,8 @@ enum DesktopStoreError: Error {
     case invalidState
     case tooLarge
     case ioFailure
+    /// The session already holds `DesktopSnapshot.maxWindows` windows.
+    case tooManyWindows
 }
 
 protocol DesktopStateStoring: Sendable {

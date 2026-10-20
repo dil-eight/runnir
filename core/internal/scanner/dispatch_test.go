@@ -64,3 +64,27 @@ func TestMalformedWorkflowIsAnError(t *testing.T) {
 		t.Fatal("want a parse error")
 	}
 }
+
+func TestRequiredAcceptsEveryYAMLSpellingOfTrue(t *testing.T) {
+	definition, err := ParseDispatch([]byte(`
+on:
+  workflow_dispatch:
+    inputs:
+      a: {required: True}
+      b: {required: TRUE}
+      c: {required: "true"}
+      d: {required: false}
+      e: {required: yes}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, input := range definition.Inputs {
+		got[input.Name] = input.Required
+	}
+	want := map[string]bool{"a": true, "b": true, "c": true, "d": false, "e": false}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("required = %v, want %v", got, want)
+	}
+}

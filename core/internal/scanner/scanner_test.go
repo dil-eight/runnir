@@ -425,3 +425,26 @@ func TestCutParseErrorsStayValidUTF8(t *testing.T) {
 		t.Fatalf("all invalid = %d bytes, valid %v", len(cut), utf8.ValidString(cut))
 	}
 }
+
+func TestCommonDirIsFollowedOnlyForALinkedWorktree(t *testing.T) {
+	other := t.TempDir()
+	write(t, other, ".git/config", "[remote \"origin\"]\n\turl = https://github.com/other/secret.git\n")
+	repo := t.TempDir()
+	write(t, repo, ".git/config", "[remote \"origin\"]\n\turl = https://github.com/o/r.git\n")
+	write(t, repo, ".git/commondir", filepath.Join(other, ".git")+"\n")
+	if got := scan(t, repo).GitHubRepository; got != "o/r" {
+		t.Fatalf("a plain repository read %q through its commondir file", got)
+	}
+
+	// A worktree whose commondir points away from the git dir holding it.
+	main := t.TempDir()
+	worktree := t.TempDir()
+	write(t, main, ".git/config", "[remote \"origin\"]\n\turl = https://github.com/o/r.git\n")
+	write(t, main, ".git/worktrees/wt/HEAD", "ref: refs/heads/topic\n")
+	write(t, main, ".git/worktrees/wt/commondir", filepath.Join(other, ".git")+"\n")
+	write(t, main, ".git/worktrees/wt/gitdir", filepath.Join(worktree, ".git")+"\n")
+	write(t, worktree, ".git", "gitdir: "+filepath.Join(main, ".git", "worktrees", "wt")+"\n")
+	if got := scan(t, worktree); got.GitHubRepository != "" || got.Branch != "topic" {
+		t.Fatalf("worktree with a foreign commondir = %+v", got)
+	}
+}

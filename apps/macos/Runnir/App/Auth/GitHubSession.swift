@@ -27,16 +27,6 @@ enum GitHubSignInProblem: Equatable, Sendable {
     }
 }
 
-/// Whether the signed-in user's token can see a repository.
-enum GitHubRepositoryAccess: Equatable, Sendable {
-    case signedOut
-    case accessible(Repository)
-    /// GitHub answers "not found": the Runnir Desktop app is not installed on
-    /// the repository, or the user has no access to it.
-    case notVisible
-    case failed(String)
-}
-
 enum GitHubConnection: Equatable, Sendable {
     /// Restoring a saved sign-in at launch.
     case restoring
@@ -258,34 +248,6 @@ final class GitHubSession {
             if retryWhenOffline { scheduleOfflineRetry() }
         } catch {
             connection = .signedOut(.unexpected)
-        }
-    }
-
-    // MARK: Repository access
-
-    /// Checks whether Runnir can see `fullName` ("owner/name") with the current
-    /// sign-in. A token GitHub rejects signs the user out.
-    func access(to fullName: String) async -> GitHubRepositoryAccess {
-        guard user != nil else { return .signedOut }
-        let parts = fullName.split(separator: "/", omittingEmptySubsequences: false)
-        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { return .notVisible }
-        do {
-            return .accessible(try await api.repository(owner: String(parts[0]), name: String(parts[1])))
-        } catch GitHubAPIError.notFound {
-            return .notVisible
-        } catch GitHubAPIError.authorizationFailed {
-            return .notVisible
-        } catch GitHubAPIError.authenticationFailed {
-            try? await credentials.removeToken()
-            connection = .signedOut(.sessionExpired)
-            onCredentialChange?()
-            return .signedOut
-        } catch GitHubAPIError.rateLimited {
-            return .failed(GitHubSignInProblem.rateLimited.message)
-        } catch GitHubAPIError.networkUnavailable {
-            return .failed(GitHubSignInProblem.network.message)
-        } catch {
-            return .failed(GitHubSignInProblem.unexpected.message)
         }
     }
 

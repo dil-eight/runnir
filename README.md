@@ -6,30 +6,22 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 
 ## Implemented
 
-- Native SwiftUI/AppKit desktop shell based on the Pen Manager, splash and workspace designs.
-- Local repository import, read-only workflow browser and independent restorable workspace windows.
-- Versioned atomic local registry/session storage, missing-folder recovery and public GitHub toolbar link.
-- Xcode project with app, unit test, and UI test targets.
-- Swift 6 with strict concurrency checking.
-- Feature-oriented source layout.
-- Domain models for repositories, workflows, runs, and artifacts.
-- Typed GitHub REST client foundation for authenticated user, repositories, and workflows.
-- Keychain-backed credential storage abstraction.
-- Unit tests for decoding, request construction, error mapping, credentials, and app state.
-- macOS GitHub Actions CI for build, unit tests, static analyzer, and dependency review.
+- Native SwiftUI/AppKit desktop shell based on the Pen designs: splash, Workspace Manager, independent restorable workspace windows and a workspace switcher (Shift-Command-O).
+- Local repository import with security-scoped bookmarks (a stale bookmark is refreshed, a moved folder followed), read-only workflow file browser, versioned atomic session storage and missing-folder recovery.
+- GitHub sign-in with the Device Flow of the registered Runnir Desktop GitHub App: no client secret in the app, the token only in the Keychain and in the Core's memory, sign-out, and automatic retry after an offline launch. Confirmed with a real sign-in.
+- Workspaces linked to their GitHub repository through the `origin` remote, with an access check and a link to install the app on the repository.
+- GitHub Actions through the Go Core: workflows, recent runs (refreshed every 20 seconds while one is active, every 5 minutes otherwise), jobs and steps, job logs with search (bounded to the last 2 MiB), cancel and re-run, and `workflow_dispatch` with branch, typed inputs and a confirmation. Changes go through a single-use confirmation and are never retried. Dispatch, logs, cancel and re-run are covered by tests with a fake GitHub, not yet by a controlled real run.
+- One supervised Go Core per app: local gRPC over a Unix socket with a per-launch client secret, a liveness check, a Restart Core banner, a diagnostics log, and shutdown on quit. Idle measurement on one machine: about 94 MB for the app plus Core with 10 open repositories (Debug build).
+- Go CLI (`version`, `serve`) and a version-only JSON-RPC stdio endpoint (`rpc`); execution scheduling exists with a stub runner (there is no real workflow execution engine).
+- Swift 6 with strict concurrency, unit tests for the app and Core, macOS CI for build, tests and static analysis, Go tests on three platforms, six cross-compilation targets, a check that generated code matches the contract, formatting, vet and vulnerability checks.
 - MVP specification and future AI/MCP design documents (no AI runtime or MCP server).
-- Go CLI (`version`, `serve`), a version-only JSON-RPC stdio endpoint (`rpc`), and a local gRPC API over a Unix socket: repository open, close and refresh, workflow listing, an event stream, and execution scheduling with a stub runner (there is no real workflow execution engine).
-- One supervised Core process per app: started at launch, shared by all windows, restartable from a banner when lost, stopped on quit. Idle measurement on one machine: about 94 MB for the app plus Core with 10 open repositories (Debug build).
-- Bundled Core executable with a Swift startup handshake and integration test.
-- Go native test automation, six cross-compilation targets, formatting/vet and vulnerability checks.
 
 ## Planned
 
-- v0.1 target: lifecycle hardening, signed folder-grant verification and per-workspace SQLite/cache-first sync.
-- v0.1: Device Flow login, repository dashboard, typed dispatch, optional portable .runnir launches/environments and private overrides.
-- v0.1: run/job/log inspection, cancel/rerun, local YAML editing and offline actionlint validation.
-- v0.1: explicit Docker/OrbStack and act setup, compatible local execution/output/cancellation.
-- Later: artifact inspection/reuse, optional AI/chat/MCP, cloud integrations and startup offers.
+- v0.1: presets for dispatch inputs, favorites and dashboard status, local YAML editing and offline actionlint validation.
+- v0.1: explicit Docker/OrbStack and act setup, compatible local execution, output, cancellation and cleanup.
+- v0.1: lifecycle hardening, signed folder-grant verification, per-workspace SQLite and cache-first sync, optional portable .runnir launches and environments.
+- Later: artifact inspection and reuse, optional AI/chat/MCP, cloud integrations and startup offers.
 - Distribution work: Developer ID signing, notarization, packaging and secure automatic updates; completion is not claimed.
 
 ## Specifications
@@ -96,11 +88,7 @@ xcodebuild -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'pla
 
 ## GitHub Authentication
 
-Runnir stores GitHub credentials only in macOS Keychain.
-
-The bootstrap does not fake authentication. To enable login, create a GitHub OAuth app or device-flow capable GitHub App, document the client identifier, and wire the auth service to exchange and store tokens securely.
-
-No client secret should be embedded in the app.
+Runnir signs in with the OAuth Device Flow of the registered Runnir Desktop GitHub App, using only its public client ID; no client secret is embedded. The token is stored only in the macOS Keychain and handed to the Core's memory while signed in. Repositories become visible when the app is installed on them. See [GitHub authentication](docs/security/github-authentication.md).
 
 ## Contributing
 

@@ -254,27 +254,4 @@ struct GitHubSessionTests {
         #expect(rig.session.connection == .signedOut(nil))
         #expect(try await rig.credentials.token() == nil)
     }
-
-    @Test
-    func repositoryAccessReflectsWhatTheTokenCanSee() async throws {
-        let rig = Rig(credentials: InMemoryCredentialStore(token: "t"))
-        #expect(await rig.session.access(to: "o/r") == .signedOut) // still restoring
-        await rig.session.restore()
-
-        let repo = Repository(id: 1, owner: "o", name: "r", fullName: "o/r", defaultBranch: "main", visibility: .public)
-        await rig.api.set(repository: .success(repo))
-        #expect(await rig.session.access(to: "o/r") == .accessible(repo))
-
-        await rig.api.set(repository: .failure(.notFound))
-        #expect(await rig.session.access(to: "o/r") == .notVisible)
-        #expect(await rig.session.access(to: "not-a-full-name") == .notVisible)
-
-        await rig.api.set(repository: .failure(.networkUnavailable))
-        if case .failed = await rig.session.access(to: "o/r") {} else { Issue.record("expected failed") }
-
-        await rig.api.set(repository: .failure(.authenticationFailed))
-        #expect(await rig.session.access(to: "o/r") == .signedOut)
-        #expect(rig.session.connection == .signedOut(.sessionExpired))
-        #expect(try await rig.credentials.token() == nil)
-    }
 }

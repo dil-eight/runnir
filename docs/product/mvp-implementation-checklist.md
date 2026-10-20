@@ -1,6 +1,6 @@
 # MVP v0.1 Implementation Checklist
 
-Status: acceptance backlog, updated 2026-10-15. Desktop foundation is partially implemented; [verification](../architecture/desktop-foundation-verification.md) lists evidence and remaining gates. Unchecked entries are not fully accepted, even where partial code exists. Priorities apply to product requirements; execution order also follows dependencies. See the [specification](specification.md) and [gap analysis](../architecture/gap-analysis.md).
+Status: acceptance backlog, updated 2026-10-19 (see Progress below). Desktop foundation is partially implemented; [verification](../architecture/desktop-foundation-verification.md) lists evidence and remaining gates. Unchecked entries are not fully accepted, even where partial code exists. Priorities apply to product requirements; execution order also follows dependencies. See the [specification](specification.md) and [gap analysis](../architecture/gap-analysis.md).
 
 Design planning: [Pen production plan](../design/pen-production-plan.md), [screen/state matrix](../design/screens-and-states.md) and [reusable components](../design/reusable-components.md). Design completion does not mark a functional requirement implemented.
 
@@ -12,6 +12,25 @@ Design planning: [Pen production plan](../design/pen-production-plan.md), [scree
 - [x] Test and CI configuration; earlier results are recorded in the foundation report.
 
 These checks describe source foundations, not complete MVP features or a fresh test run.
+
+## Progress (2026-10-19)
+
+What exists in code, with tests, against the backlog below. A row stays unaccepted until its full evidence column is met, including the controlled real integrations.
+
+| ID | State | Missing for acceptance |
+| --- | --- | --- |
+| B01 | Import, bookmarks (stale refreshed), scoped reads, Locate/relink | Signed sandbox build check of the folder grant |
+| B02 | Discovery and bounded parsing in the Core (both extensions, limits, worktrees, no evaluation) | Signed-build check |
+| B05 | Device Flow with the registered app; no secret; token only in Keychain and Core memory | Rate-limit scheduling review |
+| B06 | Restore, sign-out, revoked token, offline launch with retry; real sign-in confirmed by hand | Keychain denial on a signed build |
+| B07 | Workspace linked to its GitHub repository through `origin`; access check through the Core | Account-wide browsing and search (if kept in scope) |
+| B09 | Branch and tag selection; typed inputs, defaults, required and choice validation in the Core | Presets |
+| B10 | Single-use confirmation; send once, no retries; run located by polling | Controlled real dispatch |
+| B11 | Runs, jobs and steps, active and idle polling, rate-limit states | — |
+| B12 | Last 2 MiB / 50,000 lines of a job log, step matching, search, expired and not-ready states | Controlled real logs |
+| B13 | Cancel, re-run all, re-run failed jobs with single-use confirmation; GitHub refusals shown | Controlled real operations |
+
+Not started: B03, B04, B08, B14–B16, B18–B29 beyond the existing window and session foundation.
 
 ## Prioritized Backlog
 
