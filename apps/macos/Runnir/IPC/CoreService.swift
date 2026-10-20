@@ -35,6 +35,36 @@ struct CoreWorkflow: Equatable, Identifiable, Sendable {
     let parseError: String?
 }
 
+/// One actionlint finding. Line and column are 1-based, 0 when unknown.
+struct CoreWorkflowDiagnostic: Equatable, Sendable {
+    let line: Int
+    let column: Int
+    /// The actionlint rule, for example "syntax-check".
+    let kind: String
+    let message: String
+}
+
+struct CoreWorkflowValidation: Equatable, Sendable {
+    /// ".github/workflows/<name>", as in `CoreWorkflow.id`.
+    let workflowID: String
+    let diagnostics: [CoreWorkflowDiagnostic]
+    /// Set when the file could not be checked.
+    let problem: String?
+    let truncated: Bool
+}
+
+struct CoreValidationReport: Equatable, Sendable {
+    let workflows: [CoreWorkflowValidation]
+    /// "actionlint v1.7.12".
+    let validator: String
+    /// The repository's actionlint config could not be used.
+    let configProblem: String?
+
+    func validation(for workflowID: String) -> CoreWorkflowValidation? {
+        workflows.first { $0.workflowID == workflowID }
+    }
+}
+
 enum CoreExecutionState: Equatable, Sendable {
     case unspecified, queued, running, succeeded, failed, cancelled
 }
@@ -87,6 +117,9 @@ protocol CoreServicing: Sendable {
     func refreshRepository(id: String) async throws -> CoreRepository
     func closeRepository(id: String) async throws
     func listWorkflows(repositoryID: String) async throws -> [CoreWorkflow]
+    /// Checks the workflow files on disk with the Core's built-in actionlint;
+    /// nil `workflowID` checks all of them.
+    func validateWorkflows(repositoryID: String, workflowID: String?) async throws -> CoreValidationReport
     func startWorkflow(repositoryID: String, workflowID: String, ref: String?) async throws -> CoreExecution
     /// Hands the signed-in user's GitHub token to the Core's memory; nil clears it.
     func setGitHubCredential(_ token: String?) async throws

@@ -47,6 +47,22 @@ struct CoreProcessIntegrationTests {
     }
 
     @Test
+    func theRealCoreValidatesWorkflowsWithActionlint() async throws {
+        let (supervisor, _) = Self.makeSupervisor()
+        try await supervisor.start()
+        let service = try await supervisor.service()
+        // "jobs: build: {}" has no runs-on; actionlint reports it.
+        let repository = try await service.openRepository(path: try Self.tempRepository())
+        let report = try await service.validateWorkflows(repositoryID: repository.id, workflowID: nil)
+        #expect(report.validator.hasPrefix("actionlint v"))
+        let ci = try #require(report.validation(for: ".github/workflows/ci.yml"))
+        #expect(ci.problem == nil)
+        #expect(!ci.diagnostics.isEmpty)
+        #expect(ci.diagnostics.allSatisfy { $0.line > 0 && !$0.kind.isEmpty })
+        await supervisor.stop()
+    }
+
+    @Test
     func oneCoreServesRepositoriesAndSurvivesRepeatedStarts() async throws {
         let (supervisor, socket) = Self.makeSupervisor()
         try await supervisor.start()

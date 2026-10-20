@@ -763,6 +763,80 @@ nonisolated struct Runnir_Core_V1_GitHubStatus: Sendable {
   fileprivate var _retryAfter: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
 }
 
+nonisolated struct Runnir_Core_V1_ValidateWorkflowsRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var repositoryID: String = String()
+
+  /// A workflow id from ListWorkflows; empty checks every workflow file.
+  var workflowID: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_WorkflowDiagnostic: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// 1-based; 0 when actionlint gives no position.
+  var line: Int32 = 0
+
+  var column: Int32 = 0
+
+  /// The actionlint rule, for example "syntax-check" or "job-needs".
+  var kind: String = String()
+
+  var message: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_WorkflowValidation: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var workflowID: String = String()
+
+  var diagnostics: [Runnir_Core_V1_WorkflowDiagnostic] = []
+
+  /// Set when the file could not be checked, for example when it is too large.
+  var problem: String = String()
+
+  /// More than 200 diagnostics were found; the first ones are returned.
+  var truncated: Bool = false
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_ValidateWorkflowsResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var workflows: [Runnir_Core_V1_WorkflowValidation] = []
+
+  /// "actionlint v1.7.12".
+  var validator: String = String()
+
+  /// The repository's actionlint config could not be used; the files were
+  /// checked with the defaults.
+  var configProblem: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
 nonisolated struct Runnir_Core_V1_GetGitHubRepositoryRequest: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -2266,6 +2340,171 @@ nonisolated extension Runnir_Core_V1_GitHubStatus: SwiftProtobuf.Message, SwiftP
   static func ==(lhs: Runnir_Core_V1_GitHubStatus, rhs: Runnir_Core_V1_GitHubStatus) -> Bool {
     if lhs.access != rhs.access {return false}
     if lhs._retryAfter != rhs._retryAfter {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ValidateWorkflowsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ValidateWorkflowsRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}workflow_id\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.repositoryID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.workflowID) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.repositoryID.isEmpty {
+      try visitor.visitSingularStringField(value: self.repositoryID, fieldNumber: 1)
+    }
+    if !self.workflowID.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowID, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ValidateWorkflowsRequest, rhs: Runnir_Core_V1_ValidateWorkflowsRequest) -> Bool {
+    if lhs.repositoryID != rhs.repositoryID {return false}
+    if lhs.workflowID != rhs.workflowID {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_WorkflowDiagnostic: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".WorkflowDiagnostic"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}line\0\u{1}column\0\u{1}kind\0\u{1}message\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularInt32Field(value: &self.line) }()
+      case 2: try { try decoder.decodeSingularInt32Field(value: &self.column) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.kind) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.message) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.line != 0 {
+      try visitor.visitSingularInt32Field(value: self.line, fieldNumber: 1)
+    }
+    if self.column != 0 {
+      try visitor.visitSingularInt32Field(value: self.column, fieldNumber: 2)
+    }
+    if !self.kind.isEmpty {
+      try visitor.visitSingularStringField(value: self.kind, fieldNumber: 3)
+    }
+    if !self.message.isEmpty {
+      try visitor.visitSingularStringField(value: self.message, fieldNumber: 4)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_WorkflowDiagnostic, rhs: Runnir_Core_V1_WorkflowDiagnostic) -> Bool {
+    if lhs.line != rhs.line {return false}
+    if lhs.column != rhs.column {return false}
+    if lhs.kind != rhs.kind {return false}
+    if lhs.message != rhs.message {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_WorkflowValidation: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".WorkflowValidation"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{1}diagnostics\0\u{1}problem\0\u{1}truncated\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.workflowID) }()
+      case 2: try { try decoder.decodeRepeatedMessageField(value: &self.diagnostics) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.problem) }()
+      case 4: try { try decoder.decodeSingularBoolField(value: &self.truncated) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.workflowID.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowID, fieldNumber: 1)
+    }
+    if !self.diagnostics.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.diagnostics, fieldNumber: 2)
+    }
+    if !self.problem.isEmpty {
+      try visitor.visitSingularStringField(value: self.problem, fieldNumber: 3)
+    }
+    if self.truncated != false {
+      try visitor.visitSingularBoolField(value: self.truncated, fieldNumber: 4)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_WorkflowValidation, rhs: Runnir_Core_V1_WorkflowValidation) -> Bool {
+    if lhs.workflowID != rhs.workflowID {return false}
+    if lhs.diagnostics != rhs.diagnostics {return false}
+    if lhs.problem != rhs.problem {return false}
+    if lhs.truncated != rhs.truncated {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ValidateWorkflowsResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ValidateWorkflowsResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}workflows\0\u{1}validator\0\u{3}config_problem\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeRepeatedMessageField(value: &self.workflows) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.validator) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.configProblem) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.workflows.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.workflows, fieldNumber: 1)
+    }
+    if !self.validator.isEmpty {
+      try visitor.visitSingularStringField(value: self.validator, fieldNumber: 2)
+    }
+    if !self.configProblem.isEmpty {
+      try visitor.visitSingularStringField(value: self.configProblem, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ValidateWorkflowsResponse, rhs: Runnir_Core_V1_ValidateWorkflowsResponse) -> Bool {
+    if lhs.workflows != rhs.workflows {return false}
+    if lhs.validator != rhs.validator {return false}
+    if lhs.configProblem != rhs.configProblem {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

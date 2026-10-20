@@ -19,6 +19,7 @@ import (
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
 	"runnir/core/internal/repository"
+	"runnir/core/internal/validate"
 )
 
 // service implements the RunnirCore RPCs. Unimplemented methods return
@@ -102,6 +103,32 @@ func (s *service) ListWorkflows(_ context.Context, request *corev1.ListWorkflows
 		item := &corev1.Workflow{Id: w.ID, Name: w.Name, Triggers: w.Triggers, ParseError: w.ParseError}
 		for _, j := range w.Jobs {
 			item.Jobs = append(item.Jobs, &corev1.Job{Id: j.ID, Name: j.Name, Needs: j.Needs})
+		}
+		out.Workflows = append(out.Workflows, item)
+	}
+	return out, nil
+}
+
+// ValidateWorkflows checks workflow files with the built-in actionlint.
+func (s *service) ValidateWorkflows(ctx context.Context, request *corev1.ValidateWorkflowsRequest) (*corev1.ValidateWorkflowsResponse, error) {
+	info, err := s.repositories.Get(request.GetRepositoryId())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	report, err := validate.Workflows(ctx, info.Path, request.GetWorkflowId())
+	switch {
+	case errors.Is(err, validate.ErrUnknownWorkflow):
+		return nil, status.Error(codes.NotFound, "workflow not found")
+	case err != nil:
+		return nil, rpcError(err)
+	}
+	out := &corev1.ValidateWorkflowsResponse{Validator: report.Validator, ConfigProblem: report.ConfigProblem}
+	for _, result := range report.Results {
+		item := &corev1.WorkflowValidation{WorkflowId: result.WorkflowID, Problem: result.Problem, Truncated: result.Truncated}
+		for _, d := range result.Diagnostics {
+			item.Diagnostics = append(item.Diagnostics, &corev1.WorkflowDiagnostic{
+				Line: int32(d.Line), Column: int32(d.Column), Kind: d.Kind, Message: d.Message,
+			})
 		}
 		out.Workflows = append(out.Workflows, item)
 	}

@@ -41,6 +41,19 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         return result
     }
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { lock.withLock { jobsResult } }
+    var validationResult: Result<CoreValidationReport, CoreServiceError> = .success(CoreValidationReport(
+        workflows: [CoreWorkflowValidation(workflowID: ".github/workflows/ci.yml",
+                                           diagnostics: [CoreWorkflowDiagnostic(line: 4, column: 3, kind: "job-needs", message: "job \"build\" needs job \"test\" which does not exist")],
+                                           problem: nil, truncated: false)],
+        validator: "actionlint v1.7.12", configProblem: nil))
+    private var _validations = 0
+    var validations: Int { lock.withLock { _validations } }
+    func validateWorkflows(repositoryID: String, workflowID: String?) async throws -> CoreValidationReport {
+        try lock.withLock {
+            _validations += 1
+            return try validationResult.get()
+        }
+    }
     var repositoryResult = CoreGitHubRepository(access: .ok, fullName: "o/r", visibility: "private", defaultBranch: "main",
                                                 htmlURL: URL(string: "https://github.com/o/r"))
     func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository { lock.withLock { repositoryResult } }
@@ -614,6 +627,30 @@ struct CoreHubTests {
         var unknownReleased = false
         hub.detach(windowID: UUID()) { unknownReleased = true }
         #expect(unknownReleased)
+    }
+
+    @Test
+    func workflowsAreValidatedThroughTheCore() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        #expect(await hub.validateWorkflows(workspaceID: workspace) == .failed("Runnir Core is not ready. Validation runs in the Core."))
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+
+        let files = WorkspaceFilesModel()
+        await files.validate(hub: hub, workspaceID: workspace)
+        let ci = LocalWorkflowFile(relativePath: ".github/workflows/ci.yml")
+        #expect(files.validation?.validator == "actionlint v1.7.12")
+        #expect(files.problemCount(for: ci) == 1)
+        #expect(files.problemCount(for: LocalWorkflowFile(relativePath: ".github/workflows/other.yml")) == nil)
+        #expect(files.validationError == nil)
+
+        // A failed check keeps the last report and says why.
+        provider.core.validationResult = .failure(.accessDenied)
+        await files.validate(hub: hub, workspaceID: workspace)
+        #expect(files.validation != nil)
+        #expect(files.validationError?.contains("cannot read this folder") == true)
+        #expect(provider.core.validations == 2)
     }
 
     @Test

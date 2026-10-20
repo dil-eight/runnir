@@ -19,6 +19,9 @@ service RunnirCore {
   rpc RefreshRepository(RefreshRepositoryRequest) returns (RepositoryResponse);
 
   rpc ListWorkflows(ListWorkflowsRequest) returns (ListWorkflowsResponse);
+  // Checks the workflow files on disk now with actionlint, built into the
+  // Core; no external program runs and nothing is sent anywhere.
+  rpc ValidateWorkflows(ValidateWorkflowsRequest) returns (ValidateWorkflowsResponse);
 
   // Interface only in the MVP: no real GitHub Actions engine yet.
   rpc StartWorkflow(StartWorkflowRequest) returns (ExecutionResponse);
@@ -213,6 +216,39 @@ message GitHubStatus {
   GithubAccess access = 1;
   // When RATE_LIMITED: when GitHub accepts requests again.
   google.protobuf.Timestamp retry_after = 2;
+}
+
+message ValidateWorkflowsRequest {
+  string repository_id = 1;
+  // A workflow id from ListWorkflows; empty checks every workflow file.
+  string workflow_id = 2;
+}
+
+message WorkflowDiagnostic {
+  // 1-based; 0 when actionlint gives no position.
+  int32 line = 1;
+  int32 column = 2;
+  // The actionlint rule, for example "syntax-check" or "job-needs".
+  string kind = 3;
+  string message = 4;
+}
+
+message WorkflowValidation {
+  string workflow_id = 1;
+  repeated WorkflowDiagnostic diagnostics = 2;
+  // Set when the file could not be checked, for example when it is too large.
+  string problem = 3;
+  // More than 200 diagnostics were found; the first ones are returned.
+  bool truncated = 4;
+}
+
+message ValidateWorkflowsResponse {
+  repeated WorkflowValidation workflows = 1;
+  // "actionlint v1.7.12".
+  string validator = 2;
+  // The repository's actionlint config could not be used; the files were
+  // checked with the defaults.
+  string config_problem = 3;
 }
 
 message GetGitHubRepositoryRequest {

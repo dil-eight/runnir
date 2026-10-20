@@ -266,10 +266,36 @@ func samePath(a, b string) bool {
 }
 
 func readWorkflows(ctx context.Context, root string) ([]repository.Workflow, error) {
-	// Refuse symlinked .github or workflows directories so a repository
-	// cannot point the scan outside its granted folder. A missing directory
-	// means no workflows; one the Core may not read is an error, so it is
-	// never mistaken for an empty repository.
+	files, err := ReadWorkflowFiles(ctx, root)
+	if err != nil {
+		return nil, err
+	}
+	workflows := make([]repository.Workflow, 0, len(files))
+	for _, file := range files {
+		if file.Problem != "" {
+			workflows = append(workflows, repository.Workflow{ID: file.ID, Name: file.ID, ParseError: file.Problem})
+			continue
+		}
+		workflows = append(workflows, parse(file.ID, file.Data))
+	}
+	return workflows, nil
+}
+
+// WorkflowFile is one file of .github/workflows. Problem is set, and Data
+// empty, when the file could not be read.
+type WorkflowFile struct {
+	ID      string // ".github/workflows/<name>"
+	Data    []byte
+	Problem string
+}
+
+// ReadWorkflowFiles reads the YAML files of .github/workflows in name order:
+// regular files only, at most 200 files of 1 MiB each. Symlinked .github or
+// workflows directories are refused so a repository cannot point a read
+// outside its granted folder. A missing directory means no files; one the
+// Core may not read is an error, so it is never mistaken for an empty
+// repository.
+func ReadWorkflowFiles(ctx context.Context, root string) ([]WorkflowFile, error) {
 	for _, dir := range []string{".github", workflowsDir} {
 		info, err := os.Lstat(filepath.Join(root, filepath.FromSlash(dir)))
 		if err != nil {
@@ -283,7 +309,7 @@ func readWorkflows(ctx context.Context, root string) ([]repository.Workflow, err
 	if err != nil {
 		return nil, absentOrError(err)
 	}
-	var workflows []repository.Workflow
+	var files []WorkflowFile
 	for _, entry := range entries { // ReadDir returns names sorted
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -292,21 +318,46 @@ func readWorkflows(ctx context.Context, root string) ([]repository.Workflow, err
 		if !entry.Type().IsRegular() || (ext != ".yml" && ext != ".yaml") {
 			continue
 		}
-		if len(workflows) == maxWorkflowFiles {
+		if len(files) == maxWorkflowFiles {
 			break
 		}
 		id := path.Join(workflowsDir, entry.Name())
 		data, err := readBounded(filepath.Join(root, filepath.FromSlash(id)), maxFileBytes)
 		switch {
 		case err == errTooLarge:
-			workflows = append(workflows, repository.Workflow{ID: id, Name: id, ParseError: "file is larger than 1 MiB"})
+			files = append(files, WorkflowFile{ID: id, Problem: "file is larger than 1 MiB"})
 		case err != nil:
-			workflows = append(workflows, repository.Workflow{ID: id, Name: id, ParseError: "cannot read file"})
+			files = append(files, WorkflowFile{ID: id, Problem: "cannot read file"})
 		default:
-			workflows = append(workflows, parse(id, data))
+			files = append(files, WorkflowFile{ID: id, Data: data})
 		}
 	}
-	return workflows, nil
+	return files, nil
+}
+
+// ReadLinterConfig returns the repository's actionlint config
+// (.github/actionlint.yaml or .yml) and its id, or nothing when there is
+// none. Like workflow files it must be a regular file inside a regular
+// .github directory, at most 64 KiB.
+func ReadLinterConfig(root string) (id string, data []byte, err error) {
+	if info, err := os.Lstat(filepath.Join(root, ".github")); err != nil || !info.IsDir() {
+		return "", nil, nil
+	}
+	for _, name := range []string{"actionlint.yaml", "actionlint.yml"} {
+		id := path.Join(".github", name)
+		data, err := readBounded(filepath.Join(root, filepath.FromSlash(id)), maxConfigBytes)
+		switch {
+		case err == nil:
+			return id, data, nil
+		case errors.Is(err, fs.ErrNotExist):
+			continue
+		case errors.Is(err, fs.ErrPermission):
+			return "", nil, repository.ErrAccessDenied
+		default:
+			return id, nil, fmt.Errorf("%s cannot be read: it must be a regular file of at most 64 KiB", id)
+		}
+	}
+	return "", nil, nil
 }
 
 var errTooLarge = fmt.Errorf("file too large")

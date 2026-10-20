@@ -379,6 +379,25 @@ final class CoreHub {
         }
     }
 
+    // MARK: Validation
+
+    enum ValidationOutcome: Equatable {
+        case report(CoreValidationReport)
+        case failed(String)
+    }
+
+    /// Checks the workspace's workflow files with the Core's actionlint.
+    func validateWorkflows(workspaceID: UUID) async -> ValidationOutcome {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else {
+            return .failed("Runnir Core is not ready. Validation runs in the Core.")
+        }
+        do {
+            return .report(try await service.validateWorkflows(repositoryID: coreID, workflowID: nil))
+        } catch {
+            return .failed(Self.describe(error))
+        }
+    }
+
     // MARK: Logs and run actions
 
     /// The end of one job's log.
