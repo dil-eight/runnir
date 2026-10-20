@@ -128,6 +128,7 @@ struct CodeEditor: NSViewRepresentable {
             recountLines()
             color(NSRange(location: 0, length: storage.length), startsEditing: true)
             applyMarks()
+            ruler?.needsDisplay = true
         }
 
         func textDidChange(_ notification: Notification) {
@@ -249,6 +250,9 @@ final class LineNumberRuler: NSRulerView {
 
         let string = textView.string as NSString
         let visible = textView.visibleRect
+        // The ruler can draw before the text view has laid out new text;
+        // without this only the first line would get a number.
+        layout.ensureLayout(forBoundingRect: visible, in: container)
         let glyphs = layout.glyphRange(forBoundingRect: visible, in: container)
         let characters = layout.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
