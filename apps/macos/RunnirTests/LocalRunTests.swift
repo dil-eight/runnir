@@ -276,6 +276,33 @@ struct LocalRunTests {
         run.stopFollowing()
     }
 
+    @Test func nothingIsStoppedWhenTheCoreIsGone() async throws {
+        let window = UUID()
+        let provider = FakeProvider()
+        provider.core.preparedLocalRun = prepared()
+        provider.core.localOutputs = [output(lines: 1...1)]
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        _ = await eventually { hub.status == .ready(version: "fake") }
+        let workspace = UUID()
+        hub.attach(windowID: window, workspaceID: workspace, path: "/repo/a")
+        _ = await eventually { hub.session(for: workspace)?.phase == .ready }
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        await review.prepare()
+        review.trusted = true
+        let run = try #require(await review.run())
+        #expect(hub.activeLocalRuns.count == 1)
+
+        provider.emit(.lost(.processExited(9)))
+        _ = await eventually { hub.status == .lost }
+        // The run's last report says running, but no Core is left to stop it.
+        #expect(!run.isFinished)
+        #expect(hub.activeLocalRuns.isEmpty)
+        #expect(hub.localRunEnding(withWindow: window) == nil)
+        run.stopFollowing()
+    }
+
     @Test func quittingWithoutARunDoesNotAsk() async {
         let (hub, _, _) = await hub()
         let desktop = DesktopCoordinator(core: hub)

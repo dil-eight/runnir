@@ -468,16 +468,18 @@ final class CoreHub {
         }
     }
 
-    /// Local runs still going, which quitting would stop.
+    /// Local runs still going, which quitting would stop. Without a running
+    /// Core there is nothing to stop, whatever the last report said.
     var activeLocalRuns: [LocalRunModel] {
-        sessions.values.compactMap(\.localRun).filter { !$0.isFinished }.sorted { $0.executionID < $1.executionID }
+        guard isReady else { return [] }
+        return sessions.values.compactMap(\.localRun).filter { !$0.isFinished }.sorted { $0.executionID < $1.executionID }
     }
 
     /// The local run that closing this window would stop: the window is the
     /// last one of its workspace, which closes the repository in the Core,
     /// and the workspace's run is still going.
     func localRunEnding(withWindow windowID: UUID) -> LocalRunModel? {
-        guard let workspaceID = windowWorkspace[windowID], let session = sessions[workspaceID],
+        guard isReady, let workspaceID = windowWorkspace[windowID], let session = sessions[workspaceID],
               session.windowIDs == [windowID], let run = session.localRun, !run.isFinished else { return nil }
         return run
     }
