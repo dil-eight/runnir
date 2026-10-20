@@ -335,6 +335,32 @@ func ReadWorkflowFiles(ctx context.Context, root string) ([]WorkflowFile, error)
 	return files, nil
 }
 
+// ErrNoWorkflowFile: id does not name a regular YAML file directly in
+// .github/workflows, or the file cannot be read within the bound.
+var ErrNoWorkflowFile = errors.New("not a readable workflow file")
+
+// ReadWorkflowFile reads one workflow file by its id, with the same rules as
+// ReadWorkflowFiles: a regular file of at most 1 MiB directly in a
+// .github/workflows directory that is not a symlink.
+func ReadWorkflowFile(root, id string) ([]byte, error) {
+	name, found := strings.CutPrefix(id, workflowsDir+"/")
+	ext := strings.ToLower(path.Ext(name))
+	if !found || name == "" || strings.ContainsAny(name, "/\\") || name == "." || name == ".." || (ext != ".yml" && ext != ".yaml") {
+		return nil, ErrNoWorkflowFile
+	}
+	for _, dir := range []string{".github", workflowsDir} {
+		info, err := os.Lstat(filepath.Join(root, filepath.FromSlash(dir)))
+		if err != nil || !info.IsDir() {
+			return nil, ErrNoWorkflowFile
+		}
+	}
+	data, err := readBounded(filepath.Join(root, filepath.FromSlash(id)), maxFileBytes)
+	if err != nil {
+		return nil, ErrNoWorkflowFile
+	}
+	return data, nil
+}
+
 // ReadLinterConfig returns the repository's actionlint config
 // (.github/actionlint.yaml or .yml) and its id, or nothing when there is
 // none. Like workflow files it must be a regular file inside a regular

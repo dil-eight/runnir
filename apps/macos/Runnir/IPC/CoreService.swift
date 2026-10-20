@@ -141,6 +141,19 @@ protocol CoreServicing: Sendable {
     func prepareRunAction(repositoryID: String, runID: Int64, action: CoreRunAction) async throws -> CorePreparedRunAction
     /// Sends a prepared run action once. Throws when the confirmation expired or was used.
     func confirmRunAction(actionID: String) async throws -> CoreRunActionResult
+    /// act, the Docker CLI and the container engine as found on this Mac.
+    /// Read-only; `refresh` checks again instead of reusing the last result.
+    func toolReadiness(refresh: Bool) async throws -> CoreToolReadiness
+    /// Checks the tools and the workflow file and returns the plan, with a
+    /// single-use confirmation when nothing blocks it. Starts nothing.
+    func prepareLocalRun(repositoryID: String, workflowID: String, jobID: String?, event: String?,
+                         useInstalledAct: Bool) async throws -> CorePreparedLocalRun
+    /// Starts a prepared local run once. Throws `.failedPrecondition` when the
+    /// confirmation expired or was used, or the file changed after the review.
+    func confirmLocalRun(confirmationID: String) async throws -> CoreExecution
+    /// A local run's state and the output lines after `after`.
+    func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput
+    func cancelExecution(executionID: String) async throws
     /// The first element is `.ready`. The stream fails with
     /// `.resourceExhausted` when the subscriber falls behind and with
     /// `.unavailable` when the Core goes away; callers resubscribe and reload.

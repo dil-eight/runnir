@@ -13,14 +13,16 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 - Offline workflow validation with actionlint built into the Go Core: diagnostics for each workflow file in the Workspace section, with the line highlighted in the source. No external tools run, and the repository's `.github/actionlint.yaml` is honored.
 - GitHub Actions through the Go Core: workflows, recent runs (refreshed every 20 seconds while one is active, every 5 minutes otherwise), jobs and steps, job logs with search (bounded to the last 2 MiB), cancel and re-run, and `workflow_dispatch` with branch, typed inputs and a confirmation. Changes go through a single-use confirmation and are never retried. Dispatch, logs, cancel and re-run are covered by tests with a fake GitHub, not yet by a controlled real run.
 - One supervised Go Core per app: local gRPC over a Unix socket with a per-launch client secret, a liveness check, a Restart Core banner, a diagnostics log, and shutdown on quit. Idle measurement on one machine: about 94 MB for the app plus Core with 10 open repositories (Debug build).
-- Go CLI (`version`, `serve`) and a version-only JSON-RPC stdio endpoint (`rpc`); execution scheduling exists with a stub runner (there is no real workflow execution engine).
+- Local workflow runs with act and your own container engine (OrbStack, Docker Desktop, Colima). A review lists the tools, which jobs can run, the images to download, the secrets the workflow will not get, and what the run can access. The run starts only after you confirm that you trust the workflow. Runs show live, bounded output per job and can be stopped; their containers are removed afterwards. Runnir bundles the act version it was verified with (v0.2.89); an installed act can be used instead with an experimental setting. The Docker socket, Docker credentials, the GitHub token and the host environment are never passed to a run. Verified end to end on OrbStack with small images, not yet with the full runner images. See [ADR 0006](docs/decisions/0006-bundled-act-for-local-runs.md).
+- Settings › Tools shows the bundled and installed act, the Docker CLI and the container engine, with Recheck and a button to open a stopped engine. Runnir never installs tools, starts an engine or switches the Docker context.
+- Go CLI (`version`, `serve`) and a version-only JSON-RPC stdio endpoint (`rpc`).
 - Swift 6 with strict concurrency, unit tests for the app and Core, macOS CI for build, tests and static analysis, Go tests on three platforms, six cross-compilation targets, a check that generated code matches the contract, formatting, vet and vulnerability checks.
 - MVP specification and future AI/MCP design documents (no AI runtime or MCP server).
 
 ## Planned
 
 - v0.1: presets for dispatch inputs, favorites and dashboard status, local YAML editing.
-- v0.1: explicit Docker/OrbStack and act setup, compatible local execution, output, cancellation and cleanup.
+- v0.1: local runs with the full runner images verified on Docker Desktop and OrbStack; workflow_dispatch inputs and secrets for local runs; a check on quit while a local run is going.
 - v0.1: lifecycle hardening, signed folder-grant verification, per-workspace SQLite and cache-first sync, optional portable .runnir launches and environments.
 - Later: artifact inspection and reuse, optional AI/chat/MCP, cloud integrations and startup offers.
 - Distribution work: Developer ID signing, notarization, packaging and secure automatic updates; completion is not claimed.
@@ -41,6 +43,7 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 - [SwiftUI + Go decision](docs/decisions/0002-swiftui-go-core.md)
 - [Workspace/session and SQLite decision](docs/decisions/0003-workspaces-sessions-offline-storage.md)
 - [Developer ID without the App Sandbox](docs/decisions/0005-developer-id-without-app-sandbox.md)
+- [Bundled act for local runs](docs/decisions/0006-bundled-act-for-local-runs.md)
 - [Desktop lifecycle and restoration](docs/architecture/desktop-lifecycle.md)
 - [Portable config, offline DB and shared sync](docs/architecture/workspace-persistence.md)
 - [IPC v1](docs/architecture/ipc.md)
@@ -90,7 +93,7 @@ xcodebuild -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'pla
 
 ## No App Sandbox
 
-Runnir does not use the Apple App Sandbox. It is distributed outside the Mac App Store, signed with Developer ID, with the hardened runtime and notarization. Local workflow runs need the user's container engine (Docker Desktop, OrbStack, Colima) and tools such as `act`; under the sandbox every process Runnir starts inherits it, and the sandbox refuses the Docker socket. Runnir itself limits what it touches instead: it reads only inside the folders you choose, never follows symlinks or `..` out of them, bounds every read, keeps credentials in the Keychain, and asks for confirmation before running code or changing anything on GitHub. See [ADR 0005](docs/decisions/0005-developer-id-without-app-sandbox.md).
+Runnir does not use the Apple App Sandbox. It is distributed outside the Mac App Store, signed with Developer ID, with the hardened runtime and notarization. Local workflow runs need the user's container engine (Docker Desktop, OrbStack, Colima) and `act`; under the sandbox every process Runnir starts inherits it, and the sandbox refuses the Docker socket. Runnir itself limits what it touches instead: it reads only inside the folders you choose, never follows symlinks or `..` out of them, bounds every read, keeps credentials in the Keychain, and asks for confirmation before running code or changing anything on GitHub. See [ADR 0005](docs/decisions/0005-developer-id-without-app-sandbox.md).
 
 ## GitHub Authentication
 
@@ -102,7 +105,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, scoped tasks, native/Core chec
 
 ## Releases
 
-The checked-in LICENSE contains GPLv3. Apache-2.0 in the proposed MVP brief is an unresolved licensing proposal; LICENSE has not been changed.
+The checked-in LICENSE contains GPLv3. The app bundles act (MIT); its license ships in `Contents/Resources/Licenses`, and the notices of act's own dependencies still need to be collected before a release. Apache-2.0 in the proposed MVP brief is an unresolved licensing proposal; LICENSE has not been changed.
 
 Releases are tag-based:
 

@@ -459,6 +459,248 @@ func (RunAction) EnumDescriptor() ([]byte, []int) {
 	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{6}
 }
 
+type ToolState int32
+
+const (
+	ToolState_TOOL_STATE_UNSPECIFIED ToolState = 0
+	// Present, answering and new enough.
+	ToolState_TOOL_STATE_FOUND ToolState = 1
+	// Not installed, or no engine is configured.
+	ToolState_TOOL_STATE_MISSING ToolState = 2
+	// An engine is configured but does not answer.
+	ToolState_TOOL_STATE_STOPPED ToolState = 3
+	// Too old, or an engine on another computer.
+	ToolState_TOOL_STATE_UNSUPPORTED ToolState = 4
+	// The check could not finish.
+	ToolState_TOOL_STATE_FAILED ToolState = 5
+)
+
+// Enum value maps for ToolState.
+var (
+	ToolState_name = map[int32]string{
+		0: "TOOL_STATE_UNSPECIFIED",
+		1: "TOOL_STATE_FOUND",
+		2: "TOOL_STATE_MISSING",
+		3: "TOOL_STATE_STOPPED",
+		4: "TOOL_STATE_UNSUPPORTED",
+		5: "TOOL_STATE_FAILED",
+	}
+	ToolState_value = map[string]int32{
+		"TOOL_STATE_UNSPECIFIED": 0,
+		"TOOL_STATE_FOUND":       1,
+		"TOOL_STATE_MISSING":     2,
+		"TOOL_STATE_STOPPED":     3,
+		"TOOL_STATE_UNSUPPORTED": 4,
+		"TOOL_STATE_FAILED":      5,
+	}
+)
+
+func (x ToolState) Enum() *ToolState {
+	p := new(ToolState)
+	*p = x
+	return p
+}
+
+func (x ToolState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ToolState) Descriptor() protoreflect.EnumDescriptor {
+	return file_runnir_core_v1_runnir_core_proto_enumTypes[7].Descriptor()
+}
+
+func (ToolState) Type() protoreflect.EnumType {
+	return &file_runnir_core_v1_runnir_core_proto_enumTypes[7]
+}
+
+func (x ToolState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ToolState.Descriptor instead.
+func (ToolState) EnumDescriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{7}
+}
+
+type LocalJobSupport int32
+
+const (
+	LocalJobSupport_LOCAL_JOB_SUPPORT_UNSPECIFIED LocalJobSupport = 0
+	LocalJobSupport_LOCAL_JOB_SUPPORT_SUPPORTED   LocalJobSupport = 1
+	// act skips the job or it cannot work locally, for example a macOS runner.
+	LocalJobSupport_LOCAL_JOB_SUPPORT_UNSUPPORTED LocalJobSupport = 2
+	// act decides when the job starts, for example runs-on set by an expression.
+	LocalJobSupport_LOCAL_JOB_SUPPORT_UNKNOWN LocalJobSupport = 3
+)
+
+// Enum value maps for LocalJobSupport.
+var (
+	LocalJobSupport_name = map[int32]string{
+		0: "LOCAL_JOB_SUPPORT_UNSPECIFIED",
+		1: "LOCAL_JOB_SUPPORT_SUPPORTED",
+		2: "LOCAL_JOB_SUPPORT_UNSUPPORTED",
+		3: "LOCAL_JOB_SUPPORT_UNKNOWN",
+	}
+	LocalJobSupport_value = map[string]int32{
+		"LOCAL_JOB_SUPPORT_UNSPECIFIED": 0,
+		"LOCAL_JOB_SUPPORT_SUPPORTED":   1,
+		"LOCAL_JOB_SUPPORT_UNSUPPORTED": 2,
+		"LOCAL_JOB_SUPPORT_UNKNOWN":     3,
+	}
+)
+
+func (x LocalJobSupport) Enum() *LocalJobSupport {
+	p := new(LocalJobSupport)
+	*p = x
+	return p
+}
+
+func (x LocalJobSupport) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (LocalJobSupport) Descriptor() protoreflect.EnumDescriptor {
+	return file_runnir_core_v1_runnir_core_proto_enumTypes[8].Descriptor()
+}
+
+func (LocalJobSupport) Type() protoreflect.EnumType {
+	return &file_runnir_core_v1_runnir_core_proto_enumTypes[8]
+}
+
+func (x LocalJobSupport) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use LocalJobSupport.Descriptor instead.
+func (LocalJobSupport) EnumDescriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{8}
+}
+
+type LocalRunPhase int32
+
+const (
+	LocalRunPhase_LOCAL_RUN_PHASE_UNSPECIFIED LocalRunPhase = 0
+	LocalRunPhase_LOCAL_RUN_PHASE_QUEUED      LocalRunPhase = 1
+	LocalRunPhase_LOCAL_RUN_PHASE_RUNNING     LocalRunPhase = 2
+	LocalRunPhase_LOCAL_RUN_PHASE_STOPPING    LocalRunPhase = 3
+	LocalRunPhase_LOCAL_RUN_PHASE_CLEANING_UP LocalRunPhase = 4
+	LocalRunPhase_LOCAL_RUN_PHASE_FINISHED    LocalRunPhase = 5
+)
+
+// Enum value maps for LocalRunPhase.
+var (
+	LocalRunPhase_name = map[int32]string{
+		0: "LOCAL_RUN_PHASE_UNSPECIFIED",
+		1: "LOCAL_RUN_PHASE_QUEUED",
+		2: "LOCAL_RUN_PHASE_RUNNING",
+		3: "LOCAL_RUN_PHASE_STOPPING",
+		4: "LOCAL_RUN_PHASE_CLEANING_UP",
+		5: "LOCAL_RUN_PHASE_FINISHED",
+	}
+	LocalRunPhase_value = map[string]int32{
+		"LOCAL_RUN_PHASE_UNSPECIFIED": 0,
+		"LOCAL_RUN_PHASE_QUEUED":      1,
+		"LOCAL_RUN_PHASE_RUNNING":     2,
+		"LOCAL_RUN_PHASE_STOPPING":    3,
+		"LOCAL_RUN_PHASE_CLEANING_UP": 4,
+		"LOCAL_RUN_PHASE_FINISHED":    5,
+	}
+)
+
+func (x LocalRunPhase) Enum() *LocalRunPhase {
+	p := new(LocalRunPhase)
+	*p = x
+	return p
+}
+
+func (x LocalRunPhase) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (LocalRunPhase) Descriptor() protoreflect.EnumDescriptor {
+	return file_runnir_core_v1_runnir_core_proto_enumTypes[9].Descriptor()
+}
+
+func (LocalRunPhase) Type() protoreflect.EnumType {
+	return &file_runnir_core_v1_runnir_core_proto_enumTypes[9]
+}
+
+func (x LocalRunPhase) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use LocalRunPhase.Descriptor instead.
+func (LocalRunPhase) EnumDescriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{9}
+}
+
+type LocalJobState int32
+
+const (
+	LocalJobState_LOCAL_JOB_STATE_UNSPECIFIED LocalJobState = 0
+	LocalJobState_LOCAL_JOB_STATE_WAITING     LocalJobState = 1
+	LocalJobState_LOCAL_JOB_STATE_RUNNING     LocalJobState = 2
+	LocalJobState_LOCAL_JOB_STATE_SUCCEEDED   LocalJobState = 3
+	LocalJobState_LOCAL_JOB_STATE_FAILED      LocalJobState = 4
+	LocalJobState_LOCAL_JOB_STATE_SKIPPED     LocalJobState = 5
+	LocalJobState_LOCAL_JOB_STATE_UNSUPPORTED LocalJobState = 6
+	LocalJobState_LOCAL_JOB_STATE_CANCELLED   LocalJobState = 7
+	LocalJobState_LOCAL_JOB_STATE_NOT_RUN     LocalJobState = 8
+)
+
+// Enum value maps for LocalJobState.
+var (
+	LocalJobState_name = map[int32]string{
+		0: "LOCAL_JOB_STATE_UNSPECIFIED",
+		1: "LOCAL_JOB_STATE_WAITING",
+		2: "LOCAL_JOB_STATE_RUNNING",
+		3: "LOCAL_JOB_STATE_SUCCEEDED",
+		4: "LOCAL_JOB_STATE_FAILED",
+		5: "LOCAL_JOB_STATE_SKIPPED",
+		6: "LOCAL_JOB_STATE_UNSUPPORTED",
+		7: "LOCAL_JOB_STATE_CANCELLED",
+		8: "LOCAL_JOB_STATE_NOT_RUN",
+	}
+	LocalJobState_value = map[string]int32{
+		"LOCAL_JOB_STATE_UNSPECIFIED": 0,
+		"LOCAL_JOB_STATE_WAITING":     1,
+		"LOCAL_JOB_STATE_RUNNING":     2,
+		"LOCAL_JOB_STATE_SUCCEEDED":   3,
+		"LOCAL_JOB_STATE_FAILED":      4,
+		"LOCAL_JOB_STATE_SKIPPED":     5,
+		"LOCAL_JOB_STATE_UNSUPPORTED": 6,
+		"LOCAL_JOB_STATE_CANCELLED":   7,
+		"LOCAL_JOB_STATE_NOT_RUN":     8,
+	}
+)
+
+func (x LocalJobState) Enum() *LocalJobState {
+	p := new(LocalJobState)
+	*p = x
+	return p
+}
+
+func (x LocalJobState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (LocalJobState) Descriptor() protoreflect.EnumDescriptor {
+	return file_runnir_core_v1_runnir_core_proto_enumTypes[10].Descriptor()
+}
+
+func (LocalJobState) Type() protoreflect.EnumType {
+	return &file_runnir_core_v1_runnir_core_proto_enumTypes[10]
+}
+
+func (x LocalJobState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use LocalJobState.Descriptor instead.
+func (LocalJobState) EnumDescriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{10}
+}
+
 type HealthCheckRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -3723,6 +3965,1386 @@ func (x *ConfirmRunActionResponse) GetRejection() string {
 	return ""
 }
 
+type ToolStatus struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	State   ToolState              `protobuf:"varint,1,opt,name=state,proto3,enum=runnir.core.v1.ToolState" json:"state,omitempty"`
+	Version string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	// The executable that was checked.
+	Path   string `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	Detail string `protobuf:"bytes,4,opt,name=detail,proto3" json:"detail,omitempty"`
+	// Newer than the version local runs were verified with.
+	Untested      bool `protobuf:"varint,5,opt,name=untested,proto3" json:"untested,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ToolStatus) Reset() {
+	*x = ToolStatus{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ToolStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ToolStatus) ProtoMessage() {}
+
+func (x *ToolStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ToolStatus.ProtoReflect.Descriptor instead.
+func (*ToolStatus) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *ToolStatus) GetState() ToolState {
+	if x != nil {
+		return x.State
+	}
+	return ToolState_TOOL_STATE_UNSPECIFIED
+}
+
+func (x *ToolStatus) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *ToolStatus) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ToolStatus) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
+func (x *ToolStatus) GetUntested() bool {
+	if x != nil {
+		return x.Untested
+	}
+	return false
+}
+
+type ContainerEngine struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	State ToolState              `protobuf:"varint,1,opt,name=state,proto3,enum=runnir.core.v1.ToolState" json:"state,omitempty"`
+	// OrbStack, Docker Desktop, Colima, Rancher Desktop, Podman or Docker Engine.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// The current Docker context; Runnir never switches it.
+	Context string `protobuf:"bytes,3,opt,name=context,proto3" json:"context,omitempty"`
+	// The context's Docker host, without user information.
+	Endpoint      string `protobuf:"bytes,4,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	Local         bool   `protobuf:"varint,5,opt,name=local,proto3" json:"local,omitempty"`
+	Version       string `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`
+	ApiVersion    string `protobuf:"bytes,7,opt,name=api_version,json=apiVersion,proto3" json:"api_version,omitempty"`
+	Architecture  string `protobuf:"bytes,8,opt,name=architecture,proto3" json:"architecture,omitempty"`
+	Cpus          uint32 `protobuf:"varint,9,opt,name=cpus,proto3" json:"cpus,omitempty"`
+	MemoryBytes   uint64 `protobuf:"varint,10,opt,name=memory_bytes,json=memoryBytes,proto3" json:"memory_bytes,omitempty"`
+	Detail        string `protobuf:"bytes,11,opt,name=detail,proto3" json:"detail,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContainerEngine) Reset() {
+	*x = ContainerEngine{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContainerEngine) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContainerEngine) ProtoMessage() {}
+
+func (x *ContainerEngine) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContainerEngine.ProtoReflect.Descriptor instead.
+func (*ContainerEngine) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *ContainerEngine) GetState() ToolState {
+	if x != nil {
+		return x.State
+	}
+	return ToolState_TOOL_STATE_UNSPECIFIED
+}
+
+func (x *ContainerEngine) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ContainerEngine) GetContext() string {
+	if x != nil {
+		return x.Context
+	}
+	return ""
+}
+
+func (x *ContainerEngine) GetEndpoint() string {
+	if x != nil {
+		return x.Endpoint
+	}
+	return ""
+}
+
+func (x *ContainerEngine) GetLocal() bool {
+	if x != nil {
+		return x.Local
+	}
+	return false
+}
+
+func (x *ContainerEngine) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *ContainerEngine) GetApiVersion() string {
+	if x != nil {
+		return x.ApiVersion
+	}
+	return ""
+}
+
+func (x *ContainerEngine) GetArchitecture() string {
+	if x != nil {
+		return x.Architecture
+	}
+	return ""
+}
+
+func (x *ContainerEngine) GetCpus() uint32 {
+	if x != nil {
+		return x.Cpus
+	}
+	return 0
+}
+
+func (x *ContainerEngine) GetMemoryBytes() uint64 {
+	if x != nil {
+		return x.MemoryBytes
+	}
+	return 0
+}
+
+func (x *ContainerEngine) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
+type ToolReadiness struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	BundledAct   *ToolStatus            `protobuf:"bytes,1,opt,name=bundled_act,json=bundledAct,proto3" json:"bundled_act,omitempty"`
+	InstalledAct *ToolStatus            `protobuf:"bytes,2,opt,name=installed_act,json=installedAct,proto3" json:"installed_act,omitempty"`
+	DockerCli    *ToolStatus            `protobuf:"bytes,3,opt,name=docker_cli,json=dockerCli,proto3" json:"docker_cli,omitempty"`
+	Engine       *ContainerEngine       `protobuf:"bytes,4,opt,name=engine,proto3" json:"engine,omitempty"`
+	CheckedAt    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=checked_at,json=checkedAt,proto3" json:"checked_at,omitempty"`
+	// The act version Runnir bundles and verified local runs with.
+	TestedActVersion  string `protobuf:"bytes,6,opt,name=tested_act_version,json=testedActVersion,proto3" json:"tested_act_version,omitempty"`
+	MinimumActVersion string `protobuf:"bytes,7,opt,name=minimum_act_version,json=minimumActVersion,proto3" json:"minimum_act_version,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ToolReadiness) Reset() {
+	*x = ToolReadiness{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ToolReadiness) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ToolReadiness) ProtoMessage() {}
+
+func (x *ToolReadiness) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ToolReadiness.ProtoReflect.Descriptor instead.
+func (*ToolReadiness) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *ToolReadiness) GetBundledAct() *ToolStatus {
+	if x != nil {
+		return x.BundledAct
+	}
+	return nil
+}
+
+func (x *ToolReadiness) GetInstalledAct() *ToolStatus {
+	if x != nil {
+		return x.InstalledAct
+	}
+	return nil
+}
+
+func (x *ToolReadiness) GetDockerCli() *ToolStatus {
+	if x != nil {
+		return x.DockerCli
+	}
+	return nil
+}
+
+func (x *ToolReadiness) GetEngine() *ContainerEngine {
+	if x != nil {
+		return x.Engine
+	}
+	return nil
+}
+
+func (x *ToolReadiness) GetCheckedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CheckedAt
+	}
+	return nil
+}
+
+func (x *ToolReadiness) GetTestedActVersion() string {
+	if x != nil {
+		return x.TestedActVersion
+	}
+	return ""
+}
+
+func (x *ToolReadiness) GetMinimumActVersion() string {
+	if x != nil {
+		return x.MinimumActVersion
+	}
+	return ""
+}
+
+type GetToolReadinessRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Refresh       bool                   `protobuf:"varint,1,opt,name=refresh,proto3" json:"refresh,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetToolReadinessRequest) Reset() {
+	*x = GetToolReadinessRequest{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetToolReadinessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetToolReadinessRequest) ProtoMessage() {}
+
+func (x *GetToolReadinessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetToolReadinessRequest.ProtoReflect.Descriptor instead.
+func (*GetToolReadinessRequest) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *GetToolReadinessRequest) GetRefresh() bool {
+	if x != nil {
+		return x.Refresh
+	}
+	return false
+}
+
+type GetToolReadinessResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Readiness     *ToolReadiness         `protobuf:"bytes,1,opt,name=readiness,proto3" json:"readiness,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetToolReadinessResponse) Reset() {
+	*x = GetToolReadinessResponse{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetToolReadinessResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetToolReadinessResponse) ProtoMessage() {}
+
+func (x *GetToolReadinessResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetToolReadinessResponse.ProtoReflect.Descriptor instead.
+func (*GetToolReadinessResponse) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *GetToolReadinessResponse) GetReadiness() *ToolReadiness {
+	if x != nil {
+		return x.Readiness
+	}
+	return nil
+}
+
+type LocalRunJob struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Id     string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name   string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	RunsOn []string               `protobuf:"bytes,3,rep,name=runs_on,json=runsOn,proto3" json:"runs_on,omitempty"`
+	// The image the job runs in.
+	Image         string          `protobuf:"bytes,4,opt,name=image,proto3" json:"image,omitempty"`
+	Support       LocalJobSupport `protobuf:"varint,5,opt,name=support,proto3,enum=runnir.core.v1.LocalJobSupport" json:"support,omitempty"`
+	Reason        string          `protobuf:"bytes,6,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LocalRunJob) Reset() {
+	*x = LocalRunJob{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LocalRunJob) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LocalRunJob) ProtoMessage() {}
+
+func (x *LocalRunJob) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LocalRunJob.ProtoReflect.Descriptor instead.
+func (*LocalRunJob) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *LocalRunJob) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *LocalRunJob) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *LocalRunJob) GetRunsOn() []string {
+	if x != nil {
+		return x.RunsOn
+	}
+	return nil
+}
+
+func (x *LocalRunJob) GetImage() string {
+	if x != nil {
+		return x.Image
+	}
+	return ""
+}
+
+func (x *LocalRunJob) GetSupport() LocalJobSupport {
+	if x != nil {
+		return x.Support
+	}
+	return LocalJobSupport_LOCAL_JOB_SUPPORT_UNSPECIFIED
+}
+
+func (x *LocalRunJob) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type LocalRunImage struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Reference string                 `protobuf:"bytes,1,opt,name=reference,proto3" json:"reference,omitempty"`
+	// Already in the engine; otherwise act downloads it.
+	Present       bool `protobuf:"varint,2,opt,name=present,proto3" json:"present,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LocalRunImage) Reset() {
+	*x = LocalRunImage{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LocalRunImage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LocalRunImage) ProtoMessage() {}
+
+func (x *LocalRunImage) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LocalRunImage.ProtoReflect.Descriptor instead.
+func (*LocalRunImage) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *LocalRunImage) GetReference() string {
+	if x != nil {
+		return x.Reference
+	}
+	return ""
+}
+
+func (x *LocalRunImage) GetPresent() bool {
+	if x != nil {
+		return x.Present
+	}
+	return false
+}
+
+type LocalRunPlan struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Path relative to the repository root, as in Workflow.id.
+	WorkflowId   string `protobuf:"bytes,1,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	WorkflowName string `protobuf:"bytes,2,opt,name=workflow_name,json=workflowName,proto3" json:"workflow_name,omitempty"`
+	// The workflow's triggers; `event` is the one the run uses.
+	Events []string `protobuf:"bytes,3,rep,name=events,proto3" json:"events,omitempty"`
+	Event  string   `protobuf:"bytes,4,opt,name=event,proto3" json:"event,omitempty"`
+	// The chosen job, empty for every job; a chosen job brings the jobs it needs.
+	JobId  string           `protobuf:"bytes,5,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	Jobs   []*LocalRunJob   `protobuf:"bytes,6,rep,name=jobs,proto3" json:"jobs,omitempty"`
+	Images []*LocalRunImage `protobuf:"bytes,7,rep,name=images,proto3" json:"images,omitempty"`
+	// Secrets the workflow reads. Local runs get none.
+	Secrets []string `protobuf:"bytes,8,rep,name=secrets,proto3" json:"secrets,omitempty"`
+	// Differences from a GitHub run worth knowing before starting.
+	Notes []string `protobuf:"bytes,9,rep,name=notes,proto3" json:"notes,omitempty"`
+	// Why the run cannot start now. A plan with blockers has no confirmation.
+	Blockers       []string `protobuf:"bytes,10,rep,name=blockers,proto3" json:"blockers,omitempty"`
+	Cpus           uint32   `protobuf:"varint,11,opt,name=cpus,proto3" json:"cpus,omitempty"`
+	MemoryBytes    uint64   `protobuf:"varint,12,opt,name=memory_bytes,json=memoryBytes,proto3" json:"memory_bytes,omitempty"`
+	TimeoutSeconds uint32   `protobuf:"varint,13,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	// The act that runs it.
+	ActVersion    string `protobuf:"bytes,14,opt,name=act_version,json=actVersion,proto3" json:"act_version,omitempty"`
+	InstalledAct  bool   `protobuf:"varint,15,opt,name=installed_act,json=installedAct,proto3" json:"installed_act,omitempty"`
+	EngineName    string `protobuf:"bytes,16,opt,name=engine_name,json=engineName,proto3" json:"engine_name,omitempty"`
+	EngineContext string `protobuf:"bytes,17,opt,name=engine_context,json=engineContext,proto3" json:"engine_context,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LocalRunPlan) Reset() {
+	*x = LocalRunPlan{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LocalRunPlan) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LocalRunPlan) ProtoMessage() {}
+
+func (x *LocalRunPlan) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LocalRunPlan.ProtoReflect.Descriptor instead.
+func (*LocalRunPlan) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *LocalRunPlan) GetWorkflowId() string {
+	if x != nil {
+		return x.WorkflowId
+	}
+	return ""
+}
+
+func (x *LocalRunPlan) GetWorkflowName() string {
+	if x != nil {
+		return x.WorkflowName
+	}
+	return ""
+}
+
+func (x *LocalRunPlan) GetEvents() []string {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+func (x *LocalRunPlan) GetEvent() string {
+	if x != nil {
+		return x.Event
+	}
+	return ""
+}
+
+func (x *LocalRunPlan) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *LocalRunPlan) GetJobs() []*LocalRunJob {
+	if x != nil {
+		return x.Jobs
+	}
+	return nil
+}
+
+func (x *LocalRunPlan) GetImages() []*LocalRunImage {
+	if x != nil {
+		return x.Images
+	}
+	return nil
+}
+
+func (x *LocalRunPlan) GetSecrets() []string {
+	if x != nil {
+		return x.Secrets
+	}
+	return nil
+}
+
+func (x *LocalRunPlan) GetNotes() []string {
+	if x != nil {
+		return x.Notes
+	}
+	return nil
+}
+
+func (x *LocalRunPlan) GetBlockers() []string {
+	if x != nil {
+		return x.Blockers
+	}
+	return nil
+}
+
+func (x *LocalRunPlan) GetCpus() uint32 {
+	if x != nil {
+		return x.Cpus
+	}
+	return 0
+}
+
+func (x *LocalRunPlan) GetMemoryBytes() uint64 {
+	if x != nil {
+		return x.MemoryBytes
+	}
+	return 0
+}
+
+func (x *LocalRunPlan) GetTimeoutSeconds() uint32 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
+}
+
+func (x *LocalRunPlan) GetActVersion() string {
+	if x != nil {
+		return x.ActVersion
+	}
+	return ""
+}
+
+func (x *LocalRunPlan) GetInstalledAct() bool {
+	if x != nil {
+		return x.InstalledAct
+	}
+	return false
+}
+
+func (x *LocalRunPlan) GetEngineName() string {
+	if x != nil {
+		return x.EngineName
+	}
+	return ""
+}
+
+func (x *LocalRunPlan) GetEngineContext() string {
+	if x != nil {
+		return x.EngineContext
+	}
+	return ""
+}
+
+type PrepareLocalRunRequest struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	RepositoryId string                 `protobuf:"bytes,1,opt,name=repository_id,json=repositoryId,proto3" json:"repository_id,omitempty"`
+	WorkflowId   string                 `protobuf:"bytes,2,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	// Empty runs every job of the workflow.
+	JobId string `protobuf:"bytes,3,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	// One of the workflow's triggers; empty picks push, pull_request or
+	// workflow_dispatch, in that order.
+	Event string `protobuf:"bytes,4,opt,name=event,proto3" json:"event,omitempty"`
+	// Experimental: run with the act installed on this computer when one is
+	// usable, instead of the bundled act.
+	UseInstalledAct bool `protobuf:"varint,5,opt,name=use_installed_act,json=useInstalledAct,proto3" json:"use_installed_act,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *PrepareLocalRunRequest) Reset() {
+	*x = PrepareLocalRunRequest{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrepareLocalRunRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrepareLocalRunRequest) ProtoMessage() {}
+
+func (x *PrepareLocalRunRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PrepareLocalRunRequest.ProtoReflect.Descriptor instead.
+func (*PrepareLocalRunRequest) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *PrepareLocalRunRequest) GetRepositoryId() string {
+	if x != nil {
+		return x.RepositoryId
+	}
+	return ""
+}
+
+func (x *PrepareLocalRunRequest) GetWorkflowId() string {
+	if x != nil {
+		return x.WorkflowId
+	}
+	return ""
+}
+
+func (x *PrepareLocalRunRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *PrepareLocalRunRequest) GetEvent() string {
+	if x != nil {
+		return x.Event
+	}
+	return ""
+}
+
+func (x *PrepareLocalRunRequest) GetUseInstalledAct() bool {
+	if x != nil {
+		return x.UseInstalledAct
+	}
+	return false
+}
+
+type PrepareLocalRunResponse struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Readiness *ToolReadiness         `protobuf:"bytes,1,opt,name=readiness,proto3" json:"readiness,omitempty"`
+	Plan      *LocalRunPlan          `protobuf:"bytes,2,opt,name=plan,proto3" json:"plan,omitempty"`
+	// Empty when the plan has blockers.
+	ConfirmationId string                 `protobuf:"bytes,3,opt,name=confirmation_id,json=confirmationId,proto3" json:"confirmation_id,omitempty"`
+	ExpiresAt      *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *PrepareLocalRunResponse) Reset() {
+	*x = PrepareLocalRunResponse{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrepareLocalRunResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrepareLocalRunResponse) ProtoMessage() {}
+
+func (x *PrepareLocalRunResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PrepareLocalRunResponse.ProtoReflect.Descriptor instead.
+func (*PrepareLocalRunResponse) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *PrepareLocalRunResponse) GetReadiness() *ToolReadiness {
+	if x != nil {
+		return x.Readiness
+	}
+	return nil
+}
+
+func (x *PrepareLocalRunResponse) GetPlan() *LocalRunPlan {
+	if x != nil {
+		return x.Plan
+	}
+	return nil
+}
+
+func (x *PrepareLocalRunResponse) GetConfirmationId() string {
+	if x != nil {
+		return x.ConfirmationId
+	}
+	return ""
+}
+
+func (x *PrepareLocalRunResponse) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+type ConfirmLocalRunRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ConfirmationId string                 `protobuf:"bytes,1,opt,name=confirmation_id,json=confirmationId,proto3" json:"confirmation_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ConfirmLocalRunRequest) Reset() {
+	*x = ConfirmLocalRunRequest{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfirmLocalRunRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfirmLocalRunRequest) ProtoMessage() {}
+
+func (x *ConfirmLocalRunRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfirmLocalRunRequest.ProtoReflect.Descriptor instead.
+func (*ConfirmLocalRunRequest) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *ConfirmLocalRunRequest) GetConfirmationId() string {
+	if x != nil {
+		return x.ConfirmationId
+	}
+	return ""
+}
+
+type ConfirmLocalRunResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Execution     *ExecutionResponse     `protobuf:"bytes,1,opt,name=execution,proto3" json:"execution,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfirmLocalRunResponse) Reset() {
+	*x = ConfirmLocalRunResponse{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfirmLocalRunResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfirmLocalRunResponse) ProtoMessage() {}
+
+func (x *ConfirmLocalRunResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfirmLocalRunResponse.ProtoReflect.Descriptor instead.
+func (*ConfirmLocalRunResponse) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *ConfirmLocalRunResponse) GetExecution() *ExecutionResponse {
+	if x != nil {
+		return x.Execution
+	}
+	return nil
+}
+
+type LocalRunJobStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	State         LocalJobState          `protobuf:"varint,3,opt,name=state,proto3,enum=runnir.core.v1.LocalJobState" json:"state,omitempty"`
+	Reason        string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LocalRunJobStatus) Reset() {
+	*x = LocalRunJobStatus{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LocalRunJobStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LocalRunJobStatus) ProtoMessage() {}
+
+func (x *LocalRunJobStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LocalRunJobStatus.ProtoReflect.Descriptor instead.
+func (*LocalRunJobStatus) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *LocalRunJobStatus) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *LocalRunJobStatus) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *LocalRunJobStatus) GetState() LocalJobState {
+	if x != nil {
+		return x.State
+	}
+	return LocalJobState_LOCAL_JOB_STATE_UNSPECIFIED
+}
+
+func (x *LocalRunJobStatus) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *LocalRunJobStatus) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *LocalRunJobStatus) GetFinishedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FinishedAt
+	}
+	return nil
+}
+
+type LocalRunLine struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Sequence uint64                 `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	// Empty for act's own messages.
+	JobId         string `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	Text          string `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
+	Error         bool   `protobuf:"varint,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LocalRunLine) Reset() {
+	*x = LocalRunLine{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LocalRunLine) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LocalRunLine) ProtoMessage() {}
+
+func (x *LocalRunLine) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LocalRunLine.ProtoReflect.Descriptor instead.
+func (*LocalRunLine) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *LocalRunLine) GetSequence() uint64 {
+	if x != nil {
+		return x.Sequence
+	}
+	return 0
+}
+
+func (x *LocalRunLine) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *LocalRunLine) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *LocalRunLine) GetError() bool {
+	if x != nil {
+		return x.Error
+	}
+	return false
+}
+
+type GetLocalRunOutputRequest struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	ExecutionId string                 `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	// Lines after this sequence number; 0 for all that are kept.
+	AfterSequence uint64 `protobuf:"varint,2,opt,name=after_sequence,json=afterSequence,proto3" json:"after_sequence,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetLocalRunOutputRequest) Reset() {
+	*x = GetLocalRunOutputRequest{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetLocalRunOutputRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetLocalRunOutputRequest) ProtoMessage() {}
+
+func (x *GetLocalRunOutputRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetLocalRunOutputRequest.ProtoReflect.Descriptor instead.
+func (*GetLocalRunOutputRequest) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *GetLocalRunOutputRequest) GetExecutionId() string {
+	if x != nil {
+		return x.ExecutionId
+	}
+	return ""
+}
+
+func (x *GetLocalRunOutputRequest) GetAfterSequence() uint64 {
+	if x != nil {
+		return x.AfterSequence
+	}
+	return 0
+}
+
+type GetLocalRunOutputResponse struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	ExecutionId  string                 `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	RepositoryId string                 `protobuf:"bytes,2,opt,name=repository_id,json=repositoryId,proto3" json:"repository_id,omitempty"`
+	State        ExecutionState         `protobuf:"varint,3,opt,name=state,proto3,enum=runnir.core.v1.ExecutionState" json:"state,omitempty"`
+	Phase        LocalRunPhase          `protobuf:"varint,4,opt,name=phase,proto3,enum=runnir.core.v1.LocalRunPhase" json:"phase,omitempty"`
+	Lines        []*LocalRunLine        `protobuf:"bytes,5,rep,name=lines,proto3" json:"lines,omitempty"`
+	// Lines after `after_sequence` were dropped to stay within the bound.
+	Discarded bool `protobuf:"varint,6,opt,name=discarded,proto3" json:"discarded,omitempty"`
+	// The highest sequence number so far.
+	LastSequence uint64                 `protobuf:"varint,7,opt,name=last_sequence,json=lastSequence,proto3" json:"last_sequence,omitempty"`
+	Jobs         []*LocalRunJobStatus   `protobuf:"bytes,8,rep,name=jobs,proto3" json:"jobs,omitempty"`
+	Plan         *LocalRunPlan          `protobuf:"bytes,9,opt,name=plan,proto3" json:"plan,omitempty"`
+	StartedAt    *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	FinishedAt   *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	// act's exit code; -1 until it exits, or when it was killed.
+	ExitCode int32 `protobuf:"varint,12,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	// Why the run failed, when it did.
+	Message string `protobuf:"bytes,13,opt,name=message,proto3" json:"message,omitempty"`
+	// Set when containers of this run may still exist.
+	CleanupProblem string `protobuf:"bytes,14,opt,name=cleanup_problem,json=cleanupProblem,proto3" json:"cleanup_problem,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetLocalRunOutputResponse) Reset() {
+	*x = GetLocalRunOutputResponse{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetLocalRunOutputResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetLocalRunOutputResponse) ProtoMessage() {}
+
+func (x *GetLocalRunOutputResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetLocalRunOutputResponse.ProtoReflect.Descriptor instead.
+func (*GetLocalRunOutputResponse) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *GetLocalRunOutputResponse) GetExecutionId() string {
+	if x != nil {
+		return x.ExecutionId
+	}
+	return ""
+}
+
+func (x *GetLocalRunOutputResponse) GetRepositoryId() string {
+	if x != nil {
+		return x.RepositoryId
+	}
+	return ""
+}
+
+func (x *GetLocalRunOutputResponse) GetState() ExecutionState {
+	if x != nil {
+		return x.State
+	}
+	return ExecutionState_EXECUTION_STATE_UNSPECIFIED
+}
+
+func (x *GetLocalRunOutputResponse) GetPhase() LocalRunPhase {
+	if x != nil {
+		return x.Phase
+	}
+	return LocalRunPhase_LOCAL_RUN_PHASE_UNSPECIFIED
+}
+
+func (x *GetLocalRunOutputResponse) GetLines() []*LocalRunLine {
+	if x != nil {
+		return x.Lines
+	}
+	return nil
+}
+
+func (x *GetLocalRunOutputResponse) GetDiscarded() bool {
+	if x != nil {
+		return x.Discarded
+	}
+	return false
+}
+
+func (x *GetLocalRunOutputResponse) GetLastSequence() uint64 {
+	if x != nil {
+		return x.LastSequence
+	}
+	return 0
+}
+
+func (x *GetLocalRunOutputResponse) GetJobs() []*LocalRunJobStatus {
+	if x != nil {
+		return x.Jobs
+	}
+	return nil
+}
+
+func (x *GetLocalRunOutputResponse) GetPlan() *LocalRunPlan {
+	if x != nil {
+		return x.Plan
+	}
+	return nil
+}
+
+func (x *GetLocalRunOutputResponse) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *GetLocalRunOutputResponse) GetFinishedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FinishedAt
+	}
+	return nil
+}
+
+func (x *GetLocalRunOutputResponse) GetExitCode() int32 {
+	if x != nil {
+		return x.ExitCode
+	}
+	return 0
+}
+
+func (x *GetLocalRunOutputResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *GetLocalRunOutputResponse) GetCleanupProblem() string {
+	if x != nil {
+		return x.CleanupProblem
+	}
+	return ""
+}
+
+type CancelExecutionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ExecutionId   string                 `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelExecutionRequest) Reset() {
+	*x = CancelExecutionRequest{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelExecutionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelExecutionRequest) ProtoMessage() {}
+
+func (x *CancelExecutionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelExecutionRequest.ProtoReflect.Descriptor instead.
+func (*CancelExecutionRequest) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{69}
+}
+
+func (x *CancelExecutionRequest) GetExecutionId() string {
+	if x != nil {
+		return x.ExecutionId
+	}
+	return ""
+}
+
+type CancelExecutionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelExecutionResponse) Reset() {
+	*x = CancelExecutionResponse{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelExecutionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelExecutionResponse) ProtoMessage() {}
+
+func (x *CancelExecutionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelExecutionResponse.ProtoReflect.Descriptor instead.
+func (*CancelExecutionResponse) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{70}
+}
+
 var File_runnir_core_v1_runnir_core_proto protoreflect.FileDescriptor
 
 const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
@@ -3980,7 +5602,130 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x06status\x18\x01 \x01(\v2\x1c.runnir.core.v1.GitHubStatusR\x06status\x12;\n" +
 	"\vaccepted_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"acceptedAt\x12\x1c\n" +
-	"\trejection\x18\x03 \x01(\tR\trejection*\xc4\x01\n" +
+	"\trejection\x18\x03 \x01(\tR\trejection\"\x9f\x01\n" +
+	"\n" +
+	"ToolStatus\x12/\n" +
+	"\x05state\x18\x01 \x01(\x0e2\x19.runnir.core.v1.ToolStateR\x05state\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12\x16\n" +
+	"\x06detail\x18\x04 \x01(\tR\x06detail\x12\x1a\n" +
+	"\buntested\x18\x05 \x01(\bR\buntested\"\xd0\x02\n" +
+	"\x0fContainerEngine\x12/\n" +
+	"\x05state\x18\x01 \x01(\x0e2\x19.runnir.core.v1.ToolStateR\x05state\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
+	"\acontext\x18\x03 \x01(\tR\acontext\x12\x1a\n" +
+	"\bendpoint\x18\x04 \x01(\tR\bendpoint\x12\x14\n" +
+	"\x05local\x18\x05 \x01(\bR\x05local\x12\x18\n" +
+	"\aversion\x18\x06 \x01(\tR\aversion\x12\x1f\n" +
+	"\vapi_version\x18\a \x01(\tR\n" +
+	"apiVersion\x12\"\n" +
+	"\farchitecture\x18\b \x01(\tR\farchitecture\x12\x12\n" +
+	"\x04cpus\x18\t \x01(\rR\x04cpus\x12!\n" +
+	"\fmemory_bytes\x18\n" +
+	" \x01(\x04R\vmemoryBytes\x12\x16\n" +
+	"\x06detail\x18\v \x01(\tR\x06detail\"\x9a\x03\n" +
+	"\rToolReadiness\x12;\n" +
+	"\vbundled_act\x18\x01 \x01(\v2\x1a.runnir.core.v1.ToolStatusR\n" +
+	"bundledAct\x12?\n" +
+	"\rinstalled_act\x18\x02 \x01(\v2\x1a.runnir.core.v1.ToolStatusR\finstalledAct\x129\n" +
+	"\n" +
+	"docker_cli\x18\x03 \x01(\v2\x1a.runnir.core.v1.ToolStatusR\tdockerCli\x127\n" +
+	"\x06engine\x18\x04 \x01(\v2\x1f.runnir.core.v1.ContainerEngineR\x06engine\x129\n" +
+	"\n" +
+	"checked_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcheckedAt\x12,\n" +
+	"\x12tested_act_version\x18\x06 \x01(\tR\x10testedActVersion\x12.\n" +
+	"\x13minimum_act_version\x18\a \x01(\tR\x11minimumActVersion\"3\n" +
+	"\x17GetToolReadinessRequest\x12\x18\n" +
+	"\arefresh\x18\x01 \x01(\bR\arefresh\"W\n" +
+	"\x18GetToolReadinessResponse\x12;\n" +
+	"\treadiness\x18\x01 \x01(\v2\x1d.runnir.core.v1.ToolReadinessR\treadiness\"\xb3\x01\n" +
+	"\vLocalRunJob\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x17\n" +
+	"\aruns_on\x18\x03 \x03(\tR\x06runsOn\x12\x14\n" +
+	"\x05image\x18\x04 \x01(\tR\x05image\x129\n" +
+	"\asupport\x18\x05 \x01(\x0e2\x1f.runnir.core.v1.LocalJobSupportR\asupport\x12\x16\n" +
+	"\x06reason\x18\x06 \x01(\tR\x06reason\"G\n" +
+	"\rLocalRunImage\x12\x1c\n" +
+	"\treference\x18\x01 \x01(\tR\treference\x12\x18\n" +
+	"\apresent\x18\x02 \x01(\bR\apresent\"\xbb\x04\n" +
+	"\fLocalRunPlan\x12\x1f\n" +
+	"\vworkflow_id\x18\x01 \x01(\tR\n" +
+	"workflowId\x12#\n" +
+	"\rworkflow_name\x18\x02 \x01(\tR\fworkflowName\x12\x16\n" +
+	"\x06events\x18\x03 \x03(\tR\x06events\x12\x14\n" +
+	"\x05event\x18\x04 \x01(\tR\x05event\x12\x15\n" +
+	"\x06job_id\x18\x05 \x01(\tR\x05jobId\x12/\n" +
+	"\x04jobs\x18\x06 \x03(\v2\x1b.runnir.core.v1.LocalRunJobR\x04jobs\x125\n" +
+	"\x06images\x18\a \x03(\v2\x1d.runnir.core.v1.LocalRunImageR\x06images\x12\x18\n" +
+	"\asecrets\x18\b \x03(\tR\asecrets\x12\x14\n" +
+	"\x05notes\x18\t \x03(\tR\x05notes\x12\x1a\n" +
+	"\bblockers\x18\n" +
+	" \x03(\tR\bblockers\x12\x12\n" +
+	"\x04cpus\x18\v \x01(\rR\x04cpus\x12!\n" +
+	"\fmemory_bytes\x18\f \x01(\x04R\vmemoryBytes\x12'\n" +
+	"\x0ftimeout_seconds\x18\r \x01(\rR\x0etimeoutSeconds\x12\x1f\n" +
+	"\vact_version\x18\x0e \x01(\tR\n" +
+	"actVersion\x12#\n" +
+	"\rinstalled_act\x18\x0f \x01(\bR\finstalledAct\x12\x1f\n" +
+	"\vengine_name\x18\x10 \x01(\tR\n" +
+	"engineName\x12%\n" +
+	"\x0eengine_context\x18\x11 \x01(\tR\rengineContext\"\xb7\x01\n" +
+	"\x16PrepareLocalRunRequest\x12#\n" +
+	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\x12\x1f\n" +
+	"\vworkflow_id\x18\x02 \x01(\tR\n" +
+	"workflowId\x12\x15\n" +
+	"\x06job_id\x18\x03 \x01(\tR\x05jobId\x12\x14\n" +
+	"\x05event\x18\x04 \x01(\tR\x05event\x12*\n" +
+	"\x11use_installed_act\x18\x05 \x01(\bR\x0fuseInstalledAct\"\xec\x01\n" +
+	"\x17PrepareLocalRunResponse\x12;\n" +
+	"\treadiness\x18\x01 \x01(\v2\x1d.runnir.core.v1.ToolReadinessR\treadiness\x120\n" +
+	"\x04plan\x18\x02 \x01(\v2\x1c.runnir.core.v1.LocalRunPlanR\x04plan\x12'\n" +
+	"\x0fconfirmation_id\x18\x03 \x01(\tR\x0econfirmationId\x129\n" +
+	"\n" +
+	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"A\n" +
+	"\x16ConfirmLocalRunRequest\x12'\n" +
+	"\x0fconfirmation_id\x18\x01 \x01(\tR\x0econfirmationId\"Z\n" +
+	"\x17ConfirmLocalRunResponse\x12?\n" +
+	"\texecution\x18\x01 \x01(\v2!.runnir.core.v1.ExecutionResponseR\texecution\"\xfc\x01\n" +
+	"\x11LocalRunJobStatus\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x123\n" +
+	"\x05state\x18\x03 \x01(\x0e2\x1d.runnir.core.v1.LocalJobStateR\x05state\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\x129\n" +
+	"\n" +
+	"started_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12;\n" +
+	"\vfinished_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"finishedAt\"k\n" +
+	"\fLocalRunLine\x12\x1a\n" +
+	"\bsequence\x18\x01 \x01(\x04R\bsequence\x12\x15\n" +
+	"\x06job_id\x18\x02 \x01(\tR\x05jobId\x12\x12\n" +
+	"\x04text\x18\x03 \x01(\tR\x04text\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\bR\x05error\"d\n" +
+	"\x18GetLocalRunOutputRequest\x12!\n" +
+	"\fexecution_id\x18\x01 \x01(\tR\vexecutionId\x12%\n" +
+	"\x0eafter_sequence\x18\x02 \x01(\x04R\rafterSequence\"\x86\x05\n" +
+	"\x19GetLocalRunOutputResponse\x12!\n" +
+	"\fexecution_id\x18\x01 \x01(\tR\vexecutionId\x12#\n" +
+	"\rrepository_id\x18\x02 \x01(\tR\frepositoryId\x124\n" +
+	"\x05state\x18\x03 \x01(\x0e2\x1e.runnir.core.v1.ExecutionStateR\x05state\x123\n" +
+	"\x05phase\x18\x04 \x01(\x0e2\x1d.runnir.core.v1.LocalRunPhaseR\x05phase\x122\n" +
+	"\x05lines\x18\x05 \x03(\v2\x1c.runnir.core.v1.LocalRunLineR\x05lines\x12\x1c\n" +
+	"\tdiscarded\x18\x06 \x01(\bR\tdiscarded\x12#\n" +
+	"\rlast_sequence\x18\a \x01(\x04R\flastSequence\x125\n" +
+	"\x04jobs\x18\b \x03(\v2!.runnir.core.v1.LocalRunJobStatusR\x04jobs\x120\n" +
+	"\x04plan\x18\t \x01(\v2\x1c.runnir.core.v1.LocalRunPlanR\x04plan\x129\n" +
+	"\n" +
+	"started_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12;\n" +
+	"\vfinished_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"finishedAt\x12\x1b\n" +
+	"\texit_code\x18\f \x01(\x05R\bexitCode\x12\x18\n" +
+	"\amessage\x18\r \x01(\tR\amessage\x12'\n" +
+	"\x0fcleanup_problem\x18\x0e \x01(\tR\x0ecleanupProblem\";\n" +
+	"\x16CancelExecutionRequest\x12!\n" +
+	"\fexecution_id\x18\x01 \x01(\tR\vexecutionId\"\x19\n" +
+	"\x17CancelExecutionResponse*\xc4\x01\n" +
 	"\x0eExecutionState\x12\x1f\n" +
 	"\x1bEXECUTION_STATE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16EXECUTION_STATE_QUEUED\x10\x01\x12\x1b\n" +
@@ -4034,7 +5779,36 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x16RUN_ACTION_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11RUN_ACTION_CANCEL\x10\x01\x12\x14\n" +
 	"\x10RUN_ACTION_RERUN\x10\x02\x12\x1b\n" +
-	"\x17RUN_ACTION_RERUN_FAILED\x10\x032\xff\x10\n" +
+	"\x17RUN_ACTION_RERUN_FAILED\x10\x03*\xa0\x01\n" +
+	"\tToolState\x12\x1a\n" +
+	"\x16TOOL_STATE_UNSPECIFIED\x10\x00\x12\x14\n" +
+	"\x10TOOL_STATE_FOUND\x10\x01\x12\x16\n" +
+	"\x12TOOL_STATE_MISSING\x10\x02\x12\x16\n" +
+	"\x12TOOL_STATE_STOPPED\x10\x03\x12\x1a\n" +
+	"\x16TOOL_STATE_UNSUPPORTED\x10\x04\x12\x15\n" +
+	"\x11TOOL_STATE_FAILED\x10\x05*\x97\x01\n" +
+	"\x0fLocalJobSupport\x12!\n" +
+	"\x1dLOCAL_JOB_SUPPORT_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bLOCAL_JOB_SUPPORT_SUPPORTED\x10\x01\x12!\n" +
+	"\x1dLOCAL_JOB_SUPPORT_UNSUPPORTED\x10\x02\x12\x1d\n" +
+	"\x19LOCAL_JOB_SUPPORT_UNKNOWN\x10\x03*\xc6\x01\n" +
+	"\rLocalRunPhase\x12\x1f\n" +
+	"\x1bLOCAL_RUN_PHASE_UNSPECIFIED\x10\x00\x12\x1a\n" +
+	"\x16LOCAL_RUN_PHASE_QUEUED\x10\x01\x12\x1b\n" +
+	"\x17LOCAL_RUN_PHASE_RUNNING\x10\x02\x12\x1c\n" +
+	"\x18LOCAL_RUN_PHASE_STOPPING\x10\x03\x12\x1f\n" +
+	"\x1bLOCAL_RUN_PHASE_CLEANING_UP\x10\x04\x12\x1c\n" +
+	"\x18LOCAL_RUN_PHASE_FINISHED\x10\x05*\x9f\x02\n" +
+	"\rLocalJobState\x12\x1f\n" +
+	"\x1bLOCAL_JOB_STATE_UNSPECIFIED\x10\x00\x12\x1b\n" +
+	"\x17LOCAL_JOB_STATE_WAITING\x10\x01\x12\x1b\n" +
+	"\x17LOCAL_JOB_STATE_RUNNING\x10\x02\x12\x1d\n" +
+	"\x19LOCAL_JOB_STATE_SUCCEEDED\x10\x03\x12\x1a\n" +
+	"\x16LOCAL_JOB_STATE_FAILED\x10\x04\x12\x1b\n" +
+	"\x17LOCAL_JOB_STATE_SKIPPED\x10\x05\x12\x1f\n" +
+	"\x1bLOCAL_JOB_STATE_UNSUPPORTED\x10\x06\x12\x1d\n" +
+	"\x19LOCAL_JOB_STATE_CANCELLED\x10\a\x12\x1b\n" +
+	"\x17LOCAL_JOB_STATE_NOT_RUN\x10\b2\xfc\x14\n" +
 	"\n" +
 	"RunnirCore\x12V\n" +
 	"\vHealthCheck\x12\".runnir.core.v1.HealthCheckRequest\x1a#.runnir.core.v1.HealthCheckResponse\x12[\n" +
@@ -4057,7 +5831,12 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x17ConfirmWorkflowDispatch\x12..runnir.core.v1.ConfirmWorkflowDispatchRequest\x1a/.runnir.core.v1.ConfirmWorkflowDispatchResponse\x12P\n" +
 	"\tGetJobLog\x12 .runnir.core.v1.GetJobLogRequest\x1a!.runnir.core.v1.GetJobLogResponse\x12e\n" +
 	"\x10PrepareRunAction\x12'.runnir.core.v1.PrepareRunActionRequest\x1a(.runnir.core.v1.PrepareRunActionResponse\x12e\n" +
-	"\x10ConfirmRunAction\x12'.runnir.core.v1.ConfirmRunActionRequest\x1a(.runnir.core.v1.ConfirmRunActionResponseB0Z.runnir/core/internal/gen/runnir/core/v1;corev1b\x06proto3"
+	"\x10ConfirmRunAction\x12'.runnir.core.v1.ConfirmRunActionRequest\x1a(.runnir.core.v1.ConfirmRunActionResponse\x12e\n" +
+	"\x10GetToolReadiness\x12'.runnir.core.v1.GetToolReadinessRequest\x1a(.runnir.core.v1.GetToolReadinessResponse\x12b\n" +
+	"\x0fPrepareLocalRun\x12&.runnir.core.v1.PrepareLocalRunRequest\x1a'.runnir.core.v1.PrepareLocalRunResponse\x12b\n" +
+	"\x0fConfirmLocalRun\x12&.runnir.core.v1.ConfirmLocalRunRequest\x1a'.runnir.core.v1.ConfirmLocalRunResponse\x12h\n" +
+	"\x11GetLocalRunOutput\x12(.runnir.core.v1.GetLocalRunOutputRequest\x1a).runnir.core.v1.GetLocalRunOutputResponse\x12b\n" +
+	"\x0fCancelExecution\x12&.runnir.core.v1.CancelExecutionRequest\x1a'.runnir.core.v1.CancelExecutionResponseB0Z.runnir/core/internal/gen/runnir/core/v1;corev1b\x06proto3"
 
 var (
 	file_runnir_core_v1_runnir_core_proto_rawDescOnce sync.Once
@@ -4071,8 +5850,8 @@ func file_runnir_core_v1_runnir_core_proto_rawDescGZIP() []byte {
 	return file_runnir_core_v1_runnir_core_proto_rawDescData
 }
 
-var file_runnir_core_v1_runnir_core_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_runnir_core_v1_runnir_core_proto_msgTypes = make([]protoimpl.MessageInfo, 54)
+var file_runnir_core_v1_runnir_core_proto_enumTypes = make([]protoimpl.EnumInfo, 11)
+var file_runnir_core_v1_runnir_core_proto_msgTypes = make([]protoimpl.MessageInfo, 72)
 var file_runnir_core_v1_runnir_core_proto_goTypes = []any{
 	(ExecutionState)(0),                      // 0: runnir.core.v1.ExecutionState
 	(CoreEventType)(0),                       // 1: runnir.core.v1.CoreEventType
@@ -4081,155 +5860,212 @@ var file_runnir_core_v1_runnir_core_proto_goTypes = []any{
 	(JobLogAvailability)(0),                  // 4: runnir.core.v1.JobLogAvailability
 	(LogLineKind)(0),                         // 5: runnir.core.v1.LogLineKind
 	(RunAction)(0),                           // 6: runnir.core.v1.RunAction
-	(*HealthCheckRequest)(nil),               // 7: runnir.core.v1.HealthCheckRequest
-	(*HealthCheckResponse)(nil),              // 8: runnir.core.v1.HealthCheckResponse
-	(*OpenRepositoryRequest)(nil),            // 9: runnir.core.v1.OpenRepositoryRequest
-	(*CloseRepositoryRequest)(nil),           // 10: runnir.core.v1.CloseRepositoryRequest
-	(*CloseRepositoryResponse)(nil),          // 11: runnir.core.v1.CloseRepositoryResponse
-	(*RefreshRepositoryRequest)(nil),         // 12: runnir.core.v1.RefreshRepositoryRequest
-	(*RepositoryResponse)(nil),               // 13: runnir.core.v1.RepositoryResponse
-	(*Repository)(nil),                       // 14: runnir.core.v1.Repository
-	(*ListWorkflowsRequest)(nil),             // 15: runnir.core.v1.ListWorkflowsRequest
-	(*ListWorkflowsResponse)(nil),            // 16: runnir.core.v1.ListWorkflowsResponse
-	(*Workflow)(nil),                         // 17: runnir.core.v1.Workflow
-	(*Job)(nil),                              // 18: runnir.core.v1.Job
-	(*StartWorkflowRequest)(nil),             // 19: runnir.core.v1.StartWorkflowRequest
-	(*ExecutionResponse)(nil),                // 20: runnir.core.v1.ExecutionResponse
-	(*SubscribeEventsRequest)(nil),           // 21: runnir.core.v1.SubscribeEventsRequest
-	(*CoreEvent)(nil),                        // 22: runnir.core.v1.CoreEvent
-	(*SetGitHubCredentialRequest)(nil),       // 23: runnir.core.v1.SetGitHubCredentialRequest
-	(*SetGitHubCredentialResponse)(nil),      // 24: runnir.core.v1.SetGitHubCredentialResponse
-	(*ClearGitHubCredentialRequest)(nil),     // 25: runnir.core.v1.ClearGitHubCredentialRequest
-	(*ClearGitHubCredentialResponse)(nil),    // 26: runnir.core.v1.ClearGitHubCredentialResponse
-	(*GitHubStatus)(nil),                     // 27: runnir.core.v1.GitHubStatus
-	(*ValidateWorkflowsRequest)(nil),         // 28: runnir.core.v1.ValidateWorkflowsRequest
-	(*WorkflowDiagnostic)(nil),               // 29: runnir.core.v1.WorkflowDiagnostic
-	(*WorkflowValidation)(nil),               // 30: runnir.core.v1.WorkflowValidation
-	(*ValidateWorkflowsResponse)(nil),        // 31: runnir.core.v1.ValidateWorkflowsResponse
-	(*GetGitHubRepositoryRequest)(nil),       // 32: runnir.core.v1.GetGitHubRepositoryRequest
-	(*GetGitHubRepositoryResponse)(nil),      // 33: runnir.core.v1.GetGitHubRepositoryResponse
-	(*ListGitHubWorkflowsRequest)(nil),       // 34: runnir.core.v1.ListGitHubWorkflowsRequest
-	(*ListGitHubWorkflowsResponse)(nil),      // 35: runnir.core.v1.ListGitHubWorkflowsResponse
-	(*GitHubWorkflow)(nil),                   // 36: runnir.core.v1.GitHubWorkflow
-	(*ListWorkflowRunsRequest)(nil),          // 37: runnir.core.v1.ListWorkflowRunsRequest
-	(*ListWorkflowRunsResponse)(nil),         // 38: runnir.core.v1.ListWorkflowRunsResponse
-	(*WorkflowRun)(nil),                      // 39: runnir.core.v1.WorkflowRun
-	(*ListRunJobsRequest)(nil),               // 40: runnir.core.v1.ListRunJobsRequest
-	(*ListRunJobsResponse)(nil),              // 41: runnir.core.v1.ListRunJobsResponse
-	(*RunJob)(nil),                           // 42: runnir.core.v1.RunJob
-	(*RunStep)(nil),                          // 43: runnir.core.v1.RunStep
-	(*ListGitHubRefsRequest)(nil),            // 44: runnir.core.v1.ListGitHubRefsRequest
-	(*ListGitHubRefsResponse)(nil),           // 45: runnir.core.v1.ListGitHubRefsResponse
-	(*DispatchInput)(nil),                    // 46: runnir.core.v1.DispatchInput
-	(*DescribeWorkflowDispatchRequest)(nil),  // 47: runnir.core.v1.DescribeWorkflowDispatchRequest
-	(*DescribeWorkflowDispatchResponse)(nil), // 48: runnir.core.v1.DescribeWorkflowDispatchResponse
-	(*PrepareWorkflowDispatchRequest)(nil),   // 49: runnir.core.v1.PrepareWorkflowDispatchRequest
-	(*PrepareWorkflowDispatchResponse)(nil),  // 50: runnir.core.v1.PrepareWorkflowDispatchResponse
-	(*ConfirmWorkflowDispatchRequest)(nil),   // 51: runnir.core.v1.ConfirmWorkflowDispatchRequest
-	(*ConfirmWorkflowDispatchResponse)(nil),  // 52: runnir.core.v1.ConfirmWorkflowDispatchResponse
-	(*GetJobLogRequest)(nil),                 // 53: runnir.core.v1.GetJobLogRequest
-	(*LogLine)(nil),                          // 54: runnir.core.v1.LogLine
-	(*GetJobLogResponse)(nil),                // 55: runnir.core.v1.GetJobLogResponse
-	(*PrepareRunActionRequest)(nil),          // 56: runnir.core.v1.PrepareRunActionRequest
-	(*PrepareRunActionResponse)(nil),         // 57: runnir.core.v1.PrepareRunActionResponse
-	(*ConfirmRunActionRequest)(nil),          // 58: runnir.core.v1.ConfirmRunActionRequest
-	(*ConfirmRunActionResponse)(nil),         // 59: runnir.core.v1.ConfirmRunActionResponse
-	nil,                                      // 60: runnir.core.v1.PrepareWorkflowDispatchRequest.InputsEntry
-	(*timestamppb.Timestamp)(nil),            // 61: google.protobuf.Timestamp
+	(ToolState)(0),                           // 7: runnir.core.v1.ToolState
+	(LocalJobSupport)(0),                     // 8: runnir.core.v1.LocalJobSupport
+	(LocalRunPhase)(0),                       // 9: runnir.core.v1.LocalRunPhase
+	(LocalJobState)(0),                       // 10: runnir.core.v1.LocalJobState
+	(*HealthCheckRequest)(nil),               // 11: runnir.core.v1.HealthCheckRequest
+	(*HealthCheckResponse)(nil),              // 12: runnir.core.v1.HealthCheckResponse
+	(*OpenRepositoryRequest)(nil),            // 13: runnir.core.v1.OpenRepositoryRequest
+	(*CloseRepositoryRequest)(nil),           // 14: runnir.core.v1.CloseRepositoryRequest
+	(*CloseRepositoryResponse)(nil),          // 15: runnir.core.v1.CloseRepositoryResponse
+	(*RefreshRepositoryRequest)(nil),         // 16: runnir.core.v1.RefreshRepositoryRequest
+	(*RepositoryResponse)(nil),               // 17: runnir.core.v1.RepositoryResponse
+	(*Repository)(nil),                       // 18: runnir.core.v1.Repository
+	(*ListWorkflowsRequest)(nil),             // 19: runnir.core.v1.ListWorkflowsRequest
+	(*ListWorkflowsResponse)(nil),            // 20: runnir.core.v1.ListWorkflowsResponse
+	(*Workflow)(nil),                         // 21: runnir.core.v1.Workflow
+	(*Job)(nil),                              // 22: runnir.core.v1.Job
+	(*StartWorkflowRequest)(nil),             // 23: runnir.core.v1.StartWorkflowRequest
+	(*ExecutionResponse)(nil),                // 24: runnir.core.v1.ExecutionResponse
+	(*SubscribeEventsRequest)(nil),           // 25: runnir.core.v1.SubscribeEventsRequest
+	(*CoreEvent)(nil),                        // 26: runnir.core.v1.CoreEvent
+	(*SetGitHubCredentialRequest)(nil),       // 27: runnir.core.v1.SetGitHubCredentialRequest
+	(*SetGitHubCredentialResponse)(nil),      // 28: runnir.core.v1.SetGitHubCredentialResponse
+	(*ClearGitHubCredentialRequest)(nil),     // 29: runnir.core.v1.ClearGitHubCredentialRequest
+	(*ClearGitHubCredentialResponse)(nil),    // 30: runnir.core.v1.ClearGitHubCredentialResponse
+	(*GitHubStatus)(nil),                     // 31: runnir.core.v1.GitHubStatus
+	(*ValidateWorkflowsRequest)(nil),         // 32: runnir.core.v1.ValidateWorkflowsRequest
+	(*WorkflowDiagnostic)(nil),               // 33: runnir.core.v1.WorkflowDiagnostic
+	(*WorkflowValidation)(nil),               // 34: runnir.core.v1.WorkflowValidation
+	(*ValidateWorkflowsResponse)(nil),        // 35: runnir.core.v1.ValidateWorkflowsResponse
+	(*GetGitHubRepositoryRequest)(nil),       // 36: runnir.core.v1.GetGitHubRepositoryRequest
+	(*GetGitHubRepositoryResponse)(nil),      // 37: runnir.core.v1.GetGitHubRepositoryResponse
+	(*ListGitHubWorkflowsRequest)(nil),       // 38: runnir.core.v1.ListGitHubWorkflowsRequest
+	(*ListGitHubWorkflowsResponse)(nil),      // 39: runnir.core.v1.ListGitHubWorkflowsResponse
+	(*GitHubWorkflow)(nil),                   // 40: runnir.core.v1.GitHubWorkflow
+	(*ListWorkflowRunsRequest)(nil),          // 41: runnir.core.v1.ListWorkflowRunsRequest
+	(*ListWorkflowRunsResponse)(nil),         // 42: runnir.core.v1.ListWorkflowRunsResponse
+	(*WorkflowRun)(nil),                      // 43: runnir.core.v1.WorkflowRun
+	(*ListRunJobsRequest)(nil),               // 44: runnir.core.v1.ListRunJobsRequest
+	(*ListRunJobsResponse)(nil),              // 45: runnir.core.v1.ListRunJobsResponse
+	(*RunJob)(nil),                           // 46: runnir.core.v1.RunJob
+	(*RunStep)(nil),                          // 47: runnir.core.v1.RunStep
+	(*ListGitHubRefsRequest)(nil),            // 48: runnir.core.v1.ListGitHubRefsRequest
+	(*ListGitHubRefsResponse)(nil),           // 49: runnir.core.v1.ListGitHubRefsResponse
+	(*DispatchInput)(nil),                    // 50: runnir.core.v1.DispatchInput
+	(*DescribeWorkflowDispatchRequest)(nil),  // 51: runnir.core.v1.DescribeWorkflowDispatchRequest
+	(*DescribeWorkflowDispatchResponse)(nil), // 52: runnir.core.v1.DescribeWorkflowDispatchResponse
+	(*PrepareWorkflowDispatchRequest)(nil),   // 53: runnir.core.v1.PrepareWorkflowDispatchRequest
+	(*PrepareWorkflowDispatchResponse)(nil),  // 54: runnir.core.v1.PrepareWorkflowDispatchResponse
+	(*ConfirmWorkflowDispatchRequest)(nil),   // 55: runnir.core.v1.ConfirmWorkflowDispatchRequest
+	(*ConfirmWorkflowDispatchResponse)(nil),  // 56: runnir.core.v1.ConfirmWorkflowDispatchResponse
+	(*GetJobLogRequest)(nil),                 // 57: runnir.core.v1.GetJobLogRequest
+	(*LogLine)(nil),                          // 58: runnir.core.v1.LogLine
+	(*GetJobLogResponse)(nil),                // 59: runnir.core.v1.GetJobLogResponse
+	(*PrepareRunActionRequest)(nil),          // 60: runnir.core.v1.PrepareRunActionRequest
+	(*PrepareRunActionResponse)(nil),         // 61: runnir.core.v1.PrepareRunActionResponse
+	(*ConfirmRunActionRequest)(nil),          // 62: runnir.core.v1.ConfirmRunActionRequest
+	(*ConfirmRunActionResponse)(nil),         // 63: runnir.core.v1.ConfirmRunActionResponse
+	(*ToolStatus)(nil),                       // 64: runnir.core.v1.ToolStatus
+	(*ContainerEngine)(nil),                  // 65: runnir.core.v1.ContainerEngine
+	(*ToolReadiness)(nil),                    // 66: runnir.core.v1.ToolReadiness
+	(*GetToolReadinessRequest)(nil),          // 67: runnir.core.v1.GetToolReadinessRequest
+	(*GetToolReadinessResponse)(nil),         // 68: runnir.core.v1.GetToolReadinessResponse
+	(*LocalRunJob)(nil),                      // 69: runnir.core.v1.LocalRunJob
+	(*LocalRunImage)(nil),                    // 70: runnir.core.v1.LocalRunImage
+	(*LocalRunPlan)(nil),                     // 71: runnir.core.v1.LocalRunPlan
+	(*PrepareLocalRunRequest)(nil),           // 72: runnir.core.v1.PrepareLocalRunRequest
+	(*PrepareLocalRunResponse)(nil),          // 73: runnir.core.v1.PrepareLocalRunResponse
+	(*ConfirmLocalRunRequest)(nil),           // 74: runnir.core.v1.ConfirmLocalRunRequest
+	(*ConfirmLocalRunResponse)(nil),          // 75: runnir.core.v1.ConfirmLocalRunResponse
+	(*LocalRunJobStatus)(nil),                // 76: runnir.core.v1.LocalRunJobStatus
+	(*LocalRunLine)(nil),                     // 77: runnir.core.v1.LocalRunLine
+	(*GetLocalRunOutputRequest)(nil),         // 78: runnir.core.v1.GetLocalRunOutputRequest
+	(*GetLocalRunOutputResponse)(nil),        // 79: runnir.core.v1.GetLocalRunOutputResponse
+	(*CancelExecutionRequest)(nil),           // 80: runnir.core.v1.CancelExecutionRequest
+	(*CancelExecutionResponse)(nil),          // 81: runnir.core.v1.CancelExecutionResponse
+	nil,                                      // 82: runnir.core.v1.PrepareWorkflowDispatchRequest.InputsEntry
+	(*timestamppb.Timestamp)(nil),            // 83: google.protobuf.Timestamp
 }
 var file_runnir_core_v1_runnir_core_proto_depIdxs = []int32{
-	14, // 0: runnir.core.v1.RepositoryResponse.repository:type_name -> runnir.core.v1.Repository
-	61, // 1: runnir.core.v1.Repository.last_refresh:type_name -> google.protobuf.Timestamp
-	17, // 2: runnir.core.v1.ListWorkflowsResponse.workflows:type_name -> runnir.core.v1.Workflow
-	18, // 3: runnir.core.v1.Workflow.jobs:type_name -> runnir.core.v1.Job
+	18, // 0: runnir.core.v1.RepositoryResponse.repository:type_name -> runnir.core.v1.Repository
+	83, // 1: runnir.core.v1.Repository.last_refresh:type_name -> google.protobuf.Timestamp
+	21, // 2: runnir.core.v1.ListWorkflowsResponse.workflows:type_name -> runnir.core.v1.Workflow
+	22, // 3: runnir.core.v1.Workflow.jobs:type_name -> runnir.core.v1.Job
 	0,  // 4: runnir.core.v1.ExecutionResponse.state:type_name -> runnir.core.v1.ExecutionState
 	1,  // 5: runnir.core.v1.CoreEvent.type:type_name -> runnir.core.v1.CoreEventType
 	0,  // 6: runnir.core.v1.CoreEvent.execution_state:type_name -> runnir.core.v1.ExecutionState
-	61, // 7: runnir.core.v1.CoreEvent.occurred_at:type_name -> google.protobuf.Timestamp
+	83, // 7: runnir.core.v1.CoreEvent.occurred_at:type_name -> google.protobuf.Timestamp
 	2,  // 8: runnir.core.v1.GitHubStatus.access:type_name -> runnir.core.v1.GithubAccess
-	61, // 9: runnir.core.v1.GitHubStatus.retry_after:type_name -> google.protobuf.Timestamp
-	29, // 10: runnir.core.v1.WorkflowValidation.diagnostics:type_name -> runnir.core.v1.WorkflowDiagnostic
-	30, // 11: runnir.core.v1.ValidateWorkflowsResponse.workflows:type_name -> runnir.core.v1.WorkflowValidation
-	27, // 12: runnir.core.v1.GetGitHubRepositoryResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	27, // 13: runnir.core.v1.ListGitHubWorkflowsResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	36, // 14: runnir.core.v1.ListGitHubWorkflowsResponse.workflows:type_name -> runnir.core.v1.GitHubWorkflow
-	27, // 15: runnir.core.v1.ListWorkflowRunsResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	39, // 16: runnir.core.v1.ListWorkflowRunsResponse.runs:type_name -> runnir.core.v1.WorkflowRun
-	61, // 17: runnir.core.v1.WorkflowRun.created_at:type_name -> google.protobuf.Timestamp
-	61, // 18: runnir.core.v1.WorkflowRun.updated_at:type_name -> google.protobuf.Timestamp
-	27, // 19: runnir.core.v1.ListRunJobsResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	42, // 20: runnir.core.v1.ListRunJobsResponse.jobs:type_name -> runnir.core.v1.RunJob
-	61, // 21: runnir.core.v1.RunJob.started_at:type_name -> google.protobuf.Timestamp
-	61, // 22: runnir.core.v1.RunJob.completed_at:type_name -> google.protobuf.Timestamp
-	43, // 23: runnir.core.v1.RunJob.steps:type_name -> runnir.core.v1.RunStep
-	61, // 24: runnir.core.v1.RunStep.started_at:type_name -> google.protobuf.Timestamp
-	61, // 25: runnir.core.v1.RunStep.completed_at:type_name -> google.protobuf.Timestamp
-	27, // 26: runnir.core.v1.ListGitHubRefsResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	83, // 9: runnir.core.v1.GitHubStatus.retry_after:type_name -> google.protobuf.Timestamp
+	33, // 10: runnir.core.v1.WorkflowValidation.diagnostics:type_name -> runnir.core.v1.WorkflowDiagnostic
+	34, // 11: runnir.core.v1.ValidateWorkflowsResponse.workflows:type_name -> runnir.core.v1.WorkflowValidation
+	31, // 12: runnir.core.v1.GetGitHubRepositoryResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	31, // 13: runnir.core.v1.ListGitHubWorkflowsResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	40, // 14: runnir.core.v1.ListGitHubWorkflowsResponse.workflows:type_name -> runnir.core.v1.GitHubWorkflow
+	31, // 15: runnir.core.v1.ListWorkflowRunsResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	43, // 16: runnir.core.v1.ListWorkflowRunsResponse.runs:type_name -> runnir.core.v1.WorkflowRun
+	83, // 17: runnir.core.v1.WorkflowRun.created_at:type_name -> google.protobuf.Timestamp
+	83, // 18: runnir.core.v1.WorkflowRun.updated_at:type_name -> google.protobuf.Timestamp
+	31, // 19: runnir.core.v1.ListRunJobsResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	46, // 20: runnir.core.v1.ListRunJobsResponse.jobs:type_name -> runnir.core.v1.RunJob
+	83, // 21: runnir.core.v1.RunJob.started_at:type_name -> google.protobuf.Timestamp
+	83, // 22: runnir.core.v1.RunJob.completed_at:type_name -> google.protobuf.Timestamp
+	47, // 23: runnir.core.v1.RunJob.steps:type_name -> runnir.core.v1.RunStep
+	83, // 24: runnir.core.v1.RunStep.started_at:type_name -> google.protobuf.Timestamp
+	83, // 25: runnir.core.v1.RunStep.completed_at:type_name -> google.protobuf.Timestamp
+	31, // 26: runnir.core.v1.ListGitHubRefsResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	3,  // 27: runnir.core.v1.DispatchInput.type:type_name -> runnir.core.v1.DispatchInputType
-	27, // 28: runnir.core.v1.DescribeWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	46, // 29: runnir.core.v1.DescribeWorkflowDispatchResponse.inputs:type_name -> runnir.core.v1.DispatchInput
-	60, // 30: runnir.core.v1.PrepareWorkflowDispatchRequest.inputs:type_name -> runnir.core.v1.PrepareWorkflowDispatchRequest.InputsEntry
-	27, // 31: runnir.core.v1.PrepareWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	61, // 32: runnir.core.v1.PrepareWorkflowDispatchResponse.expires_at:type_name -> google.protobuf.Timestamp
-	27, // 33: runnir.core.v1.ConfirmWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	61, // 34: runnir.core.v1.ConfirmWorkflowDispatchResponse.dispatched_at:type_name -> google.protobuf.Timestamp
+	31, // 28: runnir.core.v1.DescribeWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	50, // 29: runnir.core.v1.DescribeWorkflowDispatchResponse.inputs:type_name -> runnir.core.v1.DispatchInput
+	82, // 30: runnir.core.v1.PrepareWorkflowDispatchRequest.inputs:type_name -> runnir.core.v1.PrepareWorkflowDispatchRequest.InputsEntry
+	31, // 31: runnir.core.v1.PrepareWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	83, // 32: runnir.core.v1.PrepareWorkflowDispatchResponse.expires_at:type_name -> google.protobuf.Timestamp
+	31, // 33: runnir.core.v1.ConfirmWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	83, // 34: runnir.core.v1.ConfirmWorkflowDispatchResponse.dispatched_at:type_name -> google.protobuf.Timestamp
 	5,  // 35: runnir.core.v1.LogLine.kind:type_name -> runnir.core.v1.LogLineKind
-	27, // 36: runnir.core.v1.GetJobLogResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	31, // 36: runnir.core.v1.GetJobLogResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	4,  // 37: runnir.core.v1.GetJobLogResponse.availability:type_name -> runnir.core.v1.JobLogAvailability
-	54, // 38: runnir.core.v1.GetJobLogResponse.lines:type_name -> runnir.core.v1.LogLine
+	58, // 38: runnir.core.v1.GetJobLogResponse.lines:type_name -> runnir.core.v1.LogLine
 	6,  // 39: runnir.core.v1.PrepareRunActionRequest.action:type_name -> runnir.core.v1.RunAction
-	27, // 40: runnir.core.v1.PrepareRunActionResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	61, // 41: runnir.core.v1.PrepareRunActionResponse.expires_at:type_name -> google.protobuf.Timestamp
-	39, // 42: runnir.core.v1.PrepareRunActionResponse.run:type_name -> runnir.core.v1.WorkflowRun
-	27, // 43: runnir.core.v1.ConfirmRunActionResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	61, // 44: runnir.core.v1.ConfirmRunActionResponse.accepted_at:type_name -> google.protobuf.Timestamp
-	7,  // 45: runnir.core.v1.RunnirCore.HealthCheck:input_type -> runnir.core.v1.HealthCheckRequest
-	9,  // 46: runnir.core.v1.RunnirCore.OpenRepository:input_type -> runnir.core.v1.OpenRepositoryRequest
-	10, // 47: runnir.core.v1.RunnirCore.CloseRepository:input_type -> runnir.core.v1.CloseRepositoryRequest
-	12, // 48: runnir.core.v1.RunnirCore.RefreshRepository:input_type -> runnir.core.v1.RefreshRepositoryRequest
-	15, // 49: runnir.core.v1.RunnirCore.ListWorkflows:input_type -> runnir.core.v1.ListWorkflowsRequest
-	28, // 50: runnir.core.v1.RunnirCore.ValidateWorkflows:input_type -> runnir.core.v1.ValidateWorkflowsRequest
-	19, // 51: runnir.core.v1.RunnirCore.StartWorkflow:input_type -> runnir.core.v1.StartWorkflowRequest
-	21, // 52: runnir.core.v1.RunnirCore.SubscribeEvents:input_type -> runnir.core.v1.SubscribeEventsRequest
-	23, // 53: runnir.core.v1.RunnirCore.SetGitHubCredential:input_type -> runnir.core.v1.SetGitHubCredentialRequest
-	25, // 54: runnir.core.v1.RunnirCore.ClearGitHubCredential:input_type -> runnir.core.v1.ClearGitHubCredentialRequest
-	34, // 55: runnir.core.v1.RunnirCore.ListGitHubWorkflows:input_type -> runnir.core.v1.ListGitHubWorkflowsRequest
-	32, // 56: runnir.core.v1.RunnirCore.GetGitHubRepository:input_type -> runnir.core.v1.GetGitHubRepositoryRequest
-	37, // 57: runnir.core.v1.RunnirCore.ListWorkflowRuns:input_type -> runnir.core.v1.ListWorkflowRunsRequest
-	40, // 58: runnir.core.v1.RunnirCore.ListRunJobs:input_type -> runnir.core.v1.ListRunJobsRequest
-	44, // 59: runnir.core.v1.RunnirCore.ListGitHubRefs:input_type -> runnir.core.v1.ListGitHubRefsRequest
-	47, // 60: runnir.core.v1.RunnirCore.DescribeWorkflowDispatch:input_type -> runnir.core.v1.DescribeWorkflowDispatchRequest
-	49, // 61: runnir.core.v1.RunnirCore.PrepareWorkflowDispatch:input_type -> runnir.core.v1.PrepareWorkflowDispatchRequest
-	51, // 62: runnir.core.v1.RunnirCore.ConfirmWorkflowDispatch:input_type -> runnir.core.v1.ConfirmWorkflowDispatchRequest
-	53, // 63: runnir.core.v1.RunnirCore.GetJobLog:input_type -> runnir.core.v1.GetJobLogRequest
-	56, // 64: runnir.core.v1.RunnirCore.PrepareRunAction:input_type -> runnir.core.v1.PrepareRunActionRequest
-	58, // 65: runnir.core.v1.RunnirCore.ConfirmRunAction:input_type -> runnir.core.v1.ConfirmRunActionRequest
-	8,  // 66: runnir.core.v1.RunnirCore.HealthCheck:output_type -> runnir.core.v1.HealthCheckResponse
-	13, // 67: runnir.core.v1.RunnirCore.OpenRepository:output_type -> runnir.core.v1.RepositoryResponse
-	11, // 68: runnir.core.v1.RunnirCore.CloseRepository:output_type -> runnir.core.v1.CloseRepositoryResponse
-	13, // 69: runnir.core.v1.RunnirCore.RefreshRepository:output_type -> runnir.core.v1.RepositoryResponse
-	16, // 70: runnir.core.v1.RunnirCore.ListWorkflows:output_type -> runnir.core.v1.ListWorkflowsResponse
-	31, // 71: runnir.core.v1.RunnirCore.ValidateWorkflows:output_type -> runnir.core.v1.ValidateWorkflowsResponse
-	20, // 72: runnir.core.v1.RunnirCore.StartWorkflow:output_type -> runnir.core.v1.ExecutionResponse
-	22, // 73: runnir.core.v1.RunnirCore.SubscribeEvents:output_type -> runnir.core.v1.CoreEvent
-	24, // 74: runnir.core.v1.RunnirCore.SetGitHubCredential:output_type -> runnir.core.v1.SetGitHubCredentialResponse
-	26, // 75: runnir.core.v1.RunnirCore.ClearGitHubCredential:output_type -> runnir.core.v1.ClearGitHubCredentialResponse
-	35, // 76: runnir.core.v1.RunnirCore.ListGitHubWorkflows:output_type -> runnir.core.v1.ListGitHubWorkflowsResponse
-	33, // 77: runnir.core.v1.RunnirCore.GetGitHubRepository:output_type -> runnir.core.v1.GetGitHubRepositoryResponse
-	38, // 78: runnir.core.v1.RunnirCore.ListWorkflowRuns:output_type -> runnir.core.v1.ListWorkflowRunsResponse
-	41, // 79: runnir.core.v1.RunnirCore.ListRunJobs:output_type -> runnir.core.v1.ListRunJobsResponse
-	45, // 80: runnir.core.v1.RunnirCore.ListGitHubRefs:output_type -> runnir.core.v1.ListGitHubRefsResponse
-	48, // 81: runnir.core.v1.RunnirCore.DescribeWorkflowDispatch:output_type -> runnir.core.v1.DescribeWorkflowDispatchResponse
-	50, // 82: runnir.core.v1.RunnirCore.PrepareWorkflowDispatch:output_type -> runnir.core.v1.PrepareWorkflowDispatchResponse
-	52, // 83: runnir.core.v1.RunnirCore.ConfirmWorkflowDispatch:output_type -> runnir.core.v1.ConfirmWorkflowDispatchResponse
-	55, // 84: runnir.core.v1.RunnirCore.GetJobLog:output_type -> runnir.core.v1.GetJobLogResponse
-	57, // 85: runnir.core.v1.RunnirCore.PrepareRunAction:output_type -> runnir.core.v1.PrepareRunActionResponse
-	59, // 86: runnir.core.v1.RunnirCore.ConfirmRunAction:output_type -> runnir.core.v1.ConfirmRunActionResponse
-	66, // [66:87] is the sub-list for method output_type
-	45, // [45:66] is the sub-list for method input_type
-	45, // [45:45] is the sub-list for extension type_name
-	45, // [45:45] is the sub-list for extension extendee
-	0,  // [0:45] is the sub-list for field type_name
+	31, // 40: runnir.core.v1.PrepareRunActionResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	83, // 41: runnir.core.v1.PrepareRunActionResponse.expires_at:type_name -> google.protobuf.Timestamp
+	43, // 42: runnir.core.v1.PrepareRunActionResponse.run:type_name -> runnir.core.v1.WorkflowRun
+	31, // 43: runnir.core.v1.ConfirmRunActionResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	83, // 44: runnir.core.v1.ConfirmRunActionResponse.accepted_at:type_name -> google.protobuf.Timestamp
+	7,  // 45: runnir.core.v1.ToolStatus.state:type_name -> runnir.core.v1.ToolState
+	7,  // 46: runnir.core.v1.ContainerEngine.state:type_name -> runnir.core.v1.ToolState
+	64, // 47: runnir.core.v1.ToolReadiness.bundled_act:type_name -> runnir.core.v1.ToolStatus
+	64, // 48: runnir.core.v1.ToolReadiness.installed_act:type_name -> runnir.core.v1.ToolStatus
+	64, // 49: runnir.core.v1.ToolReadiness.docker_cli:type_name -> runnir.core.v1.ToolStatus
+	65, // 50: runnir.core.v1.ToolReadiness.engine:type_name -> runnir.core.v1.ContainerEngine
+	83, // 51: runnir.core.v1.ToolReadiness.checked_at:type_name -> google.protobuf.Timestamp
+	66, // 52: runnir.core.v1.GetToolReadinessResponse.readiness:type_name -> runnir.core.v1.ToolReadiness
+	8,  // 53: runnir.core.v1.LocalRunJob.support:type_name -> runnir.core.v1.LocalJobSupport
+	69, // 54: runnir.core.v1.LocalRunPlan.jobs:type_name -> runnir.core.v1.LocalRunJob
+	70, // 55: runnir.core.v1.LocalRunPlan.images:type_name -> runnir.core.v1.LocalRunImage
+	66, // 56: runnir.core.v1.PrepareLocalRunResponse.readiness:type_name -> runnir.core.v1.ToolReadiness
+	71, // 57: runnir.core.v1.PrepareLocalRunResponse.plan:type_name -> runnir.core.v1.LocalRunPlan
+	83, // 58: runnir.core.v1.PrepareLocalRunResponse.expires_at:type_name -> google.protobuf.Timestamp
+	24, // 59: runnir.core.v1.ConfirmLocalRunResponse.execution:type_name -> runnir.core.v1.ExecutionResponse
+	10, // 60: runnir.core.v1.LocalRunJobStatus.state:type_name -> runnir.core.v1.LocalJobState
+	83, // 61: runnir.core.v1.LocalRunJobStatus.started_at:type_name -> google.protobuf.Timestamp
+	83, // 62: runnir.core.v1.LocalRunJobStatus.finished_at:type_name -> google.protobuf.Timestamp
+	0,  // 63: runnir.core.v1.GetLocalRunOutputResponse.state:type_name -> runnir.core.v1.ExecutionState
+	9,  // 64: runnir.core.v1.GetLocalRunOutputResponse.phase:type_name -> runnir.core.v1.LocalRunPhase
+	77, // 65: runnir.core.v1.GetLocalRunOutputResponse.lines:type_name -> runnir.core.v1.LocalRunLine
+	76, // 66: runnir.core.v1.GetLocalRunOutputResponse.jobs:type_name -> runnir.core.v1.LocalRunJobStatus
+	71, // 67: runnir.core.v1.GetLocalRunOutputResponse.plan:type_name -> runnir.core.v1.LocalRunPlan
+	83, // 68: runnir.core.v1.GetLocalRunOutputResponse.started_at:type_name -> google.protobuf.Timestamp
+	83, // 69: runnir.core.v1.GetLocalRunOutputResponse.finished_at:type_name -> google.protobuf.Timestamp
+	11, // 70: runnir.core.v1.RunnirCore.HealthCheck:input_type -> runnir.core.v1.HealthCheckRequest
+	13, // 71: runnir.core.v1.RunnirCore.OpenRepository:input_type -> runnir.core.v1.OpenRepositoryRequest
+	14, // 72: runnir.core.v1.RunnirCore.CloseRepository:input_type -> runnir.core.v1.CloseRepositoryRequest
+	16, // 73: runnir.core.v1.RunnirCore.RefreshRepository:input_type -> runnir.core.v1.RefreshRepositoryRequest
+	19, // 74: runnir.core.v1.RunnirCore.ListWorkflows:input_type -> runnir.core.v1.ListWorkflowsRequest
+	32, // 75: runnir.core.v1.RunnirCore.ValidateWorkflows:input_type -> runnir.core.v1.ValidateWorkflowsRequest
+	23, // 76: runnir.core.v1.RunnirCore.StartWorkflow:input_type -> runnir.core.v1.StartWorkflowRequest
+	25, // 77: runnir.core.v1.RunnirCore.SubscribeEvents:input_type -> runnir.core.v1.SubscribeEventsRequest
+	27, // 78: runnir.core.v1.RunnirCore.SetGitHubCredential:input_type -> runnir.core.v1.SetGitHubCredentialRequest
+	29, // 79: runnir.core.v1.RunnirCore.ClearGitHubCredential:input_type -> runnir.core.v1.ClearGitHubCredentialRequest
+	38, // 80: runnir.core.v1.RunnirCore.ListGitHubWorkflows:input_type -> runnir.core.v1.ListGitHubWorkflowsRequest
+	36, // 81: runnir.core.v1.RunnirCore.GetGitHubRepository:input_type -> runnir.core.v1.GetGitHubRepositoryRequest
+	41, // 82: runnir.core.v1.RunnirCore.ListWorkflowRuns:input_type -> runnir.core.v1.ListWorkflowRunsRequest
+	44, // 83: runnir.core.v1.RunnirCore.ListRunJobs:input_type -> runnir.core.v1.ListRunJobsRequest
+	48, // 84: runnir.core.v1.RunnirCore.ListGitHubRefs:input_type -> runnir.core.v1.ListGitHubRefsRequest
+	51, // 85: runnir.core.v1.RunnirCore.DescribeWorkflowDispatch:input_type -> runnir.core.v1.DescribeWorkflowDispatchRequest
+	53, // 86: runnir.core.v1.RunnirCore.PrepareWorkflowDispatch:input_type -> runnir.core.v1.PrepareWorkflowDispatchRequest
+	55, // 87: runnir.core.v1.RunnirCore.ConfirmWorkflowDispatch:input_type -> runnir.core.v1.ConfirmWorkflowDispatchRequest
+	57, // 88: runnir.core.v1.RunnirCore.GetJobLog:input_type -> runnir.core.v1.GetJobLogRequest
+	60, // 89: runnir.core.v1.RunnirCore.PrepareRunAction:input_type -> runnir.core.v1.PrepareRunActionRequest
+	62, // 90: runnir.core.v1.RunnirCore.ConfirmRunAction:input_type -> runnir.core.v1.ConfirmRunActionRequest
+	67, // 91: runnir.core.v1.RunnirCore.GetToolReadiness:input_type -> runnir.core.v1.GetToolReadinessRequest
+	72, // 92: runnir.core.v1.RunnirCore.PrepareLocalRun:input_type -> runnir.core.v1.PrepareLocalRunRequest
+	74, // 93: runnir.core.v1.RunnirCore.ConfirmLocalRun:input_type -> runnir.core.v1.ConfirmLocalRunRequest
+	78, // 94: runnir.core.v1.RunnirCore.GetLocalRunOutput:input_type -> runnir.core.v1.GetLocalRunOutputRequest
+	80, // 95: runnir.core.v1.RunnirCore.CancelExecution:input_type -> runnir.core.v1.CancelExecutionRequest
+	12, // 96: runnir.core.v1.RunnirCore.HealthCheck:output_type -> runnir.core.v1.HealthCheckResponse
+	17, // 97: runnir.core.v1.RunnirCore.OpenRepository:output_type -> runnir.core.v1.RepositoryResponse
+	15, // 98: runnir.core.v1.RunnirCore.CloseRepository:output_type -> runnir.core.v1.CloseRepositoryResponse
+	17, // 99: runnir.core.v1.RunnirCore.RefreshRepository:output_type -> runnir.core.v1.RepositoryResponse
+	20, // 100: runnir.core.v1.RunnirCore.ListWorkflows:output_type -> runnir.core.v1.ListWorkflowsResponse
+	35, // 101: runnir.core.v1.RunnirCore.ValidateWorkflows:output_type -> runnir.core.v1.ValidateWorkflowsResponse
+	24, // 102: runnir.core.v1.RunnirCore.StartWorkflow:output_type -> runnir.core.v1.ExecutionResponse
+	26, // 103: runnir.core.v1.RunnirCore.SubscribeEvents:output_type -> runnir.core.v1.CoreEvent
+	28, // 104: runnir.core.v1.RunnirCore.SetGitHubCredential:output_type -> runnir.core.v1.SetGitHubCredentialResponse
+	30, // 105: runnir.core.v1.RunnirCore.ClearGitHubCredential:output_type -> runnir.core.v1.ClearGitHubCredentialResponse
+	39, // 106: runnir.core.v1.RunnirCore.ListGitHubWorkflows:output_type -> runnir.core.v1.ListGitHubWorkflowsResponse
+	37, // 107: runnir.core.v1.RunnirCore.GetGitHubRepository:output_type -> runnir.core.v1.GetGitHubRepositoryResponse
+	42, // 108: runnir.core.v1.RunnirCore.ListWorkflowRuns:output_type -> runnir.core.v1.ListWorkflowRunsResponse
+	45, // 109: runnir.core.v1.RunnirCore.ListRunJobs:output_type -> runnir.core.v1.ListRunJobsResponse
+	49, // 110: runnir.core.v1.RunnirCore.ListGitHubRefs:output_type -> runnir.core.v1.ListGitHubRefsResponse
+	52, // 111: runnir.core.v1.RunnirCore.DescribeWorkflowDispatch:output_type -> runnir.core.v1.DescribeWorkflowDispatchResponse
+	54, // 112: runnir.core.v1.RunnirCore.PrepareWorkflowDispatch:output_type -> runnir.core.v1.PrepareWorkflowDispatchResponse
+	56, // 113: runnir.core.v1.RunnirCore.ConfirmWorkflowDispatch:output_type -> runnir.core.v1.ConfirmWorkflowDispatchResponse
+	59, // 114: runnir.core.v1.RunnirCore.GetJobLog:output_type -> runnir.core.v1.GetJobLogResponse
+	61, // 115: runnir.core.v1.RunnirCore.PrepareRunAction:output_type -> runnir.core.v1.PrepareRunActionResponse
+	63, // 116: runnir.core.v1.RunnirCore.ConfirmRunAction:output_type -> runnir.core.v1.ConfirmRunActionResponse
+	68, // 117: runnir.core.v1.RunnirCore.GetToolReadiness:output_type -> runnir.core.v1.GetToolReadinessResponse
+	73, // 118: runnir.core.v1.RunnirCore.PrepareLocalRun:output_type -> runnir.core.v1.PrepareLocalRunResponse
+	75, // 119: runnir.core.v1.RunnirCore.ConfirmLocalRun:output_type -> runnir.core.v1.ConfirmLocalRunResponse
+	79, // 120: runnir.core.v1.RunnirCore.GetLocalRunOutput:output_type -> runnir.core.v1.GetLocalRunOutputResponse
+	81, // 121: runnir.core.v1.RunnirCore.CancelExecution:output_type -> runnir.core.v1.CancelExecutionResponse
+	96, // [96:122] is the sub-list for method output_type
+	70, // [70:96] is the sub-list for method input_type
+	70, // [70:70] is the sub-list for extension type_name
+	70, // [70:70] is the sub-list for extension extendee
+	0,  // [0:70] is the sub-list for field type_name
 }
 
 func init() { file_runnir_core_v1_runnir_core_proto_init() }
@@ -4242,8 +6078,8 @@ func file_runnir_core_v1_runnir_core_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_runnir_core_v1_runnir_core_proto_rawDesc), len(file_runnir_core_v1_runnir_core_proto_rawDesc)),
-			NumEnums:      7,
-			NumMessages:   54,
+			NumEnums:      11,
+			NumMessages:   72,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

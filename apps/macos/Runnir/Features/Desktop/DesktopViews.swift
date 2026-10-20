@@ -357,6 +357,25 @@ struct DesktopWorkspaceView: View {
                 .padding(20).frame(width: 420)
             }
         }
+        .sheet(item: Binding(get: { state.localRunRequest }, set: { state.localRunRequest = $0 })) { request in
+            if let session, let hub = desktop.core {
+                LocalRunSheet(model: LocalRunReviewModel(workspaceID: workspace.id, workflowID: request.workflowID,
+                                                         jobs: session.workflows.first { $0.id == request.workflowID }?.jobs ?? [],
+                                                         jobID: request.jobID, hub: hub),
+                              repositoryPath: session.path) { _ in
+                    state.selectedSection = .workspace
+                    state.workspaceTab = .localRun
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 16) {
+                    UnavailableFeature(title: "Runnir Core is not ready",
+                                       detail: "Local runs can be reviewed once the Core has opened this repository.", symbol: "hourglass")
+                    HStack { Spacer(); Button("Close") { state.localRunRequest = nil }.keyboardShortcut(.cancelAction) }
+                        .buttonStyle(DesignButtonStyle())
+                }
+                .padding(20).frame(width: 420)
+            }
+        }
         .sheet(isPresented: Binding(get: { state.showingSwitcher }, set: { state.showingSwitcher = $0 })) {
             WorkspaceSwitcherView(desktop: desktop, currentWorkspaceID: workspace.id, windowID: windowID)
         }
@@ -441,8 +460,7 @@ struct DesktopWorkspaceView: View {
                 Button(files.isValidating ? "Validating..." : "Validate") { validateWorkflows() }
                     .disabled(!canValidate || files.isValidating)
                     .help(canValidate ? "Check every workflow file with actionlint, offline" : "Validation runs in Runnir Core, which has not opened this repository yet")
-                Button {} label: { Label("Test Locally...", systemImage: "flask") }
-                    .buttonStyle(DesignButtonStyle(primary: true)).disabled(true).help("Local execution is not implemented")
+                localRunButtons
             } else {
                 Label(coreSummary, systemImage: "arrow.triangle.branch")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
@@ -464,6 +482,58 @@ struct DesktopWorkspaceView: View {
             ProjectLink().buttonStyle(.plain)
         }
         .buttonStyle(DesignButtonStyle()).padding(.horizontal, 20).frame(height: 52)
+    }
+
+    private var localRun: LocalRunModel? { session?.localRun }
+
+    @ViewBuilder private var localRunButtons: some View {
+        if state.workspaceTab == .localRun, let run = localRun {
+            if run.isFinished {
+                Button { state.localRunRequest = LocalRunRequest(workflowID: run.plan.workflowID, jobID: run.plan.jobID.isEmpty ? nil : run.plan.jobID) } label: {
+                    Label("Run Again...", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(DesignButtonStyle(primary: true)).disabled(!canValidate)
+                .help("Review and start this run again")
+            } else {
+                Button(role: .destructive) { if let hub = desktop.core { Task { await run.stop(hub: hub) } } } label: {
+                    Label(run.stopRequested ? "Stopping..." : "Stop", systemImage: "stop.fill")
+                }
+                .buttonStyle(DesignButtonStyle()).foregroundStyle(RunnirTheme.destructive).disabled(run.stopRequested)
+                .help("Stop act and remove this run's containers")
+            }
+        } else {
+            Button {
+                if let file = files.selected { state.localRunRequest = LocalRunRequest(workflowID: file.relativePath, jobID: nil) }
+            } label: { Label("Run Locally...", systemImage: "play") }
+                .buttonStyle(DesignButtonStyle(primary: true))
+                .disabled(!canValidate || files.selected == nil || localRun.map { !$0.isFinished } == true)
+                .help(runLocallyHelp)
+        }
+    }
+
+    private var runLocallyHelp: String {
+        if localRun.map({ !$0.isFinished }) == true { return "A local run of this workspace is in progress" }
+        if !canValidate { return "Local runs start in Runnir Core, which has not opened this repository yet" }
+        if files.selected == nil { return "Choose a workflow file first" }
+        return "Review tools, compatibility and access, then run this workflow with act"
+    }
+
+    /// Editor and Local run tabs of the Workspace section.
+    @ViewBuilder private var workspaceTabs: some View {
+        if let run = localRun {
+            HStack(spacing: 4) {
+                Button("Editor") { state.workspaceTab = .editor }.buttonStyle(WorkflowTabStyle(selected: state.workspaceTab == .editor))
+                Button { state.workspaceTab = .localRun } label: {
+                    HStack(spacing: 6) {
+                        LocalJobIcon(state: run.isFinished ? (run.state == .succeeded ? .succeeded : run.state == .cancelled ? .cancelled : .failed) : .running)
+                            .font(.system(size: 11))
+                        Text("Local run")
+                    }
+                }.buttonStyle(WorkflowTabStyle(selected: state.workspaceTab == .localRun))
+                Spacer()
+            }.padding(.horizontal, 16).frame(height: 36)
+            DesignDivider()
+        }
     }
 
     private var sidebar: some View {
@@ -533,11 +603,18 @@ struct DesktopWorkspaceView: View {
         case .dashboard, .repositories, .artifacts:
             overview
         case .workspace:
-            LocalWorkflowBrowser(model: files, canValidate: canValidate, validate: validateWorkflows)
-                .task(id: canValidate) {
-                    // The first visit checks the files; later ones keep the last report.
-                    if canValidate, files.validation == nil, files.validationError == nil { validateWorkflows() }
+            VStack(spacing: 0) {
+                workspaceTabs
+                if state.workspaceTab == .localRun, let run = localRun {
+                    LocalRunView(run: run)
+                } else {
+                    LocalWorkflowBrowser(model: files, canValidate: canValidate, validate: validateWorkflows)
+                        .task(id: canValidate) {
+                            // The first visit checks the files; later ones keep the last report.
+                            if canValidate, files.validation == nil, files.validationError == nil { validateWorkflows() }
+                        }
                 }
+            }
         case .workflows:
             if let session, let hub = desktop.core {
                 WorkspaceWorkflowsView(session: session, hub: hub, github: desktop.github, showRun: { run in
@@ -645,17 +722,17 @@ private struct LocalWorkflowBrowser: View {
                                 .frame(maxWidth: .infinity, minHeight: 130, alignment: .leading)
                         }
                         HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: "info.circle").foregroundStyle(RunnirTheme.secondaryForeground)
+                            Image(systemName: "shippingbox").foregroundStyle(RunnirTheme.secondaryForeground)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Local testing is not available yet").font(.system(size: 12, weight: .medium))
-                                Text("Docker, OrbStack and act integration is planned.").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                                Text("Run this workflow locally").font(.system(size: 12, weight: .medium))
+                                Text("Run Locally checks act and your container engine, shows what the run can access, and starts nothing until you confirm.")
+                                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
                             }
                             Spacer(minLength: 0)
                         }.padding(14).background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
                         VStack(alignment: .leading, spacing: 12) {
                             HStack(spacing: 22) {
                                 Text(diagnosticsTitle).foregroundStyle(RunnirTheme.foreground)
-                                Text("Local test").foregroundStyle(RunnirTheme.secondaryForeground)
                                 Text("Suggestions · later").foregroundStyle(RunnirTheme.mutedForeground)
                             }.font(.system(size: 13)).padding(.horizontal, 12)
                             DesignDivider()
@@ -827,7 +904,7 @@ struct DesignButtonStyle: ButtonStyle {
     }
 }
 
-private struct WorkflowTabStyle: ButtonStyle {
+struct WorkflowTabStyle: ButtonStyle {
     let selected: Bool
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.font(.system(size: 13)).padding(.horizontal, 11).frame(height: 26)

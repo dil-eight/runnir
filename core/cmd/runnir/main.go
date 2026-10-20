@@ -10,6 +10,8 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -77,7 +79,7 @@ func serve(args []string, input io.Reader, diagnostics io.Writer) int {
 		return 2
 	}
 	reader := bufio.NewReaderSize(input, 512)
-	options := server.Options{}
+	options := server.Options{BundledAct: bundledAct()}
 	if *secretOnStdin {
 		secret, err := readSecret(reader)
 		if err != nil {
@@ -92,6 +94,20 @@ func serve(args []string, input io.Reader, diagnostics io.Writer) int {
 		go func() { _, _ = io.Copy(io.Discard, reader); stop() }()
 	}
 	return finishServe(server.RunWithOptions(ctx, *socket, options), diagnostics)
+}
+
+// bundledAct is where the app ships act: next to the Core. The tool check
+// reports it missing when it is not there.
+func bundledAct() string {
+	executable, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	name := "act"
+	if runtime.GOOS == "windows" {
+		name = "act.exe"
+	}
+	return filepath.Join(filepath.Dir(executable), name)
 }
 
 // readSecret reads one line of 32 to 128 hex characters.

@@ -45,6 +45,8 @@ final class RepositorySession: Identifiable {
     fileprivate(set) var remoteWorkflows: [CoreGitHubWorkflow] = []
     fileprivate(set) var isLoadingGitHub = false
     fileprivate(set) var githubLoadedAt: Date?
+    /// The workspace's latest local run, shared by its windows.
+    fileprivate(set) var localRun: LocalRunModel?
     @ObservationIgnored fileprivate var githubPoll: Task<Void, Never>?
     /// A load was asked for while one was running; run another after it,
     /// because what the Core may read (the token) can have changed meanwhile.
@@ -399,6 +401,89 @@ final class CoreHub {
         } catch {
             return .failed(Self.describe(error))
         }
+    }
+
+    // MARK: Local runs
+
+    /// act, the Docker CLI and the container engine as the Core finds them;
+    /// nil when the Core is not ready.
+    func toolReadiness(refresh: Bool) async -> CoreToolReadiness? {
+        guard isReady, let service = try? await provider.service() else { return nil }
+        return try? await service.toolReadiness(refresh: refresh)
+    }
+
+    enum LocalRunPreparation: Equatable {
+        case prepared(CorePreparedLocalRun)
+        case failed(String)
+    }
+
+    /// Reviews a local run in the Core. Nothing starts.
+    func prepareLocalRun(workspaceID: UUID, workflowID: String, jobID: String?, event: String?,
+                         useInstalledAct: Bool) async -> LocalRunPreparation {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else {
+            return .failed("Runnir Core is not ready. Local runs are reviewed and started by the Core.")
+        }
+        do {
+            return .prepared(try await service.prepareLocalRun(repositoryID: coreID, workflowID: workflowID, jobID: jobID,
+                                                               event: event, useInstalledAct: useInstalledAct))
+        } catch CoreServiceError.notFound {
+            return .failed("This workflow or job is no longer in the working tree. Refresh and review again.")
+        } catch CoreServiceError.invalidArgument(let message), CoreServiceError.failedPrecondition(let message) {
+            return .failed(Self.sentence(message))
+        } catch {
+            return .failed(Self.describe(error))
+        }
+    }
+
+    enum LocalRunStart {
+        case started(LocalRunModel)
+        case failed(String)
+    }
+
+    /// Starts a reviewed run once and makes it the workspace's local run.
+    func startLocalRun(workspaceID: UUID, prepared: CorePreparedLocalRun) async -> LocalRunStart {
+        guard let confirmationID = prepared.confirmationID else { return .failed("This run can't start yet.") }
+        guard let (service, _) = await serviceAndCoreID(workspaceID) else {
+            return .failed("Runnir Core is not ready. Nothing was started.")
+        }
+        do {
+            let execution = try await service.confirmLocalRun(confirmationID: confirmationID)
+            guard let session = sessions[workspaceID] else { return .failed("The workspace was closed.") }
+            let model = LocalRunModel(executionID: execution.id, workspaceID: workspaceID, plan: prepared.plan)
+            session.localRun?.stopFollowing()
+            session.localRun = model
+            model.follow(hub: self)
+            return .started(model)
+        } catch CoreServiceError.failedPrecondition(let message) {
+            return .failed(Self.sentence(message))
+        } catch CoreServiceError.resourceExhausted {
+            return .failed("Runnir Core has too many runs waiting. Try again when one finishes.")
+        } catch {
+            return .failed(Self.describe(error))
+        }
+    }
+
+    func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput {
+        guard isReady, let service = try? await provider.service() else { throw CoreServiceError.unavailable }
+        return try await service.localRunOutput(executionID: executionID, after: after)
+    }
+
+    /// Asks the Core to stop a run; false when the request did not reach it.
+    func cancelExecution(executionID: String) async -> Bool {
+        guard isReady, let service = try? await provider.service() else { return false }
+        do {
+            try await service.cancelExecution(executionID: executionID)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// "the workflow file changed" -> "The workflow file changed."
+    nonisolated static func sentence(_ message: String) -> String {
+        guard let first = message.first else { return message }
+        let text = first.uppercased() + message.dropFirst()
+        return text.hasSuffix(".") ? text : text + "."
     }
 
     // MARK: Logs and run actions
