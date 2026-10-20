@@ -81,9 +81,7 @@ struct FileDispatchPresetStore: DispatchPresetStoring {
     }
 
     static func live() throws -> FileDispatchPresetStore {
-        let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                 appropriateFor: nil, create: false)
-        return FileDispatchPresetStore(directory: support.appendingPathComponent("Runnir", isDirectory: true))
+        FileDispatchPresetStore(directory: try RunnirSupportDirectory.url())
     }
 
     func load() throws -> [DispatchPreset] {

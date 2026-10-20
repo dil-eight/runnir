@@ -1,0 +1,158 @@
+import Foundation
+
+/// A workspace's favorite workflows, by path such as ".github/workflows/ci.yml"
+/// (the same for the working tree file and the workflow on GitHub), in the
+/// order they were starred.
+struct FavoriteWorkflows: Codable, Equatable, Sendable {
+    var workspaceID: UUID
+    var paths: [String]
+
+    static let maxPathLength = 512
+    static let perWorkspaceLimit = 100
+
+    var isValid: Bool {
+        paths.count <= Self.perWorkspaceLimit && Set(paths).count == paths.count
+            && paths.allSatisfy { $0.hasPrefix(".github/workflows/") && $0.count <= Self.maxPathLength }
+    }
+}
+
+protocol WorkflowFavoritesStoring: Sendable {
+    func load() throws -> [FavoriteWorkflows]
+    func save(_ favorites: [FavoriteWorkflows]) throws
+}
+
+/// favorite-workflows.json in the app's support directory: versioned,
+/// bounded, written atomically with mode 0600.
+struct FileWorkflowFavoritesStore: WorkflowFavoritesStoring {
+    let directory: URL
+    var fileURL: URL { directory.appendingPathComponent("favorite-workflows.json") }
+
+    static let maxWorkspaces = 500
+    static let maxFileBytes = 1024 * 1024
+
+    private struct Snapshot: Codable {
+        var version = 1
+        var workspaces: [FavoriteWorkflows]
+    }
+
+    static func live() throws -> FileWorkflowFavoritesStore {
+        FileWorkflowFavoritesStore(directory: try RunnirSupportDirectory.url())
+    }
+
+    func load() throws -> [FavoriteWorkflows] {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
+        let size = try fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        guard size <= Self.maxFileBytes else { throw DesktopStoreError.tooLarge }
+        let snapshot = try JSONDecoder().decode(Snapshot.self, from: Data(contentsOf: fileURL))
+        guard snapshot.version == 1, snapshot.workspaces.count <= Self.maxWorkspaces,
+              snapshot.workspaces.allSatisfy(\.isValid) else { throw DesktopStoreError.invalidState }
+        return snapshot.workspaces
+    }
+
+    func save(_ favorites: [FavoriteWorkflows]) throws {
+        guard favorites.count <= Self.maxWorkspaces, favorites.allSatisfy(\.isValid) else { throw DesktopStoreError.invalidState }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(Snapshot(workspaces: favorites))
+        guard data.count <= Self.maxFileBytes else { throw DesktopStoreError.tooLarge }
+        try AtomicFile.write(data, to: fileURL)
+    }
+}
+
+/// Favorite workflows of every workspace, read on first use. When the file
+/// cannot be read, favorites are off for the session and nothing overwrites it.
+@MainActor
+@Observable
+final class WorkflowFavorites {
+    nonisolated static var perWorkspaceLimit: Int { FavoriteWorkflows.perWorkspaceLimit }
+
+    private(set) var workspaces: [FavoriteWorkflows] = []
+    /// Why favorites are unavailable or the last change was not saved.
+    private(set) var problem: String?
+    @ObservationIgnored private let store: (any WorkflowFavoritesStoring)?
+    @ObservationIgnored private var loaded = false
+    @ObservationIgnored private var readable = true
+
+    init(store: (any WorkflowFavoritesStoring)?) {
+        self.store = store
+    }
+
+    var isAvailable: Bool {
+        loadIfNeeded()
+        return store != nil && readable
+    }
+
+    func paths(workspaceID: UUID) -> [String] {
+        loadIfNeeded()
+        return workspaces.first { $0.workspaceID == workspaceID }?.paths ?? []
+    }
+
+    func isFavorite(_ path: String, workspaceID: UUID) -> Bool {
+        paths(workspaceID: workspaceID).contains(path)
+    }
+
+    /// Favorites first, in the order they were starred, then the rest in
+    /// their own order.
+    func ordered<Item>(_ items: [Item], workspaceID: UUID, path: (Item) -> String) -> [Item] {
+        let favorites = paths(workspaceID: workspaceID)
+        let rank = Dictionary(uniqueKeysWithValues: favorites.enumerated().map { ($1, $0) })
+        let starred = items.filter { rank[path($0)] != nil }.sorted { rank[path($0)]! < rank[path($1)]! }
+        return starred + items.filter { rank[path($0)] == nil }
+    }
+
+    @discardableResult
+    func toggle(_ path: String, workspaceID: UUID) -> Bool {
+        loadIfNeeded()
+        var candidate = workspaces
+        if let index = candidate.firstIndex(where: { $0.workspaceID == workspaceID }) {
+            if let position = candidate[index].paths.firstIndex(of: path) {
+                candidate[index].paths.remove(at: position)
+                if candidate[index].paths.isEmpty { candidate.remove(at: index) }
+            } else {
+                guard candidate[index].paths.count < Self.perWorkspaceLimit else {
+                    problem = "A workspace can have at most \(Self.perWorkspaceLimit) favorite workflows."
+                    return false
+                }
+                candidate[index].paths.append(path)
+            }
+        } else {
+            candidate.append(FavoriteWorkflows(workspaceID: workspaceID, paths: [path]))
+        }
+        return commit(candidate)
+    }
+
+    func removeAll(workspaceID: UUID) {
+        loadIfNeeded()
+        guard workspaces.contains(where: { $0.workspaceID == workspaceID }) else { return }
+        commit(workspaces.filter { $0.workspaceID != workspaceID })
+    }
+
+    @discardableResult
+    private func commit(_ candidate: [FavoriteWorkflows]) -> Bool {
+        guard let store, readable else {
+            problem = problem ?? "Favorites are not available."
+            return false
+        }
+        do {
+            try store.save(candidate)
+            workspaces = candidate
+            problem = nil
+            return true
+        } catch {
+            problem = "The favorite could not be saved. Check available storage and try again."
+            return false
+        }
+    }
+
+    private func loadIfNeeded() {
+        guard !loaded else { return }
+        loaded = true
+        guard let store else { return }
+        do {
+            workspaces = try store.load()
+        } catch {
+            readable = false
+            problem = "Saved favorites could not be read, so favorites are off for now. The file was left as it is."
+        }
+    }
+}

@@ -50,11 +50,14 @@ final class DesktopCoordinator {
     let github: GitHubSession?
     /// Saved Run Workflow presets, kept on this Mac.
     let presets: DispatchPresetLibrary
+    /// Favorite workflows of each workspace, kept on this Mac.
+    let favorites: WorkflowFavorites
 
     init(store: (any DesktopStateStoring)? = nil,
          core: CoreHub? = nil,
          github: GitHubSession? = nil,
          presets: DispatchPresetLibrary = DispatchPresetLibrary(store: nil),
+         favorites: WorkflowFavorites = WorkflowFavorites(store: nil),
          makeGrant: @escaping (WorkspaceRecord) throws -> any RepositoryGranting = { try RepositoryGrant(record: $0) },
          makeWorkspaceWindow: @escaping (WorkspaceWindowRecord, WorkspaceRecord, (any RepositoryGranting)?, DesktopCoordinator) -> any WorkspaceWindowManaging = {
              WorkspaceWindowController(record: $0, workspace: $1, grant: $2, desktop: $3)
@@ -63,6 +66,7 @@ final class DesktopCoordinator {
         self.core = core
         self.github = github
         self.presets = presets
+        self.favorites = favorites
         self.makeGrant = makeGrant
         self.makeWorkspaceWindow = makeWorkspaceWindow
     }
@@ -329,6 +333,7 @@ final class DesktopCoordinator {
         do {
             try commit(candidate)
             presets.removeAll(workspaceID: workspace.id)
+            favorites.removeAll(workspaceID: workspace.id)
         }
         catch { message = "Registration could not be removed. Repository files were not changed." }
     }
@@ -609,7 +614,8 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
             openURL: { NSWorkspace.shared.open($0) }
         )
         desktop = DesktopCoordinator(core: hub, github: github,
-                                     presets: DispatchPresetLibrary(store: try? FileDispatchPresetStore.live()))
+                                     presets: DispatchPresetLibrary(store: try? FileDispatchPresetStore.live()),
+                                     favorites: WorkflowFavorites(store: try? FileWorkflowFavoritesStore.live()))
         super.init()
         // The Core holds the token only while the user is signed in.
         hub.githubTokenProvider = { [github] in await github.currentToken() }

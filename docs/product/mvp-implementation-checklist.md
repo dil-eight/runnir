@@ -26,6 +26,7 @@ What exists in code, with tests, against the backlog below. A row stays unaccept
 | B05 | Device Flow with the registered app; no secret; token only in Keychain and Core memory | Rate-limit scheduling review |
 | B06 | Restore, sign-out, revoked token, offline launch with retry; real sign-in confirmed by hand | Keychain denial on a signed build |
 | B07 | Workspace linked to its GitHub repository through `origin`; access check through the Core | Account-wide browsing and search (if kept in scope) |
+| B08 | Favorite workflows per workspace (star in Overview and Workflows; favorites first in tabs, lists and the editor's menu), kept on this Mac across restarts; Overview tabs show each workflow's latest GitHub run, the selected workflow's last run as a pipeline (columns from the jobs' needs, status and time per job, matrix jobs combined), recent runs, saved presets to run, a stale-data banner when GitHub cannot be reached, and isolated job-loading errors | Account-wide repository search and favorites (open UX decision); a real-GitHub check of the pipeline |
 | B09 | Branch and tag selection; typed inputs, defaults, required and choice validation in the Core; device-private presets per workspace and workflow (branch and values, survive restart, stale branch or inputs reported, inputs that look secret never saved) | Portable `.runnir` presets (B25); presets follow a renamed workflow file |
 | B10 | Single-use confirmation; send once, no retries; run located by polling | Controlled real dispatch |
 | B11 | Runs, jobs and steps, active and idle polling, rate-limit states | — |
@@ -35,7 +36,7 @@ What exists in code, with tests, against the backlog below. A row stays unaccept
 | B15 | Plan from the workflow file: supported, unsupported and unknown jobs, needs closure, events, images and whether present, secrets read, notes, limits, blockers; review screen with trust confirmation; single-use confirmation refused after a file change | Workflows with services and matrices on a real engine |
 | B16 | act with a fixed command line (no socket mount, no repository env/secret files or .actrc, bridge network, no cache server, labels and limits); live bounded output; job states; stop and timeout with process-group interrupt and kill; labelled-container cleanup; Core shutdown stops runs; quitting, closing the workspace's last window or switching it to another workspace asks first; verified end to end on OrbStack with small images | Run with the full runner images |
 
-Not started: B08, B18–B29 beyond the existing window and session foundation.
+Not started: B18–B29 beyond the existing window and session foundation.
 
 ## Prioritized Backlog
 

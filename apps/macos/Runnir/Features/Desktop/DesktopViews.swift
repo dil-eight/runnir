@@ -432,7 +432,7 @@ struct DesktopWorkspaceView: View {
             if let session, let hub = desktop.core {
                 RunWorkflowSheet(model: DispatchFormModel(workspaceID: workspace.id, hub: hub, workflows: session.remoteWorkflows,
                                                           workflowID: request.workflowID, currentBranch: session.branch,
-                                                          presets: desktop.presets)) { run in
+                                                          presets: desktop.presets, presetID: request.presetID)) { run in
                     state.selectedRunID = run.id
                     state.selectedSection = .runs
                 }
@@ -535,8 +535,9 @@ struct DesktopWorkspaceView: View {
     }
 
     private func menuTitle(_ file: LocalWorkflowFile) -> String {
-        guard let count = files.problemCount(for: file), count > 0 else { return file.name }
-        return "\(file.name)  ·  \(count) \(count == 1 ? "problem" : "problems")"
+        let name = desktop.favorites.isFavorite(file.relativePath, workspaceID: workspace.id) ? "★ \(file.name)" : file.name
+        guard let count = files.problemCount(for: file), count > 0 else { return name }
+        return "\(name)  ·  \(count) \(count == 1 ? "problem" : "problems")"
     }
 
     private var runWorkflowHelp: String {
@@ -581,7 +582,7 @@ struct DesktopWorkspaceView: View {
             Text(state.selectedSection.title).font(.system(size: 15, weight: .semibold))
             if state.selectedSection == .workspace {
                 Menu {
-                    ForEach(files.files) { file in
+                    ForEach(desktop.favorites.ordered(files.files, workspaceID: workspace.id, path: \.relativePath)) { file in
                         Button(menuTitle(file)) { open(file) }
                     }
                 } label: {
@@ -745,7 +746,21 @@ struct DesktopWorkspaceView: View {
     @ViewBuilder private var content: some View {
         switch state.selectedSection {
         case .dashboard, .repositories, .artifacts:
-            overview
+            WorkspaceOverview(workspaceID: workspace.id, session: session, hub: desktop.core, github: desktop.github, files: files,
+                              favorites: desktop.favorites, presets: desktop.presets,
+                              openRun: { run in
+                                  state.selectedRunID = run.id
+                                  state.selectedSection = .runs
+                              },
+                              openRuns: { state.selectedSection = .runs },
+                              openFile: { file in
+                                  state.selectedSection = .workspace
+                                  state.workspaceTab = .editor
+                                  open(file)
+                              },
+                              runWorkflow: { workflowID, presetID in
+                                  state.runWorkflowRequest = RunWorkflowRequest(workflowID: workflowID, presetID: presetID)
+                              })
         case .workspace:
             VStack(spacing: 0) {
                 workspaceTabs
@@ -763,7 +778,7 @@ struct DesktopWorkspaceView: View {
             }
         case .workflows:
             if let session, let hub = desktop.core {
-                WorkspaceWorkflowsView(session: session, hub: hub, github: desktop.github, showRun: { run in
+                WorkspaceWorkflowsView(session: session, hub: hub, github: desktop.github, favorites: desktop.favorites, showRun: { run in
                     state.selectedRunID = run.id
                     state.selectedSection = .runs
                 }, runWorkflow: { workflow in
@@ -788,65 +803,6 @@ struct DesktopWorkspaceView: View {
                            detail: "GitHub workflows and runs appear here once the Core has opened this repository.",
                            symbol: "hourglass")
             .padding(24).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    private var overview: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                VStack(alignment: .leading, spacing: 16) {
-                    ScrollView(.horizontal) {
-                        HStack(spacing: 4) {
-                            ForEach(files.files) { file in
-                                Button(file.name) { open(file) }
-                                    .buttonStyle(WorkflowTabStyle(selected: files.selected == file))
-                            }
-                        }
-                    }.scrollIndicators(.hidden)
-                    GitHubLinkCard(repository: session?.githubRepository, coreReady: session?.phase == .ready, github: desktop.github,
-                                   hub: desktop.core, workspaceID: workspace.id)
-                        .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
-                }
-                DesignDivider()
-                HStack(alignment: .top, spacing: 40) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        SectionLabel(title: "RECENT RUNS")
-                        DesignDivider()
-                        if let session, session.githubRepository != nil {
-                            RecentRunsList(session: session, github: desktop.github, hub: desktop.core) { run in
-                                state.selectedRunID = run.id
-                                state.selectedSection = .runs
-                            }
-                        } else {
-                            UnavailableFeature(title: "No runs available",
-                                               detail: "This working tree has no GitHub remote.",
-                                               symbol: "play.circle")
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                    VStack(alignment: .leading, spacing: 0) {
-                        SectionLabel(title: "LOCAL WORKFLOWS").padding(.bottom, 8)
-                        DesignDivider()
-                        ForEach(files.files) { file in
-                            Button {
-                                state.selectedSection = .workspace
-                                open(file)
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(file.name).font(.system(size: 13))
-                                        Text("Working tree").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.right").foregroundStyle(RunnirTheme.secondaryForeground)
-                                }.padding(.horizontal, 12).frame(height: 48).contentShape(Rectangle())
-                            }.buttonStyle(.plain)
-                            DesignDivider()
-                        }
-                        if files.files.isEmpty { Text("No workflow files").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(12) }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                }
-                if let error = files.error { Label(error, systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(RunnirTheme.warning) }
-            }.padding(.horizontal, 28).padding(.vertical, 24)
-        }
     }
 }
 
@@ -1109,7 +1065,7 @@ struct UnavailableFeature: View {
 /// remote) and whether Runnir can see it, with the step that fixes it when
 /// not. The Core reads the repository with the same token it uses for runs, so
 /// the card and the run lists agree.
-private struct GitHubLinkCard: View {
+struct GitHubLinkCard: View {
     let repository: String?
     let coreReady: Bool
     let github: GitHubSession?

@@ -11,6 +11,7 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 - Workflow editor in the Workspace section with line numbers, YAML colors and lines with diagnostics marked. Saving goes through the Go Core, which writes inside the repository only, replaces the file in one step, and refuses to overwrite a file that changed on disk since it was opened unless you choose Save Anyway. Runnir asks before unsaved edits would be lost, and checks the file again after saving.
 - GitHub sign-in with the Device Flow of the registered Runnir Desktop GitHub App: no client secret in the app, the token only in the Keychain and in the Core's memory, sign-out, and automatic retry after an offline launch. Confirmed with a real sign-in.
 - Workspaces linked to their GitHub repository through the `origin` remote, with an access check and a link to install the app on the repository.
+- An Overview per workspace: favorite workflows first (kept on this Mac), each workflow's latest GitHub run, the selected workflow's last run as a pipeline of its jobs, recent runs, and saved presets to run again. When GitHub cannot be reached, it shows the last data with its age.
 - Offline workflow validation with actionlint built into the Go Core: diagnostics for each workflow file in the Workspace section, with the line highlighted in the source. No external tools run, and the repository's `.github/actionlint.yaml` is honored.
 - GitHub Actions through the Go Core: workflows, recent runs (refreshed every 20 seconds while one is active, every 5 minutes otherwise), jobs and steps, job logs with search (bounded to the last 2 MiB), cancel and re-run, and `workflow_dispatch` with branch, typed inputs, saved presets and a confirmation. Changes go through a single-use confirmation and are never retried. Dispatch, logs, cancel and re-run are covered by tests with a fake GitHub, not yet by a controlled real run.
 - One supervised Go Core per app: local gRPC over a Unix socket with a per-launch client secret, a liveness check, a Restart Core banner, a diagnostics log, and shutdown on quit. Idle measurement on one machine: about 94 MB for the app plus Core with 10 open repositories (Debug build).
@@ -22,7 +23,7 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 
 ## Planned
 
-- v0.1: favorites and dashboard status; creating and renaming workflow files.
+- v0.1: creating and renaming workflow files.
 - v0.1: local runs with the full runner images verified on Docker Desktop and OrbStack; workflow_dispatch inputs and secrets for local runs.
 - v0.1: lifecycle hardening, signed folder-grant verification, per-workspace SQLite and cache-first sync, optional portable .runnir launches and environments.
 - Later: artifact inspection and reuse, optional AI/chat/MCP, cloud integrations and startup offers.

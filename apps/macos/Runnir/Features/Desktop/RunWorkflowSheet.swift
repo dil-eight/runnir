@@ -4,6 +4,8 @@ import SwiftUI
 struct RunWorkflowRequest: Identifiable, Equatable {
     let id = UUID()
     let workflowID: Int64?
+    /// A preset to apply once the workflow's definition is loaded.
+    var presetID: UUID? = nil
 }
 
 /// State of the Run Workflow sheet: choose workflow, ref and inputs, review
@@ -46,8 +48,11 @@ final class DispatchFormModel {
     /// The defaults of the loaded definition, to tell typed values apart.
     @ObservationIgnored private var loadedDefaults: [String: String] = [:]
 
+    @ObservationIgnored private let initialPresetID: UUID?
+
     init(workspaceID: UUID, hub: CoreHub, workflows: [CoreGitHubWorkflow], workflowID: Int64?, currentBranch: String,
-         presets: DispatchPresetLibrary? = nil) {
+         presets: DispatchPresetLibrary? = nil, presetID: UUID? = nil) {
+        self.initialPresetID = presetID
         self.workspaceID = workspaceID
         self.hub = hub
         self.presets = presets
@@ -68,6 +73,10 @@ final class DispatchFormModel {
             ref = refs.branches.contains(currentBranch) ? currentBranch : refs.defaultBranch
         }
         await loadDefinition()
+        if let initialPresetID, let preset = presets?.preset(id: initialPresetID),
+           preset.workflowPath == selectedWorkflow?.path {
+            apply(preset)
+        }
     }
 
     func select(workflowID: Int64) {
