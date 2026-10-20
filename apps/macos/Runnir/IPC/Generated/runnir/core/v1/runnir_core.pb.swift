@@ -415,6 +415,224 @@ nonisolated enum Runnir_Core_V1_RunAction: SwiftProtobuf.Enum, Swift.CaseIterabl
 
 }
 
+nonisolated enum Runnir_Core_V1_ToolState: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+
+  /// Present, answering and new enough.
+  case found // = 1
+
+  /// Not installed, or no engine is configured.
+  case missing // = 2
+
+  /// An engine is configured but does not answer.
+  case stopped // = 3
+
+  /// Too old, or an engine on another computer.
+  case unsupported // = 4
+
+  /// The check could not finish.
+  case failed // = 5
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .found
+    case 2: self = .missing
+    case 3: self = .stopped
+    case 4: self = .unsupported
+    case 5: self = .failed
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .found: return 1
+    case .missing: return 2
+    case .stopped: return 3
+    case .unsupported: return 4
+    case .failed: return 5
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_ToolState] = [
+    .unspecified,
+    .found,
+    .missing,
+    .stopped,
+    .unsupported,
+    .failed,
+  ]
+
+}
+
+nonisolated enum Runnir_Core_V1_LocalJobSupport: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+  case supported // = 1
+
+  /// act skips the job or it cannot work locally, for example a macOS runner.
+  case unsupported // = 2
+
+  /// act decides when the job starts, for example runs-on set by an expression.
+  case unknown // = 3
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .supported
+    case 2: self = .unsupported
+    case 3: self = .unknown
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .supported: return 1
+    case .unsupported: return 2
+    case .unknown: return 3
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_LocalJobSupport] = [
+    .unspecified,
+    .supported,
+    .unsupported,
+    .unknown,
+  ]
+
+}
+
+nonisolated enum Runnir_Core_V1_LocalRunPhase: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+  case queued // = 1
+  case running // = 2
+  case stopping // = 3
+  case cleaningUp // = 4
+  case finished // = 5
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .queued
+    case 2: self = .running
+    case 3: self = .stopping
+    case 4: self = .cleaningUp
+    case 5: self = .finished
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .queued: return 1
+    case .running: return 2
+    case .stopping: return 3
+    case .cleaningUp: return 4
+    case .finished: return 5
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_LocalRunPhase] = [
+    .unspecified,
+    .queued,
+    .running,
+    .stopping,
+    .cleaningUp,
+    .finished,
+  ]
+
+}
+
+nonisolated enum Runnir_Core_V1_LocalJobState: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+  case waiting // = 1
+  case running // = 2
+  case succeeded // = 3
+  case failed // = 4
+  case skipped // = 5
+  case unsupported // = 6
+  case cancelled // = 7
+  case notRun // = 8
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .waiting
+    case 2: self = .running
+    case 3: self = .succeeded
+    case 4: self = .failed
+    case 5: self = .skipped
+    case 6: self = .unsupported
+    case 7: self = .cancelled
+    case 8: self = .notRun
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .waiting: return 1
+    case .running: return 2
+    case .succeeded: return 3
+    case .failed: return 4
+    case .skipped: return 5
+    case .unsupported: return 6
+    case .cancelled: return 7
+    case .notRun: return 8
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_LocalJobState] = [
+    .unspecified,
+    .waiting,
+    .running,
+    .succeeded,
+    .failed,
+    .skipped,
+    .unsupported,
+    .cancelled,
+    .notRun,
+  ]
+
+}
+
 nonisolated struct Runnir_Core_V1_HealthCheckRequest: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -1587,6 +1805,571 @@ nonisolated struct Runnir_Core_V1_ConfirmRunActionResponse: Sendable {
   fileprivate var _acceptedAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
 }
 
+nonisolated struct Runnir_Core_V1_ToolStatus: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var state: Runnir_Core_V1_ToolState = .unspecified
+
+  var version: String = String()
+
+  /// The executable that was checked.
+  var path: String = String()
+
+  var detail: String = String()
+
+  /// Newer than the version local runs were verified with.
+  var untested: Bool = false
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_ContainerEngine: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var state: Runnir_Core_V1_ToolState = .unspecified
+
+  /// OrbStack, Docker Desktop, Colima, Rancher Desktop, Podman or Docker Engine.
+  var name: String = String()
+
+  /// The current Docker context; Runnir never switches it.
+  var context: String = String()
+
+  /// The context's Docker host, without user information.
+  var endpoint: String = String()
+
+  var local: Bool = false
+
+  var version: String = String()
+
+  var apiVersion: String = String()
+
+  var architecture: String = String()
+
+  var cpus: UInt32 = 0
+
+  var memoryBytes: UInt64 = 0
+
+  var detail: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_ToolReadiness: @unchecked Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var bundledAct: Runnir_Core_V1_ToolStatus {
+    get {_storage._bundledAct ?? Runnir_Core_V1_ToolStatus()}
+    set {_uniqueStorage()._bundledAct = newValue}
+  }
+  /// Returns true if `bundledAct` has been explicitly set.
+  var hasBundledAct: Bool {_storage._bundledAct != nil}
+  /// Clears the value of `bundledAct`. Subsequent reads from it will return its default value.
+  mutating func clearBundledAct() {_uniqueStorage()._bundledAct = nil}
+
+  var installedAct: Runnir_Core_V1_ToolStatus {
+    get {_storage._installedAct ?? Runnir_Core_V1_ToolStatus()}
+    set {_uniqueStorage()._installedAct = newValue}
+  }
+  /// Returns true if `installedAct` has been explicitly set.
+  var hasInstalledAct: Bool {_storage._installedAct != nil}
+  /// Clears the value of `installedAct`. Subsequent reads from it will return its default value.
+  mutating func clearInstalledAct() {_uniqueStorage()._installedAct = nil}
+
+  var dockerCli: Runnir_Core_V1_ToolStatus {
+    get {_storage._dockerCli ?? Runnir_Core_V1_ToolStatus()}
+    set {_uniqueStorage()._dockerCli = newValue}
+  }
+  /// Returns true if `dockerCli` has been explicitly set.
+  var hasDockerCli: Bool {_storage._dockerCli != nil}
+  /// Clears the value of `dockerCli`. Subsequent reads from it will return its default value.
+  mutating func clearDockerCli() {_uniqueStorage()._dockerCli = nil}
+
+  var engine: Runnir_Core_V1_ContainerEngine {
+    get {_storage._engine ?? Runnir_Core_V1_ContainerEngine()}
+    set {_uniqueStorage()._engine = newValue}
+  }
+  /// Returns true if `engine` has been explicitly set.
+  var hasEngine: Bool {_storage._engine != nil}
+  /// Clears the value of `engine`. Subsequent reads from it will return its default value.
+  mutating func clearEngine() {_uniqueStorage()._engine = nil}
+
+  var checkedAt: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {_storage._checkedAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_uniqueStorage()._checkedAt = newValue}
+  }
+  /// Returns true if `checkedAt` has been explicitly set.
+  var hasCheckedAt: Bool {_storage._checkedAt != nil}
+  /// Clears the value of `checkedAt`. Subsequent reads from it will return its default value.
+  mutating func clearCheckedAt() {_uniqueStorage()._checkedAt = nil}
+
+  /// The act version Runnir bundles and verified local runs with.
+  var testedActVersion: String {
+    get {_storage._testedActVersion}
+    set {_uniqueStorage()._testedActVersion = newValue}
+  }
+
+  var minimumActVersion: String {
+    get {_storage._minimumActVersion}
+    set {_uniqueStorage()._minimumActVersion = newValue}
+  }
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _storage = _StorageClass.defaultInstance
+}
+
+nonisolated struct Runnir_Core_V1_GetToolReadinessRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var refresh: Bool = false
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_GetToolReadinessResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var readiness: Runnir_Core_V1_ToolReadiness {
+    get {_readiness ?? Runnir_Core_V1_ToolReadiness()}
+    set {_readiness = newValue}
+  }
+  /// Returns true if `readiness` has been explicitly set.
+  var hasReadiness: Bool {self._readiness != nil}
+  /// Clears the value of `readiness`. Subsequent reads from it will return its default value.
+  mutating func clearReadiness() {self._readiness = nil}
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _readiness: Runnir_Core_V1_ToolReadiness? = nil
+}
+
+nonisolated struct Runnir_Core_V1_LocalRunJob: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var id: String = String()
+
+  var name: String = String()
+
+  var runsOn: [String] = []
+
+  /// The image the job runs in.
+  var image: String = String()
+
+  var support: Runnir_Core_V1_LocalJobSupport = .unspecified
+
+  var reason: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_LocalRunImage: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var reference: String = String()
+
+  /// Already in the engine; otherwise act downloads it.
+  var present: Bool = false
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// Path relative to the repository root, as in Workflow.id.
+  var workflowID: String {
+    get {_storage._workflowID}
+    set {_uniqueStorage()._workflowID = newValue}
+  }
+
+  var workflowName: String {
+    get {_storage._workflowName}
+    set {_uniqueStorage()._workflowName = newValue}
+  }
+
+  /// The workflow's triggers; `event` is the one the run uses.
+  var events: [String] {
+    get {_storage._events}
+    set {_uniqueStorage()._events = newValue}
+  }
+
+  var event: String {
+    get {_storage._event}
+    set {_uniqueStorage()._event = newValue}
+  }
+
+  /// The chosen job, empty for every job; a chosen job brings the jobs it needs.
+  var jobID: String {
+    get {_storage._jobID}
+    set {_uniqueStorage()._jobID = newValue}
+  }
+
+  var jobs: [Runnir_Core_V1_LocalRunJob] {
+    get {_storage._jobs}
+    set {_uniqueStorage()._jobs = newValue}
+  }
+
+  var images: [Runnir_Core_V1_LocalRunImage] {
+    get {_storage._images}
+    set {_uniqueStorage()._images = newValue}
+  }
+
+  /// Secrets the workflow reads. Local runs get none.
+  var secrets: [String] {
+    get {_storage._secrets}
+    set {_uniqueStorage()._secrets = newValue}
+  }
+
+  /// Differences from a GitHub run worth knowing before starting.
+  var notes: [String] {
+    get {_storage._notes}
+    set {_uniqueStorage()._notes = newValue}
+  }
+
+  /// Why the run cannot start now. A plan with blockers has no confirmation.
+  var blockers: [String] {
+    get {_storage._blockers}
+    set {_uniqueStorage()._blockers = newValue}
+  }
+
+  var cpus: UInt32 {
+    get {_storage._cpus}
+    set {_uniqueStorage()._cpus = newValue}
+  }
+
+  var memoryBytes: UInt64 {
+    get {_storage._memoryBytes}
+    set {_uniqueStorage()._memoryBytes = newValue}
+  }
+
+  var timeoutSeconds: UInt32 {
+    get {_storage._timeoutSeconds}
+    set {_uniqueStorage()._timeoutSeconds = newValue}
+  }
+
+  /// The act that runs it.
+  var actVersion: String {
+    get {_storage._actVersion}
+    set {_uniqueStorage()._actVersion = newValue}
+  }
+
+  var installedAct: Bool {
+    get {_storage._installedAct}
+    set {_uniqueStorage()._installedAct = newValue}
+  }
+
+  var engineName: String {
+    get {_storage._engineName}
+    set {_uniqueStorage()._engineName = newValue}
+  }
+
+  var engineContext: String {
+    get {_storage._engineContext}
+    set {_uniqueStorage()._engineContext = newValue}
+  }
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _storage = _StorageClass.defaultInstance
+}
+
+nonisolated struct Runnir_Core_V1_PrepareLocalRunRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var repositoryID: String = String()
+
+  var workflowID: String = String()
+
+  /// Empty runs every job of the workflow.
+  var jobID: String = String()
+
+  /// One of the workflow's triggers; empty picks push, pull_request or
+  /// workflow_dispatch, in that order.
+  var event: String = String()
+
+  /// Experimental: run with the act installed on this computer when one is
+  /// usable, instead of the bundled act.
+  var useInstalledAct: Bool = false
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_PrepareLocalRunResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var readiness: Runnir_Core_V1_ToolReadiness {
+    get {_readiness ?? Runnir_Core_V1_ToolReadiness()}
+    set {_readiness = newValue}
+  }
+  /// Returns true if `readiness` has been explicitly set.
+  var hasReadiness: Bool {self._readiness != nil}
+  /// Clears the value of `readiness`. Subsequent reads from it will return its default value.
+  mutating func clearReadiness() {self._readiness = nil}
+
+  var plan: Runnir_Core_V1_LocalRunPlan {
+    get {_plan ?? Runnir_Core_V1_LocalRunPlan()}
+    set {_plan = newValue}
+  }
+  /// Returns true if `plan` has been explicitly set.
+  var hasPlan: Bool {self._plan != nil}
+  /// Clears the value of `plan`. Subsequent reads from it will return its default value.
+  mutating func clearPlan() {self._plan = nil}
+
+  /// Empty when the plan has blockers.
+  var confirmationID: String = String()
+
+  var expiresAt: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {_expiresAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_expiresAt = newValue}
+  }
+  /// Returns true if `expiresAt` has been explicitly set.
+  var hasExpiresAt: Bool {self._expiresAt != nil}
+  /// Clears the value of `expiresAt`. Subsequent reads from it will return its default value.
+  mutating func clearExpiresAt() {self._expiresAt = nil}
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _readiness: Runnir_Core_V1_ToolReadiness? = nil
+  fileprivate var _plan: Runnir_Core_V1_LocalRunPlan? = nil
+  fileprivate var _expiresAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+}
+
+nonisolated struct Runnir_Core_V1_ConfirmLocalRunRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var confirmationID: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_ConfirmLocalRunResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var execution: Runnir_Core_V1_ExecutionResponse {
+    get {_execution ?? Runnir_Core_V1_ExecutionResponse()}
+    set {_execution = newValue}
+  }
+  /// Returns true if `execution` has been explicitly set.
+  var hasExecution: Bool {self._execution != nil}
+  /// Clears the value of `execution`. Subsequent reads from it will return its default value.
+  mutating func clearExecution() {self._execution = nil}
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _execution: Runnir_Core_V1_ExecutionResponse? = nil
+}
+
+nonisolated struct Runnir_Core_V1_LocalRunJobStatus: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var id: String = String()
+
+  var name: String = String()
+
+  var state: Runnir_Core_V1_LocalJobState = .unspecified
+
+  var reason: String = String()
+
+  var startedAt: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {_startedAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_startedAt = newValue}
+  }
+  /// Returns true if `startedAt` has been explicitly set.
+  var hasStartedAt: Bool {self._startedAt != nil}
+  /// Clears the value of `startedAt`. Subsequent reads from it will return its default value.
+  mutating func clearStartedAt() {self._startedAt = nil}
+
+  var finishedAt: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {_finishedAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_finishedAt = newValue}
+  }
+  /// Returns true if `finishedAt` has been explicitly set.
+  var hasFinishedAt: Bool {self._finishedAt != nil}
+  /// Clears the value of `finishedAt`. Subsequent reads from it will return its default value.
+  mutating func clearFinishedAt() {self._finishedAt = nil}
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _startedAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+  fileprivate var _finishedAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+}
+
+nonisolated struct Runnir_Core_V1_LocalRunLine: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var sequence: UInt64 = 0
+
+  /// Empty for act's own messages.
+  var jobID: String = String()
+
+  var text: String = String()
+
+  var error: Bool = false
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_GetLocalRunOutputRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var executionID: String = String()
+
+  /// Lines after this sequence number; 0 for all that are kept.
+  var afterSequence: UInt64 = 0
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_GetLocalRunOutputResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var executionID: String = String()
+
+  var repositoryID: String = String()
+
+  var state: Runnir_Core_V1_ExecutionState = .unspecified
+
+  var phase: Runnir_Core_V1_LocalRunPhase = .unspecified
+
+  var lines: [Runnir_Core_V1_LocalRunLine] = []
+
+  /// Lines after `after_sequence` were dropped to stay within the bound.
+  var discarded: Bool = false
+
+  /// The highest sequence number so far.
+  var lastSequence: UInt64 = 0
+
+  var jobs: [Runnir_Core_V1_LocalRunJobStatus] = []
+
+  var plan: Runnir_Core_V1_LocalRunPlan {
+    get {_plan ?? Runnir_Core_V1_LocalRunPlan()}
+    set {_plan = newValue}
+  }
+  /// Returns true if `plan` has been explicitly set.
+  var hasPlan: Bool {self._plan != nil}
+  /// Clears the value of `plan`. Subsequent reads from it will return its default value.
+  mutating func clearPlan() {self._plan = nil}
+
+  var startedAt: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {_startedAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_startedAt = newValue}
+  }
+  /// Returns true if `startedAt` has been explicitly set.
+  var hasStartedAt: Bool {self._startedAt != nil}
+  /// Clears the value of `startedAt`. Subsequent reads from it will return its default value.
+  mutating func clearStartedAt() {self._startedAt = nil}
+
+  var finishedAt: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {_finishedAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_finishedAt = newValue}
+  }
+  /// Returns true if `finishedAt` has been explicitly set.
+  var hasFinishedAt: Bool {self._finishedAt != nil}
+  /// Clears the value of `finishedAt`. Subsequent reads from it will return its default value.
+  mutating func clearFinishedAt() {self._finishedAt = nil}
+
+  /// act's exit code; -1 until it exits, or when it was killed.
+  var exitCode: Int32 = 0
+
+  /// Why the run failed, when it did.
+  var message: String = String()
+
+  /// Set when containers of this run may still exist.
+  var cleanupProblem: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _plan: Runnir_Core_V1_LocalRunPlan? = nil
+  fileprivate var _startedAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+  fileprivate var _finishedAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+}
+
+nonisolated struct Runnir_Core_V1_CancelExecutionRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var executionID: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_CancelExecutionResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
 fileprivate nonisolated let _protobuf_package = "runnir.core.v1"
@@ -1617,6 +2400,22 @@ nonisolated extension Runnir_Core_V1_LogLineKind: SwiftProtobuf._ProtoNameProvid
 
 nonisolated extension Runnir_Core_V1_RunAction: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0RUN_ACTION_UNSPECIFIED\0\u{1}RUN_ACTION_CANCEL\0\u{1}RUN_ACTION_RERUN\0\u{1}RUN_ACTION_RERUN_FAILED\0")
+}
+
+nonisolated extension Runnir_Core_V1_ToolState: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0TOOL_STATE_UNSPECIFIED\0\u{1}TOOL_STATE_FOUND\0\u{1}TOOL_STATE_MISSING\0\u{1}TOOL_STATE_STOPPED\0\u{1}TOOL_STATE_UNSUPPORTED\0\u{1}TOOL_STATE_FAILED\0")
+}
+
+nonisolated extension Runnir_Core_V1_LocalJobSupport: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0LOCAL_JOB_SUPPORT_UNSPECIFIED\0\u{1}LOCAL_JOB_SUPPORT_SUPPORTED\0\u{1}LOCAL_JOB_SUPPORT_UNSUPPORTED\0\u{1}LOCAL_JOB_SUPPORT_UNKNOWN\0")
+}
+
+nonisolated extension Runnir_Core_V1_LocalRunPhase: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0LOCAL_RUN_PHASE_UNSPECIFIED\0\u{1}LOCAL_RUN_PHASE_QUEUED\0\u{1}LOCAL_RUN_PHASE_RUNNING\0\u{1}LOCAL_RUN_PHASE_STOPPING\0\u{1}LOCAL_RUN_PHASE_CLEANING_UP\0\u{1}LOCAL_RUN_PHASE_FINISHED\0")
+}
+
+nonisolated extension Runnir_Core_V1_LocalJobState: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0LOCAL_JOB_STATE_UNSPECIFIED\0\u{1}LOCAL_JOB_STATE_WAITING\0\u{1}LOCAL_JOB_STATE_RUNNING\0\u{1}LOCAL_JOB_STATE_SUCCEEDED\0\u{1}LOCAL_JOB_STATE_FAILED\0\u{1}LOCAL_JOB_STATE_SKIPPED\0\u{1}LOCAL_JOB_STATE_UNSUPPORTED\0\u{1}LOCAL_JOB_STATE_CANCELLED\0\u{1}LOCAL_JOB_STATE_NOT_RUN\0")
 }
 
 nonisolated extension Runnir_Core_V1_HealthCheckRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
@@ -3860,6 +4659,1030 @@ nonisolated extension Runnir_Core_V1_ConfirmRunActionResponse: SwiftProtobuf.Mes
     if lhs._status != rhs._status {return false}
     if lhs._acceptedAt != rhs._acceptedAt {return false}
     if lhs.rejection != rhs.rejection {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ToolStatus: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ToolStatus"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}state\0\u{1}version\0\u{1}path\0\u{1}detail\0\u{1}untested\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.state) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.version) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.path) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.detail) }()
+      case 5: try { try decoder.decodeSingularBoolField(value: &self.untested) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.state != .unspecified {
+      try visitor.visitSingularEnumField(value: self.state, fieldNumber: 1)
+    }
+    if !self.version.isEmpty {
+      try visitor.visitSingularStringField(value: self.version, fieldNumber: 2)
+    }
+    if !self.path.isEmpty {
+      try visitor.visitSingularStringField(value: self.path, fieldNumber: 3)
+    }
+    if !self.detail.isEmpty {
+      try visitor.visitSingularStringField(value: self.detail, fieldNumber: 4)
+    }
+    if self.untested != false {
+      try visitor.visitSingularBoolField(value: self.untested, fieldNumber: 5)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ToolStatus, rhs: Runnir_Core_V1_ToolStatus) -> Bool {
+    if lhs.state != rhs.state {return false}
+    if lhs.version != rhs.version {return false}
+    if lhs.path != rhs.path {return false}
+    if lhs.detail != rhs.detail {return false}
+    if lhs.untested != rhs.untested {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ContainerEngine: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ContainerEngine"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}state\0\u{1}name\0\u{1}context\0\u{1}endpoint\0\u{1}local\0\u{1}version\0\u{3}api_version\0\u{1}architecture\0\u{1}cpus\0\u{3}memory_bytes\0\u{1}detail\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.state) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.context) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.endpoint) }()
+      case 5: try { try decoder.decodeSingularBoolField(value: &self.local) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.version) }()
+      case 7: try { try decoder.decodeSingularStringField(value: &self.apiVersion) }()
+      case 8: try { try decoder.decodeSingularStringField(value: &self.architecture) }()
+      case 9: try { try decoder.decodeSingularUInt32Field(value: &self.cpus) }()
+      case 10: try { try decoder.decodeSingularUInt64Field(value: &self.memoryBytes) }()
+      case 11: try { try decoder.decodeSingularStringField(value: &self.detail) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.state != .unspecified {
+      try visitor.visitSingularEnumField(value: self.state, fieldNumber: 1)
+    }
+    if !self.name.isEmpty {
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 2)
+    }
+    if !self.context.isEmpty {
+      try visitor.visitSingularStringField(value: self.context, fieldNumber: 3)
+    }
+    if !self.endpoint.isEmpty {
+      try visitor.visitSingularStringField(value: self.endpoint, fieldNumber: 4)
+    }
+    if self.local != false {
+      try visitor.visitSingularBoolField(value: self.local, fieldNumber: 5)
+    }
+    if !self.version.isEmpty {
+      try visitor.visitSingularStringField(value: self.version, fieldNumber: 6)
+    }
+    if !self.apiVersion.isEmpty {
+      try visitor.visitSingularStringField(value: self.apiVersion, fieldNumber: 7)
+    }
+    if !self.architecture.isEmpty {
+      try visitor.visitSingularStringField(value: self.architecture, fieldNumber: 8)
+    }
+    if self.cpus != 0 {
+      try visitor.visitSingularUInt32Field(value: self.cpus, fieldNumber: 9)
+    }
+    if self.memoryBytes != 0 {
+      try visitor.visitSingularUInt64Field(value: self.memoryBytes, fieldNumber: 10)
+    }
+    if !self.detail.isEmpty {
+      try visitor.visitSingularStringField(value: self.detail, fieldNumber: 11)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ContainerEngine, rhs: Runnir_Core_V1_ContainerEngine) -> Bool {
+    if lhs.state != rhs.state {return false}
+    if lhs.name != rhs.name {return false}
+    if lhs.context != rhs.context {return false}
+    if lhs.endpoint != rhs.endpoint {return false}
+    if lhs.local != rhs.local {return false}
+    if lhs.version != rhs.version {return false}
+    if lhs.apiVersion != rhs.apiVersion {return false}
+    if lhs.architecture != rhs.architecture {return false}
+    if lhs.cpus != rhs.cpus {return false}
+    if lhs.memoryBytes != rhs.memoryBytes {return false}
+    if lhs.detail != rhs.detail {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ToolReadiness: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ToolReadiness"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}bundled_act\0\u{3}installed_act\0\u{3}docker_cli\0\u{1}engine\0\u{3}checked_at\0\u{3}tested_act_version\0\u{3}minimum_act_version\0")
+
+  fileprivate class _StorageClass {
+    var _bundledAct: Runnir_Core_V1_ToolStatus? = nil
+    var _installedAct: Runnir_Core_V1_ToolStatus? = nil
+    var _dockerCli: Runnir_Core_V1_ToolStatus? = nil
+    var _engine: Runnir_Core_V1_ContainerEngine? = nil
+    var _checkedAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+    var _testedActVersion: String = String()
+    var _minimumActVersion: String = String()
+
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _bundledAct = source._bundledAct
+      _installedAct = source._installedAct
+      _dockerCli = source._dockerCli
+      _engine = source._engine
+      _checkedAt = source._checkedAt
+      _testedActVersion = source._testedActVersion
+      _minimumActVersion = source._minimumActVersion
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularMessageField(value: &_storage._bundledAct) }()
+        case 2: try { try decoder.decodeSingularMessageField(value: &_storage._installedAct) }()
+        case 3: try { try decoder.decodeSingularMessageField(value: &_storage._dockerCli) }()
+        case 4: try { try decoder.decodeSingularMessageField(value: &_storage._engine) }()
+        case 5: try { try decoder.decodeSingularMessageField(value: &_storage._checkedAt) }()
+        case 6: try { try decoder.decodeSingularStringField(value: &_storage._testedActVersion) }()
+        case 7: try { try decoder.decodeSingularStringField(value: &_storage._minimumActVersion) }()
+        default: break
+        }
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every if/case branch local when no optimizations
+      // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+      // https://github.com/apple/swift-protobuf/issues/1182
+      try { if let v = _storage._bundledAct {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+      } }()
+      try { if let v = _storage._installedAct {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+      } }()
+      try { if let v = _storage._dockerCli {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
+      } }()
+      try { if let v = _storage._engine {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 4)
+      } }()
+      try { if let v = _storage._checkedAt {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
+      } }()
+      if !_storage._testedActVersion.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._testedActVersion, fieldNumber: 6)
+      }
+      if !_storage._minimumActVersion.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._minimumActVersion, fieldNumber: 7)
+      }
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ToolReadiness, rhs: Runnir_Core_V1_ToolReadiness) -> Bool {
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._bundledAct != rhs_storage._bundledAct {return false}
+        if _storage._installedAct != rhs_storage._installedAct {return false}
+        if _storage._dockerCli != rhs_storage._dockerCli {return false}
+        if _storage._engine != rhs_storage._engine {return false}
+        if _storage._checkedAt != rhs_storage._checkedAt {return false}
+        if _storage._testedActVersion != rhs_storage._testedActVersion {return false}
+        if _storage._minimumActVersion != rhs_storage._minimumActVersion {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_GetToolReadinessRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".GetToolReadinessRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}refresh\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularBoolField(value: &self.refresh) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.refresh != false {
+      try visitor.visitSingularBoolField(value: self.refresh, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_GetToolReadinessRequest, rhs: Runnir_Core_V1_GetToolReadinessRequest) -> Bool {
+    if lhs.refresh != rhs.refresh {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_GetToolReadinessResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".GetToolReadinessResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}readiness\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularMessageField(value: &self._readiness) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    try { if let v = self._readiness {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_GetToolReadinessResponse, rhs: Runnir_Core_V1_GetToolReadinessResponse) -> Bool {
+    if lhs._readiness != rhs._readiness {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_LocalRunJob: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".LocalRunJob"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{3}runs_on\0\u{1}image\0\u{1}support\0\u{1}reason\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 3: try { try decoder.decodeRepeatedStringField(value: &self.runsOn) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.image) }()
+      case 5: try { try decoder.decodeSingularEnumField(value: &self.support) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.reason) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.id.isEmpty {
+      try visitor.visitSingularStringField(value: self.id, fieldNumber: 1)
+    }
+    if !self.name.isEmpty {
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 2)
+    }
+    if !self.runsOn.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.runsOn, fieldNumber: 3)
+    }
+    if !self.image.isEmpty {
+      try visitor.visitSingularStringField(value: self.image, fieldNumber: 4)
+    }
+    if self.support != .unspecified {
+      try visitor.visitSingularEnumField(value: self.support, fieldNumber: 5)
+    }
+    if !self.reason.isEmpty {
+      try visitor.visitSingularStringField(value: self.reason, fieldNumber: 6)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_LocalRunJob, rhs: Runnir_Core_V1_LocalRunJob) -> Bool {
+    if lhs.id != rhs.id {return false}
+    if lhs.name != rhs.name {return false}
+    if lhs.runsOn != rhs.runsOn {return false}
+    if lhs.image != rhs.image {return false}
+    if lhs.support != rhs.support {return false}
+    if lhs.reason != rhs.reason {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_LocalRunImage: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".LocalRunImage"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}reference\0\u{1}present\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.reference) }()
+      case 2: try { try decoder.decodeSingularBoolField(value: &self.present) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.reference.isEmpty {
+      try visitor.visitSingularStringField(value: self.reference, fieldNumber: 1)
+    }
+    if self.present != false {
+      try visitor.visitSingularBoolField(value: self.present, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_LocalRunImage, rhs: Runnir_Core_V1_LocalRunImage) -> Bool {
+    if lhs.reference != rhs.reference {return false}
+    if lhs.present != rhs.present {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".LocalRunPlan"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}workflow_name\0\u{1}events\0\u{1}event\0\u{3}job_id\0\u{1}jobs\0\u{1}images\0\u{1}secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0")
+
+  fileprivate class _StorageClass {
+    var _workflowID: String = String()
+    var _workflowName: String = String()
+    var _events: [String] = []
+    var _event: String = String()
+    var _jobID: String = String()
+    var _jobs: [Runnir_Core_V1_LocalRunJob] = []
+    var _images: [Runnir_Core_V1_LocalRunImage] = []
+    var _secrets: [String] = []
+    var _notes: [String] = []
+    var _blockers: [String] = []
+    var _cpus: UInt32 = 0
+    var _memoryBytes: UInt64 = 0
+    var _timeoutSeconds: UInt32 = 0
+    var _actVersion: String = String()
+    var _installedAct: Bool = false
+    var _engineName: String = String()
+    var _engineContext: String = String()
+
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _workflowID = source._workflowID
+      _workflowName = source._workflowName
+      _events = source._events
+      _event = source._event
+      _jobID = source._jobID
+      _jobs = source._jobs
+      _images = source._images
+      _secrets = source._secrets
+      _notes = source._notes
+      _blockers = source._blockers
+      _cpus = source._cpus
+      _memoryBytes = source._memoryBytes
+      _timeoutSeconds = source._timeoutSeconds
+      _actVersion = source._actVersion
+      _installedAct = source._installedAct
+      _engineName = source._engineName
+      _engineContext = source._engineContext
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularStringField(value: &_storage._workflowID) }()
+        case 2: try { try decoder.decodeSingularStringField(value: &_storage._workflowName) }()
+        case 3: try { try decoder.decodeRepeatedStringField(value: &_storage._events) }()
+        case 4: try { try decoder.decodeSingularStringField(value: &_storage._event) }()
+        case 5: try { try decoder.decodeSingularStringField(value: &_storage._jobID) }()
+        case 6: try { try decoder.decodeRepeatedMessageField(value: &_storage._jobs) }()
+        case 7: try { try decoder.decodeRepeatedMessageField(value: &_storage._images) }()
+        case 8: try { try decoder.decodeRepeatedStringField(value: &_storage._secrets) }()
+        case 9: try { try decoder.decodeRepeatedStringField(value: &_storage._notes) }()
+        case 10: try { try decoder.decodeRepeatedStringField(value: &_storage._blockers) }()
+        case 11: try { try decoder.decodeSingularUInt32Field(value: &_storage._cpus) }()
+        case 12: try { try decoder.decodeSingularUInt64Field(value: &_storage._memoryBytes) }()
+        case 13: try { try decoder.decodeSingularUInt32Field(value: &_storage._timeoutSeconds) }()
+        case 14: try { try decoder.decodeSingularStringField(value: &_storage._actVersion) }()
+        case 15: try { try decoder.decodeSingularBoolField(value: &_storage._installedAct) }()
+        case 16: try { try decoder.decodeSingularStringField(value: &_storage._engineName) }()
+        case 17: try { try decoder.decodeSingularStringField(value: &_storage._engineContext) }()
+        default: break
+        }
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      if !_storage._workflowID.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._workflowID, fieldNumber: 1)
+      }
+      if !_storage._workflowName.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._workflowName, fieldNumber: 2)
+      }
+      if !_storage._events.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._events, fieldNumber: 3)
+      }
+      if !_storage._event.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._event, fieldNumber: 4)
+      }
+      if !_storage._jobID.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._jobID, fieldNumber: 5)
+      }
+      if !_storage._jobs.isEmpty {
+        try visitor.visitRepeatedMessageField(value: _storage._jobs, fieldNumber: 6)
+      }
+      if !_storage._images.isEmpty {
+        try visitor.visitRepeatedMessageField(value: _storage._images, fieldNumber: 7)
+      }
+      if !_storage._secrets.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._secrets, fieldNumber: 8)
+      }
+      if !_storage._notes.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._notes, fieldNumber: 9)
+      }
+      if !_storage._blockers.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._blockers, fieldNumber: 10)
+      }
+      if _storage._cpus != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._cpus, fieldNumber: 11)
+      }
+      if _storage._memoryBytes != 0 {
+        try visitor.visitSingularUInt64Field(value: _storage._memoryBytes, fieldNumber: 12)
+      }
+      if _storage._timeoutSeconds != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._timeoutSeconds, fieldNumber: 13)
+      }
+      if !_storage._actVersion.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._actVersion, fieldNumber: 14)
+      }
+      if _storage._installedAct != false {
+        try visitor.visitSingularBoolField(value: _storage._installedAct, fieldNumber: 15)
+      }
+      if !_storage._engineName.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._engineName, fieldNumber: 16)
+      }
+      if !_storage._engineContext.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._engineContext, fieldNumber: 17)
+      }
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_LocalRunPlan, rhs: Runnir_Core_V1_LocalRunPlan) -> Bool {
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._workflowID != rhs_storage._workflowID {return false}
+        if _storage._workflowName != rhs_storage._workflowName {return false}
+        if _storage._events != rhs_storage._events {return false}
+        if _storage._event != rhs_storage._event {return false}
+        if _storage._jobID != rhs_storage._jobID {return false}
+        if _storage._jobs != rhs_storage._jobs {return false}
+        if _storage._images != rhs_storage._images {return false}
+        if _storage._secrets != rhs_storage._secrets {return false}
+        if _storage._notes != rhs_storage._notes {return false}
+        if _storage._blockers != rhs_storage._blockers {return false}
+        if _storage._cpus != rhs_storage._cpus {return false}
+        if _storage._memoryBytes != rhs_storage._memoryBytes {return false}
+        if _storage._timeoutSeconds != rhs_storage._timeoutSeconds {return false}
+        if _storage._actVersion != rhs_storage._actVersion {return false}
+        if _storage._installedAct != rhs_storage._installedAct {return false}
+        if _storage._engineName != rhs_storage._engineName {return false}
+        if _storage._engineContext != rhs_storage._engineContext {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_PrepareLocalRunRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".PrepareLocalRunRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}workflow_id\0\u{3}job_id\0\u{1}event\0\u{3}use_installed_act\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.repositoryID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.workflowID) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.event) }()
+      case 5: try { try decoder.decodeSingularBoolField(value: &self.useInstalledAct) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.repositoryID.isEmpty {
+      try visitor.visitSingularStringField(value: self.repositoryID, fieldNumber: 1)
+    }
+    if !self.workflowID.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowID, fieldNumber: 2)
+    }
+    if !self.jobID.isEmpty {
+      try visitor.visitSingularStringField(value: self.jobID, fieldNumber: 3)
+    }
+    if !self.event.isEmpty {
+      try visitor.visitSingularStringField(value: self.event, fieldNumber: 4)
+    }
+    if self.useInstalledAct != false {
+      try visitor.visitSingularBoolField(value: self.useInstalledAct, fieldNumber: 5)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_PrepareLocalRunRequest, rhs: Runnir_Core_V1_PrepareLocalRunRequest) -> Bool {
+    if lhs.repositoryID != rhs.repositoryID {return false}
+    if lhs.workflowID != rhs.workflowID {return false}
+    if lhs.jobID != rhs.jobID {return false}
+    if lhs.event != rhs.event {return false}
+    if lhs.useInstalledAct != rhs.useInstalledAct {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_PrepareLocalRunResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".PrepareLocalRunResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}readiness\0\u{1}plan\0\u{3}confirmation_id\0\u{3}expires_at\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularMessageField(value: &self._readiness) }()
+      case 2: try { try decoder.decodeSingularMessageField(value: &self._plan) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.confirmationID) }()
+      case 4: try { try decoder.decodeSingularMessageField(value: &self._expiresAt) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    try { if let v = self._readiness {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+    } }()
+    try { if let v = self._plan {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+    } }()
+    if !self.confirmationID.isEmpty {
+      try visitor.visitSingularStringField(value: self.confirmationID, fieldNumber: 3)
+    }
+    try { if let v = self._expiresAt {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 4)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_PrepareLocalRunResponse, rhs: Runnir_Core_V1_PrepareLocalRunResponse) -> Bool {
+    if lhs._readiness != rhs._readiness {return false}
+    if lhs._plan != rhs._plan {return false}
+    if lhs.confirmationID != rhs.confirmationID {return false}
+    if lhs._expiresAt != rhs._expiresAt {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ConfirmLocalRunRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ConfirmLocalRunRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}confirmation_id\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.confirmationID) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.confirmationID.isEmpty {
+      try visitor.visitSingularStringField(value: self.confirmationID, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ConfirmLocalRunRequest, rhs: Runnir_Core_V1_ConfirmLocalRunRequest) -> Bool {
+    if lhs.confirmationID != rhs.confirmationID {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ConfirmLocalRunResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ConfirmLocalRunResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}execution\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularMessageField(value: &self._execution) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    try { if let v = self._execution {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ConfirmLocalRunResponse, rhs: Runnir_Core_V1_ConfirmLocalRunResponse) -> Bool {
+    if lhs._execution != rhs._execution {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_LocalRunJobStatus: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".LocalRunJobStatus"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}state\0\u{1}reason\0\u{3}started_at\0\u{3}finished_at\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 3: try { try decoder.decodeSingularEnumField(value: &self.state) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.reason) }()
+      case 5: try { try decoder.decodeSingularMessageField(value: &self._startedAt) }()
+      case 6: try { try decoder.decodeSingularMessageField(value: &self._finishedAt) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if !self.id.isEmpty {
+      try visitor.visitSingularStringField(value: self.id, fieldNumber: 1)
+    }
+    if !self.name.isEmpty {
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 2)
+    }
+    if self.state != .unspecified {
+      try visitor.visitSingularEnumField(value: self.state, fieldNumber: 3)
+    }
+    if !self.reason.isEmpty {
+      try visitor.visitSingularStringField(value: self.reason, fieldNumber: 4)
+    }
+    try { if let v = self._startedAt {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
+    } }()
+    try { if let v = self._finishedAt {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_LocalRunJobStatus, rhs: Runnir_Core_V1_LocalRunJobStatus) -> Bool {
+    if lhs.id != rhs.id {return false}
+    if lhs.name != rhs.name {return false}
+    if lhs.state != rhs.state {return false}
+    if lhs.reason != rhs.reason {return false}
+    if lhs._startedAt != rhs._startedAt {return false}
+    if lhs._finishedAt != rhs._finishedAt {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_LocalRunLine: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".LocalRunLine"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}sequence\0\u{3}job_id\0\u{1}text\0\u{1}error\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt64Field(value: &self.sequence) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.text) }()
+      case 4: try { try decoder.decodeSingularBoolField(value: &self.error) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.sequence != 0 {
+      try visitor.visitSingularUInt64Field(value: self.sequence, fieldNumber: 1)
+    }
+    if !self.jobID.isEmpty {
+      try visitor.visitSingularStringField(value: self.jobID, fieldNumber: 2)
+    }
+    if !self.text.isEmpty {
+      try visitor.visitSingularStringField(value: self.text, fieldNumber: 3)
+    }
+    if self.error != false {
+      try visitor.visitSingularBoolField(value: self.error, fieldNumber: 4)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_LocalRunLine, rhs: Runnir_Core_V1_LocalRunLine) -> Bool {
+    if lhs.sequence != rhs.sequence {return false}
+    if lhs.jobID != rhs.jobID {return false}
+    if lhs.text != rhs.text {return false}
+    if lhs.error != rhs.error {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_GetLocalRunOutputRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".GetLocalRunOutputRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}execution_id\0\u{3}after_sequence\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.executionID) }()
+      case 2: try { try decoder.decodeSingularUInt64Field(value: &self.afterSequence) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.executionID.isEmpty {
+      try visitor.visitSingularStringField(value: self.executionID, fieldNumber: 1)
+    }
+    if self.afterSequence != 0 {
+      try visitor.visitSingularUInt64Field(value: self.afterSequence, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_GetLocalRunOutputRequest, rhs: Runnir_Core_V1_GetLocalRunOutputRequest) -> Bool {
+    if lhs.executionID != rhs.executionID {return false}
+    if lhs.afterSequence != rhs.afterSequence {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_GetLocalRunOutputResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".GetLocalRunOutputResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}execution_id\0\u{3}repository_id\0\u{1}state\0\u{1}phase\0\u{1}lines\0\u{1}discarded\0\u{3}last_sequence\0\u{1}jobs\0\u{1}plan\0\u{3}started_at\0\u{3}finished_at\0\u{3}exit_code\0\u{1}message\0\u{3}cleanup_problem\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.executionID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.repositoryID) }()
+      case 3: try { try decoder.decodeSingularEnumField(value: &self.state) }()
+      case 4: try { try decoder.decodeSingularEnumField(value: &self.phase) }()
+      case 5: try { try decoder.decodeRepeatedMessageField(value: &self.lines) }()
+      case 6: try { try decoder.decodeSingularBoolField(value: &self.discarded) }()
+      case 7: try { try decoder.decodeSingularUInt64Field(value: &self.lastSequence) }()
+      case 8: try { try decoder.decodeRepeatedMessageField(value: &self.jobs) }()
+      case 9: try { try decoder.decodeSingularMessageField(value: &self._plan) }()
+      case 10: try { try decoder.decodeSingularMessageField(value: &self._startedAt) }()
+      case 11: try { try decoder.decodeSingularMessageField(value: &self._finishedAt) }()
+      case 12: try { try decoder.decodeSingularInt32Field(value: &self.exitCode) }()
+      case 13: try { try decoder.decodeSingularStringField(value: &self.message) }()
+      case 14: try { try decoder.decodeSingularStringField(value: &self.cleanupProblem) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if !self.executionID.isEmpty {
+      try visitor.visitSingularStringField(value: self.executionID, fieldNumber: 1)
+    }
+    if !self.repositoryID.isEmpty {
+      try visitor.visitSingularStringField(value: self.repositoryID, fieldNumber: 2)
+    }
+    if self.state != .unspecified {
+      try visitor.visitSingularEnumField(value: self.state, fieldNumber: 3)
+    }
+    if self.phase != .unspecified {
+      try visitor.visitSingularEnumField(value: self.phase, fieldNumber: 4)
+    }
+    if !self.lines.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.lines, fieldNumber: 5)
+    }
+    if self.discarded != false {
+      try visitor.visitSingularBoolField(value: self.discarded, fieldNumber: 6)
+    }
+    if self.lastSequence != 0 {
+      try visitor.visitSingularUInt64Field(value: self.lastSequence, fieldNumber: 7)
+    }
+    if !self.jobs.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.jobs, fieldNumber: 8)
+    }
+    try { if let v = self._plan {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 9)
+    } }()
+    try { if let v = self._startedAt {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 10)
+    } }()
+    try { if let v = self._finishedAt {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
+    } }()
+    if self.exitCode != 0 {
+      try visitor.visitSingularInt32Field(value: self.exitCode, fieldNumber: 12)
+    }
+    if !self.message.isEmpty {
+      try visitor.visitSingularStringField(value: self.message, fieldNumber: 13)
+    }
+    if !self.cleanupProblem.isEmpty {
+      try visitor.visitSingularStringField(value: self.cleanupProblem, fieldNumber: 14)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_GetLocalRunOutputResponse, rhs: Runnir_Core_V1_GetLocalRunOutputResponse) -> Bool {
+    if lhs.executionID != rhs.executionID {return false}
+    if lhs.repositoryID != rhs.repositoryID {return false}
+    if lhs.state != rhs.state {return false}
+    if lhs.phase != rhs.phase {return false}
+    if lhs.lines != rhs.lines {return false}
+    if lhs.discarded != rhs.discarded {return false}
+    if lhs.lastSequence != rhs.lastSequence {return false}
+    if lhs.jobs != rhs.jobs {return false}
+    if lhs._plan != rhs._plan {return false}
+    if lhs._startedAt != rhs._startedAt {return false}
+    if lhs._finishedAt != rhs._finishedAt {return false}
+    if lhs.exitCode != rhs.exitCode {return false}
+    if lhs.message != rhs.message {return false}
+    if lhs.cleanupProblem != rhs.cleanupProblem {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_CancelExecutionRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".CancelExecutionRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}execution_id\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.executionID) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.executionID.isEmpty {
+      try visitor.visitSingularStringField(value: self.executionID, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_CancelExecutionRequest, rhs: Runnir_Core_V1_CancelExecutionRequest) -> Bool {
+    if lhs.executionID != rhs.executionID {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_CancelExecutionResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".CancelExecutionResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    // Load everything into unknown fields
+    while try decoder.nextFieldNumber() != nil {}
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_CancelExecutionResponse, rhs: Runnir_Core_V1_CancelExecutionResponse) -> Bool {
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"google.golang.org/grpc"
@@ -17,8 +18,10 @@ import (
 	"runnir/core/internal/execution"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
+	"runnir/core/internal/localrun"
 	"runnir/core/internal/repository"
 	"runnir/core/internal/scanner"
+	"runnir/core/internal/tools"
 )
 
 // MaxSocketPathBytes is the portable sockaddr_un.sun_path limit on macOS
@@ -26,6 +29,10 @@ import (
 const MaxSocketPathBytes = 103
 
 const shutdownGrace = 5 * time.Second
+
+// executionShutdownGrace lets a local run stop act and remove its
+// containers before the Core exits.
+const executionShutdownGrace = 20 * time.Second
 
 // Options tunes a server; the zero value uses production defaults.
 type Options struct {
@@ -35,10 +42,21 @@ type Options struct {
 	GitHubBaseURL string
 	// EventBuffer is the per-subscriber event queue length.
 	EventBuffer int
-	// MaxExecutions is the number of concurrent workflow executions (default 3).
+	// MaxExecutions is the number of concurrent workflow executions. The
+	// default is 1: act names containers after the workflow and job, so two
+	// local runs at once could replace each other's containers.
 	MaxExecutions int
-	// Runner executes workflows; nil uses the stub that fails honestly.
+	// Runner executes workflows; nil uses act for approved local runs.
 	Runner execution.Runner
+	// BundledAct is the act shipped with the app; empty when there is none.
+	BundledAct string
+	// Home is the user's home directory; empty uses os.UserHomeDir.
+	Home string
+	// ActCache keeps act's clones of actions; empty uses the user cache
+	// directory.
+	ActCache string
+	// Tools overrides the tool detector, for tests.
+	Tools toolChecker
 }
 
 // Run serves gRPC on a Unix domain socket until ctx is cancelled, then stops
@@ -79,11 +97,33 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 	}
 
 	bus := events.New(options.EventBuffer)
+	outputs := localrun.NewOutputs()
 	runner := options.Runner
 	if runner == nil {
-		runner = execution.StubRunner{}
+		runner = localrun.NewRunner(outputs)
 	}
-	executions := execution.New(runner, execution.Options{Limit: options.MaxExecutions}, bus.Publish)
+	limit := options.MaxExecutions
+	if limit <= 0 {
+		limit = 1
+	}
+	executions := execution.New(runner, execution.Options{Limit: limit}, func(e events.Event) {
+		outputs.Observe(e)
+		bus.Publish(e)
+	})
+	home := options.Home
+	if home == "" {
+		home, _ = os.UserHomeDir()
+	}
+	actCache := options.ActCache
+	if actCache == "" {
+		if cache, err := os.UserCacheDir(); err == nil {
+			actCache = filepath.Join(cache, "Runnir", "act")
+		}
+	}
+	checker := options.Tools
+	if checker == nil {
+		checker = tools.NewDetector(home, options.BundledAct, os.Getenv("PATH"))
+	}
 	repositories := repository.New(scanner.New(), func(e repository.Event) {
 		if e.Type == repository.RepositoryClosed {
 			executions.CancelRepository(e.RepositoryID)
@@ -98,9 +138,14 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 	credential := &github.Credential{}
 	corev1.RegisterRunnirCoreServer(grpcServer, &service{
 		repositories: repositories, events: bus, executions: executions, credential: credential,
-		github:     github.NewClient(credential, options.GitHubBaseURL, buildinfo.Version),
-		dispatches: dispatch.NewStore(0, nil),
-		runActions: approval.NewStore[runAction]("action_", 0, nil),
+		github:       github.NewClient(credential, options.GitHubBaseURL, buildinfo.Version),
+		dispatches:   dispatch.NewStore(0, nil),
+		runActions:   approval.NewStore[runAction]("action_", 0, nil),
+		tools:        checker,
+		localRuns:    approval.NewStore[localRunApproval]("local_", 0, nil),
+		localOutputs: outputs,
+		home:         home,
+		actCache:     actCache,
 	})
 
 	done := make(chan error, 1)
@@ -117,7 +162,7 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 	// subscribers; then event streams are closed, because they never end on
 	// their own and would hold up the graceful stop. This also runs when the
 	// server failed on its own.
-	stopCtx, stopCancel := context.WithTimeout(context.Background(), shutdownGrace)
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), executionShutdownGrace)
 	executions.Shutdown(stopCtx)
 	stopCancel()
 	bus.Close()

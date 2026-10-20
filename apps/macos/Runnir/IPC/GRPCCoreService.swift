@@ -348,6 +348,141 @@ struct GRPCCoreService: CoreServicing {
         )
     }
 
+    // MARK: Local runs
+
+    func toolReadiness(refresh: Bool) async throws -> CoreToolReadiness {
+        // Checking the engine runs a few docker commands with their own timeouts.
+        let response = try await call {
+            try await client.getToolReadiness(.with { $0.refresh = refresh }, options: Self.options(.seconds(45)))
+        }
+        return Self.map(response.readiness)
+    }
+
+    func prepareLocalRun(repositoryID: String, workflowID: String, jobID: String?, event: String?,
+                         useInstalledAct: Bool) async throws -> CorePreparedLocalRun {
+        let response = try await call {
+            try await client.prepareLocalRun(.with {
+                $0.repositoryID = repositoryID
+                $0.workflowID = workflowID
+                $0.jobID = jobID ?? ""
+                $0.event = event ?? ""
+                $0.useInstalledAct = useInstalledAct
+            }, options: Self.options(.seconds(90)))
+        }
+        return CorePreparedLocalRun(
+            readiness: Self.map(response.readiness), plan: Self.map(response.plan),
+            confirmationID: response.confirmationID.isEmpty ? nil : response.confirmationID,
+            expiresAt: response.hasExpiresAt ? response.expiresAt.date : nil
+        )
+    }
+
+    func confirmLocalRun(confirmationID: String) async throws -> CoreExecution {
+        let response = try await call {
+            try await client.confirmLocalRun(.with { $0.confirmationID = confirmationID }, options: Self.options(Self.callTimeout))
+        }
+        return CoreExecution(id: response.execution.executionID, repositoryID: response.execution.repositoryID,
+                             state: Self.map(response.execution.state))
+    }
+
+    func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput {
+        var options = Self.options(Self.callTimeout)
+        // 5,000 lines of up to 4 KiB each can exceed gRPC's 4 MiB default.
+        options.maxResponseMessageBytes = 32 << 20
+        let response = try await call {
+            try await client.getLocalRunOutput(.with {
+                $0.executionID = executionID
+                $0.afterSequence = after
+            }, options: options)
+        }
+        let phase: CoreLocalRunPhase = switch response.phase {
+        case .queued: .queued
+        case .running: .running
+        case .stopping: .stopping
+        case .cleaningUp: .cleaningUp
+        case .finished: .finished
+        default: .unknown
+        }
+        return CoreLocalRunOutput(
+            executionID: response.executionID, repositoryID: response.repositoryID,
+            state: Self.map(response.state), phase: phase,
+            lines: response.lines.map { CoreLocalRunLine(sequence: $0.sequence, jobID: $0.jobID, text: $0.text, isError: $0.error) },
+            discarded: response.discarded, lastSequence: response.lastSequence,
+            jobs: response.jobs.map { job in
+                let state: CoreLocalJobState = switch job.state {
+                case .waiting: .waiting
+                case .running: .running
+                case .succeeded: .succeeded
+                case .failed: .failed
+                case .skipped: .skipped
+                case .unsupported: .unsupported
+                case .cancelled: .cancelled
+                case .notRun: .notRun
+                default: .unknown
+                }
+                return CoreLocalRunJobStatus(id: job.id, name: job.name, state: state, reason: job.reason,
+                                             startedAt: job.hasStartedAt ? job.startedAt.date : nil,
+                                             finishedAt: job.hasFinishedAt ? job.finishedAt.date : nil)
+            },
+            plan: Self.map(response.plan),
+            startedAt: response.hasStartedAt ? response.startedAt.date : nil,
+            finishedAt: response.hasFinishedAt ? response.finishedAt.date : nil,
+            exitCode: response.exitCode < 0 ? nil : Int(response.exitCode),
+            message: response.message.isEmpty ? nil : response.message,
+            cleanupProblem: response.cleanupProblem.isEmpty ? nil : response.cleanupProblem
+        )
+    }
+
+    func cancelExecution(executionID: String) async throws {
+        _ = try await call {
+            try await client.cancelExecution(.with { $0.executionID = executionID }, options: Self.options(Self.callTimeout))
+        }
+    }
+
+    static func map(_ state: Runnir_Core_V1_ToolState) -> CoreToolState {
+        switch state {
+        case .found: .found
+        case .missing: .missing
+        case .stopped: .stopped
+        case .unsupported: .unsupported
+        case .failed: .failed
+        default: .unknown
+        }
+    }
+
+    static func map(_ tool: Runnir_Core_V1_ToolStatus) -> CoreToolStatus {
+        CoreToolStatus(state: map(tool.state), version: tool.version, path: tool.path, detail: tool.detail, untested: tool.untested)
+    }
+
+    static func map(_ readiness: Runnir_Core_V1_ToolReadiness) -> CoreToolReadiness {
+        let engine = readiness.engine
+        return CoreToolReadiness(
+            bundledAct: map(readiness.bundledAct), installedAct: map(readiness.installedAct), dockerCLI: map(readiness.dockerCli),
+            engine: CoreContainerEngine(state: map(engine.state), name: engine.name, context: engine.context, endpoint: engine.endpoint,
+                                        local: engine.local, version: engine.version, architecture: engine.architecture,
+                                        cpus: Int(engine.cpus), memoryBytes: engine.memoryBytes, detail: engine.detail),
+            checkedAt: readiness.hasCheckedAt ? readiness.checkedAt.date : nil,
+            testedActVersion: readiness.testedActVersion, minimumActVersion: readiness.minimumActVersion
+        )
+    }
+
+    static func map(_ plan: Runnir_Core_V1_LocalRunPlan) -> CoreLocalRunPlan {
+        CoreLocalRunPlan(
+            workflowID: plan.workflowID, workflowName: plan.workflowName, events: plan.events, event: plan.event, jobID: plan.jobID,
+            jobs: plan.jobs.map { job in
+                let support: CoreLocalJobSupport = switch job.support {
+                case .supported: .supported
+                case .unsupported: .unsupported
+                default: .unknown
+                }
+                return CoreLocalRunJob(id: job.id, name: job.name, runsOn: job.runsOn, image: job.image, support: support, reason: job.reason)
+            },
+            images: plan.images.map { CoreLocalRunImage(reference: $0.reference, present: $0.present) },
+            secrets: plan.secrets, notes: plan.notes, blockers: plan.blockers,
+            cpus: Int(plan.cpus), memoryBytes: plan.memoryBytes, timeoutSeconds: Int(plan.timeoutSeconds),
+            actVersion: plan.actVersion, installedAct: plan.installedAct, engineName: plan.engineName, engineContext: plan.engineContext
+        )
+    }
+
     static func map(_ status: Runnir_Core_V1_GitHubStatus) -> CoreGitHubAccess {
         switch status.access {
         case .ok: .ok

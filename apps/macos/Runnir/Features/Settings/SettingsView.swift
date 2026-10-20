@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     var github: GitHubSession?
+    var core: CoreHub?
 
     var body: some View {
         Form {
@@ -13,6 +14,8 @@ struct SettingsView: View {
                 }
             }
 
+            ToolsSettingsSection(model: ToolsSettingsModel(hub: core))
+
             Section("Privacy") {
                 Text("Runnir does not enable telemetry by default and does not send repository data to a Runnir backend.")
                     .foregroundStyle(RunnirTheme.secondaryForeground)
@@ -20,6 +23,6 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .frame(width: 520)
+        .frame(width: 600)
     }
 }

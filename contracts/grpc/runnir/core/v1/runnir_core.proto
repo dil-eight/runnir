@@ -23,7 +23,8 @@ service RunnirCore {
   // Core; no external program runs and nothing is sent anywhere.
   rpc ValidateWorkflows(ValidateWorkflowsRequest) returns (ValidateWorkflowsResponse);
 
-  // Interface only in the MVP: no real GitHub Actions engine yet.
+  // Starts an execution without a reviewed plan. Local runs need one, so
+  // executions started this way fail; use PrepareLocalRun.
   rpc StartWorkflow(StartWorkflowRequest) returns (ExecutionResponse);
 
   rpc SubscribeEvents(SubscribeEventsRequest) returns (stream CoreEvent);
@@ -62,6 +63,23 @@ service RunnirCore {
   // only Confirm sends the request to GitHub, once.
   rpc PrepareRunAction(PrepareRunActionRequest) returns (PrepareRunActionResponse);
   rpc ConfirmRunAction(ConfirmRunActionRequest) returns (ConfirmRunActionResponse);
+
+  // The programs local runs need, as found on this computer: the act bundled
+  // with Runnir, an installed act, the Docker CLI and the container engine
+  // of the current Docker context. Read-only: nothing is installed, started
+  // or switched. The last result is reused unless refresh is set.
+  rpc GetToolReadiness(GetToolReadinessRequest) returns (GetToolReadinessResponse);
+  // Running a workflow locally takes two calls, like a dispatch: Prepare
+  // checks the tools and the workflow file and returns the plan, with a
+  // single-use confirmation when nothing blocks it; only Confirm starts act.
+  rpc PrepareLocalRun(PrepareLocalRunRequest) returns (PrepareLocalRunResponse);
+  rpc ConfirmLocalRun(ConfirmLocalRunRequest) returns (ConfirmLocalRunResponse);
+  // A local run's state, job states and the output lines after a sequence
+  // number. The Core keeps the last 5,000 lines of each of the last 20 runs.
+  rpc GetLocalRunOutput(GetLocalRunOutputRequest) returns (GetLocalRunOutputResponse);
+  // Stops a queued or running execution; a local run's containers are
+  // removed afterwards.
+  rpc CancelExecution(CancelExecutionRequest) returns (CancelExecutionResponse);
 }
 
 message HealthCheckRequest {}
@@ -511,3 +529,216 @@ message ConfirmRunActionResponse {
   // example a run that finished meanwhile or one too old to re-run.
   string rejection = 3;
 }
+
+enum ToolState {
+  TOOL_STATE_UNSPECIFIED = 0;
+  // Present, answering and new enough.
+  TOOL_STATE_FOUND = 1;
+  // Not installed, or no engine is configured.
+  TOOL_STATE_MISSING = 2;
+  // An engine is configured but does not answer.
+  TOOL_STATE_STOPPED = 3;
+  // Too old, or an engine on another computer.
+  TOOL_STATE_UNSUPPORTED = 4;
+  // The check could not finish.
+  TOOL_STATE_FAILED = 5;
+}
+
+message ToolStatus {
+  ToolState state = 1;
+  string version = 2;
+  // The executable that was checked.
+  string path = 3;
+  string detail = 4;
+  // Newer than the version local runs were verified with.
+  bool untested = 5;
+}
+
+message ContainerEngine {
+  ToolState state = 1;
+  // OrbStack, Docker Desktop, Colima, Rancher Desktop, Podman or Docker Engine.
+  string name = 2;
+  // The current Docker context; Runnir never switches it.
+  string context = 3;
+  // The context's Docker host, without user information.
+  string endpoint = 4;
+  bool local = 5;
+  string version = 6;
+  string api_version = 7;
+  string architecture = 8;
+  uint32 cpus = 9;
+  uint64 memory_bytes = 10;
+  string detail = 11;
+}
+
+message ToolReadiness {
+  ToolStatus bundled_act = 1;
+  ToolStatus installed_act = 2;
+  ToolStatus docker_cli = 3;
+  ContainerEngine engine = 4;
+  google.protobuf.Timestamp checked_at = 5;
+  // The act version Runnir bundles and verified local runs with.
+  string tested_act_version = 6;
+  string minimum_act_version = 7;
+}
+
+message GetToolReadinessRequest {
+  bool refresh = 1;
+}
+
+message GetToolReadinessResponse {
+  ToolReadiness readiness = 1;
+}
+
+enum LocalJobSupport {
+  LOCAL_JOB_SUPPORT_UNSPECIFIED = 0;
+  LOCAL_JOB_SUPPORT_SUPPORTED = 1;
+  // act skips the job or it cannot work locally, for example a macOS runner.
+  LOCAL_JOB_SUPPORT_UNSUPPORTED = 2;
+  // act decides when the job starts, for example runs-on set by an expression.
+  LOCAL_JOB_SUPPORT_UNKNOWN = 3;
+}
+
+message LocalRunJob {
+  string id = 1;
+  string name = 2;
+  repeated string runs_on = 3;
+  // The image the job runs in.
+  string image = 4;
+  LocalJobSupport support = 5;
+  string reason = 6;
+}
+
+message LocalRunImage {
+  string reference = 1;
+  // Already in the engine; otherwise act downloads it.
+  bool present = 2;
+}
+
+message LocalRunPlan {
+  // Path relative to the repository root, as in Workflow.id.
+  string workflow_id = 1;
+  string workflow_name = 2;
+  // The workflow's triggers; `event` is the one the run uses.
+  repeated string events = 3;
+  string event = 4;
+  // The chosen job, empty for every job; a chosen job brings the jobs it needs.
+  string job_id = 5;
+  repeated LocalRunJob jobs = 6;
+  repeated LocalRunImage images = 7;
+  // Secrets the workflow reads. Local runs get none.
+  repeated string secrets = 8;
+  // Differences from a GitHub run worth knowing before starting.
+  repeated string notes = 9;
+  // Why the run cannot start now. A plan with blockers has no confirmation.
+  repeated string blockers = 10;
+  uint32 cpus = 11;
+  uint64 memory_bytes = 12;
+  uint32 timeout_seconds = 13;
+  // The act that runs it.
+  string act_version = 14;
+  bool installed_act = 15;
+  string engine_name = 16;
+  string engine_context = 17;
+}
+
+message PrepareLocalRunRequest {
+  string repository_id = 1;
+  string workflow_id = 2;
+  // Empty runs every job of the workflow.
+  string job_id = 3;
+  // One of the workflow's triggers; empty picks push, pull_request or
+  // workflow_dispatch, in that order.
+  string event = 4;
+  // Experimental: run with the act installed on this computer when one is
+  // usable, instead of the bundled act.
+  bool use_installed_act = 5;
+}
+
+message PrepareLocalRunResponse {
+  ToolReadiness readiness = 1;
+  LocalRunPlan plan = 2;
+  // Empty when the plan has blockers.
+  string confirmation_id = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+message ConfirmLocalRunRequest {
+  string confirmation_id = 1;
+}
+
+message ConfirmLocalRunResponse {
+  ExecutionResponse execution = 1;
+}
+
+enum LocalRunPhase {
+  LOCAL_RUN_PHASE_UNSPECIFIED = 0;
+  LOCAL_RUN_PHASE_QUEUED = 1;
+  LOCAL_RUN_PHASE_RUNNING = 2;
+  LOCAL_RUN_PHASE_STOPPING = 3;
+  LOCAL_RUN_PHASE_CLEANING_UP = 4;
+  LOCAL_RUN_PHASE_FINISHED = 5;
+}
+
+enum LocalJobState {
+  LOCAL_JOB_STATE_UNSPECIFIED = 0;
+  LOCAL_JOB_STATE_WAITING = 1;
+  LOCAL_JOB_STATE_RUNNING = 2;
+  LOCAL_JOB_STATE_SUCCEEDED = 3;
+  LOCAL_JOB_STATE_FAILED = 4;
+  LOCAL_JOB_STATE_SKIPPED = 5;
+  LOCAL_JOB_STATE_UNSUPPORTED = 6;
+  LOCAL_JOB_STATE_CANCELLED = 7;
+  LOCAL_JOB_STATE_NOT_RUN = 8;
+}
+
+message LocalRunJobStatus {
+  string id = 1;
+  string name = 2;
+  LocalJobState state = 3;
+  string reason = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp finished_at = 6;
+}
+
+message LocalRunLine {
+  uint64 sequence = 1;
+  // Empty for act's own messages.
+  string job_id = 2;
+  string text = 3;
+  bool error = 4;
+}
+
+message GetLocalRunOutputRequest {
+  string execution_id = 1;
+  // Lines after this sequence number; 0 for all that are kept.
+  uint64 after_sequence = 2;
+}
+
+message GetLocalRunOutputResponse {
+  string execution_id = 1;
+  string repository_id = 2;
+  ExecutionState state = 3;
+  LocalRunPhase phase = 4;
+  repeated LocalRunLine lines = 5;
+  // Lines after `after_sequence` were dropped to stay within the bound.
+  bool discarded = 6;
+  // The highest sequence number so far.
+  uint64 last_sequence = 7;
+  repeated LocalRunJobStatus jobs = 8;
+  LocalRunPlan plan = 9;
+  google.protobuf.Timestamp started_at = 10;
+  google.protobuf.Timestamp finished_at = 11;
+  // act's exit code; -1 until it exits, or when it was killed.
+  int32 exit_code = 12;
+  // Why the run failed, when it did.
+  string message = 13;
+  // Set when containers of this run may still exist.
+  string cleanup_problem = 14;
+}
+
+message CancelExecutionRequest {
+  string execution_id = 1;
+}
+
+message CancelExecutionResponse {}

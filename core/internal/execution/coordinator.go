@@ -1,6 +1,6 @@
 // Package execution schedules workflow runs: at most Limit run at once, the
 // rest wait in a bounded FIFO queue. It owns scheduling and lifecycle only;
-// a Runner does the work. The MVP ships a stub runner, not an Actions engine.
+// a Runner does the work.
 package execution
 
 import (
@@ -25,7 +25,8 @@ var (
 	ErrQueueFull = errors.New("execution queue is full")
 	ErrShutdown  = errors.New("execution coordinator is shut down")
 	ErrNotFound  = errors.New("execution not found")
-	// ErrEngineUnavailable is what the stub runner reports.
+	// ErrEngineUnavailable is what a runner reports for a job it cannot run,
+	// such as one started without an approved local-run plan.
 	ErrEngineUnavailable = errors.New("workflow execution engine is not available in this build")
 )
 
@@ -37,6 +38,9 @@ type Job struct {
 	RepositoryPath string
 	Ref            string
 	Workflow       repository.Workflow
+	// Spec is runner-specific, immutable data approved for this job, such
+	// as a local-run plan; nil when none was approved.
+	Spec any
 }
 
 // Runner executes one job. It must return promptly after ctx is cancelled and
@@ -113,14 +117,22 @@ func New(runner Runner, options Options, publish func(events.Event)) *Coordinato
 
 // Start runs the workflow now if a slot is free, otherwise queues it.
 func (c *Coordinator) Start(repositoryID, repositoryPath string, workflow repository.Workflow, ref string) (Execution, error) {
-	id, err := newID()
+	id, err := NewID()
 	if err != nil {
 		return Execution{}, err
 	}
-	r := &run{job: Job{
-		ExecutionID: id, RepositoryID: repositoryID, RepositoryPath: repositoryPath,
-		Ref: ref, Workflow: cloneWorkflow(workflow),
-	}}
+	return c.StartJob(Job{ExecutionID: id, RepositoryID: repositoryID, RepositoryPath: repositoryPath, Ref: ref, Workflow: workflow})
+}
+
+// StartJob is Start for a job whose id (from NewID) and spec the caller
+// chose. The workflow is copied; the spec must not change afterwards.
+func (c *Coordinator) StartJob(job Job) (Execution, error) {
+	if job.ExecutionID == "" {
+		return Execution{}, errors.New("execution id is required")
+	}
+	job.Workflow = cloneWorkflow(job.Workflow)
+	id, repositoryID := job.ExecutionID, job.RepositoryID
+	r := &run{job: job}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -256,7 +268,8 @@ func (c *Coordinator) emit(r *run, t corev1.CoreEventType, state corev1.Executio
 	})
 }
 
-func newID() (string, error) {
+// NewID returns a new execution id.
+func NewID() (string, error) {
 	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		return "", fmt.Errorf("generate execution id: %w", err)

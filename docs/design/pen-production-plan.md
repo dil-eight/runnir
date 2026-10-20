@@ -94,6 +94,6 @@ Represent these as linked frame/state diagrams and annotated click paths using t
 
 For each approved surface provide frame ID/name, FR and state IDs, primary/secondary actions, target transitions, data fields, disabled/error behavior, resize rules and component IDs. For each reusable component provide supported properties/variants, slots, accessibility semantics and equivalent native controls.
 
-Map screen/component state IDs to deterministic #Preview/catalog scenarios during implementation. Record a discrepancy when an existing screen cannot accept injected fixtures; do not claim preview readiness from a Pen component. Screenshots support visual review, while real Keychain/IPC/process/sandbox behavior needs native integration checks.
+Map screen/component state IDs to deterministic #Preview/catalog scenarios during implementation. Record a discrepancy when an existing screen cannot accept injected fixtures; do not claim preview readiness from a Pen component. Screenshots support visual review, while real Keychain/IPC/process/folder-access behavior needs native integration checks.
 
 Do not choose a YAML editor dependency, infer an OAuth scope, promise live GitHub logs or label containers secure based on a mockup. Carry unresolved product/engineering decisions into handoff instead of drawing unsupported functionality.

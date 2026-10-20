@@ -54,6 +54,6 @@ Required macOS build, all 41 unit tests and the static analyzer passed. The suit
 
 ## Remaining Verification
 
-Signed sandbox and helper permissions; exhaustive hostile filesystem-race testing beyond the descriptor/root-replacement fixtures; crash/power-loss injection; native failed-write/cancelled-quit alert interaction; missing monitors and real stale-bookmark recovery; shared account propagation; full populated preview catalog and light-mode visual review. Relink rollback is covered with injected grants and storage failures, not a production-signed bookmark integration test.
+Developer ID signed app and helper; exhaustive hostile filesystem-race testing beyond the descriptor/root-replacement fixtures; crash/power-loss injection; native failed-write/cancelled-quit alert interaction; missing monitors and real stale-bookmark recovery; shared account propagation; full populated preview catalog and light-mode visual review. Relink rollback is covered with injected grants and storage failures, not a production-signed bookmark integration test.
 
 No workflow editing, actionlint, execution, SQLite, remote sync, Device Flow, AI, MCP, analytics, crash collection, signing/notarization or updater was implemented in this slice. Local file readers are presentation bridges, not a duplicate workflow domain engine. The next bounded feature is offline validation, following lifecycle hardening.

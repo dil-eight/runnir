@@ -11,4 +11,8 @@ final class AppState {
     var selectedRunID: Int64?
     /// Shows the Run Workflow sheet.
     var runWorkflowRequest: RunWorkflowRequest?
+    /// The Workspace section shows the editor or the local run.
+    var workspaceTab: WorkspaceTab = .editor
+    /// Shows the Run Locally review sheet.
+    var localRunRequest: LocalRunRequest?
 }

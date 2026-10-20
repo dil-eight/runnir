@@ -10,7 +10,7 @@ When a user requests compatible Linux workflow execution, inspect tool readiness
 
 If absent, offer vendor installation guidance at the point of need. Distinguish missing CLI, stopped engine and unsupported job. Static parsing/actionlint/planning must work without a container engine. Do not install both engines by default.
 
-Prefer opening official installers/instructions. On macOS, Homebrew commands may be shown for user execution after checking Homebrew availability; the sandboxed app must not silently write to global tool directories. Any later in-app installer needs a reviewed system integration design, explicit installation consent, verified downloads and license acceptance. Installing tools does not grant workflow execution permission.
+Prefer opening official installers/instructions. On macOS, Homebrew commands may be shown for user execution after checking Homebrew availability; the app must not silently write to global tool directories. Any later in-app installer needs a reviewed system integration design, explicit installation consent, verified downloads and license acceptance. Installing tools does not grant workflow execution permission.
 
 OrbStack is free for personal non-commercial use; business/commercial use requires a license. Docker Desktop has a conditional small-business free allowance. Show current terms before choosing. Neither engine establishes a secure sandbox for arbitrary workflows; see [execution architecture](../architecture/workflow-intelligence.md).
 
