@@ -341,10 +341,11 @@ final class DesktopCoordinator {
         catch { message = "Registration could not be removed. Repository files were not changed." }
     }
 
-    /// A workflow file of a workspace was renamed: its presets and star go
-    /// with it.
+    /// A workflow file of a workspace was renamed: its star moves with it,
+    /// and its presets are copied to the new name (see
+    /// `DispatchPresetLibrary.copyWorkflowPresets`).
     func workflowRenamed(workspaceID: UUID, from oldPath: String, to newPath: String) {
-        presets.moveWorkflow(workspaceID: workspaceID, from: oldPath, to: newPath)
+        presets.copyWorkflowPresets(workspaceID: workspaceID, from: oldPath, to: newPath)
         favorites.moveWorkflow(workspaceID: workspaceID, from: oldPath, to: newPath)
     }
 

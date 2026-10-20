@@ -8,7 +8,7 @@ struct DispatchPreset: Codable, Identifiable, Equatable, Sendable {
     var name: String
     let workspaceID: UUID
     /// ".github/workflows/<file>", as GitHub reports the workflow's path.
-    var workflowPath: String
+    let workflowPath: String
     var ref: String
     var inputs: [String: String]
     var updatedAt: Date
@@ -171,15 +171,23 @@ final class DispatchPresetLibrary {
         commit(presets.filter { $0.id != id })
     }
 
-    /// Moves a workflow's presets to its new path after the file was renamed.
-    func moveWorkflow(workspaceID: UUID, from oldPath: String, to newPath: String) {
+    /// Copies a workflow's presets to the path a rename gave its file. The
+    /// old ones stay: GitHub runs the workflow under its old path until the
+    /// rename reaches the default branch, and Run Workflow looks presets up
+    /// by that path. A preset whose name the new path already has (after
+    /// renaming back, say) is not copied again; the per-workflow limit holds.
+    func copyWorkflowPresets(workspaceID: UUID, from oldPath: String, to newPath: String) {
         loadIfNeeded()
-        guard oldPath != newPath, presets.contains(where: { $0.workspaceID == workspaceID && $0.workflowPath == oldPath }) else { return }
-        var candidate = presets
-        for index in candidate.indices where candidate[index].workspaceID == workspaceID && candidate[index].workflowPath == oldPath {
-            candidate[index].workflowPath = newPath
-        }
-        commit(candidate)
+        guard oldPath != newPath else { return }
+        let existing = self.presets(workspaceID: workspaceID, workflowPath: newPath)
+        let names = Set(existing.map(\.name))
+        let copies = self.presets(workspaceID: workspaceID, workflowPath: oldPath)
+            .filter { !names.contains($0.name) }
+            .prefix(max(0, Self.perWorkflowLimit - existing.count))
+            .map { DispatchPreset(id: UUID(), name: $0.name, workspaceID: workspaceID, workflowPath: newPath,
+                                  ref: $0.ref, inputs: $0.inputs, updatedAt: Date()) }
+        guard !copies.isEmpty else { return }
+        commit(presets + copies)
     }
 
     /// Removes a workspace's presets with its registration.

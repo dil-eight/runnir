@@ -96,15 +96,22 @@ struct DispatchPresetLibraryTests {
         let library = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: directory))
         let workspace = UUID(), other = UUID()
         let old = ".github/workflows/deploy.yml", new = ".github/workflows/release.yml"
-        let moved = try #require(library.add(name: "Staging", workspaceID: workspace, workflowPath: old, ref: "main", inputs: [:]))
+        let original = try #require(library.add(name: "Staging", workspaceID: workspace, workflowPath: old, ref: "main", inputs: [:]))
         _ = library.add(name: "Kept", workspaceID: other, workflowPath: old, ref: "main", inputs: [:])
 
-        library.moveWorkflow(workspaceID: workspace, from: old, to: new)
+        library.copyWorkflowPresets(workspaceID: workspace, from: old, to: new)
         let reread = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: directory))
         reread.prepare()
-        #expect(reread.presets(workspaceID: workspace, workflowPath: new).map(\.id) == [moved.id])
-        #expect(reread.presets(workspaceID: workspace, workflowPath: old).isEmpty)
-        #expect(reread.presets(workspaceID: other, workflowPath: old).map(\.name) == ["Kept"], "another workspace's file is another file")
+        let copy = try #require(reread.presets(workspaceID: workspace, workflowPath: new).first)
+        #expect(copy.name == "Staging" && copy.ref == "main" && copy.id != original.id)
+        // GitHub runs the workflow under the old path until the rename is on
+        // its default branch, so the old presets stay.
+        #expect(reread.presets(workspaceID: workspace, workflowPath: old).map(\.id) == [original.id])
+        #expect(reread.presets(workspaceID: other, workflowPath: new).isEmpty, "another workspace's file is another file")
+
+        // Renaming back copies nothing twice.
+        reread.copyWorkflowPresets(workspaceID: workspace, from: new, to: old)
+        #expect(reread.presets(workspaceID: workspace, workflowPath: old).count == 1)
     }
 
     @Test

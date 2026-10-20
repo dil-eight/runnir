@@ -164,12 +164,27 @@ struct WorkflowEditingTests {
         #expect(model.selected?.name == "ci.yml" && model.files.map(\.name) == ["ci.yml"])
     }
 
+    @Test func aRenameWaitsForTheOpenFileToLoad() async throws {
+        let (root, reader, hub, core, workspace) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let model = await loaded(reader)
+        model.reloadFromDisk(reader: reader)
+        #expect(model.isLoadingSource)
+        #expect(await model.renameSelected(to: "build.yml", hub: hub, workspaceID: workspace, reader: reader)
+                == .failed("Wait until the file has loaded and saved, then rename it."))
+        #expect(core.fileChanges.isEmpty)
+        _ = await eventually { !model.isLoadingSource }
+        #expect(!model.isLoadingSource && model.savedDigest != nil)
+    }
+
     @Test func typedNamesBecomeWorkflowFileNames() {
         #expect(WorkflowFileName.normalized("  deploy ") == "deploy.yml")
         #expect(WorkflowFileName.normalized("deploy.yaml") == "deploy.yaml")
         #expect(WorkflowFileName.normalized("Deploy.YML") == "Deploy.YML")
         #expect(WorkflowFileName.normalized("deploy.json") == "deploy.json.yml")
         #expect(WorkflowFileName.normalized("   ") == "")
+        #expect(WorkflowFileName.normalized("deploy.") == "deploy.yml")
+        #expect(WorkflowFileName.normalized("..") == "")
         let files = ["workflow.yml", "Workflow-2.yml"].map { LocalWorkflowFile(relativePath: ".github/workflows/" + $0) }
         #expect(WorkflowFileName.suggestion(avoiding: []) == "workflow.yml")
         #expect(WorkflowFileName.suggestion(avoiding: files) == "workflow-3.yml")

@@ -17,7 +17,8 @@ enum WorkflowFileName {
     /// The file name for what was typed: trimmed, with ".yml" added when it
     /// does not end in .yml or .yaml. The Core decides whether it is allowed.
     static func normalized(_ text: String) -> String {
-        let name = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var name = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        while name.hasSuffix(".") { name.removeLast() }
         guard !name.isEmpty else { return "" }
         let ext = (name as NSString).pathExtension.lowercased()
         return ext == "yml" || ext == "yaml" ? name : name + ".yml"
@@ -97,13 +98,15 @@ struct WorkflowFileNameSheet: View {
             }
             HStack {
                 Spacer()
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                // Not while the Core works: the result belongs to this sheet.
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction).disabled(isWorking)
                 Button(isWorking ? workingTitle : actionTitle) { submit() }
                     .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
                     .disabled(name.isEmpty || unchanged || taken || isWorking)
             }.buttonStyle(DesignButtonStyle())
         }
         .padding(20).frame(width: 440)
+        .interactiveDismissDisabled(isWorking)
         .onAppear { focused = true }
     }
 
@@ -119,7 +122,7 @@ struct WorkflowFileNameSheet: View {
         case .create:
             "Adds a file to .github/workflows with one job you can run by hand, on GitHub after you push it or here with Run Locally. Nothing is committed."
         case .rename:
-            "Renames the file in .github/workflows. Its presets and star move with it; GitHub sees the new name after you push. Nothing is committed."
+            "Renames the file in .github/workflows. Its star moves and its presets are copied to the new name; GitHub keeps the old name until the change reaches the default branch. Nothing is committed."
         }
     }
 

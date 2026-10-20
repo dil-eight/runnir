@@ -245,6 +245,8 @@ final class WorkspaceFilesModel {
     private(set) var savedDigest: String?
     private(set) var isWritable = true
     private(set) var isSaving = false
+    /// The open file is being read; a rename waits for it.
+    private(set) var isLoadingSource = false
     private(set) var saveError: String?
     private(set) var diskChange: DiskChange?
     var isLoading = false
@@ -334,7 +336,9 @@ final class WorkspaceFilesModel {
         diskChange = nil
         saveError = nil
         sourceTask?.cancel()
+        isLoadingSource = true
         sourceTask = Task {
+            defer { if !Task.isCancelled { isLoadingSource = false } }
             do {
                 let (loaded, writable) = try await Task.detached {
                     (try reader.loadSource(for: file), reader.isWritable(file))
@@ -401,11 +405,15 @@ final class WorkspaceFilesModel {
     /// edits included: only the name changed, so the version it started
     /// from is still the one on disk.
     func renameSelected(to fileName: String, hub: CoreHub, workspaceID: UUID, reader: RepositoryReader) async -> CoreHub.WorkflowFileChange {
-        guard let file = selected, savedDigest != nil, !isSaving else { return .failed("Wait until the file has loaded and saved, then rename it.") }
+        guard let file = selected, !isLoadingSource, !isSaving else { return .failed("Wait until the file has loaded and saved, then rename it.") }
         let outcome = await hub.renameWorkflowFile(workspaceID: workspaceID, workflowID: file.relativePath, newFileName: fileName)
         if case .done(let id) = outcome {
-            if selected == file { selected = LocalWorkflowFile(relativePath: id) }
             await relist(reader)
+            if selected == file {
+                let renamed = LocalWorkflowFile(relativePath: id)
+                // A file that could not be read is tried again under its new name.
+                if savedDigest == nil { select(renamed, reader: reader) } else { selected = renamed }
+            }
         }
         return outcome
     }
@@ -550,6 +558,11 @@ struct DesktopWorkspaceView: View {
         }
     }
 
+    private func askForFileName(_ request: WorkflowFileNameRequest) {
+        openAfterSheet = nil
+        fileNameRequest = request
+    }
+
     /// Adds a workflow file through the Core; it opens when the sheet closes.
     private func createFile(named name: String) async -> String? {
         guard let reader, let hub = desktop.core else { return "Runnir Core is not ready. Files are created by the Core." }
@@ -580,6 +593,7 @@ struct DesktopWorkspaceView: View {
     private var renameHelp: String {
         if !canValidate { return "Files are renamed by Runnir Core, which has not opened this repository yet" }
         if files.isSaving { return "Wait for the save to finish" }
+        if files.isLoadingSource { return "Wait for the file to open" }
         return "Rename this workflow file; unsaved edits stay in the editor"
     }
 
@@ -666,12 +680,12 @@ struct DesktopWorkspaceView: View {
                         Button(menuTitle(file)) { open(file) }
                     }
                     if !files.files.isEmpty { Divider() }
-                    Button("New Workflow File...") { fileNameRequest = .create }
+                    Button("New Workflow File...") { askForFileName(.create) }
                         .disabled(!canValidate)
                         .help(canValidate ? "Add a workflow file to .github/workflows" : "Files are created by Runnir Core, which has not opened this repository yet")
                     if let file = files.selected {
-                        Button("Rename \(file.name)...") { fileNameRequest = .rename(file) }
-                            .disabled(!canValidate || files.isSaving || files.savedDigest == nil)
+                        Button("Rename \(file.name)...") { askForFileName(.rename(file)) }
+                            .disabled(!canValidate || files.isSaving || files.isLoadingSource)
                             .help(renameHelp)
                     }
                 } label: {
@@ -860,7 +874,7 @@ struct DesktopWorkspaceView: View {
                     LocalWorkflowBrowser(model: files, canValidate: canValidate, validate: validateWorkflows,
                                          reload: { if let reader { files.reloadFromDisk(reader: reader) } },
                                          saveAnyway: { save(overwrite: true) },
-                                         newFile: { fileNameRequest = .create })
+                                         newFile: { askForFileName(.create) })
                         .task(id: canValidate) {
                             // The first visit checks the files; later ones keep the last report.
                             if canValidate, files.validation == nil, files.validationError == nil { validateWorkflows() }
