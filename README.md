@@ -40,6 +40,7 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 - [Foundation verification](docs/architecture/foundation-verification.md)
 - [SwiftUI + Go decision](docs/decisions/0002-swiftui-go-core.md)
 - [Workspace/session and SQLite decision](docs/decisions/0003-workspaces-sessions-offline-storage.md)
+- [Developer ID without the App Sandbox](docs/decisions/0005-developer-id-without-app-sandbox.md)
 - [Desktop lifecycle and restoration](docs/architecture/desktop-lifecycle.md)
 - [Portable config, offline DB and shared sync](docs/architecture/workspace-persistence.md)
 - [IPC v1](docs/architecture/ipc.md)
@@ -86,6 +87,10 @@ Run static analyzer:
 ```bash
 xcodebuild -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'platform=macOS' analyze
 ```
+
+## No App Sandbox
+
+Runnir does not use the Apple App Sandbox. It is distributed outside the Mac App Store, signed with Developer ID, with the hardened runtime and notarization. Local workflow runs need the user's container engine (Docker Desktop, OrbStack, Colima) and tools such as `act`; under the sandbox every process Runnir starts inherits it, and the sandbox refuses the Docker socket. Runnir itself limits what it touches instead: it reads only inside the folders you choose, never follows symlinks or `..` out of them, bounds every read, keeps credentials in the Keychain, and asks for confirmation before running code or changing anything on GitHub. See [ADR 0005](docs/decisions/0005-developer-id-without-app-sandbox.md).
 
 ## GitHub Authentication
 

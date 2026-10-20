@@ -31,7 +31,7 @@ Phases are implementation dependencies, not six mandatory releases. Auth client 
 
 The [first slice](first-implementation-slice.md) now establishes workspace/window lifecycle and registry identity; [offline validation](offline-validation-slice.md) follows using that context. Authentication configuration can proceed independently. Milestones group outcomes, not a mandatory serial schedule.
 
-The brief's 7-10 days is an aggressive personal-prototype estimate, not a delivery commitment. Signed sandbox/process feasibility, tool setup, GitHub auth/dispatch correlation and local execution compatibility can change the estimate.
+The brief's 7-10 days is an aggressive personal-prototype estimate, not a delivery commitment. Developer ID signing and process feasibility, tool setup, GitHub auth/dispatch correlation and local execution compatibility can change the estimate.
 
 ## v0.2 Developer Productivity
 

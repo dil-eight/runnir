@@ -11,7 +11,7 @@ Updated: 2026-10-16. Desktop implementation/build/unit evidence is recorded in [
 | FR-03 dispatch | Missing | Workflow domain model only; GitHubEndpoint currently contains GET methods only | Workflow YAML/input schema/ref discovery, dispatch, presets, permission/confirmation gates, correlation and fallback |
 | FR-04 inspector | Missing feature | WorkflowRun model; RunsView explicitly says monitoring is planned | Run/job/step/log APIs, polling, bounded log viewer/search, cancel/rerun |
 | FR-05 workspace | Partial | Native folder picker/bookmarks, pinned directory descriptors and no-symlink traversal, bounded read-only local YAML browser | Signed scope verification, exhaustive race testing, save/editor, job inspection, actionlint adapter/diagnostics |
-| FR-06 local execution | Missing | A supervised Core process and a stub execution scheduler (limit 3, FIFO queue) exist, with no real engine; setup/sandbox docs are plans | Docker/OrbStack/act adapters, compatible job inventory, execution approvals, streaming/cancellation, limits and cleanup |
+| FR-06 local execution | Missing | A supervised Core process and a stub execution scheduler (limit 3, FIFO queue) exist, with no real engine; setup docs are plans | Docker/OrbStack/act adapters, compatible job inventory, execution approvals, streaming/cancellation, limits and cleanup |
 | FR-07 optional feedback/diagnostics | Partial | Fixed public GitHub toolbar/help links and issue template; no runtime collection | Independent consent, payload/endpoint policy, crash import/sanitization and reviewed issue handoff |
 | FR-08 lifecycle/workspaces | Partial | AppKit splash/Manager, independent window IDs/state, bookmarks, atomic registry/session, startup/quit regression tests, transactional multi-window relink | Crash/power-loss injection, signed grants, native failed-write/quit cancellation, multi-monitor and full recovery integration tests |
 | FR-09 config/offline storage/sync | Partial registry only | Swift combined desktop-state.json; the Core holds only in-memory repository contexts | Read-only .runnir schemas, per-workspace DB/migrations, shared sync, environments/effective values, DB corruption/retention recovery |
@@ -35,7 +35,7 @@ Current Core has no GitHub, workflow validation or real execution services. Its 
 | Input/YAML metadata | FR-03/05 | Structured inspection without executing YAML/scripts; typed supported input defaults/choices |
 | Persistent non-secret configuration | FR-02/03/09 | Global local settings/registry/session; per-workspace SQLite; optional portable .runnir launches separated from private overrides; driver/version still open |
 | Long-running process/events | FR-06 | Existing one-request version transport cannot stream executions; add a scoped typed execution lifecycle when needed |
-| Docker access and trust policy | FR-06 | Resolve engine/socket and signed sandbox constraints; scoped workspace, no socket-in-job mounts or implicit credentials |
+| Docker access and trust policy | FR-06 | Use the user's engine socket; scoped workspace, no socket-in-job mounts or implicit credentials |
 | Dispatch/run correlation | FR-03 | Submission != run start; ambiguity, race, indexing delay and safe retry behavior |
 | Logs resource controls | FR-04 | Bounded download/archive extraction/display, redaction, nonblocking search and retention |
 | License decision | Public release | LICENSE is GPLv3; Apache-2.0 in the brief remains proposed, not adopted |
@@ -44,7 +44,7 @@ Current Core has no GitHub, workflow validation or real execution services. Its 
 
 All 41 unit tests pass. Coverage includes REST decoding through the production client, credential/model/version-IPC behavior, registry/session mutations, corrupt-state handling, quit during delayed load, multi-window relink and failure rollback, pinned-root replacement, child symlink rejection, bounded workflow reads and maximum-size YAML highlighting. Native smoke checks cover import/read/multiple windows/close/quit/restart, not comprehensive UI end-to-end coverage. Signed scope enforcement, exhaustive hostile filesystem races, native stale bookmarks, Keychain restart, API pagination/rate-limit, Device Flow, actionlint, act and large logs remain unverified.
 
-Add tests with the feature they protect. Native execution on every Go target, production signing/sandbox enforcement, authentication and deployment remain unverified until separately exercised.
+Add tests with the feature they protect. Native execution on every Go target, production Developer ID signing, authentication and deployment remain unverified until separately exercised.
 
 ## Scope Reconciliation
 

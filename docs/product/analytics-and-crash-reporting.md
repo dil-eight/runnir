@@ -30,7 +30,7 @@ Proposed bounds: batches of daily counters, no exact event timestamps, at most s
 
 Prefer OS-generated crash information plus app/Core version and an allowlisted summary. Apple documents .ips crash data and its fields; a raw report is not an automatically safe public attachment. See [Apple crash report format](https://developer.apple.com/documentation/xcode/interpreting-the-json-format-of-a-crash-report) and [diagnostic logs](https://developer.apple.com/documentation/xcode/diagnosing-issues-using-crash-reports-and-device-logs).
 
-Keep Swift/macOS crash and Go helper failure distinct. A helper nonzero exit is not proof of a desktop crash; an interrupted-session marker is not proof of a crash either. No broad scanning of ~/Library/Logs/DiagnosticReports or reading unrelated app reports. Start with explicit user-selected import of a Runnir .ips report through the native file picker, or app-owned bounded diagnostic records. Automatic crash acquisition requires a separate sandbox-compatible design and verification.
+Keep Swift/macOS crash and Go helper failure distinct. A helper nonzero exit is not proof of a desktop crash; an interrupted-session marker is not proof of a crash either. No broad scanning of ~/Library/Logs/DiagnosticReports or reading unrelated app reports. Start with explicit user-selected import of a Runnir .ips report through the native file picker, or app-owned bounded diagnostic records. Automatic crash acquisition requires a separate design and verification.
 
 Build a new allowlisted summary, rather than sending the raw report after regex replacement. Candidate fields: app/Core version/build, coarse OS/architecture, known component, exception/signal category, build UUID and Runnir-only symbolic frame/module offsets when safely extracted. Omit registers, memory dumps, exception messages, user paths, command lines, environment, workflow/source/log contents and unrelated process/module details. Keep build symbol/dSYM association for useful diagnostics without private source paths.
 
@@ -62,7 +62,7 @@ At minimum width it may enter the native toolbar overflow, with a Help-menu fall
 
 1. Design the toolbar action, optional consent invitation, settings controls and diagnostic preview/recovery states; preserve core MVP flows.
 2. Implement static link + manual issue draft/preview before choosing analytics/crash dependencies. Issue template alone does not constitute crash collection.
-3. Implement explicit local report import/summarization and redaction tests; verify signed sandbox access and bounded retention.
+3. Implement explicit local report import/summarization and redaction tests; verify access in a signed build and bounded retention.
 4. Select/document an optional analytics destination and review dependency license/autocollection behavior; implement consent and strict allowlist before enabling transmission.
 
 Tests must establish zero app analytics transmission/queuing before consent and after withdrawal, independent crash approval, queue/retention bounds, schema rejection/redaction, destination pinning, Unicode/encoding/long-URL handling, no token reuse, no duplicate publication and truthful handoff states. Compare actual outbound payloads with UI previews using synthetic secrets and repositories.

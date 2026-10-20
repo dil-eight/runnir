@@ -98,7 +98,7 @@ Use versioned Application Support settings/session/registry files and an embedde
 
 No telemetry by default, unrestricted AI/MCP commands, automatic commits/pushes, silently uploaded source/secrets or automatic production approval. Remote mutations require explicit user authorization. Treat workflows/logs as untrusted input.
 
-Before repository tools or local execution ship, verify macOS security-scoped access and a viable signed helper/process/container access design. Existing unsigned development builds do not prove sandbox enforcement.
+Before repository tools or local execution ship, verify folder access and process/container access in a Developer ID signed build. Runnir ships without the App Sandbox ([ADR 0005](../decisions/0005-developer-id-without-app-sandbox.md)), so the Core's own scope rules must hold.
 
 Retain semantic tags and draft GitHub releases. Production signing, notarization, packaging and secure updater implementation remain separate prerequisites; no completed authentication, distribution or deployment claims until verified.
 

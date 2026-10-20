@@ -32,9 +32,10 @@ for arch in $ARCHS; do
 done
 /usr/bin/lipo -create "$@" -output "${destination}/runnir-core"
 
+# The helper runs with the hardened runtime and no entitlements: no App
+# Sandbox to inherit (ADR 0005).
 if [ "${CODE_SIGNING_ALLOWED:-NO}" = YES ]; then
     /usr/bin/codesign --force --options runtime \
         --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" \
-        --entitlements "${SRCROOT}/../../core/macos-helper.entitlements" \
         "${destination}/runnir-core"
 fi

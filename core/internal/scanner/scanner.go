@@ -76,9 +76,9 @@ func absentOrError(err error) error {
 }
 
 // probeReadable tells "the folder is unreadable" apart from "the folder has no
-// workflows". Without it a denied folder (for example under an App Sandbox that
-// granted access to the app but not to this process) would look like an empty
-// repository, because later steps treat unreadable parts as absent.
+// workflows". Without it a denied folder (for example a protected location
+// macOS has not allowed) would look like an empty repository, because later
+// steps treat unreadable parts as absent.
 func probeReadable(root string) error {
 	dir, err := os.Open(root)
 	if err == nil {

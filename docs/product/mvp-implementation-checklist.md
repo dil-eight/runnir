@@ -19,8 +19,8 @@ What exists in code, with tests, against the backlog below. A row stays unaccept
 
 | ID | State | Missing for acceptance |
 | --- | --- | --- |
-| B01 | Import, bookmarks (stale refreshed), scoped reads, Locate/relink | Signed sandbox build check of the folder grant |
-| B02 | Discovery and bounded parsing in the Core (both extensions, limits, worktrees, no evaluation) | Signed-build check |
+| B01 | Import, bookmarks (stale refreshed), scoped reads, Locate/relink | Developer ID signed build check |
+| B02 | Discovery and bounded parsing in the Core (both extensions, limits, worktrees, no evaluation) | Developer ID signed build check |
 | B03 | actionlint as a library in the Core, no external process; diagnostics with file, line and column in the Workspace section; repository config honored; reads bounded and kept inside the repository | Shellcheck and pyflakes checks (off by design for now); signed-build check |
 | B05 | Device Flow with the registered app; no secret; token only in Keychain and Core memory | Rate-limit scheduling review |
 | B06 | Restore, sign-out, revoked token, offline launch with retry; real sign-in confirmed by hand | Keychain denial on a signed build |
@@ -100,7 +100,6 @@ B22/B23/B24 support the first lifecycle slice, whose native window/registry foun
 - GitHub client identifier/app type, device-flow enablement and least-permission mapping.
 - Supported scope/session IPC contracts; current RPC supports version only.
 - actionlint/act versions, license notices, artifact verification and bundled versus user-installed distribution.
-- Signed macOS sandbox design for scoped file access and Docker/tool process access.
 - Repository execution trust model, image/network/download consent, cleanup and resource bounds.
 - Session durability/native restoration ordering, pure-Go SQLite driver and single-writer lifetime, config field merging, history/blob budgets and account-wide remote browsing placement; see ADR 0003.
 - LICENSE remains GPLv3; proposed Apache-2.0 requires a separate explicit decision.

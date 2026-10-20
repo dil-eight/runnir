@@ -3,8 +3,7 @@ import Foundation
 import Testing
 @testable import Runnir
 
-/// Runs the real bundled Core and the real gRPC client. The test host is not
-/// sandboxed (signing is off in tests); sandbox behavior is verified separately.
+/// Runs the real bundled Core and the real gRPC client.
 @Suite(.timeLimit(.minutes(1)))
 struct CoreProcessIntegrationTests {
     private static func makeSupervisor() -> (CoreProcessSupervisor, socket: String) {

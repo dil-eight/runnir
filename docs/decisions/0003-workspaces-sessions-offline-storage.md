@@ -29,6 +29,6 @@ Workspace startup/config phases can ship incrementally, but they do not remove F
 
 ## Open Implementation Decisions
 
-SQLite pure-Go driver/library and licensing/version; exact signed sandbox file-grant and Core DB access bridge; WAL/shutdown/single-writer process ownership; critical session commit/tombstone strategy; app termination callback ordering at macOS 15+; sync/history/blob budgets; field-specific config merge rules; portable secret-reference resolver; dirty-editor behavior across same-workspace windows; account-wide remote browsing placement within a local-workspace product; any permanent product rename.
+SQLite pure-Go driver/library and licensing/version; Core DB access in a signed build; WAL/shutdown/single-writer process ownership; critical session commit/tombstone strategy; app termination callback ordering at macOS 15+; sync/history/blob budgets; field-specific config merge rules; portable secret-reference resolver; dirty-editor behavior across same-workspace windows; account-wide remote browsing placement within a local-workspace product; any permanent product rename.
 
 See [desktop verification](../architecture/desktop-foundation-verification.md), [lifecycle](../architecture/desktop-lifecycle.md) and [persistence/config/sync](../architecture/workspace-persistence.md). No SQLite dependency has been selected.
