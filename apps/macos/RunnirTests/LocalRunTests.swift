@@ -83,6 +83,17 @@ struct LocalRunTests {
         #expect(CoreHub.sentence("Done.") == "Done.")
     }
 
+    @Test func runningJobTimeCountsToNow() {
+        let start = Date(timeIntervalSince1970: 0)
+        let running = CoreLocalRunJobStatus(id: "lint", state: .running, startedAt: start)
+        #expect(LocalRunText.jobSubtitle(running, now: start.addingTimeInterval(29)) == "Running · 00:29")
+        #expect(LocalRunText.jobSubtitle(running, now: start.addingTimeInterval(52)) == "Running · 00:52")
+        let done = CoreLocalRunJobStatus(id: "lint", state: .failed, startedAt: start, finishedAt: start.addingTimeInterval(51))
+        #expect(LocalRunText.jobSubtitle(done, now: start.addingTimeInterval(300)) == "Failed · 00:51")
+        #expect(LocalRunText.jobSubtitle(CoreLocalRunJobStatus(id: "ios", state: .unsupported, reason: "Not supported locally: macOS runner"),
+                                         now: start) == "Not supported locally: macOS runner")
+    }
+
     @Test func elapsedTimeFormat() {
         let start = Date(timeIntervalSince1970: 0)
         #expect(LocalRunText.elapsed(from: start, to: start.addingTimeInterval(42)) == "00:42")
