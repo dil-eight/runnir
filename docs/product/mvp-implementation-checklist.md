@@ -19,8 +19,8 @@ What exists in code, with tests, against the backlog below. A row stays unaccept
 
 | ID | State | Missing for acceptance |
 | --- | --- | --- |
-| B01 | Import, bookmarks (stale refreshed), scoped reads, Locate/relink | Signed sandbox build check of the folder grant |
-| B02 | Discovery and bounded parsing in the Core (both extensions, limits, worktrees, no evaluation) | Signed-build check |
+| B01 | Import, bookmarks (stale refreshed), scoped reads, Locate/relink | Developer ID signed build check |
+| B02 | Discovery and bounded parsing in the Core (both extensions, limits, worktrees, no evaluation) | Developer ID signed build check |
 | B03 | actionlint as a library in the Core, no external process; diagnostics with file, line and column in the Workspace section; repository config honored; reads bounded and kept inside the repository | Shellcheck and pyflakes checks (off by design for now); signed-build check |
 | B05 | Device Flow with the registered app; no secret; token only in Keychain and Core memory | Rate-limit scheduling review |
 | B06 | Restore, sign-out, revoked token, offline launch with retry; real sign-in confirmed by hand | Keychain denial on a signed build |
@@ -30,8 +30,11 @@ What exists in code, with tests, against the backlog below. A row stays unaccept
 | B11 | Runs, jobs and steps, active and idle polling, rate-limit states | — |
 | B12 | Last 2 MiB / 50,000 lines of a job log, step matching, search, expired and not-ready states | Controlled real logs |
 | B13 | Cancel, re-run all, re-run failed jobs with single-use confirmation; GitHub refusals shown | Controlled real operations |
+| B14 | Bundled act (ADR 0006) plus experimental installed act; Docker CLI, engine and context detection (missing, stopped, remote, old API); Settings › Tools and the review show them; no installs, engine starts or context switches | Docker Desktop and Colima checks by hand; signed-build check |
+| B15 | Plan from the workflow file: supported, unsupported and unknown jobs, needs closure, events, images and whether present, secrets read, notes, limits, blockers; review screen with trust confirmation; single-use confirmation refused after a file change | Workflows with services and matrices on a real engine |
+| B16 | act with a fixed command line (no socket mount, no repository env/secret files or .actrc, bridge network, no cache server, labels and limits); live bounded output; job states; stop and timeout with process-group interrupt and kill; labelled-container cleanup; Core shutdown stops runs; verified end to end on OrbStack with small images | Run with the full runner images; a prompt when quitting during a run |
 
-Not started: B04, B08, B14–B16, B18–B29 beyond the existing window and session foundation.
+Not started: B04, B08, B18–B29 beyond the existing window and session foundation.
 
 ## Prioritized Backlog
 
@@ -100,7 +103,6 @@ B22/B23/B24 support the first lifecycle slice, whose native window/registry foun
 - GitHub client identifier/app type, device-flow enablement and least-permission mapping.
 - Supported scope/session IPC contracts; current RPC supports version only.
 - actionlint/act versions, license notices, artifact verification and bundled versus user-installed distribution.
-- Signed macOS sandbox design for scoped file access and Docker/tool process access.
 - Repository execution trust model, image/network/download consent, cleanup and resource bounds.
 - Session durability/native restoration ordering, pure-Go SQLite driver and single-writer lifetime, config field merging, history/blob budgets and account-wide remote browsing placement; see ADR 0003.
 - LICENSE remains GPLv3; proposed Apache-2.0 requires a separate explicit decision.

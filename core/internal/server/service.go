@@ -18,6 +18,7 @@ import (
 	"runnir/core/internal/execution"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
+	"runnir/core/internal/localrun"
 	"runnir/core/internal/repository"
 	"runnir/core/internal/validate"
 )
@@ -33,6 +34,13 @@ type service struct {
 	github       *github.Client
 	dispatches   *dispatch.Store
 	runActions   *approval.Store[runAction]
+	tools        toolChecker
+	localRuns    *approval.Store[localRunApproval]
+	localOutputs *localrun.Outputs
+	// home is the user's home directory and actCache act's cache of
+	// actions, kept between runs.
+	home     string
+	actCache string
 }
 
 func (s *service) HealthCheck(context.Context, *corev1.HealthCheckRequest) (*corev1.HealthCheckResponse, error) {

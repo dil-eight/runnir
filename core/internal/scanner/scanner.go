@@ -76,9 +76,9 @@ func absentOrError(err error) error {
 }
 
 // probeReadable tells "the folder is unreadable" apart from "the folder has no
-// workflows". Without it a denied folder (for example under an App Sandbox that
-// granted access to the app but not to this process) would look like an empty
-// repository, because later steps treat unreadable parts as absent.
+// workflows". Without it a denied folder (for example a protected location
+// macOS has not allowed) would look like an empty repository, because later
+// steps treat unreadable parts as absent.
 func probeReadable(root string) error {
 	dir, err := os.Open(root)
 	if err == nil {
@@ -333,6 +333,32 @@ func ReadWorkflowFiles(ctx context.Context, root string) ([]WorkflowFile, error)
 		}
 	}
 	return files, nil
+}
+
+// ErrNoWorkflowFile: id does not name a regular YAML file directly in
+// .github/workflows, or the file cannot be read within the bound.
+var ErrNoWorkflowFile = errors.New("not a readable workflow file")
+
+// ReadWorkflowFile reads one workflow file by its id, with the same rules as
+// ReadWorkflowFiles: a regular file of at most 1 MiB directly in a
+// .github/workflows directory that is not a symlink.
+func ReadWorkflowFile(root, id string) ([]byte, error) {
+	name, found := strings.CutPrefix(id, workflowsDir+"/")
+	ext := strings.ToLower(path.Ext(name))
+	if !found || name == "" || strings.ContainsAny(name, "/\\") || name == "." || name == ".." || (ext != ".yml" && ext != ".yaml") {
+		return nil, ErrNoWorkflowFile
+	}
+	for _, dir := range []string{".github", workflowsDir} {
+		info, err := os.Lstat(filepath.Join(root, filepath.FromSlash(dir)))
+		if err != nil || !info.IsDir() {
+			return nil, ErrNoWorkflowFile
+		}
+	}
+	data, err := readBounded(filepath.Join(root, filepath.FromSlash(id)), maxFileBytes)
+	if err != nil {
+		return nil, ErrNoWorkflowFile
+	}
+	return data, nil
 }
 
 // ReadLinterConfig returns the repository's actionlint config

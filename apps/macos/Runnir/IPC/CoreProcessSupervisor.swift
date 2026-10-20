@@ -116,7 +116,7 @@ actor CoreProcessSupervisor {
     }
 
     /// The app's supervisor: bundled helper, gRPC over a socket in the
-    /// per-user temporary directory (inside the container when sandboxed),
+    /// per-user temporary directory,
     /// and the Core's diagnostics in `logURL`.
     static func bundled() -> CoreProcessSupervisor {
         let bundle = Bundle.main.bundleURL
@@ -130,9 +130,8 @@ actor CoreProcessSupervisor {
         )
     }
 
-    /// Where the Core's standard error goes: Library/Logs/Runnir/core.log
-    /// (inside the container when sandboxed). The previous launch's log is
-    /// kept as core.previous.log.
+    /// Where the Core's standard error goes: ~/Library/Logs/Runnir/core.log.
+    /// The previous launch's log is kept as core.previous.log.
     static let logURL: URL? = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?
         .appendingPathComponent("Logs/Runnir/core.log")
 

@@ -22,6 +22,6 @@ Existing Swift GitHub, credential and app-state tests still pass. Screens, navig
 
 ## Legal Review
 
-Legal review: no blocking issues found for the version-only proof of concept. It sends no repository data or credentials and adds no runtime dependencies. Signed App Sandbox inheritance, notarization, production updates, actual GitHub/MCP approval enforcement and external offer delivery remain unverified future features.
+Legal review: no blocking issues found for the version-only proof of concept. It sends no repository data or credentials and adds no runtime dependencies. Developer ID signing, notarization, production updates, actual GitHub/MCP approval enforcement and external offer delivery remain unverified future features.
 
 Docker/OrbStack, DigitalOcean/doctl, Next static deployment and offer matching are specifications/templates only. No software installations, cloud provisioning, affiliate enrollment, catalog hosting or repository upload occurred. Hosted GitHub workflows were configured but not executed here; Linux/Windows native execution and additional architecture coverage require CI evidence.

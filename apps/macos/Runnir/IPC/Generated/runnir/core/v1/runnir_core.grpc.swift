@@ -298,6 +298,71 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "GetToolReadiness" metadata.
+        internal enum GetToolReadiness: Sendable {
+            /// Request type for "GetToolReadiness".
+            internal typealias Input = Runnir_Core_V1_GetToolReadinessRequest
+            /// Response type for "GetToolReadiness".
+            internal typealias Output = Runnir_Core_V1_GetToolReadinessResponse
+            /// Descriptor for "GetToolReadiness".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "GetToolReadiness",
+                type: .unary
+            )
+        }
+        /// Namespace for "PrepareLocalRun" metadata.
+        internal enum PrepareLocalRun: Sendable {
+            /// Request type for "PrepareLocalRun".
+            internal typealias Input = Runnir_Core_V1_PrepareLocalRunRequest
+            /// Response type for "PrepareLocalRun".
+            internal typealias Output = Runnir_Core_V1_PrepareLocalRunResponse
+            /// Descriptor for "PrepareLocalRun".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "PrepareLocalRun",
+                type: .unary
+            )
+        }
+        /// Namespace for "ConfirmLocalRun" metadata.
+        internal enum ConfirmLocalRun: Sendable {
+            /// Request type for "ConfirmLocalRun".
+            internal typealias Input = Runnir_Core_V1_ConfirmLocalRunRequest
+            /// Response type for "ConfirmLocalRun".
+            internal typealias Output = Runnir_Core_V1_ConfirmLocalRunResponse
+            /// Descriptor for "ConfirmLocalRun".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ConfirmLocalRun",
+                type: .unary
+            )
+        }
+        /// Namespace for "GetLocalRunOutput" metadata.
+        internal enum GetLocalRunOutput: Sendable {
+            /// Request type for "GetLocalRunOutput".
+            internal typealias Input = Runnir_Core_V1_GetLocalRunOutputRequest
+            /// Response type for "GetLocalRunOutput".
+            internal typealias Output = Runnir_Core_V1_GetLocalRunOutputResponse
+            /// Descriptor for "GetLocalRunOutput".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "GetLocalRunOutput",
+                type: .unary
+            )
+        }
+        /// Namespace for "CancelExecution" metadata.
+        internal enum CancelExecution: Sendable {
+            /// Request type for "CancelExecution".
+            internal typealias Input = Runnir_Core_V1_CancelExecutionRequest
+            /// Response type for "CancelExecution".
+            internal typealias Output = Runnir_Core_V1_CancelExecutionResponse
+            /// Descriptor for "CancelExecution".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "CancelExecution",
+                type: .unary
+            )
+        }
         /// Descriptors for all methods in the "runnir.core.v1.RunnirCore" service.
         internal static let descriptors: [GRPCCore.MethodDescriptor] = [
             HealthCheck.descriptor,
@@ -320,7 +385,12 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             ConfirmWorkflowDispatch.descriptor,
             GetJobLog.descriptor,
             PrepareRunAction.descriptor,
-            ConfirmRunAction.descriptor
+            ConfirmRunAction.descriptor,
+            GetToolReadiness.descriptor,
+            PrepareLocalRun.descriptor,
+            ConfirmLocalRun.descriptor,
+            GetLocalRunOutput.descriptor,
+            CancelExecution.descriptor
         ]
     }
 }
@@ -444,7 +514,8 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > Interface only in the MVP: no real GitHub Actions engine yet.
+        /// > Starts an execution without a reviewed plan. Local runs need one, so
+        /// > executions started this way fail; use PrepareLocalRun.
         ///
         /// - Parameters:
         ///   - request: A streaming request of `Runnir_Core_V1_StartWorkflowRequest` messages.
@@ -695,6 +766,99 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ConfirmRunActionRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ConfirmRunActionResponse>
+
+        /// Handle the "GetToolReadiness" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The programs local runs need, as found on this computer: the act bundled
+        /// > with Runnir, an installed act, the Docker CLI and the container engine
+        /// > of the current Docker context. Read-only: nothing is installed, started
+        /// > or switched. The last result is reused unless refresh is set.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_GetToolReadinessRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_GetToolReadinessResponse` messages.
+        func getToolReadiness(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetToolReadinessRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetToolReadinessResponse>
+
+        /// Handle the "PrepareLocalRun" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Running a workflow locally takes two calls, like a dispatch: Prepare
+        /// > checks the tools and the workflow file and returns the plan, with a
+        /// > single-use confirmation when nothing blocks it; only Confirm starts act.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_PrepareLocalRunRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_PrepareLocalRunResponse` messages.
+        func prepareLocalRun(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_PrepareLocalRunRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_PrepareLocalRunResponse>
+
+        /// Handle the "ConfirmLocalRun" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ConfirmLocalRunRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ConfirmLocalRunResponse` messages.
+        func confirmLocalRun(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ConfirmLocalRunRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ConfirmLocalRunResponse>
+
+        /// Handle the "GetLocalRunOutput" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > A local run's state, job states and the output lines after a sequence
+        /// > number. The Core keeps the last 5,000 lines of each of the last 20 runs.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_GetLocalRunOutputRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_GetLocalRunOutputResponse` messages.
+        func getLocalRunOutput(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetLocalRunOutputRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetLocalRunOutputResponse>
+
+        /// Handle the "CancelExecution" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Stops a queued or running execution; a local run's containers are
+        /// > removed afterwards.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_CancelExecutionRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_CancelExecutionResponse` messages.
+        func cancelExecution(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_CancelExecutionRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_CancelExecutionResponse>
     }
 
     /// Service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -802,7 +966,8 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > Interface only in the MVP: no real GitHub Actions engine yet.
+        /// > Starts an execution without a reviewed plan. Local runs need one, so
+        /// > executions started this way fail; use PrepareLocalRun.
         ///
         /// - Parameters:
         ///   - request: A request containing a single `Runnir_Core_V1_StartWorkflowRequest` message.
@@ -1053,6 +1218,99 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.ServerRequest<Runnir_Core_V1_ConfirmRunActionRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ConfirmRunActionResponse>
+
+        /// Handle the "GetToolReadiness" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The programs local runs need, as found on this computer: the act bundled
+        /// > with Runnir, an installed act, the Docker CLI and the container engine
+        /// > of the current Docker context. Read-only: nothing is installed, started
+        /// > or switched. The last result is reused unless refresh is set.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetToolReadinessRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_GetToolReadinessResponse` message.
+        func getToolReadiness(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_GetToolReadinessRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetToolReadinessResponse>
+
+        /// Handle the "PrepareLocalRun" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Running a workflow locally takes two calls, like a dispatch: Prepare
+        /// > checks the tools and the workflow file and returns the plan, with a
+        /// > single-use confirmation when nothing blocks it; only Confirm starts act.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_PrepareLocalRunRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_PrepareLocalRunResponse` message.
+        func prepareLocalRun(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_PrepareLocalRunRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_PrepareLocalRunResponse>
+
+        /// Handle the "ConfirmLocalRun" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ConfirmLocalRunRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ConfirmLocalRunResponse` message.
+        func confirmLocalRun(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ConfirmLocalRunRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ConfirmLocalRunResponse>
+
+        /// Handle the "GetLocalRunOutput" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > A local run's state, job states and the output lines after a sequence
+        /// > number. The Core keeps the last 5,000 lines of each of the last 20 runs.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetLocalRunOutputRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_GetLocalRunOutputResponse` message.
+        func getLocalRunOutput(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_GetLocalRunOutputRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetLocalRunOutputResponse>
+
+        /// Handle the "CancelExecution" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Stops a queued or running execution; a local run's containers are
+        /// > removed afterwards.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_CancelExecutionRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_CancelExecutionResponse` message.
+        func cancelExecution(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_CancelExecutionRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_CancelExecutionResponse>
     }
 
     /// Simple service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -1158,7 +1416,8 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > Interface only in the MVP: no real GitHub Actions engine yet.
+        /// > Starts an execution without a reviewed plan. Local runs need one, so
+        /// > executions started this way fail; use PrepareLocalRun.
         ///
         /// - Parameters:
         ///   - request: A `Runnir_Core_V1_StartWorkflowRequest` message.
@@ -1410,6 +1669,99 @@ extension Runnir_Core_V1_RunnirCore {
             request: Runnir_Core_V1_ConfirmRunActionRequest,
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_ConfirmRunActionResponse
+
+        /// Handle the "GetToolReadiness" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The programs local runs need, as found on this computer: the act bundled
+        /// > with Runnir, an installed act, the Docker CLI and the container engine
+        /// > of the current Docker context. Read-only: nothing is installed, started
+        /// > or switched. The last result is reused unless refresh is set.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_GetToolReadinessRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_GetToolReadinessResponse` to respond with.
+        func getToolReadiness(
+            request: Runnir_Core_V1_GetToolReadinessRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_GetToolReadinessResponse
+
+        /// Handle the "PrepareLocalRun" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Running a workflow locally takes two calls, like a dispatch: Prepare
+        /// > checks the tools and the workflow file and returns the plan, with a
+        /// > single-use confirmation when nothing blocks it; only Confirm starts act.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_PrepareLocalRunRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_PrepareLocalRunResponse` to respond with.
+        func prepareLocalRun(
+            request: Runnir_Core_V1_PrepareLocalRunRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_PrepareLocalRunResponse
+
+        /// Handle the "ConfirmLocalRun" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ConfirmLocalRunRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ConfirmLocalRunResponse` to respond with.
+        func confirmLocalRun(
+            request: Runnir_Core_V1_ConfirmLocalRunRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ConfirmLocalRunResponse
+
+        /// Handle the "GetLocalRunOutput" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > A local run's state, job states and the output lines after a sequence
+        /// > number. The Core keeps the last 5,000 lines of each of the last 20 runs.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_GetLocalRunOutputRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_GetLocalRunOutputResponse` to respond with.
+        func getLocalRunOutput(
+            request: Runnir_Core_V1_GetLocalRunOutputRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_GetLocalRunOutputResponse
+
+        /// Handle the "CancelExecution" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Stops a queued or running execution; a local run's containers are
+        /// > removed afterwards.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_CancelExecutionRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_CancelExecutionResponse` to respond with.
+        func cancelExecution(
+            request: Runnir_Core_V1_CancelExecutionRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_CancelExecutionResponse
     }
 }
 
@@ -1648,6 +2000,61 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
                 )
             }
         )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.GetToolReadiness.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetToolReadinessRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetToolReadinessResponse>(),
+            handler: { request, context in
+                try await self.getToolReadiness(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.PrepareLocalRun.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_PrepareLocalRunRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_PrepareLocalRunResponse>(),
+            handler: { request, context in
+                try await self.prepareLocalRun(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ConfirmLocalRun.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ConfirmLocalRunRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ConfirmLocalRunResponse>(),
+            handler: { request, context in
+                try await self.confirmLocalRun(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.GetLocalRunOutput.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetLocalRunOutputRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetLocalRunOutputResponse>(),
+            handler: { request, context in
+                try await self.getLocalRunOutput(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.CancelExecution.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_CancelExecutionRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_CancelExecutionResponse>(),
+            handler: { request, context in
+                try await self.cancelExecution(
+                    request: request,
+                    context: context
+                )
+            }
+        )
     }
 }
 
@@ -1879,6 +2286,61 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ConfirmRunActionResponse> {
         let response = try await self.confirmRunAction(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func getToolReadiness(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetToolReadinessRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetToolReadinessResponse> {
+        let response = try await self.getToolReadiness(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func prepareLocalRun(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_PrepareLocalRunRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_PrepareLocalRunResponse> {
+        let response = try await self.prepareLocalRun(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func confirmLocalRun(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ConfirmLocalRunRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ConfirmLocalRunResponse> {
+        let response = try await self.confirmLocalRun(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func getLocalRunOutput(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetLocalRunOutputRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetLocalRunOutputResponse> {
+        let response = try await self.getLocalRunOutput(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func cancelExecution(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_CancelExecutionRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_CancelExecutionResponse> {
+        let response = try await self.cancelExecution(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -2165,6 +2627,71 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
             metadata: [:]
         )
     }
+
+    internal func getToolReadiness(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_GetToolReadinessRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetToolReadinessResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_GetToolReadinessResponse>(
+            message: try await self.getToolReadiness(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func prepareLocalRun(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_PrepareLocalRunRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_PrepareLocalRunResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_PrepareLocalRunResponse>(
+            message: try await self.prepareLocalRun(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func confirmLocalRun(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ConfirmLocalRunRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ConfirmLocalRunResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ConfirmLocalRunResponse>(
+            message: try await self.confirmLocalRun(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func getLocalRunOutput(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_GetLocalRunOutputRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetLocalRunOutputResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_GetLocalRunOutputResponse>(
+            message: try await self.getLocalRunOutput(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func cancelExecution(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_CancelExecutionRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_CancelExecutionResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_CancelExecutionResponse>(
+            message: try await self.cancelExecution(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
 }
 
 // MARK: runnir.core.v1.RunnirCore (client)
@@ -2303,7 +2830,8 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > Interface only in the MVP: no real GitHub Actions engine yet.
+        /// > Starts an execution without a reviewed plan. Local runs need one, so
+        /// > executions started this way fail; use PrepareLocalRun.
         ///
         /// - Parameters:
         ///   - request: A request containing a single `Runnir_Core_V1_StartWorkflowRequest` message.
@@ -2629,6 +3157,124 @@ extension Runnir_Core_V1_RunnirCore {
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ConfirmRunActionResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
+
+        /// Call the "GetToolReadiness" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The programs local runs need, as found on this computer: the act bundled
+        /// > with Runnir, an installed act, the Docker CLI and the container engine
+        /// > of the current Docker context. Read-only: nothing is installed, started
+        /// > or switched. The last result is reused unless refresh is set.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetToolReadinessRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetToolReadinessRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetToolReadinessResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func getToolReadiness<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetToolReadinessRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetToolReadinessRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetToolReadinessResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetToolReadinessResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "PrepareLocalRun" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Running a workflow locally takes two calls, like a dispatch: Prepare
+        /// > checks the tools and the workflow file and returns the plan, with a
+        /// > single-use confirmation when nothing blocks it; only Confirm starts act.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_PrepareLocalRunRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_PrepareLocalRunRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_PrepareLocalRunResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func prepareLocalRun<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_PrepareLocalRunRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_PrepareLocalRunRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_PrepareLocalRunResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_PrepareLocalRunResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ConfirmLocalRun" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ConfirmLocalRunRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ConfirmLocalRunRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ConfirmLocalRunResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func confirmLocalRun<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ConfirmLocalRunRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ConfirmLocalRunRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ConfirmLocalRunResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ConfirmLocalRunResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "GetLocalRunOutput" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > A local run's state, job states and the output lines after a sequence
+        /// > number. The Core keeps the last 5,000 lines of each of the last 20 runs.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetLocalRunOutputRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetLocalRunOutputRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetLocalRunOutputResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func getLocalRunOutput<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetLocalRunOutputRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetLocalRunOutputRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetLocalRunOutputResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetLocalRunOutputResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "CancelExecution" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Stops a queued or running execution; a local run's containers are
+        /// > removed afterwards.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_CancelExecutionRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_CancelExecutionRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_CancelExecutionResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func cancelExecution<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_CancelExecutionRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_CancelExecutionRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_CancelExecutionResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_CancelExecutionResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
     }
 
     /// Generated client for the "runnir.core.v1.RunnirCore" service.
@@ -2840,7 +3486,8 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > Interface only in the MVP: no real GitHub Actions engine yet.
+        /// > Starts an execution without a reviewed plan. Local runs need one, so
+        /// > executions started this way fail; use PrepareLocalRun.
         ///
         /// - Parameters:
         ///   - request: A request containing a single `Runnir_Core_V1_StartWorkflowRequest` message.
@@ -3329,6 +3976,179 @@ extension Runnir_Core_V1_RunnirCore {
                 onResponse: handleResponse
             )
         }
+
+        /// Call the "GetToolReadiness" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The programs local runs need, as found on this computer: the act bundled
+        /// > with Runnir, an installed act, the Docker CLI and the container engine
+        /// > of the current Docker context. Read-only: nothing is installed, started
+        /// > or switched. The last result is reused unless refresh is set.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetToolReadinessRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetToolReadinessRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetToolReadinessResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func getToolReadiness<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetToolReadinessRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetToolReadinessRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetToolReadinessResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetToolReadinessResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.GetToolReadiness.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "PrepareLocalRun" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Running a workflow locally takes two calls, like a dispatch: Prepare
+        /// > checks the tools and the workflow file and returns the plan, with a
+        /// > single-use confirmation when nothing blocks it; only Confirm starts act.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_PrepareLocalRunRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_PrepareLocalRunRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_PrepareLocalRunResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func prepareLocalRun<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_PrepareLocalRunRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_PrepareLocalRunRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_PrepareLocalRunResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_PrepareLocalRunResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.PrepareLocalRun.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ConfirmLocalRun" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ConfirmLocalRunRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ConfirmLocalRunRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ConfirmLocalRunResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func confirmLocalRun<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ConfirmLocalRunRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ConfirmLocalRunRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ConfirmLocalRunResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ConfirmLocalRunResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ConfirmLocalRun.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "GetLocalRunOutput" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > A local run's state, job states and the output lines after a sequence
+        /// > number. The Core keeps the last 5,000 lines of each of the last 20 runs.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetLocalRunOutputRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetLocalRunOutputRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetLocalRunOutputResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func getLocalRunOutput<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetLocalRunOutputRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetLocalRunOutputRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetLocalRunOutputResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetLocalRunOutputResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.GetLocalRunOutput.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "CancelExecution" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Stops a queued or running execution; a local run's containers are
+        /// > removed afterwards.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_CancelExecutionRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_CancelExecutionRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_CancelExecutionResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func cancelExecution<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_CancelExecutionRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_CancelExecutionRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_CancelExecutionResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_CancelExecutionResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.CancelExecution.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
     }
 }
 
@@ -3498,7 +4318,8 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > Interface only in the MVP: no real GitHub Actions engine yet.
+    /// > Starts an execution without a reviewed plan. Local runs need one, so
+    /// > executions started this way fail; use PrepareLocalRun.
     ///
     /// - Parameters:
     ///   - request: A request containing a single `Runnir_Core_V1_StartWorkflowRequest` message.
@@ -3912,6 +4733,154 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             onResponse: handleResponse
         )
     }
+
+    /// Call the "GetToolReadiness" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The programs local runs need, as found on this computer: the act bundled
+    /// > with Runnir, an installed act, the Docker CLI and the container engine
+    /// > of the current Docker context. Read-only: nothing is installed, started
+    /// > or switched. The last result is reused unless refresh is set.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_GetToolReadinessRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getToolReadiness<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_GetToolReadinessRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetToolReadinessResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.getToolReadiness(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetToolReadinessRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetToolReadinessResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "PrepareLocalRun" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Running a workflow locally takes two calls, like a dispatch: Prepare
+    /// > checks the tools and the workflow file and returns the plan, with a
+    /// > single-use confirmation when nothing blocks it; only Confirm starts act.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_PrepareLocalRunRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func prepareLocalRun<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_PrepareLocalRunRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_PrepareLocalRunResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.prepareLocalRun(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_PrepareLocalRunRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_PrepareLocalRunResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ConfirmLocalRun" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ConfirmLocalRunRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func confirmLocalRun<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ConfirmLocalRunRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ConfirmLocalRunResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.confirmLocalRun(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ConfirmLocalRunRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ConfirmLocalRunResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetLocalRunOutput" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > A local run's state, job states and the output lines after a sequence
+    /// > number. The Core keeps the last 5,000 lines of each of the last 20 runs.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_GetLocalRunOutputRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getLocalRunOutput<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_GetLocalRunOutputRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetLocalRunOutputResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.getLocalRunOutput(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetLocalRunOutputRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetLocalRunOutputResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "CancelExecution" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Stops a queued or running execution; a local run's containers are
+    /// > removed afterwards.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_CancelExecutionRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func cancelExecution<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_CancelExecutionRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_CancelExecutionResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.cancelExecution(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_CancelExecutionRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_CancelExecutionResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
 }
 
 // Helpers providing sugared APIs for 'ClientProtocol' methods.
@@ -4104,7 +5073,8 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > Interface only in the MVP: no real GitHub Actions engine yet.
+    /// > Starts an execution without a reviewed plan. Local runs need one, so
+    /// > executions started this way fail; use PrepareLocalRun.
     ///
     /// - Parameters:
     ///   - message: request message to send.
@@ -4573,6 +5543,174 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.confirmRunAction(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetToolReadiness" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The programs local runs need, as found on this computer: the act bundled
+    /// > with Runnir, an installed act, the Docker CLI and the container engine
+    /// > of the current Docker context. Read-only: nothing is installed, started
+    /// > or switched. The last result is reused unless refresh is set.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getToolReadiness<Result>(
+        _ message: Runnir_Core_V1_GetToolReadinessRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetToolReadinessResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_GetToolReadinessRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.getToolReadiness(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "PrepareLocalRun" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Running a workflow locally takes two calls, like a dispatch: Prepare
+    /// > checks the tools and the workflow file and returns the plan, with a
+    /// > single-use confirmation when nothing blocks it; only Confirm starts act.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func prepareLocalRun<Result>(
+        _ message: Runnir_Core_V1_PrepareLocalRunRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_PrepareLocalRunResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_PrepareLocalRunRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.prepareLocalRun(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ConfirmLocalRun" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func confirmLocalRun<Result>(
+        _ message: Runnir_Core_V1_ConfirmLocalRunRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ConfirmLocalRunResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ConfirmLocalRunRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.confirmLocalRun(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetLocalRunOutput" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > A local run's state, job states and the output lines after a sequence
+    /// > number. The Core keeps the last 5,000 lines of each of the last 20 runs.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getLocalRunOutput<Result>(
+        _ message: Runnir_Core_V1_GetLocalRunOutputRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetLocalRunOutputResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_GetLocalRunOutputRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.getLocalRunOutput(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "CancelExecution" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Stops a queued or running execution; a local run's containers are
+    /// > removed afterwards.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func cancelExecution<Result>(
+        _ message: Runnir_Core_V1_CancelExecutionRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_CancelExecutionResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_CancelExecutionRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.cancelExecution(
             request: request,
             options: options,
             onResponse: handleResponse

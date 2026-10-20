@@ -34,7 +34,7 @@ The Xcode project and native sources live in `apps/macos/`; the Go Core stays in
 
 ## Security Boundaries
 
-Keychain owns desktop credentials. Neither the local socket nor stdio grants filesystem scope or authority, and the Core socket currently has no per-client access control (see [gRPC API](grpc-api.md#security-model-today)). Future repository tools require explicit, enforced grants; MCP and AI cannot self-approve mutations. Treat workflow/log text as untrusted data. A signed macOS helper inherits the app sandbox; development builds currently disable signing, so signed sandbox enforcement remains a distribution verification requirement.
+Keychain owns desktop credentials. Neither the local socket nor stdio grants filesystem scope or authority, and the Core socket currently has no per-client access control (see [gRPC API](grpc-api.md#security-model-today)). Future repository tools require explicit, enforced grants; MCP and AI cannot self-approve mutations. Treat workflow/log text as untrusted data. Runnir and its helper run without the App Sandbox ([ADR 0005](../decisions/0005-developer-id-without-app-sandbox.md)), so these scope and approval rules are enforced by Runnir itself; development builds currently disable signing, so a Developer ID signed build remains a distribution verification requirement.
 
 Optional external AI requires explicit provider/data consent. Offers are a separate opt-in public catalog with local matching, not a repository upload service. See [startup integrations](../product/startup-integrations.md).
 

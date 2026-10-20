@@ -24,7 +24,7 @@ Use deterministic fixture data and injected small protocol-backed services. Prev
 
 Name scenarios by feature and state, such as Repositories / Loading or Workflow Inputs / Invalid. Cover applicable loading, empty, populated, failure, permission-denied and long-content states. Check light/dark appearance, supported window sizes and accessibility. Interactive previews can exercise local form/selection state with fakes.
 
-Preview fixtures are development data, not seeded production state. Keep source/log examples synthetic and non-secret. Verify Keychain, IPC, file permissions, process lifecycle and sandbox behavior in the actual app and relevant signed configuration; a preview is not evidence of integration correctness.
+Preview fixtures are development data, not seeded production state. Keep source/log examples synthetic and non-secret. Verify Keychain, IPC, file permissions, process lifecycle and folder access in the actual app and relevant signed configuration; a preview is not evidence of integration correctness.
 
 ## Storybook-Style Options
 

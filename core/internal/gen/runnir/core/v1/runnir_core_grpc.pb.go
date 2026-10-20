@@ -45,6 +45,11 @@ const (
 	RunnirCore_GetJobLog_FullMethodName                = "/runnir.core.v1.RunnirCore/GetJobLog"
 	RunnirCore_PrepareRunAction_FullMethodName         = "/runnir.core.v1.RunnirCore/PrepareRunAction"
 	RunnirCore_ConfirmRunAction_FullMethodName         = "/runnir.core.v1.RunnirCore/ConfirmRunAction"
+	RunnirCore_GetToolReadiness_FullMethodName         = "/runnir.core.v1.RunnirCore/GetToolReadiness"
+	RunnirCore_PrepareLocalRun_FullMethodName          = "/runnir.core.v1.RunnirCore/PrepareLocalRun"
+	RunnirCore_ConfirmLocalRun_FullMethodName          = "/runnir.core.v1.RunnirCore/ConfirmLocalRun"
+	RunnirCore_GetLocalRunOutput_FullMethodName        = "/runnir.core.v1.RunnirCore/GetLocalRunOutput"
+	RunnirCore_CancelExecution_FullMethodName          = "/runnir.core.v1.RunnirCore/CancelExecution"
 )
 
 // RunnirCoreClient is the client API for RunnirCore service.
@@ -60,7 +65,8 @@ type RunnirCoreClient interface {
 	// Checks the workflow files on disk now with actionlint, built into the
 	// Core; no external program runs and nothing is sent anywhere.
 	ValidateWorkflows(ctx context.Context, in *ValidateWorkflowsRequest, opts ...grpc.CallOption) (*ValidateWorkflowsResponse, error)
-	// Interface only in the MVP: no real GitHub Actions engine yet.
+	// Starts an execution without a reviewed plan. Local runs need one, so
+	// executions started this way fail; use PrepareLocalRun.
 	StartWorkflow(ctx context.Context, in *StartWorkflowRequest, opts ...grpc.CallOption) (*ExecutionResponse, error)
 	SubscribeEvents(ctx context.Context, in *SubscribeEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CoreEvent], error)
 	// The app hands the signed-in user's GitHub token to the Core's memory. It
@@ -94,6 +100,22 @@ type RunnirCoreClient interface {
 	// only Confirm sends the request to GitHub, once.
 	PrepareRunAction(ctx context.Context, in *PrepareRunActionRequest, opts ...grpc.CallOption) (*PrepareRunActionResponse, error)
 	ConfirmRunAction(ctx context.Context, in *ConfirmRunActionRequest, opts ...grpc.CallOption) (*ConfirmRunActionResponse, error)
+	// The programs local runs need, as found on this computer: the act bundled
+	// with Runnir, an installed act, the Docker CLI and the container engine
+	// of the current Docker context. Read-only: nothing is installed, started
+	// or switched. The last result is reused unless refresh is set.
+	GetToolReadiness(ctx context.Context, in *GetToolReadinessRequest, opts ...grpc.CallOption) (*GetToolReadinessResponse, error)
+	// Running a workflow locally takes two calls, like a dispatch: Prepare
+	// checks the tools and the workflow file and returns the plan, with a
+	// single-use confirmation when nothing blocks it; only Confirm starts act.
+	PrepareLocalRun(ctx context.Context, in *PrepareLocalRunRequest, opts ...grpc.CallOption) (*PrepareLocalRunResponse, error)
+	ConfirmLocalRun(ctx context.Context, in *ConfirmLocalRunRequest, opts ...grpc.CallOption) (*ConfirmLocalRunResponse, error)
+	// A local run's state, job states and the output lines after a sequence
+	// number. The Core keeps the last 5,000 lines of each of the last 20 runs.
+	GetLocalRunOutput(ctx context.Context, in *GetLocalRunOutputRequest, opts ...grpc.CallOption) (*GetLocalRunOutputResponse, error)
+	// Stops a queued or running execution; a local run's containers are
+	// removed afterwards.
+	CancelExecution(ctx context.Context, in *CancelExecutionRequest, opts ...grpc.CallOption) (*CancelExecutionResponse, error)
 }
 
 type runnirCoreClient struct {
@@ -323,6 +345,56 @@ func (c *runnirCoreClient) ConfirmRunAction(ctx context.Context, in *ConfirmRunA
 	return out, nil
 }
 
+func (c *runnirCoreClient) GetToolReadiness(ctx context.Context, in *GetToolReadinessRequest, opts ...grpc.CallOption) (*GetToolReadinessResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetToolReadinessResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_GetToolReadiness_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) PrepareLocalRun(ctx context.Context, in *PrepareLocalRunRequest, opts ...grpc.CallOption) (*PrepareLocalRunResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PrepareLocalRunResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_PrepareLocalRun_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) ConfirmLocalRun(ctx context.Context, in *ConfirmLocalRunRequest, opts ...grpc.CallOption) (*ConfirmLocalRunResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConfirmLocalRunResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ConfirmLocalRun_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) GetLocalRunOutput(ctx context.Context, in *GetLocalRunOutputRequest, opts ...grpc.CallOption) (*GetLocalRunOutputResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetLocalRunOutputResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_GetLocalRunOutput_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) CancelExecution(ctx context.Context, in *CancelExecutionRequest, opts ...grpc.CallOption) (*CancelExecutionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelExecutionResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_CancelExecution_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnirCoreServer is the server API for RunnirCore service.
 // All implementations must embed UnimplementedRunnirCoreServer
 // for forward compatibility.
@@ -336,7 +408,8 @@ type RunnirCoreServer interface {
 	// Checks the workflow files on disk now with actionlint, built into the
 	// Core; no external program runs and nothing is sent anywhere.
 	ValidateWorkflows(context.Context, *ValidateWorkflowsRequest) (*ValidateWorkflowsResponse, error)
-	// Interface only in the MVP: no real GitHub Actions engine yet.
+	// Starts an execution without a reviewed plan. Local runs need one, so
+	// executions started this way fail; use PrepareLocalRun.
 	StartWorkflow(context.Context, *StartWorkflowRequest) (*ExecutionResponse, error)
 	SubscribeEvents(*SubscribeEventsRequest, grpc.ServerStreamingServer[CoreEvent]) error
 	// The app hands the signed-in user's GitHub token to the Core's memory. It
@@ -370,6 +443,22 @@ type RunnirCoreServer interface {
 	// only Confirm sends the request to GitHub, once.
 	PrepareRunAction(context.Context, *PrepareRunActionRequest) (*PrepareRunActionResponse, error)
 	ConfirmRunAction(context.Context, *ConfirmRunActionRequest) (*ConfirmRunActionResponse, error)
+	// The programs local runs need, as found on this computer: the act bundled
+	// with Runnir, an installed act, the Docker CLI and the container engine
+	// of the current Docker context. Read-only: nothing is installed, started
+	// or switched. The last result is reused unless refresh is set.
+	GetToolReadiness(context.Context, *GetToolReadinessRequest) (*GetToolReadinessResponse, error)
+	// Running a workflow locally takes two calls, like a dispatch: Prepare
+	// checks the tools and the workflow file and returns the plan, with a
+	// single-use confirmation when nothing blocks it; only Confirm starts act.
+	PrepareLocalRun(context.Context, *PrepareLocalRunRequest) (*PrepareLocalRunResponse, error)
+	ConfirmLocalRun(context.Context, *ConfirmLocalRunRequest) (*ConfirmLocalRunResponse, error)
+	// A local run's state, job states and the output lines after a sequence
+	// number. The Core keeps the last 5,000 lines of each of the last 20 runs.
+	GetLocalRunOutput(context.Context, *GetLocalRunOutputRequest) (*GetLocalRunOutputResponse, error)
+	// Stops a queued or running execution; a local run's containers are
+	// removed afterwards.
+	CancelExecution(context.Context, *CancelExecutionRequest) (*CancelExecutionResponse, error)
 	mustEmbedUnimplementedRunnirCoreServer()
 }
 
@@ -442,6 +531,21 @@ func (UnimplementedRunnirCoreServer) PrepareRunAction(context.Context, *PrepareR
 }
 func (UnimplementedRunnirCoreServer) ConfirmRunAction(context.Context, *ConfirmRunActionRequest) (*ConfirmRunActionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ConfirmRunAction not implemented")
+}
+func (UnimplementedRunnirCoreServer) GetToolReadiness(context.Context, *GetToolReadinessRequest) (*GetToolReadinessResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetToolReadiness not implemented")
+}
+func (UnimplementedRunnirCoreServer) PrepareLocalRun(context.Context, *PrepareLocalRunRequest) (*PrepareLocalRunResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PrepareLocalRun not implemented")
+}
+func (UnimplementedRunnirCoreServer) ConfirmLocalRun(context.Context, *ConfirmLocalRunRequest) (*ConfirmLocalRunResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ConfirmLocalRun not implemented")
+}
+func (UnimplementedRunnirCoreServer) GetLocalRunOutput(context.Context, *GetLocalRunOutputRequest) (*GetLocalRunOutputResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetLocalRunOutput not implemented")
+}
+func (UnimplementedRunnirCoreServer) CancelExecution(context.Context, *CancelExecutionRequest) (*CancelExecutionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelExecution not implemented")
 }
 func (UnimplementedRunnirCoreServer) mustEmbedUnimplementedRunnirCoreServer() {}
 func (UnimplementedRunnirCoreServer) testEmbeddedByValue()                    {}
@@ -835,6 +939,96 @@ func _RunnirCore_ConfirmRunAction_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_GetToolReadiness_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetToolReadinessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).GetToolReadiness(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_GetToolReadiness_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).GetToolReadiness(ctx, req.(*GetToolReadinessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_PrepareLocalRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PrepareLocalRunRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).PrepareLocalRun(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_PrepareLocalRun_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).PrepareLocalRun(ctx, req.(*PrepareLocalRunRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_ConfirmLocalRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfirmLocalRunRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ConfirmLocalRun(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ConfirmLocalRun_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ConfirmLocalRun(ctx, req.(*ConfirmLocalRunRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_GetLocalRunOutput_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetLocalRunOutputRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).GetLocalRunOutput(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_GetLocalRunOutput_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).GetLocalRunOutput(ctx, req.(*GetLocalRunOutputRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_CancelExecution_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelExecutionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).CancelExecution(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_CancelExecution_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).CancelExecution(ctx, req.(*CancelExecutionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnirCore_ServiceDesc is the grpc.ServiceDesc for RunnirCore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -921,6 +1115,26 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ConfirmRunAction",
 			Handler:    _RunnirCore_ConfirmRunAction_Handler,
+		},
+		{
+			MethodName: "GetToolReadiness",
+			Handler:    _RunnirCore_GetToolReadiness_Handler,
+		},
+		{
+			MethodName: "PrepareLocalRun",
+			Handler:    _RunnirCore_PrepareLocalRun_Handler,
+		},
+		{
+			MethodName: "ConfirmLocalRun",
+			Handler:    _RunnirCore_ConfirmLocalRun_Handler,
+		},
+		{
+			MethodName: "GetLocalRunOutput",
+			Handler:    _RunnirCore_GetLocalRunOutput_Handler,
+		},
+		{
+			MethodName: "CancelExecution",
+			Handler:    _RunnirCore_CancelExecution_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -19,7 +19,7 @@ Status: target design, updated 2026-10-15. Swift now persists the local registry
 <ApplicationSupport>/Runnir/repositories/<workspaceId>/runtime/
 ```
 
-ApplicationSupport is resolved by native platform APIs, including sandbox-container behavior, not a hardcoded home path. Persistent DB/registry/session never live in the repo, /tmp or disposable Caches. Disposable derived data may use Caches separately. No .runnir file is generated just by opening a repository. Users decide whether portable files are Git-tracked; no auto commit/push/clone.
+ApplicationSupport is resolved by native platform APIs, not a hardcoded home path. Persistent DB/registry/session never live in the repo, /tmp or disposable Caches. Disposable derived data may use Caches separately. No .runnir file is generated just by opening a repository. Users decide whether portable files are Git-tracked; no auto commit/push/clone.
 
 | Data | Authority / location |
 | --- | --- |

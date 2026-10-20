@@ -62,7 +62,7 @@ Acceptance: edit and validate without commit/push; syntax and supported validati
 
 Priority: P1, required for a complete v0.1. Detect Docker CLI, selected engine/context and act. Support Docker Desktop and OrbStack on macOS through a Docker-compatible adapter. Offer explicit setup when needed; never silently install tools or switch context.
 
-List supported workflows/jobs and run through act with live bounded output, cancellation, exit code and compatibility reporting. Use a fixed executable and validated argument arrays; no general shell API. Disclose images/actions/other network downloads and any data that the workflow itself may transmit. Do not inject the app's GitHub token or host environment secrets.
+List supported workflows/jobs and run through act with live bounded output, cancellation, exit code and compatibility reporting. Runnir bundles the act version it verified local runs with; an installed act is an experimental opt-in ([ADR 0006](../decisions/0006-bundled-act-for-local-runs.md)). Use a fixed executable and validated argument arrays; no general shell API. Disclose images/actions/other network downloads and any data that the workflow itself may transmit. Do not inject the app's GitHub token or host environment secrets.
 
 Acceptance: a simple compatible Linux workflow executes without commit/push; output stays responsive; cancellation stops associated processes/containers; result distinguishes success, failure and user cancellation. Unsupported macOS/iOS, hosted tools, permissions, services, environments or secrets are reported honestly.
 
@@ -98,7 +98,7 @@ Use versioned Application Support settings/session/registry files and an embedde
 
 No telemetry by default, unrestricted AI/MCP commands, automatic commits/pushes, silently uploaded source/secrets or automatic production approval. Remote mutations require explicit user authorization. Treat workflows/logs as untrusted input.
 
-Before repository tools or local execution ship, verify macOS security-scoped access and a viable signed helper/process/container access design. Existing unsigned development builds do not prove sandbox enforcement.
+Before repository tools or local execution ship, verify folder access and process/container access in a Developer ID signed build. Runnir ships without the App Sandbox ([ADR 0005](../decisions/0005-developer-id-without-app-sandbox.md)), so the Core's own scope rules must hold.
 
 Retain semantic tags and draft GitHub releases. Production signing, notarization, packaging and secure updater implementation remain separate prerequisites; no completed authentication, distribution or deployment claims until verified.
 

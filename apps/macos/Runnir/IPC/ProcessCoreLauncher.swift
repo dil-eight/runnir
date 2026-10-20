@@ -16,9 +16,11 @@ struct ProcessCoreLauncher: CoreProcessLaunching {
         let stdin = Pipe()
         process.executableURL = executableURL
         process.arguments = ["serve", "--socket", socketPath, "--exit-on-stdin-eof", "--client-secret-stdin"]
-        // TMPDIR is the app's own temporary directory (inside the container
-        // when sandboxed); without it Go would use /tmp, which the sandbox denies.
-        process.environment = ["LANG": "C", "TMPDIR": FileManager.default.temporaryDirectory.path]
+        // TMPDIR keeps the Core's temporary files in the per-user temporary
+        // directory; the reduced environment would otherwise leave Go on /tmp.
+        // HOME lets the Core find the user's Docker contexts and its cache for
+        // local runs; nothing else from the app's environment is passed on.
+        process.environment = ["LANG": "C", "TMPDIR": FileManager.default.temporaryDirectory.path, "HOME": NSHomeDirectory()]
         process.currentDirectoryURL = executableURL.deletingLastPathComponent()
         process.standardInput = stdin
         process.standardOutput = FileHandle.nullDevice

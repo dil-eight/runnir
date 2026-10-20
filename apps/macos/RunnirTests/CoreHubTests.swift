@@ -183,6 +183,66 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         throw CoreServiceError.unavailable
     }
 
+    // MARK: Local runs
+
+    static let readyTools = CoreToolReadiness(
+        bundledAct: CoreToolStatus(state: .found, version: "0.2.89", path: "/App/Contents/Helpers/act"),
+        installedAct: CoreToolStatus(state: .missing, detail: "No act is installed on this Mac."),
+        dockerCLI: CoreToolStatus(state: .found, version: "29.0.1", path: "/usr/local/bin/docker"),
+        engine: CoreContainerEngine(state: .found, name: "OrbStack", context: "orbstack", local: true, cpus: 8, memoryBytes: 16 << 30),
+        checkedAt: Date(), testedActVersion: "0.2.89", minimumActVersion: "0.2.60")
+    var readiness = FakeCore.readyTools
+    private var _readinessRefreshes = 0
+    var readinessRefreshes: Int { lock.withLock { _readinessRefreshes } }
+    /// What PrepareLocalRun answers; nil throws `.unavailable`.
+    var preparedLocalRun: CorePreparedLocalRun?
+    private var _localRunRequests: [(workflowID: String, jobID: String?, event: String?, installed: Bool)] = []
+    var localRunRequests: [(workflowID: String, jobID: String?, event: String?, installed: Bool)] { lock.withLock { _localRunRequests } }
+    var confirmLocalRunError: CoreServiceError?
+    private var _confirmedLocalRuns: [String] = []
+    var confirmedLocalRuns: [String] { lock.withLock { _confirmedLocalRuns } }
+    /// Answers to GetLocalRunOutput in order; the last one repeats.
+    var localOutputs: [CoreLocalRunOutput] = []
+    var localOutputError: CoreServiceError?
+    private var _outputRequests: [UInt64] = []
+    var outputRequests: [UInt64] { lock.withLock { _outputRequests } }
+    private var _cancelledExecutions: [String] = []
+    var cancelledExecutions: [String] { lock.withLock { _cancelledExecutions } }
+
+    func toolReadiness(refresh: Bool) async throws -> CoreToolReadiness {
+        lock.withLock {
+            if refresh { _readinessRefreshes += 1 }
+            return readiness
+        }
+    }
+    func prepareLocalRun(repositoryID: String, workflowID: String, jobID: String?, event: String?,
+                         useInstalledAct: Bool) async throws -> CorePreparedLocalRun {
+        try lock.withLock {
+            _localRunRequests.append((workflowID, jobID, event, useInstalledAct))
+            guard let preparedLocalRun else { throw CoreServiceError.unavailable }
+            return preparedLocalRun
+        }
+    }
+    func confirmLocalRun(confirmationID: String) async throws -> CoreExecution {
+        try lock.withLock {
+            if let confirmLocalRunError { throw confirmLocalRunError }
+            guard !_confirmedLocalRuns.contains(confirmationID) else { throw CoreServiceError.failedPrecondition("used") }
+            _confirmedLocalRuns.append(confirmationID)
+            return CoreExecution(id: "exec_1", repositoryID: "repo", state: .running)
+        }
+    }
+    func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput {
+        try lock.withLock {
+            _outputRequests.append(after)
+            if let localOutputError { throw localOutputError }
+            guard !localOutputs.isEmpty else { throw CoreServiceError.notFound }
+            return localOutputs.count > 1 ? localOutputs.removeFirst() : localOutputs[0]
+        }
+    }
+    func cancelExecution(executionID: String) async throws {
+        lock.withLock { _cancelledExecutions.append(executionID) }
+    }
+
     func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error> {
         let (stream, continuation) = AsyncThrowingStream.makeStream(of: CoreEvent.self, throwing: (any Error).self)
         lock.withLock { _subscriptions += 1; continuations.append(continuation) }

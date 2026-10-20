@@ -3,8 +3,7 @@ import Foundation
 import Testing
 @testable import Runnir
 
-/// Runs the real bundled Core and the real gRPC client. The test host is not
-/// sandboxed (signing is off in tests); sandbox behavior is verified separately.
+/// Runs the real bundled Core and the real gRPC client.
 @Suite(.timeLimit(.minutes(1)))
 struct CoreProcessIntegrationTests {
     private static func makeSupervisor() -> (CoreProcessSupervisor, socket: String) {
@@ -59,6 +58,33 @@ struct CoreProcessIntegrationTests {
         #expect(ci.problem == nil)
         #expect(!ci.diagnostics.isEmpty)
         #expect(ci.diagnostics.allSatisfy { $0.line > 0 && !$0.kind.isEmpty })
+        await supervisor.stop()
+    }
+
+    @Test
+    func theRealCoreFindsTheBundledActAndReviewsALocalRun() async throws {
+        let (supervisor, _) = Self.makeSupervisor()
+        try await supervisor.start()
+        let service = try await supervisor.service()
+        let readiness = try await service.toolReadiness(refresh: true)
+        #expect(readiness.bundledAct.state == .found)
+        #expect(readiness.bundledAct.version == readiness.testedActVersion)
+        #expect(readiness.bundledAct.path.hasSuffix("Contents/Helpers/act"))
+        // With Docker installed, its context shows the Core got the user's home.
+        if ["/usr/local/bin/docker", "/opt/homebrew/bin/docker"].contains(where: FileManager.default.isExecutableFile(atPath:)) {
+            #expect(readiness.dockerCLI.state == .found)
+            #expect(!readiness.engine.context.isEmpty)
+        }
+
+        // "jobs: build: {}" has no runs-on, which actionlint's parser reports
+        // as a syntax error: the plan is blocked and has no confirmation.
+        let repository = try await service.openRepository(path: try Self.tempRepository())
+        let prepared = try await service.prepareLocalRun(repositoryID: repository.id, workflowID: ".github/workflows/ci.yml",
+                                                         jobID: nil, event: nil, useInstalledAct: false)
+        #expect(prepared.confirmationID == nil)
+        #expect(!prepared.plan.blockers.isEmpty)
+        #expect(prepared.plan.blockers.contains { $0.contains("syntax error") })
+        #expect(prepared.plan.actVersion == readiness.bundledAct.version)
         await supervisor.stop()
     }
 

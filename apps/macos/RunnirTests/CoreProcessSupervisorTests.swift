@@ -60,6 +60,12 @@ private struct FakeService: CoreServicing {
     func jobLog(repositoryID: String, jobID: Int64) async throws -> CoreJobLog { throw CoreServiceError.unavailable }
     func prepareRunAction(repositoryID: String, runID: Int64, action: CoreRunAction) async throws -> CorePreparedRunAction { throw CoreServiceError.unavailable }
     func confirmRunAction(actionID: String) async throws -> CoreRunActionResult { throw CoreServiceError.unavailable }
+    func toolReadiness(refresh: Bool) async throws -> CoreToolReadiness { throw CoreServiceError.unavailable }
+    func prepareLocalRun(repositoryID: String, workflowID: String, jobID: String?, event: String?,
+                         useInstalledAct: Bool) async throws -> CorePreparedLocalRun { throw CoreServiceError.unavailable }
+    func confirmLocalRun(confirmationID: String) async throws -> CoreExecution { throw CoreServiceError.unavailable }
+    func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput { throw CoreServiceError.unavailable }
+    func cancelExecution(executionID: String) async throws { throw CoreServiceError.unavailable }
 }
 
 private final class FakeConnection: CoreConnection, @unchecked Sendable {

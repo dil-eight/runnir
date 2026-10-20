@@ -19,7 +19,7 @@ Go supports future Linux/Windows CLI clients and reusable tool integrations. A p
 - Migrate existing Swift GitHub services per feature, with parity tests; preserve working behavior throughout.
 - Core accepts only named methods. No model or MCP client can request unrestricted commands.
 - Swift owns Keychain persistence. Future credentials cross a private session channel only when necessary, never argv, tool responses, prompts, logs or disk.
-- Production helper signing must inherit the parent App Sandbox; verify signed builds separately. Cross-platform CLI policy must be enforced by Core before repository tools ship.
+- Runnir and its helper are signed with Developer ID and the hardened runtime and run without the App Sandbox ([ADR 0005](0005-developer-id-without-app-sandbox.md)); verify signed builds separately. Cross-platform CLI policy must be enforced by Core before repository tools ship.
 - Maintain transport-independent permission and approval checks in Core. AI-generated approval flags are not authorization.
 - Prefer the Go standard library and CGO_ENABLED=0; use native execution tests in addition to cross-compilation.
 

@@ -11,6 +11,7 @@ on:
       - "buf.gen.yaml"
       - "scripts/generate-contracts.sh"
       - "apps/macos/Runnir/IPC/Generated/**"
+      - "third_party/act/**"
       - ".github/workflows/core.yml"
   pull_request:
     paths: *core-inputs
@@ -142,3 +143,20 @@ jobs:
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           govulncheck ./...
+      # The app ships act built from third_party/act (ADR 0006). Known
+      # findings act cannot take a fix for yet are listed with their reason.
+      - name: Vulnerability scan of the bundled act
+        working-directory: third_party/act
+        run: |
+          # GO-2026-6253 (moby/go-archive): the fixed versions drop an API
+          # act 0.2.89 uses; act calls the package to build local Docker
+          # actions. Remove once act supports go-archive 0.3.0 or newer.
+          known='GO-2026-6253'
+          found=$(govulncheck -format json github.com/nektos/act \
+            | jq -r 'select(.finding != null and .finding.trace[0].function != null) | .finding.osv' \
+            | sort -u | grep -vxF "$known" || true)
+          if [ -n "$found" ]; then
+            echo "Vulnerabilities reachable in the bundled act:"
+            echo "$found"
+            exit 1
+          fi
