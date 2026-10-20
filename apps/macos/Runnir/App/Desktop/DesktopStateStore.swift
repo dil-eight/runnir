@@ -98,9 +98,19 @@ struct FileDesktopStateStore: DesktopStateStoring {
         try snapshot.validate()
         let data = try JSONEncoder().encode(snapshot)
         guard data.count <= 2 * 1024 * 1024 else { throw DesktopStoreError.tooLarge }
+        try AtomicFile.write(data, to: stateURL)
+    }
+}
+
+/// Replaces a small private file atomically: a new 0600 file in the same
+/// 0700 directory, synced, renamed over the old one, and the directory
+/// synced, so a crash leaves either the old or the new content.
+enum AtomicFile {
+    static func write(_ data: Data, to url: URL) throws {
+        let directory = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o700])
-        let temporary = directory.appendingPathComponent(".desktop-\(UUID().uuidString).tmp")
+        let temporary = directory.appendingPathComponent(".\(url.lastPathComponent)-\(UUID().uuidString).tmp")
         defer { try? FileManager.default.removeItem(at: temporary) }
         let descriptor = Darwin.open(temporary.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
         guard descriptor >= 0 else { throw DesktopStoreError.ioFailure }
@@ -120,7 +130,7 @@ struct FileDesktopStateStore: DesktopStateStoring {
             throw error
         }
         guard Darwin.close(descriptor) == 0 else { throw DesktopStoreError.ioFailure }
-        guard Darwin.rename(temporary.path, stateURL.path) == 0 else { throw DesktopStoreError.ioFailure }
+        guard Darwin.rename(temporary.path, url.path) == 0 else { throw DesktopStoreError.ioFailure }
         let directoryDescriptor = Darwin.open(directory.path, O_RDONLY)
         guard directoryDescriptor >= 0 else { throw DesktopStoreError.ioFailure }
         defer { Darwin.close(directoryDescriptor) }

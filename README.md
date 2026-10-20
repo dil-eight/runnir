@@ -11,7 +11,7 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 - GitHub sign-in with the Device Flow of the registered Runnir Desktop GitHub App: no client secret in the app, the token only in the Keychain and in the Core's memory, sign-out, and automatic retry after an offline launch. Confirmed with a real sign-in.
 - Workspaces linked to their GitHub repository through the `origin` remote, with an access check and a link to install the app on the repository.
 - Offline workflow validation with actionlint built into the Go Core: diagnostics for each workflow file in the Workspace section, with the line highlighted in the source. No external tools run, and the repository's `.github/actionlint.yaml` is honored.
-- GitHub Actions through the Go Core: workflows, recent runs (refreshed every 20 seconds while one is active, every 5 minutes otherwise), jobs and steps, job logs with search (bounded to the last 2 MiB), cancel and re-run, and `workflow_dispatch` with branch, typed inputs and a confirmation. Changes go through a single-use confirmation and are never retried. Dispatch, logs, cancel and re-run are covered by tests with a fake GitHub, not yet by a controlled real run.
+- GitHub Actions through the Go Core: workflows, recent runs (refreshed every 20 seconds while one is active, every 5 minutes otherwise), jobs and steps, job logs with search (bounded to the last 2 MiB), cancel and re-run, and `workflow_dispatch` with branch, typed inputs, saved presets and a confirmation. Changes go through a single-use confirmation and are never retried. Dispatch, logs, cancel and re-run are covered by tests with a fake GitHub, not yet by a controlled real run.
 - One supervised Go Core per app: local gRPC over a Unix socket with a per-launch client secret, a liveness check, a Restart Core banner, a diagnostics log, and shutdown on quit. Idle measurement on one machine: about 94 MB for the app plus Core with 10 open repositories (Debug build).
 - Go CLI (`version`, `serve`) and a version-only JSON-RPC stdio endpoint (`rpc`); execution scheduling exists with a stub runner (there is no real workflow execution engine).
 - Swift 6 with strict concurrency, unit tests for the app and Core, macOS CI for build, tests and static analysis, Go tests on three platforms, six cross-compilation targets, a check that generated code matches the contract, formatting, vet and vulnerability checks.
@@ -19,7 +19,7 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 
 ## Planned
 
-- v0.1: presets for dispatch inputs, favorites and dashboard status, local YAML editing.
+- v0.1: favorites and dashboard status, local YAML editing.
 - v0.1: explicit Docker/OrbStack and act setup, compatible local execution, output, cancellation and cleanup.
 - v0.1: lifecycle hardening, signed folder-grant verification, per-workspace SQLite and cache-first sync, optional portable .runnir launches and environments.
 - Later: artifact inspection and reuse, optional AI/chat/MCP, cloud integrations and startup offers.

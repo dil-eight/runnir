@@ -25,7 +25,7 @@ What exists in code, with tests, against the backlog below. A row stays unaccept
 | B05 | Device Flow with the registered app; no secret; token only in Keychain and Core memory | Rate-limit scheduling review |
 | B06 | Restore, sign-out, revoked token, offline launch with retry; real sign-in confirmed by hand | Keychain denial on a signed build |
 | B07 | Workspace linked to its GitHub repository through `origin`; access check through the Core | Account-wide browsing and search (if kept in scope) |
-| B09 | Branch and tag selection; typed inputs, defaults, required and choice validation in the Core | Presets |
+| B09 | Branch and tag selection; typed inputs, defaults, required and choice validation in the Core; device-private presets per workspace and workflow (branch and values, survive restart, stale branch or inputs reported, inputs that look secret never saved) | Portable `.runnir` presets (B25); presets follow a renamed workflow file |
 | B10 | Single-use confirmation; send once, no retries; run located by polling | Controlled real dispatch |
 | B11 | Runs, jobs and steps, active and idle polling, rate-limit states | — |
 | B12 | Last 2 MiB / 50,000 lines of a job log, step matching, search, expired and not-ready states | Controlled real logs |

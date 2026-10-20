@@ -37,10 +37,13 @@ final class DesktopCoordinator {
     let core: CoreHub?
     /// The app-wide GitHub account; nil in tests that do not need it.
     let github: GitHubSession?
+    /// Saved Run Workflow presets, kept on this Mac.
+    let presets: DispatchPresetLibrary
 
     init(store: (any DesktopStateStoring)? = nil,
          core: CoreHub? = nil,
          github: GitHubSession? = nil,
+         presets: DispatchPresetLibrary = DispatchPresetLibrary(store: nil),
          makeGrant: @escaping (WorkspaceRecord) throws -> any RepositoryGranting = { try RepositoryGrant(record: $0) },
          makeWorkspaceWindow: @escaping (WorkspaceWindowRecord, WorkspaceRecord, (any RepositoryGranting)?, DesktopCoordinator) -> any WorkspaceWindowManaging = {
              WorkspaceWindowController(record: $0, workspace: $1, grant: $2, desktop: $3)
@@ -48,6 +51,7 @@ final class DesktopCoordinator {
         self.store = store
         self.core = core
         self.github = github
+        self.presets = presets
         self.makeGrant = makeGrant
         self.makeWorkspaceWindow = makeWorkspaceWindow
     }
@@ -289,7 +293,10 @@ final class DesktopCoordinator {
         guard openCount(workspace.id) == 0 else { return }
         var candidate = snapshot
         candidate.workspaces.removeAll { $0.id == workspace.id }
-        do { try commit(candidate) }
+        do {
+            try commit(candidate)
+            presets.removeAll(workspaceID: workspace.id)
+        }
         catch { message = "Registration could not be removed. Repository files were not changed." }
     }
 
@@ -495,7 +502,8 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
             api: api,
             openURL: { NSWorkspace.shared.open($0) }
         )
-        desktop = DesktopCoordinator(core: hub, github: github)
+        desktop = DesktopCoordinator(core: hub, github: github,
+                                     presets: DispatchPresetLibrary(store: try? FileDispatchPresetStore.live()))
         super.init()
         // The Core holds the token only while the user is signed in.
         hub.githubTokenProvider = { [github] in await github.currentToken() }
