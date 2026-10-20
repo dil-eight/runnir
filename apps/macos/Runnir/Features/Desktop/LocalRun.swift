@@ -53,16 +53,25 @@ struct LocalRunStopPrompt: Equatable {
         }
     }
 
-    /// Shows the prompt as an alert; true when the user chose to stop.
-    @MainActor static func ask(_ prompt: LocalRunStopPrompt) -> Bool {
+    /// The alert for the prompt. The stop button comes first and is marked
+    /// destructive, so macOS gives it no Return key; Cancel takes Escape and
+    /// the keyboard focus, so a stray Space keeps the run going.
+    @MainActor static func alert(for prompt: LocalRunStopPrompt) -> NSAlert {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = prompt.title
         alert.informativeText = prompt.detail
         let confirm = alert.addButton(withTitle: prompt.confirmTitle)
         confirm.hasDestructiveAction = true
-        alert.addButton(withTitle: "Cancel").keyEquivalent = "\u{1b}"
-        return alert.runModal() == .alertFirstButtonReturn
+        let cancel = alert.addButton(withTitle: "Cancel")
+        cancel.keyEquivalent = "\u{1b}"
+        alert.window.initialFirstResponder = cancel
+        return alert
+    }
+
+    /// Shows the prompt as an alert; true when the user chose to stop.
+    @MainActor static func ask(_ prompt: LocalRunStopPrompt) -> Bool {
+        alert(for: prompt).runModal() == .alertFirstButtonReturn
     }
 }
 

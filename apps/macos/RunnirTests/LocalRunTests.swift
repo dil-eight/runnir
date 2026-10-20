@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import Runnir
@@ -223,6 +224,21 @@ struct LocalRunTests {
         #expect(two.detail.contains("are still going. Quitting stops them and removes their containers."))
         #expect(LocalRunStopPrompt(action: .closeWindow, runs: ["ci.yml in a"]).confirmTitle == "Stop Run and Close")
         #expect(LocalRunStopPrompt(action: .switchWorkspace, runs: ["ci.yml in a"]).title == "Switch workspaces and stop the local run?")
+    }
+
+    @Test func stopAlertKeepsTheRunOnEscapeAndSpace() {
+        let alert = LocalRunStopPrompt.alert(for: LocalRunStopPrompt(action: .quit, runs: ["ci.yml in a"]))
+        #expect(alert.buttons.map(\.title) == ["Stop and Quit", "Cancel"])
+        #expect(alert.buttons[0].hasDestructiveAction)
+        #expect(alert.buttons[1].keyEquivalent == "\u{1b}")
+        #expect(alert.window.initialFirstResponder === alert.buttons[1])
+        // macOS keeps Return off a destructive button even though its key
+        // equivalent still reads "\r": the alert does not handle it.
+        alert.layout()
+        let returnKey = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                                         windowNumber: alert.window.windowNumber, context: nil, characters: "\r",
+                                         charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36)
+        #expect(returnKey.map { alert.window.performKeyEquivalent(with: $0) } == false)
     }
 
     /// A hub with workspace /repo/a open in `window` and a run going in it.
