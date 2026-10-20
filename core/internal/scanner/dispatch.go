@@ -83,7 +83,8 @@ func ParseDispatch(data []byte) (DispatchDefinition, error) {
 							input.Type = strings.ToLower(value.Value)
 						}
 					case "required":
-						input.Required = value.Value == "true"
+						// YAML spells true as true, True or TRUE.
+						input.Required = value.Kind == yaml.ScalarNode && strings.EqualFold(value.Value, "true")
 					case "default":
 						if value.Kind == yaml.ScalarNode {
 							input.Default = value.Value

@@ -55,9 +55,9 @@ func (Scanner) Scan(ctx context.Context, root string) (repository.Snapshot, erro
 		return repository.Snapshot{}, err
 	}
 	snapshot := repository.Snapshot{Workflows: workflows}
-	if gitDir, ok := resolveGitDir(root); ok {
+	if gitDir, linked, ok := resolveGitDir(root); ok {
 		snapshot.Branch = readBranch(gitDir)
-		snapshot.GitHubRepository = readGitHubRepository(gitDir)
+		snapshot.GitHubRepository = readGitHubRepository(gitDir, linked)
 	}
 	return snapshot, nil
 }
@@ -99,36 +99,36 @@ func probeReadable(root string) error {
 }
 
 // resolveGitDir returns the repository's git directory: ".git" itself, or for
-// a linked worktree the directory its ".git" file names once that directory
-// confirms it belongs to this worktree.
-func resolveGitDir(root string) (string, bool) {
+// a linked worktree (linked is true) the directory its ".git" file names once
+// that directory confirms it belongs to this worktree.
+func resolveGitDir(root string) (gitDir string, linked, ok bool) {
 	gitPath := filepath.Join(root, ".git")
 	info, err := os.Lstat(gitPath)
 	if err != nil {
-		return "", false
+		return "", false, false
 	}
 	switch {
 	case info.IsDir():
-		return gitPath, true
+		return gitPath, false, true
 	case info.Mode().IsRegular(): // linked worktree: ".git" holds "gitdir: <path>"
 		data, err := readBounded(gitPath, maxHeadBytes)
 		if err != nil {
-			return "", false
+			return "", false, false
 		}
 		target, ok := strings.CutPrefix(strings.TrimSpace(string(data)), "gitdir:")
 		target = strings.TrimSpace(target)
 		if !ok || target == "" {
-			return "", false
+			return "", false, false
 		}
 		if !filepath.IsAbs(target) {
 			target = filepath.Join(root, target)
 		}
 		if !isOwnWorktreeGitDir(target, gitPath) {
-			return "", false
+			return "", false, false
 		}
-		return target, true
+		return target, true, true
 	default:
-		return "", false
+		return "", false, false
 	}
 }
 
@@ -153,16 +153,26 @@ func readBranch(gitDir string) string {
 const maxConfigBytes = 64 * 1024
 
 // readGitHubRepository returns "owner/name" when the origin remote points at
-// github.com. Linked worktrees share the main repository's config through
-// their "commondir" file.
-func readGitHubRepository(gitDir string) string {
+// github.com. A linked worktree shares the main repository's config: its
+// "commondir" file is followed only when it names the git directory that
+// holds the worktree ("<git dir>/worktrees/<name>"), so a repository cannot
+// point the scan at another repository's config.
+func readGitHubRepository(gitDir string, linked bool) string {
 	commonDir := gitDir
-	if data, err := readBounded(filepath.Join(gitDir, "commondir"), maxHeadBytes); err == nil {
+	if linked {
+		data, err := readBounded(filepath.Join(gitDir, "commondir"), maxHeadBytes)
+		if err != nil {
+			return ""
+		}
 		target := strings.TrimSpace(string(data))
 		if !filepath.IsAbs(target) {
 			target = filepath.Join(gitDir, target)
 		}
-		commonDir = filepath.Clean(target)
+		owner := filepath.Dir(filepath.Dir(filepath.Clean(gitDir)))
+		if !samePath(filepath.Clean(target), owner) {
+			return ""
+		}
+		commonDir = owner
 	}
 	config, err := readBounded(filepath.Join(commonDir, "config"), maxConfigBytes)
 	if err != nil {

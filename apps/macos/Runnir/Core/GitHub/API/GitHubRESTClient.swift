@@ -70,22 +70,20 @@ final class GitHubRESTClient: GitHubService {
         }
     }
 
+    /// At most `maxPages` pages of 100, so an account with very many items
+    /// cannot spend the rate limit on one listing.
+    static let maxPages = 10
+
     private func sendPaginated<Item: Sendable>(
         _ loadPage: (Int) async throws -> [Item]
     ) async throws -> [Item] {
-        var page = 1
         var allItems: [Item] = []
-
-        while true {
+        for page in 1...Self.maxPages {
             let items = try await loadPage(page)
             allItems.append(contentsOf: items)
-
-            if items.count < 100 {
-                return allItems
-            }
-
-            page += 1
+            if items.count < 100 { break }
         }
+        return allItems
     }
 
     private func mapStatus(_ response: HTTPURLResponse, data: Data) throws {
@@ -94,8 +92,12 @@ final class GitHubRESTClient: GitHubService {
             return
         case 401:
             throw GitHubAPIError.authenticationFailed
+        case 429:
+            throw GitHubAPIError.rateLimited(resetDate: rateLimitResetDate(from: response))
         case 403:
-            if response.value(forHTTPHeaderField: "X-RateLimit-Remaining") == "0" {
+            // The primary limit sets Remaining to 0; secondary limits send Retry-After.
+            if response.value(forHTTPHeaderField: "X-RateLimit-Remaining") == "0"
+                || response.value(forHTTPHeaderField: "Retry-After") != nil {
                 throw GitHubAPIError.rateLimited(resetDate: rateLimitResetDate(from: response))
             }
             throw GitHubAPIError.authorizationFailed
@@ -112,6 +114,9 @@ final class GitHubRESTClient: GitHubService {
     }
 
     private func rateLimitResetDate(from response: HTTPURLResponse) -> Date? {
+        if let after = response.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init) {
+            return Date().addingTimeInterval(after)
+        }
         guard let value = response.value(forHTTPHeaderField: "X-RateLimit-Reset"),
               let interval = TimeInterval(value)
         else {

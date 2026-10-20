@@ -175,6 +175,8 @@ final class DesktopCoordinator {
             }
         } catch RepositoryAccessError.notRepository {
             message = "This folder is not a Git working tree. Choose a folder containing a .git marker."
+        } catch DesktopStoreError.tooManyWindows {
+            message = Self.tooManyWindowsMessage
         } catch {
             message = "The repository could not be opened. Check folder access or choose Locate to grant access again."
         }
@@ -203,13 +205,17 @@ final class DesktopCoordinator {
         }
     }
 
+    static let tooManyWindowsMessage = "Runnir keeps at most \(DesktopSnapshot.maxWindows) windows open. Close a window to open another."
+
     func openRegistered(_ workspace: WorkspaceRecord, reuseWindowID: UUID? = nil) {
         do { try open(workspace, reuseWindowID: reuseWindowID) }
+        catch DesktopStoreError.tooManyWindows { message = Self.tooManyWindowsMessage }
         catch { message = "Workspace unavailable. Locate the folder to restore access; existing windows are unchanged." }
     }
 
     private func open(_ workspace: WorkspaceRecord, reuseWindowID: UUID? = nil) throws {
         guard !isLoading else { throw DesktopStoreError.invalidState }
+        if reuseWindowID == nil, snapshot.windows.count >= DesktopSnapshot.maxWindows { throw DesktopStoreError.tooManyWindows }
         let grant = try makeGrant(workspace)
         let workspace = reconcile(workspace, with: grant)
         var candidate = snapshot
@@ -303,8 +309,11 @@ final class DesktopCoordinator {
 
     func didClose(_ id: UUID) {
         guard !terminationInProgress else { return }
-        windows.removeValue(forKey: id)?.grant?.stop()
+        let closed = windows.removeValue(forKey: id)
+        // Ask the Core to release the repository before ending the folder
+        // access the app holds for it.
         core?.detach(windowID: id)
+        closed?.grant?.stop()
     }
 
     func geometryChanged() {

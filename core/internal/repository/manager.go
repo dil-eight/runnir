@@ -88,7 +88,9 @@ type Manager struct {
 	entries map[string]*entry
 }
 
-// New returns a manager. onEvent may be nil; it is called outside all locks.
+// New returns a manager. onEvent may be nil. It is called outside the
+// registry lock, sometimes under one repository's lock, so it must not call
+// back into the manager.
 func New(scanner Scanner, onEvent func(Event)) *Manager {
 	return &Manager{scanner: scanner, onEvent: onEvent, now: time.Now, entries: map[string]*entry{}}
 }
@@ -249,9 +251,13 @@ func (m *Manager) Refresh(ctx context.Context, id string) (Info, error) {
 		return Info{}, scanErr
 	}
 	e.snap, e.last = snapshot, m.now()
-	e.mu.Unlock()
+	// Emitted under the entry lock so a concurrent Close, which takes the
+	// same lock first, always reports CLOSED after this REFRESHED.
 	m.emit(Event{Type: RepositoryRefreshed, RepositoryID: e.id})
-	return e.info(), nil
+	info := Info{ID: e.id, Path: e.path, Branch: e.snap.Branch, GitHubRepository: e.snap.GitHubRepository,
+		WorkflowCount: len(e.snap.Workflows), LastRefresh: e.last}
+	e.mu.Unlock()
+	return info, nil
 }
 
 // Close releases a repository and cancels its running work.

@@ -34,6 +34,26 @@ struct DispatchFormModelTests {
     }
 
     @Test
+    func changedValuesSurviveABranchChangeAndUntouchedOnesTakeNewDefaults() {
+        let inputs = [
+            CoreDispatchInput(name: "target", description: "", kind: .string, required: true, defaultValue: "", options: []),
+            CoreDispatchInput(name: "env", description: "", kind: .choice, required: true, defaultValue: "staging", options: ["staging", "prod"]),
+            CoreDispatchInput(name: "note", description: "", kind: .string, required: false, defaultValue: "old default", options: []),
+        ]
+        let before = DispatchFormModel.initialValues(for: inputs)
+        var typed = before
+        typed["target"] = "eu-west"
+        typed["env"] = "prod"
+        // On the new branch "note" has another default and "env" lost "prod".
+        let newInputs = [inputs[0],
+                         CoreDispatchInput(name: "env", description: "", kind: .choice, required: true, defaultValue: "qa", options: ["qa", "staging"]),
+                         CoreDispatchInput(name: "note", description: "", kind: .string, required: false, defaultValue: "new default", options: [])]
+        let values = DispatchFormModel.carryOver(typed, previousDefaults: before,
+                                                 into: DispatchFormModel.initialValues(for: newInputs), inputs: newInputs)
+        #expect(values == ["target": "eu-west", "env": "qa", "note": "new default"])
+    }
+
+    @Test
     func defaultsFollowGitHub() {
         let values = DispatchFormModel.initialValues(for: [
             CoreDispatchInput(name: "flag", description: "", kind: .boolean, required: false, defaultValue: "", options: []),

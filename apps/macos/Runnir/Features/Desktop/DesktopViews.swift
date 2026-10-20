@@ -9,10 +9,20 @@ struct BrandLogo: View {
     var width: CGFloat? = nil
     var wordmarkOnly = false
 
+    /// Decoded once per variant instead of on every redraw.
+    @MainActor private static var cache: [String: NSImage] = [:]
+
+    @MainActor private static func image(named name: String) -> NSImage? {
+        if let cached = cache[name] { return cached }
+        guard let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "assets"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        cache[name] = image
+        return image
+    }
+
     var body: some View {
         let name = (markOnly ? "logo-mark-" : wordmarkOnly ? "logo-wordmark-" : "logo-horizontal-") + (scheme == .dark ? "light" : "dark")
-        if let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "assets"),
-           let image = NSImage(contentsOf: url) {
+        if let image = Self.image(named: name) {
             Image(nsImage: image).resizable().scaledToFit().frame(width: width, height: height).accessibilityLabel("Runnir")
         } else {
             Text("Runnir").font(.title2.weight(.semibold))
@@ -289,6 +299,14 @@ struct DesktopWorkspaceView: View {
                     state.selectedRunID = run.id
                     state.selectedSection = .runs
                 }
+            } else {
+                VStack(alignment: .leading, spacing: 16) {
+                    UnavailableFeature(title: "Runnir Core is not ready",
+                                       detail: "Workflows can be started once the Core has opened this repository.", symbol: "hourglass")
+                    HStack { Spacer(); Button("Close") { state.runWorkflowRequest = nil }.keyboardShortcut(.cancelAction) }
+                        .buttonStyle(DesignButtonStyle())
+                }
+                .padding(20).frame(width: 420)
             }
         }
         .sheet(isPresented: Binding(get: { state.showingSwitcher }, set: { state.showingSwitcher = $0 })) {
