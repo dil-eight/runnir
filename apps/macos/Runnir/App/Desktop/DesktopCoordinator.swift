@@ -148,6 +148,11 @@ final class DesktopCoordinator {
     /// Registers a chosen folder and opens it in a window. The open panel and the
     /// debug import hook both end here.
     private func register(selected: URL, relinkID: UUID? = nil, reuseWindowID: UUID? = nil) {
+        // A new window would not fit: say so before saving a registration.
+        if relinkID == nil, reuseWindowID == nil, snapshot.windows.count >= DesktopSnapshot.maxWindows {
+            message = Self.tooManyWindowsMessage
+            return
+        }
         let accessing = selected.startAccessingSecurityScopedResource()
         defer { if accessing { selected.stopAccessingSecurityScopedResource() } }
         do {
@@ -309,11 +314,14 @@ final class DesktopCoordinator {
 
     func didClose(_ id: UUID) {
         guard !terminationInProgress else { return }
-        let closed = windows.removeValue(forKey: id)
-        // Ask the Core to release the repository before ending the folder
-        // access the app holds for it.
-        core?.detach(windowID: id)
-        closed?.grant?.stop()
+        let grant = windows.removeValue(forKey: id)?.grant
+        // The folder access ends only once the Core has closed the repository,
+        // so a scan still running in the Core never loses it midway.
+        if let core {
+            core.detach(windowID: id) { grant?.stop() }
+        } else {
+            grant?.stop()
+        }
     }
 
     func geometryChanged() {

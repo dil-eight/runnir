@@ -588,6 +588,35 @@ struct CoreHubTests {
     }
 
     @Test
+    func folderAccessEndsOnlyAfterTheCoreClosedTheRepository() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        let first = UUID(), second = UUID()
+        hub.attach(windowID: first, workspaceID: workspace, path: "/repo/a")
+        hub.attach(windowID: second, workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+
+        // Another window still shows the repository: nothing to wait for.
+        var firstReleased = false
+        hub.detach(windowID: first) { firstReleased = true }
+        #expect(firstReleased)
+        #expect(provider.core.closeCalls.isEmpty)
+
+        // The last window: released only once the Core has closed it.
+        var closedBeforeRelease: Bool?
+        hub.detach(windowID: second) {
+            closedBeforeRelease = provider.core.closeCalls == [FakeCore.id(for: "/repo/a")]
+        }
+        #expect(closedBeforeRelease == nil, "the close is still on its way")
+        #expect(await eventually { closedBeforeRelease != nil })
+        #expect(closedBeforeRelease == true)
+
+        var unknownReleased = false
+        hub.detach(windowID: UUID()) { unknownReleased = true }
+        #expect(unknownReleased)
+    }
+
+    @Test
     func theLinkedRepositoryIsReadThroughTheCore() async {
         let (hub, provider) = await readyHub()
         var rejected = 0
