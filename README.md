@@ -7,7 +7,8 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 ## Implemented
 
 - Native SwiftUI/AppKit desktop shell based on the Pen designs: splash, Workspace Manager, independent restorable workspace windows and a workspace switcher (Shift-Command-O).
-- Local repository import with security-scoped bookmarks (a stale bookmark is refreshed, a moved folder followed), read-only workflow file browser, versioned atomic session storage and missing-folder recovery.
+- Local repository import with security-scoped bookmarks (a stale bookmark is refreshed, a moved folder followed), versioned atomic session storage and missing-folder recovery.
+- Workflow editor in the Workspace section with line numbers, YAML colors and lines with diagnostics marked. Saving goes through the Go Core, which writes inside the repository only, replaces the file in one step, and refuses to overwrite a file that changed on disk since it was opened unless you choose Save Anyway. Runnir asks before unsaved edits would be lost, and checks the file again after saving.
 - GitHub sign-in with the Device Flow of the registered Runnir Desktop GitHub App: no client secret in the app, the token only in the Keychain and in the Core's memory, sign-out, and automatic retry after an offline launch. Confirmed with a real sign-in.
 - Workspaces linked to their GitHub repository through the `origin` remote, with an access check and a link to install the app on the repository.
 - Offline workflow validation with actionlint built into the Go Core: diagnostics for each workflow file in the Workspace section, with the line highlighted in the source. No external tools run, and the repository's `.github/actionlint.yaml` is honored.
@@ -21,7 +22,7 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 
 ## Planned
 
-- v0.1: favorites and dashboard status, local YAML editing.
+- v0.1: favorites and dashboard status; creating and renaming workflow files.
 - v0.1: local runs with the full runner images verified on Docker Desktop and OrbStack; workflow_dispatch inputs and secrets for local runs.
 - v0.1: lifecycle hardening, signed folder-grant verification, per-workspace SQLite and cache-first sync, optional portable .runnir launches and environments.
 - Later: artifact inspection and reuse, optional AI/chat/MCP, cloud integrations and startup offers.

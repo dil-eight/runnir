@@ -30,6 +30,7 @@ const (
 	RunnirCore_RefreshRepository_FullMethodName        = "/runnir.core.v1.RunnirCore/RefreshRepository"
 	RunnirCore_ListWorkflows_FullMethodName            = "/runnir.core.v1.RunnirCore/ListWorkflows"
 	RunnirCore_ValidateWorkflows_FullMethodName        = "/runnir.core.v1.RunnirCore/ValidateWorkflows"
+	RunnirCore_SaveWorkflowFile_FullMethodName         = "/runnir.core.v1.RunnirCore/SaveWorkflowFile"
 	RunnirCore_StartWorkflow_FullMethodName            = "/runnir.core.v1.RunnirCore/StartWorkflow"
 	RunnirCore_SubscribeEvents_FullMethodName          = "/runnir.core.v1.RunnirCore/SubscribeEvents"
 	RunnirCore_SetGitHubCredential_FullMethodName      = "/runnir.core.v1.RunnirCore/SetGitHubCredential"
@@ -65,6 +66,12 @@ type RunnirCoreClient interface {
 	// Checks the workflow files on disk now with actionlint, built into the
 	// Core; no external program runs and nothing is sent anywhere.
 	ValidateWorkflows(ctx context.Context, in *ValidateWorkflowsRequest, opts ...grpc.CallOption) (*ValidateWorkflowsResponse, error)
+	// Saves a workflow file the user edited, replacing it in one rename. The
+	// file is only written while it still has base_sha256, the digest of what
+	// the editor loaded; otherwise the response reports a conflict and nothing
+	// changes, unless overwrite is set. The repository is scanned again after
+	// a save.
+	SaveWorkflowFile(ctx context.Context, in *SaveWorkflowFileRequest, opts ...grpc.CallOption) (*SaveWorkflowFileResponse, error)
 	// Starts an execution without a reviewed plan. Local runs need one, so
 	// executions started this way fail; use PrepareLocalRun.
 	StartWorkflow(ctx context.Context, in *StartWorkflowRequest, opts ...grpc.CallOption) (*ExecutionResponse, error)
@@ -180,6 +187,16 @@ func (c *runnirCoreClient) ValidateWorkflows(ctx context.Context, in *ValidateWo
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ValidateWorkflowsResponse)
 	err := c.cc.Invoke(ctx, RunnirCore_ValidateWorkflows_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) SaveWorkflowFile(ctx context.Context, in *SaveWorkflowFileRequest, opts ...grpc.CallOption) (*SaveWorkflowFileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveWorkflowFileResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_SaveWorkflowFile_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -408,6 +425,12 @@ type RunnirCoreServer interface {
 	// Checks the workflow files on disk now with actionlint, built into the
 	// Core; no external program runs and nothing is sent anywhere.
 	ValidateWorkflows(context.Context, *ValidateWorkflowsRequest) (*ValidateWorkflowsResponse, error)
+	// Saves a workflow file the user edited, replacing it in one rename. The
+	// file is only written while it still has base_sha256, the digest of what
+	// the editor loaded; otherwise the response reports a conflict and nothing
+	// changes, unless overwrite is set. The repository is scanned again after
+	// a save.
+	SaveWorkflowFile(context.Context, *SaveWorkflowFileRequest) (*SaveWorkflowFileResponse, error)
 	// Starts an execution without a reviewed plan. Local runs need one, so
 	// executions started this way fail; use PrepareLocalRun.
 	StartWorkflow(context.Context, *StartWorkflowRequest) (*ExecutionResponse, error)
@@ -486,6 +509,9 @@ func (UnimplementedRunnirCoreServer) ListWorkflows(context.Context, *ListWorkflo
 }
 func (UnimplementedRunnirCoreServer) ValidateWorkflows(context.Context, *ValidateWorkflowsRequest) (*ValidateWorkflowsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ValidateWorkflows not implemented")
+}
+func (UnimplementedRunnirCoreServer) SaveWorkflowFile(context.Context, *SaveWorkflowFileRequest) (*SaveWorkflowFileResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SaveWorkflowFile not implemented")
 }
 func (UnimplementedRunnirCoreServer) StartWorkflow(context.Context, *StartWorkflowRequest) (*ExecutionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method StartWorkflow not implemented")
@@ -672,6 +698,24 @@ func _RunnirCore_ValidateWorkflows_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnirCoreServer).ValidateWorkflows(ctx, req.(*ValidateWorkflowsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_SaveWorkflowFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveWorkflowFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).SaveWorkflowFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_SaveWorkflowFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).SaveWorkflowFile(ctx, req.(*SaveWorkflowFileRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1059,6 +1103,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ValidateWorkflows",
 			Handler:    _RunnirCore_ValidateWorkflows_Handler,
+		},
+		{
+			MethodName: "SaveWorkflowFile",
+			Handler:    _RunnirCore_SaveWorkflowFile_Handler,
 		},
 		{
 			MethodName: "StartWorkflow",

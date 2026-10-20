@@ -22,6 +22,7 @@ What exists in code, with tests, against the backlog below. A row stays unaccept
 | B01 | Import, bookmarks (stale refreshed), scoped reads, Locate/relink | Developer ID signed build check |
 | B02 | Discovery and bounded parsing in the Core (both extensions, limits, worktrees, no evaluation) | Developer ID signed build check |
 | B03 | actionlint as a library in the Core, no external process; diagnostics with file, line and column in the Workspace section; repository config honored; reads bounded and kept inside the repository | Shellcheck and pyflakes checks (off by design for now); signed-build check |
+| B04 | Workflow editor in the Workspace: line numbers, YAML colors, diagnostics marked, undo and find; Save through the Core with an atomic write inside the repository, refused when the file changed on disk since it was loaded (Reload from Disk or Save Anyway); edits kept when a reload finds a change; read-only files open read-only; save, don't save or cancel before switching files, switching workspaces, closing the window or quitting; saved files are checked again | Live check in the app; new files and renames |
 | B05 | Device Flow with the registered app; no secret; token only in Keychain and Core memory | Rate-limit scheduling review |
 | B06 | Restore, sign-out, revoked token, offline launch with retry; real sign-in confirmed by hand | Keychain denial on a signed build |
 | B07 | Workspace linked to its GitHub repository through `origin`; access check through the Core | Account-wide browsing and search (if kept in scope) |
@@ -34,7 +35,7 @@ What exists in code, with tests, against the backlog below. A row stays unaccept
 | B15 | Plan from the workflow file: supported, unsupported and unknown jobs, needs closure, events, images and whether present, secrets read, notes, limits, blockers; review screen with trust confirmation; single-use confirmation refused after a file change | Workflows with services and matrices on a real engine |
 | B16 | act with a fixed command line (no socket mount, no repository env/secret files or .actrc, bridge network, no cache server, labels and limits); live bounded output; job states; stop and timeout with process-group interrupt and kill; labelled-container cleanup; Core shutdown stops runs; quitting, closing the workspace's last window or switching it to another workspace asks first; verified end to end on OrbStack with small images | Run with the full runner images |
 
-Not started: B04, B08, B18–B29 beyond the existing window and session foundation.
+Not started: B08, B18–B29 beyond the existing window and session foundation.
 
 ## Prioritized Backlog
 

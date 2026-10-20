@@ -4,7 +4,7 @@ import Testing
 @testable import Runnir
 
 @MainActor
-struct CodePreviewLayoutTests {
+struct YAMLHighlightingTests {
     @Test func highlightingMaximumSizeScalarIsBounded() {
         let source = "value: " + String(repeating: "a", count: 512 * 1024 - 7)
         let start = Date()
@@ -23,13 +23,6 @@ struct CodePreviewLayoutTests {
         #expect(numeric.runs.contains { $0.foregroundColor == RunnirTheme.syntaxLiteral })
     }
 
-    @Test func wrappingKeepsLogicalLinesIntact() {
-        let long = CodePreviewLayout(source: "name: CI\n" + String(repeating: "x", count: 200))
-        #expect(long.lines.count == 2)
-        #expect(long.lines[1] == String(repeating: "x", count: 200))
-        #expect(String(long.highlightedLines[1].characters) == long.lines[1])
-    }
-
     @Test func highlightsTokensWithoutChangingSourceOrConfusingQuotedComments() {
         let source = "  name: \"CI # not a comment\" # comment"
         let styled = YAMLSyntaxHighlighting.highlight(source)
@@ -42,20 +35,6 @@ struct CodePreviewLayoutTests {
         #expect(String(YAMLSyntaxHighlighting.highlight("title: 'Привет 👋'").characters) == "title: 'Привет 👋'")
     }
 
-    @Test func preservesIndentationBlankLinesAndUpdatesOnSelection() {
-        let model = WorkspaceFilesModel()
-        model.source = "  steps:\n\n    - run: echo hello\n"
-        #expect(model.sourceLayout.lines == ["  steps:", "", "    - run: echo hello", ""])
-        model.source = ""
-        #expect(model.sourceLayout.lines == [""])
-        #expect(model.sourceLayout.highlightedLines.count == 1)
-    }
-
-    @Test func gutterAccommodatesLargeLineNumbers() {
-        let layout = CodePreviewLayout(source: String(repeating: "\n", count: 9999))
-        #expect(layout.lines.count == 10000)
-        #expect(layout.gutterWidth > 28)
-    }
 }
 
 @MainActor
@@ -261,6 +240,83 @@ struct DesktopCoordinatorTests {
         #expect(factory.grants.count == 2 && factory.grants[1].stopped, "the other workspace's folder access is released")
         #expect(coordinator.snapshot.windows.first?.workspaceID == fixture.original.id)
         run.stopFollowing()
+    }
+
+    @Test func closingAWindowWithUnsavedEditsAsksFirst() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant, makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        let window = try #require(factory.windows.first)
+        window.unsaved = "ci.yml"
+        var asked: [[String]] = []
+        var answer = UnsavedChoice.cancel
+        coordinator.confirmUnsavedChanges = { asked.append($0); return answer }
+
+        #expect(!coordinator.shouldClose(window.record.id))
+        #expect(coordinator.snapshot.windows.count == 1)
+
+        answer = .save
+        #expect(!coordinator.shouldClose(window.record.id), "the window closes only after the save")
+        _ = await eventually { window.saveCalls == 1 }
+
+        window.unsaved = "ci.yml"
+        answer = .discard
+        #expect(coordinator.shouldClose(window.record.id))
+        #expect(coordinator.snapshot.windows.isEmpty)
+        #expect(asked == [["ci.yml"], ["ci.yml"], ["ci.yml"]])
+    }
+
+    @Test func quittingWithUnsavedEditsAsksOnceForAllWindows() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant, makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        coordinator.openRegistered(fixture.original)
+        var asked: [[String]] = []
+        coordinator.confirmUnsavedChanges = { asked.append($0); return .save }
+        #expect(coordinator.unsavedEditsQuitDecision() == .proceed)
+        #expect(asked.isEmpty)
+
+        factory.windows[0].unsaved = "ci.yml"
+        factory.windows[1].unsaved = "release.yml"
+        #expect(coordinator.unsavedEditsQuitDecision() == .saveFirst)
+        #expect(asked == [["ci.yml", "release.yml"]])
+        factory.windows[1].saveSucceeds = false
+        #expect(await coordinator.saveAllUnsavedWorkflows() == false)
+        #expect(factory.windows[0].saveCalls == 1 && factory.windows[1].saveCalls == 1)
+
+        coordinator.confirmUnsavedChanges = { _ in .discard }
+        #expect(coordinator.unsavedEditsQuitDecision() == .proceed)
+        coordinator.confirmUnsavedChanges = { _ in .cancel }
+        #expect(coordinator.unsavedEditsQuitDecision() == .cancel)
+    }
+
+    @Test func switchingAWindowWithUnsavedEditsAsksFirst() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let other = WorkspaceRecord(id: UUID(), path: fixture.relocated.path, name: "other", bookmark: Data(), lastOpenedAt: Date())
+        try fixture.store.save(DesktopSnapshot(workspaces: [fixture.original, other]))
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant, makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        let window = try #require(factory.windows.first)
+        window.unsaved = "ci.yml"
+        coordinator.confirmUnsavedChanges = { _ in .cancel }
+        coordinator.openRegistered(other, reuseWindowID: window.record.id)
+        #expect(window.record.workspaceID == fixture.original.id)
+        #expect(factory.grants.last?.stopped == true)
+
+        coordinator.confirmUnsavedChanges = { _ in .save }
+        coordinator.openRegistered(other, reuseWindowID: window.record.id)
+        _ = await eventually { window.record.workspaceID == other.id }
+        #expect(window.saveCalls == 1)
+        #expect(window.record.workspaceID == other.id)
     }
 
     @Test func theWindowLimitSaysSoInsteadOfBlamingTheFolder() async throws {
@@ -471,6 +527,15 @@ private final class TestWorkspaceWindow: WorkspaceWindowManaging {
         self.grant = grant
     }
     func showWindow(_ sender: Any?) {}
+    var unsaved: String?
+    var saveSucceeds = true
+    var saveCalls = 0
+    var unsavedWorkflowName: String? { unsaved }
+    func saveUnsavedWorkflow() async -> Bool {
+        saveCalls += 1
+        if saveSucceeds { unsaved = nil }
+        return saveSucceeds
+    }
 }
 
 @MainActor

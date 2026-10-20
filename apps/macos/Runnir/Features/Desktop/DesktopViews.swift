@@ -181,53 +181,78 @@ private struct WorkspaceRegistryRow: View {
 }
 
 enum YAMLSyntaxHighlighting {
+    enum Token: CaseIterable {
+        case comment, string, key, literal
+
+        var colorToken: RunnirColorToken {
+            switch self {
+            case .comment: .mutedForeground
+            case .string: .syntaxString
+            case .key: .syntaxKey
+            case .literal: .syntaxLiteral
+            }
+        }
+    }
+
     private static let expression = try? NSRegularExpression(pattern:
         #"\G(?:(?<comment>(?<!\S)[#].*$)|(?<string>"(?:\\.|[^"\\])*"|'(?:''|[^'])*')|(?<key>[A-Za-z_][A-Za-z0-9_.-]*(?=\s*:(?:\s|$)))|(?<literal>(?<![\w.-])(?:true|false|null|~|[-+]?\d+(?:\.\d+)?)(?![\w.-]))|[^\s]+|\s+)"#)
 
+    /// The colored tokens of one line, as UTF-16 ranges within it.
+    static func tokens(in line: String) -> [(range: NSRange, token: Token)] {
+        guard let expression else { return [] }
+        var tokens: [(NSRange, Token)] = []
+        for match in expression.matches(in: line, range: NSRange(location: 0, length: (line as NSString).length)) {
+            for token in Token.allCases {
+                let range = match.range(withName: "\(token)")
+                if range.location != NSNotFound, range.length > 0 { tokens.append((range, token)) }
+            }
+        }
+        return tokens
+    }
+
     static func highlight(_ line: String) -> AttributedString {
         var result = AttributedString(line)
-        guard let expression else { return result }
-        let colors: [(String, Color)] = [
-            ("comment", RunnirTheme.mutedForeground), ("string", RunnirTheme.syntaxString),
-            ("key", RunnirTheme.syntaxKey), ("literal", RunnirTheme.syntaxLiteral)
-        ]
-        for match in expression.matches(in: line, range: NSRange(line.startIndex..., in: line)) {
-            for (name, color) in colors {
-                guard let range = Range(match.range(withName: name), in: line),
-                      let start = AttributedString.Index(range.lowerBound, within: result),
-                      let end = AttributedString.Index(range.upperBound, within: result) else { continue }
-                result[start..<end].foregroundColor = color
-            }
+        for (range, token) in tokens(in: line) {
+            guard let swiftRange = Range(range, in: line),
+                  let start = AttributedString.Index(swiftRange.lowerBound, within: result),
+                  let end = AttributedString.Index(swiftRange.upperBound, within: result) else { continue }
+            result[start..<end].foregroundColor = token.colorToken.color
         }
         return result
     }
 }
 
-struct CodePreviewLayout {
-    let lines: [String]
-    let highlightedLines: [AttributedString]
-    let gutterWidth: CGFloat
-
-    init(source: String) {
-        lines = source.components(separatedBy: "\n")
-        highlightedLines = lines.map(YAMLSyntaxHighlighting.highlight)
-        let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        gutterWidth = max(28, ceil((String(lines.count) as NSString).size(withAttributes: [.font: font]).width))
-    }
-}
-
+/// The workflow files of one window and the one open in its editor: the
+/// text being edited, the version saved on disk it started from, and what
+/// actionlint found in the saved files.
 @MainActor
 @Observable
 final class WorkspaceFilesModel {
+    enum DiskChange: Equatable {
+        /// A save was refused: the file changed on disk after it was loaded.
+        case conflict
+        /// A reload found the file changed on disk while it had edits here.
+        case changedOnDisk
+    }
+
     var files: [LocalWorkflowFile] = []
     var selected: LocalWorkflowFile?
-    var source = "" {
-        didSet { sourceLayout = CodePreviewLayout(source: source) }
-    }
-    private(set) var sourceLayout = CodePreviewLayout(source: "")
+    /// The text in the editor.
+    var source = ""
+    /// The file as loaded from or last saved to disk.
+    private(set) var savedSource = ""
+    /// SHA-256 of `savedSource`'s bytes, which a save must still find on disk.
+    private(set) var savedDigest: String?
+    private(set) var isWritable = true
+    private(set) var isSaving = false
+    private(set) var saveError: String?
+    private(set) var diskChange: DiskChange?
     var isLoading = false
     var error: String?
     private var sourceTask: Task<Void, Never>?
+
+    /// The editor holds changes that are not on disk.
+    var isDirty: Bool { selected != nil && savedDigest != nil && source != savedSource }
 
     /// The last actionlint report from the Core, for every workflow file.
     private(set) var validation: CoreValidationReport?
@@ -276,6 +301,8 @@ final class WorkspaceFilesModel {
         return result.diagnostics.count + (result.problem == nil ? 0 : 1)
     }
 
+    /// Lists the files again and reloads the open one, unless it has edits:
+    /// then only a change on disk is noted, and the edits stay.
     func load(_ reader: RepositoryReader) async {
         guard !isLoading else { return }
         isLoading = true
@@ -283,27 +310,80 @@ final class WorkspaceFilesModel {
         do {
             files = try await Task.detached { try reader.workflows() }.value
             error = nil
-            if let selected, files.contains(selected) { select(selected, reader: reader) }
-            else { selected = files.first; if let selected { select(selected, reader: reader) } }
+            if let selected, files.contains(selected) {
+                if isDirty { await noticeDiskChange(selected, reader: reader) } else { select(selected, reader: reader) }
+            } else if !isDirty {
+                selected = files.first
+                if let selected { select(selected, reader: reader) }
+            }
         } catch { self.error = "Workflow files could not be read. Check access and keep files inside this repository." }
     }
 
+    /// Opens a file in the editor; edits to the previous one are dropped, so
+    /// callers ask first (see `isDirty`).
     func select(_ file: LocalWorkflowFile, reader: RepositoryReader) {
         if selected != file { highlightedLine = nil }
         selected = file
         source = ""
+        savedSource = ""
+        savedDigest = nil
+        diskChange = nil
+        saveError = nil
         sourceTask?.cancel()
         sourceTask = Task {
             do {
-                let text = try await Task.detached { try reader.source(for: file) }.value
+                let (loaded, writable) = try await Task.detached {
+                    (try reader.loadSource(for: file), reader.isWritable(file))
+                }.value
                 guard !Task.isCancelled else { return }
-                source = text
+                savedSource = loaded.text
+                savedDigest = loaded.sha256
+                source = loaded.text
+                isWritable = writable
                 error = nil
             } catch {
                 guard !Task.isCancelled else { return }
-                self.error = "This workflow is unreadable, outside the repository, or exceeds the 512 KiB preview limit."
+                self.error = "This workflow is unreadable, outside the repository, or exceeds the 512 KiB editor limit."
             }
         }
+    }
+
+    /// Drops the edits and loads the file as it is on disk.
+    func reloadFromDisk(reader: RepositoryReader) {
+        guard let selected else { return }
+        select(selected, reader: reader)
+    }
+
+    /// Saves the editor's text through the Core. A file that changed on disk
+    /// since it was loaded is only replaced with `overwrite`.
+    @discardableResult
+    func save(hub: CoreHub, workspaceID: UUID, overwrite: Bool = false) async -> Bool {
+        guard let file = selected, let base = savedDigest, isDirty || overwrite, !isSaving else { return !isDirty }
+        isSaving = true
+        defer { isSaving = false }
+        let content = source
+        switch await hub.saveWorkflowFile(workspaceID: workspaceID, workflowID: file.relativePath, content: content,
+                                          baseSHA256: base, overwrite: overwrite) {
+        case .saved(let digest):
+            // Typing during the save stays an edit on top of what was saved.
+            savedSource = content
+            savedDigest = digest
+            diskChange = nil
+            saveError = nil
+            return true
+        case .conflict:
+            diskChange = .conflict
+            saveError = nil
+            return false
+        case .failed(let message):
+            saveError = message
+            return false
+        }
+    }
+
+    private func noticeDiskChange(_ file: LocalWorkflowFile, reader: RepositoryReader) async {
+        guard let loaded = try? await Task.detached(operation: { try reader.loadSource(for: file) }).value else { return }
+        if loaded.sha256 != savedDigest, diskChange == nil { diskChange = .changedOnDisk }
     }
 }
 
@@ -313,7 +393,7 @@ struct DesktopWorkspaceView: View {
     let workspace: WorkspaceRecord
     let windowID: UUID
     let reader: RepositoryReader?
-    @State private var files = WorkspaceFilesModel()
+    private var files: WorkspaceFilesModel { state.files }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -363,7 +443,8 @@ struct DesktopWorkspaceView: View {
                 LocalRunSheet(model: LocalRunReviewModel(workspaceID: workspace.id, workflowID: request.workflowID,
                                                          jobs: session.workflows.first { $0.id == request.workflowID }?.jobs ?? [],
                                                          jobID: request.jobID, hub: hub),
-                              repositoryPath: session.path) { _ in
+                              repositoryPath: session.path,
+                              unsavedFile: files.isDirty && files.selected?.relativePath == request.workflowID ? files.selected?.name : nil) { _ in
                     state.selectedSection = .workspace
                     state.workspaceTab = .localRun
                 }
@@ -392,6 +473,57 @@ struct DesktopWorkspaceView: View {
         guard let hub = desktop.core else { return }
         if let reader { Task { await files.load(reader) } }
         Task { await files.validate(hub: hub, workspaceID: workspace.id) }
+    }
+
+    /// Opens another file in the editor, asking first when the open one has
+    /// edits that are not saved.
+    private func open(_ file: LocalWorkflowFile) {
+        guard let reader, file != files.selected else { return }
+        guard files.isDirty, let current = files.selected else {
+            files.select(file, reader: reader)
+            return
+        }
+        switch UnsavedChangesPrompt.ask(fileName: current.name) {
+        case .save:
+            Task {
+                if await saveAndRevalidate() { files.select(file, reader: reader) }
+            }
+        case .discard:
+            files.select(file, reader: reader)
+        case .cancel:
+            break
+        }
+    }
+
+    private func save(overwrite: Bool = false) {
+        Task { await saveAndRevalidate(overwrite: overwrite) }
+    }
+
+    /// Saves the editor through the Core, then checks the saved files again.
+    @discardableResult
+    private func saveAndRevalidate(overwrite: Bool = false) async -> Bool {
+        guard let hub = desktop.core else { return false }
+        let saved = await files.save(hub: hub, workspaceID: workspace.id, overwrite: overwrite)
+        if saved { await files.validate(hub: hub, workspaceID: workspace.id) }
+        return saved
+    }
+
+    private var saveHelp: String {
+        if !files.isWritable { return "This file is read-only" }
+        if !canValidate { return "Files are saved by Runnir Core, which has not opened this repository yet" }
+        if !files.isDirty { return "No unsaved changes" }
+        return "Save this workflow file and check it again"
+    }
+
+    @ViewBuilder private var editorStatus: some View {
+        if files.isDirty {
+            Label("Edited · unsaved", systemImage: "pencil")
+                .font(.system(size: 11, weight: .medium)).foregroundStyle(RunnirTheme.warning)
+                .padding(.horizontal, 8).frame(height: 22)
+                .background(RunnirTheme.warning.opacity(0.14), in: RoundedRectangle(cornerRadius: 5))
+        } else if files.selected != nil, !files.isWritable {
+            Text("Read-only").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+        }
     }
 
     private func menuTitle(_ file: LocalWorkflowFile) -> String {
@@ -442,7 +574,7 @@ struct DesktopWorkspaceView: View {
             if state.selectedSection == .workspace {
                 Menu {
                     ForEach(files.files) { file in
-                        Button(menuTitle(file)) { if let reader { files.select(file, reader: reader) } }
+                        Button(menuTitle(file)) { open(file) }
                     }
                 } label: {
                     HStack(spacing: 6) {
@@ -453,11 +585,14 @@ struct DesktopWorkspaceView: View {
                         .padding(.horizontal, 10).frame(height: 26)
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
                 }.menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize().disabled(files.files.isEmpty)
-                Text("Read-only").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                editorStatus
             }
             Spacer(minLength: 4)
             if state.selectedSection == .workspace {
-                Button("Save") {}.disabled(true).help("Workflow editing is not implemented")
+                Button(files.isSaving ? "Saving..." : "Save") { save() }
+                    .keyboardShortcut("s", modifiers: .command)
+                    .disabled(!files.isDirty || files.isSaving || !canValidate || !files.isWritable)
+                    .help(saveHelp)
                 Button(files.isValidating ? "Validating..." : "Validate") { validateWorkflows() }
                     .disabled(!canValidate || files.isValidating)
                     .help(canValidate ? "Check every workflow file with actionlint, offline" : "Validation runs in Runnir Core, which has not opened this repository yet")
@@ -609,7 +744,9 @@ struct DesktopWorkspaceView: View {
                 if state.workspaceTab == .localRun, let run = localRun {
                     LocalRunView(run: run)
                 } else {
-                    LocalWorkflowBrowser(model: files, canValidate: canValidate, validate: validateWorkflows)
+                    LocalWorkflowBrowser(model: files, canValidate: canValidate, validate: validateWorkflows,
+                                         reload: { if let reader { files.reloadFromDisk(reader: reader) } },
+                                         saveAnyway: { save(overwrite: true) })
                         .task(id: canValidate) {
                             // The first visit checks the files; later ones keep the last report.
                             if canValidate, files.validation == nil, files.validationError == nil { validateWorkflows() }
@@ -652,7 +789,7 @@ struct DesktopWorkspaceView: View {
                     ScrollView(.horizontal) {
                         HStack(spacing: 4) {
                             ForEach(files.files) { file in
-                                Button(file.name) { if let reader { files.select(file, reader: reader) } }
+                                Button(file.name) { open(file) }
                                     .buttonStyle(WorkflowTabStyle(selected: files.selected == file))
                             }
                         }
@@ -682,8 +819,8 @@ struct DesktopWorkspaceView: View {
                         DesignDivider()
                         ForEach(files.files) { file in
                             Button {
-                                if let reader { files.select(file, reader: reader) }
                                 state.selectedSection = .workspace
+                                open(file)
                             } label: {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
@@ -709,6 +846,8 @@ private struct LocalWorkflowBrowser: View {
     @Bindable var model: WorkspaceFilesModel
     let canValidate: Bool
     let validate: () -> Void
+    let reload: () -> Void
+    let saveAnyway: () -> Void
 
     var body: some View {
         HSplitView {
@@ -752,40 +891,49 @@ private struct LocalWorkflowBrowser: View {
     private var sourcePanel: some View {
         let flagged = Set(model.selected.flatMap { model.validation(for: $0)?.diagnostics.map(\.line) } ?? [])
         return VStack(spacing: 0) {
-                if let error = model.error {
-                    Label(error, systemImage: "exclamationmark.triangle").font(.system(size: 12)).padding(20)
-                } else if model.selected == nil {
-                    UnavailableFeature(title: "No workflows", detail: "No YAML files in .github/workflows.", symbol: "doc.text").padding(20)
-                } else {
-                    ScrollViewReader { proxy in
-                        ScrollView(.vertical) {
-                            LazyVStack(alignment: .leading, spacing: 0) {
-                                ForEach(model.sourceLayout.lines.indices, id: \.self) { index in
-                                    let line = model.sourceLayout.lines[index]
-                                    let number = index + 1
-                                    HStack(alignment: .top, spacing: 14) {
-                                        Text("\(number)").foregroundStyle(flagged.contains(number) ? RunnirTheme.destructive : RunnirTheme.mutedForeground)
-                                            .lineLimit(1).frame(width: model.sourceLayout.gutterWidth, alignment: .trailing).accessibilityHidden(true)
-                                        Text(line.isEmpty ? AttributedString(" ") : model.sourceLayout.highlightedLines[index])
-                                            .foregroundStyle(RunnirTheme.foreground).textSelection(.enabled)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }.font(.system(size: 12, design: .monospaced)).lineSpacing(3)
-                                        .frame(minHeight: 20, alignment: .top)
-                                        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12)
-                                        .background(number == model.highlightedLine ? RunnirTheme.destructive.opacity(0.14)
-                                                    : flagged.contains(number) ? RunnirTheme.destructive.opacity(0.06) : .clear)
-                                        .id(number)
-                                }
-                            }.padding(.vertical, 8)
-                        }.scrollIndicators(.visible)
-                        .onChange(of: model.revealCount) {
-                            if let line = model.highlightedLine { withAnimation { proxy.scrollTo(line, anchor: .center) } }
-                        }
-                    }
-                }
+            if let error = model.error {
+                Label(error, systemImage: "exclamationmark.triangle").font(.system(size: 12)).padding(20)
                 Spacer(minLength: 0)
+            } else if model.selected == nil {
+                UnavailableFeature(title: "No workflows", detail: "No YAML files in .github/workflows.", symbol: "doc.text").padding(20)
+                Spacer(minLength: 0)
+            } else {
+                editorBanner
+                CodeEditor(text: $model.source, flaggedLines: model.isDirty ? [] : flagged, highlightedLine: model.highlightedLine,
+                           revealCount: model.revealCount, isEditable: model.isWritable && model.savedDigest != nil)
+            }
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).background(RunnirTheme.editor)
+    }
+
+    /// Why the editor cannot simply save: the file changed on disk, the
+    /// last save failed, or the file is read-only.
+    @ViewBuilder private var editorBanner: some View {
+        if let change = model.diskChange {
+            banner(change == .conflict
+                   ? "\(model.selected?.name ?? "This file") changed on disk after you opened it, so your changes were not saved."
+                   : "\(model.selected?.name ?? "This file") changed on disk. Your edits are still here and have not been saved.",
+                   symbol: "exclamationmark.triangle", tint: RunnirTheme.warning) {
+                Button("Reload from Disk", action: reload).help("Discard your edits and open the file as it is on disk")
+                Button("Save Anyway", action: saveAnyway).help("Replace the file on disk with your version")
+            }
+        } else if let error = model.saveError {
+            banner(error, symbol: "exclamationmark.triangle", tint: RunnirTheme.warning) { EmptyView() }
+        } else if !model.isWritable {
+            banner("This file is read-only. Change its permissions to edit it here.", symbol: "lock", tint: RunnirTheme.secondaryForeground) { EmptyView() }
+        }
+    }
+
+    private func banner<Actions: View>(_ text: String, symbol: String, tint: Color, @ViewBuilder actions: () -> Actions) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol).foregroundStyle(tint)
+                Text(text).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 4)
+                actions()
+            }
+            .buttonStyle(DesignButtonStyle()).padding(.horizontal, 12).padding(.vertical, 8).background(tint.opacity(0.1))
+            DesignDivider()
+        }
     }
 }
 
@@ -797,6 +945,10 @@ private struct DiagnosticsPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if model.isDirty {
+                Label("These results are for the saved file. Save to check your edits.", systemImage: "pencil")
+                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+            }
             if let problem = model.validation?.configProblem {
                 Label("The repository's actionlint config was not used: \(problem)", systemImage: "exclamationmark.triangle")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.warning).fixedSize(horizontal: false, vertical: true)

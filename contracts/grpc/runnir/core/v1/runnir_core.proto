@@ -22,6 +22,12 @@ service RunnirCore {
   // Checks the workflow files on disk now with actionlint, built into the
   // Core; no external program runs and nothing is sent anywhere.
   rpc ValidateWorkflows(ValidateWorkflowsRequest) returns (ValidateWorkflowsResponse);
+  // Saves a workflow file the user edited, replacing it in one rename. The
+  // file is only written while it still has base_sha256, the digest of what
+  // the editor loaded; otherwise the response reports a conflict and nothing
+  // changes, unless overwrite is set. The repository is scanned again after
+  // a save.
+  rpc SaveWorkflowFile(SaveWorkflowFileRequest) returns (SaveWorkflowFileResponse);
 
   // Starts an execution without a reviewed plan. Local runs need one, so
   // executions started this way fail; use PrepareLocalRun.
@@ -742,3 +748,23 @@ message CancelExecutionRequest {
 }
 
 message CancelExecutionResponse {}
+
+message SaveWorkflowFileRequest {
+  string repository_id = 1;
+  // Path relative to the repository root, as in Workflow.id.
+  string workflow_id = 2;
+  // The whole new file, UTF-8, at most 1 MiB.
+  string content = 3;
+  // SHA-256 (hex) of the file as the editor loaded it.
+  string base_sha256 = 4;
+  // Replace the file even though it changed since it was loaded.
+  bool overwrite = 5;
+}
+
+message SaveWorkflowFileResponse {
+  // SHA-256 (hex) of the file now on disk.
+  string sha256 = 1;
+  // The file changed since it was loaded and was left as it is; sha256 is
+  // then the digest of that version.
+  bool conflict = 2;
+}

@@ -1,5 +1,15 @@
+import CryptoKit
 import Foundation
 import Darwin
+
+/// SHA-256 of a file's bytes, as the Core compares them before saving.
+enum WorkflowDigest {
+    static func sha256(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func sha256(_ text: String) -> String { sha256(Data(text.utf8)) }
+}
 
 enum RepositoryAccessError: Error {
     case notRepository
@@ -70,7 +80,28 @@ struct RepositoryReader: Sendable {
         return files.sorted { $0.relativePath < $1.relativePath }
     }
 
+    /// The file's text and the SHA-256 of its bytes.
+    func loadSource(for file: LocalWorkflowFile) throws -> (text: String, sha256: String) {
+        let data = try sourceData(for: file)
+        guard let text = String(data: data, encoding: .utf8) else { throw RepositoryAccessError.tooLarge }
+        return (text, WorkflowDigest.sha256(data))
+    }
+
+    /// Whether the user may write the file; a read-only file opens read-only.
+    func isWritable(_ file: LocalWorkflowFile) -> Bool {
+        guard let descriptor = try? openRelative(file.relativePath, flags: O_RDONLY | O_NONBLOCK) else { return false }
+        defer { Darwin.close(descriptor) }
+        var metadata = stat()
+        guard fstat(descriptor, &metadata) == 0 else { return false }
+        if metadata.st_uid == getuid() { return metadata.st_mode & S_IWUSR != 0 }
+        return metadata.st_mode & (S_IWGRP | S_IWOTH) != 0
+    }
+
     func source(for file: LocalWorkflowFile) throws -> String {
+        try loadSource(for: file).text
+    }
+
+    private func sourceData(for file: LocalWorkflowFile) throws -> Data {
         let descriptor = try openRelative(file.relativePath, flags: O_RDONLY | O_NONBLOCK)
         let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
         defer { try? handle.close() }
@@ -80,10 +111,8 @@ struct RepositoryReader: Sendable {
         }
         guard metadata.st_size >= 0, metadata.st_size <= 512 * 1024 else { throw RepositoryAccessError.tooLarge }
         let data = try handle.read(upToCount: 512 * 1024 + 1) ?? Data()
-        guard data.count <= 512 * 1024, let source = String(data: data, encoding: .utf8) else {
-            throw RepositoryAccessError.tooLarge
-        }
-        return source
+        guard data.count <= 512 * 1024 else { throw RepositoryAccessError.tooLarge }
+        return data
     }
 
     private func components(_ path: String) throws -> [String] {

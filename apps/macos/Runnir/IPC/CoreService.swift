@@ -65,6 +65,13 @@ struct CoreValidationReport: Equatable, Sendable {
     }
 }
 
+/// What a save did: the digest of the file now on disk, and whether the
+/// save was refused because the file had changed.
+struct CoreWorkflowSave: Equatable, Sendable {
+    let sha256: String
+    let conflict: Bool
+}
+
 enum CoreExecutionState: Equatable, Sendable {
     case unspecified, queued, running, succeeded, failed, cancelled
 }
@@ -121,6 +128,10 @@ protocol CoreServicing: Sendable {
     /// nil `workflowID` checks all of them.
     func validateWorkflows(repositoryID: String, workflowID: String?) async throws -> CoreValidationReport
     func startWorkflow(repositoryID: String, workflowID: String, ref: String?) async throws -> CoreExecution
+    /// Saves an edited workflow file if it still has `baseSHA256` on disk
+    /// (or `overwrite`); a changed file comes back as a conflict, unwritten.
+    func saveWorkflowFile(repositoryID: String, workflowID: String, content: String, baseSHA256: String,
+                          overwrite: Bool) async throws -> CoreWorkflowSave
     /// Hands the signed-in user's GitHub token to the Core's memory; nil clears it.
     func setGitHubCredential(_ token: String?) async throws
     /// GitHub Actions data for the repository's origin on github.com.
