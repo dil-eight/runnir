@@ -212,7 +212,7 @@ struct WorkspaceWorkflowsView: View {
                     let latest = session.runs.first { $0.workflowID == workflow.id }
                     let favorite = favorites?.isFavorite(workflow.path, workspaceID: session.workspaceID) ?? false
                     HStack(spacing: 10) {
-                        if let favorites {
+                        if let favorites, WorkflowFavorites.canFavorite(workflow.path) {
                             Button { favorites.toggle(workflow.path, workspaceID: session.workspaceID) } label: {
                                 Image(systemName: favorite ? "star.fill" : "star")
                                     .foregroundStyle(favorite ? RunnirTheme.warning : RunnirTheme.mutedForeground)

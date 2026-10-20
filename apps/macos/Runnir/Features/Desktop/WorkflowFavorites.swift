@@ -59,8 +59,9 @@ struct FileWorkflowFavoritesStore: WorkflowFavoritesStoring {
     }
 }
 
-/// Favorite workflows of every workspace, read on first use. When the file
-/// cannot be read, favorites are off for the session and nothing overwrites it.
+/// Favorite workflows of every workspace, read when created (the file is
+/// small), so views never load it while they draw. When the file cannot be
+/// read, favorites are off for the session and nothing overwrites it.
 @MainActor
 @Observable
 final class WorkflowFavorites {
@@ -70,21 +71,29 @@ final class WorkflowFavorites {
     /// Why favorites are unavailable or the last change was not saved.
     private(set) var problem: String?
     @ObservationIgnored private let store: (any WorkflowFavoritesStoring)?
-    @ObservationIgnored private var loaded = false
     @ObservationIgnored private var readable = true
 
     init(store: (any WorkflowFavoritesStoring)?) {
         self.store = store
+        guard let store else { return }
+        do {
+            workspaces = try store.load()
+        } catch {
+            readable = false
+            problem = "Saved favorites could not be read, so favorites are off for now. The file was left as it is."
+        }
     }
 
-    var isAvailable: Bool {
-        loadIfNeeded()
-        return store != nil && readable
+    var isAvailable: Bool { store != nil && readable }
+
+    /// Only workflow files can be favorites; GitHub also lists workflows it
+    /// adds itself, such as code scanning, under other paths.
+    nonisolated static func canFavorite(_ path: String) -> Bool {
+        path.hasPrefix(".github/workflows/") && path.count <= FavoriteWorkflows.maxPathLength
     }
 
     func paths(workspaceID: UUID) -> [String] {
-        loadIfNeeded()
-        return workspaces.first { $0.workspaceID == workspaceID }?.paths ?? []
+        workspaces.first { $0.workspaceID == workspaceID }?.paths ?? []
     }
 
     func isFavorite(_ path: String, workspaceID: UUID) -> Bool {
@@ -102,7 +111,10 @@ final class WorkflowFavorites {
 
     @discardableResult
     func toggle(_ path: String, workspaceID: UUID) -> Bool {
-        loadIfNeeded()
+        guard Self.canFavorite(path) else {
+            problem = "Only workflow files in .github/workflows can be favorites."
+            return false
+        }
         var candidate = workspaces
         if let index = candidate.firstIndex(where: { $0.workspaceID == workspaceID }) {
             if let position = candidate[index].paths.firstIndex(of: path) {
@@ -122,7 +134,6 @@ final class WorkflowFavorites {
     }
 
     func removeAll(workspaceID: UUID) {
-        loadIfNeeded()
         guard workspaces.contains(where: { $0.workspaceID == workspaceID }) else { return }
         commit(workspaces.filter { $0.workspaceID != workspaceID })
     }
@@ -141,18 +152,6 @@ final class WorkflowFavorites {
         } catch {
             problem = "The favorite could not be saved. Check available storage and try again."
             return false
-        }
-    }
-
-    private func loadIfNeeded() {
-        guard !loaded else { return }
-        loaded = true
-        guard let store else { return }
-        do {
-            workspaces = try store.load()
-        } catch {
-            readable = false
-            problem = "Saved favorites could not be read, so favorites are off for now. The file was left as it is."
         }
     }
 }

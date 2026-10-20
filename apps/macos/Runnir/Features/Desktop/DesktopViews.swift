@@ -760,7 +760,8 @@ struct DesktopWorkspaceView: View {
                               },
                               runWorkflow: { workflowID, presetID in
                                   state.runWorkflowRequest = RunWorkflowRequest(workflowID: workflowID, presetID: presetID)
-                              })
+                              },
+                              selectedPath: Binding(get: { state.overviewWorkflowPath }, set: { state.overviewWorkflowPath = $0 }))
         case .workspace:
             VStack(spacing: 0) {
                 workspaceTabs

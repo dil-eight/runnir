@@ -46,6 +46,16 @@ struct WorkflowFavoritesTests {
         #expect(try String(contentsOf: store.fileURL, encoding: .utf8) == "{not json")
     }
 
+    @Test func workflowsGitHubAddsItselfCannotBeFavorites() throws {
+        let folder = directory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let favorites = WorkflowFavorites(store: FileWorkflowFavoritesStore(directory: folder))
+        #expect(!WorkflowFavorites.canFavorite("dynamic/github-code-scanning/codeql"))
+        #expect(!favorites.toggle("dynamic/github-code-scanning/codeql", workspaceID: UUID()))
+        #expect(favorites.problem == "Only workflow files in .github/workflows can be favorites.")
+        #expect(favorites.isAvailable)
+    }
+
     @Test func onlyWorkflowPathsAreStored() {
         #expect(!FavoriteWorkflows(workspaceID: UUID(), paths: ["README.md"]).isValid)
         #expect(!FavoriteWorkflows(workspaceID: UUID(), paths: [".github/workflows/a.yml", ".github/workflows/a.yml"]).isValid)
@@ -78,6 +88,17 @@ struct PipelineLayoutTests {
         let cycle = PipelineLayout.columns([job("a", needs: ["b"]), job("b", needs: ["a"])])
         #expect(cycle.flatMap { $0 }.count == 2)
         #expect(PipelineLayout.columns([]).isEmpty)
+    }
+
+    @Test func runJobsMatchExpressionNamesAndReusableWorkflows() {
+        let jobs = [runJob("Build ubuntu-latest"), runJob("Build macos-latest"), runJob("release / publish"), runJob("Lint")]
+        #expect(PipelineLayout.runJobs(for: job("build", name: "Build ${{ matrix.os }}"), in: jobs).count == 2)
+        #expect(PipelineLayout.runJobs(for: job("release"), in: jobs).map(\.name) == ["release / publish"])
+        #expect(PipelineLayout.runJobs(for: job("x", name: "${{ matrix.name }}"), in: jobs).isEmpty)
+        // A run job another job names is not taken by an expression's stem.
+        let docs = job("docs", name: "Build docs")
+        let all = jobs + [runJob("Build docs")]
+        #expect(PipelineLayout.runJobs(for: job("build", name: "Build ${{ matrix.os }}"), in: all, among: [job("build", name: "Build ${{ matrix.os }}"), docs]).count == 2)
     }
 
     @Test func runJobsMatchByNameIdAndMatrix() {

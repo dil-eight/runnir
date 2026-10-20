@@ -26,10 +26,24 @@ enum PipelineLayout {
     }
 
     /// The jobs of a GitHub run that belong to one workflow job: the same
-    /// name, or a matrix variant such as "build (ubuntu, 18)".
-    static func runJobs(for job: CoreJob, in runJobs: [CoreRunJob]) -> [CoreRunJob] {
-        let names = Set([job.name, job.id].filter { !$0.isEmpty })
-        return runJobs.filter { run in names.contains(run.name) || names.contains { run.name.hasPrefix($0 + " (") } }
+    /// name, a matrix variant such as "build (ubuntu, 18)", or a job of a
+    /// called workflow such as "release / publish". A name set by an
+    /// expression ("Build ${{ matrix.os }}") is known only up to the
+    /// expression, so it takes the run jobs starting with that part that no
+    /// other job of `jobs` names.
+    static func runJobs(for job: CoreJob, in runJobs: [CoreRunJob], among jobs: [CoreJob] = []) -> [CoreRunJob] {
+        let stem = job.name.range(of: "${{").map { job.name[..<$0.lowerBound].trimmingCharacters(in: .whitespaces) } ?? ""
+        return runJobs.filter { run in
+            names(job, run)
+                || (!stem.isEmpty && run.name.hasPrefix(stem) && !jobs.contains { $0.id != job.id && names($0, run) })
+        }
+    }
+
+    private static func names(_ job: CoreJob, _ run: CoreRunJob) -> Bool {
+        [job.name, job.id].contains { name in
+            !name.isEmpty && !name.contains("${{")
+                && (run.name == name || run.name.hasPrefix(name + " (") || run.name.hasPrefix(name + " / "))
+        }
     }
 
     /// The outcome that matters most among a job's matrix variants.
@@ -69,8 +83,11 @@ struct WorkspaceOverview: View {
     let openFile: (LocalWorkflowFile) -> Void
     /// Opens Run Workflow for a GitHub workflow id, optionally with a preset.
     let runWorkflow: (Int64?, UUID?) -> Void
-    @State private var selectedPath: String?
+    /// The selected workflow's path, kept by the window.
+    @Binding var selectedPath: String?
     @State private var runJobs: CoreGitHubResult<CoreRunJob>?
+    /// The run `runJobs` belongs to; jobs stay shown while the same run reloads.
+    @State private var runJobsRunID: Int64?
 
     private var workflows: [LocalWorkflowFile] {
         favorites.ordered(files.files, workspaceID: workspaceID, path: \.relativePath)
@@ -88,8 +105,6 @@ struct WorkspaceOverview: View {
         guard let remote = remote(path) else { return nil }
         return session?.runs.first { $0.workflowID == remote.id }
     }
-
-    private var githubReady: Bool { session?.githubAccess == .ok || isStale }
 
     /// GitHub could not be reached, so what is shown is the last data read.
     private var isStale: Bool {
@@ -128,6 +143,9 @@ struct WorkspaceOverview: View {
             }.padding(.horizontal, 28).padding(.vertical, 24)
         }
         .task(id: jobsKey) { await loadJobs() }
+        // The presets file is read on first use; reading it here keeps the
+        // view from loading it while it draws.
+        .task { presets.prepare() }
     }
 
     // MARK: Header
@@ -144,7 +162,7 @@ struct WorkspaceOverview: View {
                                         .accessibilityLabel("Favorite")
                                 }
                                 if let run = latestRun(file.relativePath) { RunOutcomeIcon(outcome: run.outcome, size: 10) }
-                                Text(file.name.replacingOccurrences(of: ".yml", with: "").replacingOccurrences(of: ".yaml", with: ""))
+                                Text((file.name as NSString).deletingPathExtension)
                             }
                         }
                         .buttonStyle(WorkflowTabStyle(selected: selected == file))
@@ -185,7 +203,8 @@ struct WorkspaceOverview: View {
             Text("Not on GitHub yet").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                 .help("This workflow file is not on GitHub's default branch, or has not run")
         } else if session?.githubAccess == .ok {
-            Text("No runs yet").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+            Text("No recent runs").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                .help("None of the runs Runnir read from GitHub belongs to this workflow")
         }
     }
 
@@ -206,11 +225,18 @@ struct WorkspaceOverview: View {
     }
 
     private func loadJobs() async {
-        runJobs = nil
-        guard let hub, let selected, let run = latestRun(selected.relativePath) else { return }
+        guard let hub, let selected, let run = latestRun(selected.relativePath) else {
+            runJobs = nil
+            runJobsRunID = nil
+            return
+        }
+        // A newer report of the same run keeps the jobs on screen until the
+        // new ones arrive; another run starts empty.
+        if runJobsRunID != run.id { runJobs = nil }
         let result = await hub.jobs(workspaceID: workspaceID, runID: run.id)
         guard !Task.isCancelled else { return }
         runJobs = result
+        runJobsRunID = run.id
     }
 
     @ViewBuilder private var pipeline: some View {
@@ -234,7 +260,7 @@ struct WorkspaceOverview: View {
                                         .padding(.top, 12).accessibilityHidden(true)
                                 }
                                 VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(column, id: \.id) { job in jobChip(job, run: run) }
+                                    ForEach(column, id: \.id) { job in jobChip(job, among: definition?.jobs ?? []) }
                                 }
                             }
                         }
@@ -245,8 +271,8 @@ struct WorkspaceOverview: View {
         }
     }
 
-    private func jobChip(_ job: CoreJob, run: CoreWorkflowRun?) -> some View {
-        let matched = runJobs.map { PipelineLayout.runJobs(for: job, in: $0.items) } ?? []
+    private func jobChip(_ job: CoreJob, among jobs: [CoreJob]) -> some View {
+        let matched = runJobs.map { PipelineLayout.runJobs(for: job, in: $0.items, among: jobs) } ?? []
         let outcome = PipelineLayout.outcome(matched)
         return HStack(spacing: 8) {
             if let outcome { RunOutcomeIcon(outcome: outcome, size: 12) } else {
