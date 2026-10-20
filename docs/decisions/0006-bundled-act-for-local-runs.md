@@ -36,6 +36,7 @@ Local runs (FR-06) execute workflows with [act](https://github.com/nektos/act) o
   - opening another workspace in that window.
 
   Runnir asks before each of them.
+- act keeps one shared named volume, `act-toolcache`, for tools that actions download, and reuses it across runs. It is not removed after a run; deleting it in the container engine only costs later runs those downloads.
 - If the Core is killed during a run instead of being stopped (a crash, or a forced restart after it stopped answering), act is not interrupted. It may keep running until it fails to write its output, and its containers may remain.
 - Containers act creates for services, or for jobs that set their own `container:` image, do not get Runnir's label or limits, because act passes container options only to job containers without a `container:` section. act removes those containers itself when it ends or is interrupted. If act has to be killed after the grace period, Runnir says that containers may remain.
 
