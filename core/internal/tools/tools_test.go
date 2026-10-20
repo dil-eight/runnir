@@ -306,3 +306,48 @@ func TestSearchDirsAreAbsoluteAndUnique(t *testing.T) {
 		seen[dir] = true
 	}
 }
+
+// A refresh does not settle for a check that was already running when it
+// was asked for: the user may just have started the engine.
+func TestRefreshDuringARunningCheckChecksAgain(t *testing.T) {
+	host := readyHost()
+	d := host.detector()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	inner := d.exec
+	var once sync.Once
+	d.exec = func(ctx context.Context, path string, args []string, env []string) ([]byte, error) {
+		once.Do(func() { close(started); <-release })
+		return inner(ctx, path, args, env)
+	}
+	first := make(chan Report, 1)
+	go func() { first <- d.Check(context.Background(), true) }()
+	<-started
+	time.Sleep(10 * time.Millisecond)
+	second := make(chan Report, 1)
+	go func() { second <- d.Check(context.Background(), true) }()
+	time.Sleep(10 * time.Millisecond)
+	close(release)
+	a, b := <-first, <-second
+	if !b.CheckedAt.After(a.CheckedAt) {
+		t.Fatalf("the refresh reused a check that started before it: %v vs %v", a.CheckedAt, b.CheckedAt)
+	}
+}
+
+func TestAnEngineCheckThatRunsOutOfTimeIsAFailedCheck(t *testing.T) {
+	host := readyHost()
+	d := host.detector()
+	inner := d.exec
+	ctx, cancel := context.WithCancel(context.Background())
+	d.exec = func(c context.Context, path string, args []string, env []string) ([]byte, error) {
+		if len(args) > 0 && args[0] == "version" {
+			cancel()
+			return []byte(`{"Client":{}}`), errors.New("killed")
+		}
+		return inner(c, path, args, env)
+	}
+	report := d.Check(ctx, true)
+	if report.Engine.State != Failed {
+		t.Fatalf("engine = %+v", report.Engine)
+	}
+}

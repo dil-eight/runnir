@@ -443,6 +443,11 @@ final class CoreHub {
     /// Starts a reviewed run once and makes it the workspace's local run.
     func startLocalRun(workspaceID: UUID, prepared: CorePreparedLocalRun) async -> LocalRunStart {
         guard let confirmationID = prepared.confirmationID else { return .failed("This run can't start yet.") }
+        // Another window of this workspace may have started one meanwhile;
+        // replacing it would hide a run that keeps going.
+        if let current = sessions[workspaceID]?.localRun, !current.isFinished {
+            return .failed("A local run of this workspace is still going. Stop it before starting another.")
+        }
         guard let (service, _) = await serviceAndCoreID(workspaceID) else {
             return .failed("Runnir Core is not ready. Nothing was started.")
         }

@@ -201,3 +201,30 @@ func TestLimitsFollowTheEngine(t *testing.T) {
 		t.Fatalf("limits = %+v", limits)
 	}
 }
+
+// Event names and job ids reach act's command line, so a workflow cannot
+// smuggle flags in through them.
+func TestOddEventNamesAndJobIDsNeverReachAct(t *testing.T) {
+	source := "on: [push, --bind, \"--privileged\"]\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps: [{run: echo}]\n"
+	p := plan(t, source, "", "", readyReport(), nil)
+	if len(p.Events) != 1 || p.Events[0] != "push" {
+		t.Fatalf("events = %v", p.Events)
+	}
+	if _, err := NewPlan(Request{Source: []byte(source), Event: "--bind"}, readyReport(), false, nil); !errors.Is(err, ErrUnknownEvent) {
+		t.Fatalf("flag-like event = %v", err)
+	}
+
+	source = "on: push\njobs:\n  -bind:\n    runs-on: ubuntu-latest\n    steps: [{run: echo}]\n"
+	p = plan(t, source, "-bind", "", readyReport(), nil)
+	if p.Runnable() || !strings.Contains(strings.Join(p.Blockers, " "), "not a valid GitHub job id") {
+		t.Fatalf("blockers = %v", p.Blockers)
+	}
+}
+
+func TestChosenJobUsesTheIDAsWritten(t *testing.T) {
+	source := "on: push\njobs:\n  Lint:\n    runs-on: ubuntu-latest\n    steps: [{run: echo}]\n"
+	p := plan(t, source, "lint", "", readyReport(), nil)
+	if p.JobID != "Lint" || !p.Runnable() {
+		t.Fatalf("job = %q blockers = %v", p.JobID, p.Blockers)
+	}
+}

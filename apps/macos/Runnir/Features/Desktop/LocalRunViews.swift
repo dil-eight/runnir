@@ -74,6 +74,21 @@ struct ToolStateIcon: View {
     let state: CoreToolState
     var untested = false
     var body: some View {
+        icon.accessibilityLabel(label)
+    }
+
+    private var label: String {
+        switch state {
+        case .found: untested ? "Found, not verified" : "Found"
+        case .missing: "Missing"
+        case .stopped: "Stopped"
+        case .unsupported: "Not supported"
+        case .failed: "Check failed"
+        case .unknown: "Not in use"
+        }
+    }
+
+    @ViewBuilder private var icon: some View {
         switch state {
         case .found:
             Image(systemName: untested ? "exclamationmark.circle" : "checkmark.circle")
@@ -235,7 +250,7 @@ struct LocalRunSheet: View {
                 ForEach(plan.blockers, id: \.self) { blocker in
                     line(blocker, symbol: "xmark.octagon", tint: RunnirTheme.destructive)
                 }
-                if plan.blockers.contains(where: { $0.lowercased().contains("engine") || $0.contains("not running") }) {
+                if let engine = model.prepared?.readiness.engine, engine.state != .found || !engine.local {
                     line("Static validation still works without an engine.", symbol: "info.circle", tint: RunnirTheme.secondaryForeground)
                 }
                 ForEach(plan.jobs) { job in
@@ -501,6 +516,24 @@ struct LocalRunView: View {
 struct LocalJobIcon: View {
     let state: CoreLocalJobState
     var body: some View {
+        icon.accessibilityLabel(label)
+    }
+
+    private var label: String {
+        switch state {
+        case .waiting: "Queued"
+        case .running: "Running"
+        case .succeeded: "Succeeded"
+        case .failed: "Failed"
+        case .cancelled: "Cancelled"
+        case .skipped: "Skipped"
+        case .unsupported: "Not supported locally"
+        case .notRun: "Did not run"
+        case .unknown: "Unknown"
+        }
+    }
+
+    @ViewBuilder private var icon: some View {
         switch state {
         case .waiting: Image(systemName: "clock").foregroundStyle(RunnirTheme.secondaryForeground)
         case .running: Image(systemName: "arrow.triangle.2.circlepath").foregroundStyle(RunnirTheme.info)

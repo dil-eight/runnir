@@ -161,22 +161,29 @@ func TestSuccessfulRunRecordsOutputAndJobs(t *testing.T) {
 		t.Fatalf("act ran %d times", len(calls))
 	}
 	call := calls[0]
-	args := strings.Join(call.Args, " ")
 	for _, want := range []string{
-		"push --workflows " + filepath.Join(spec.RepositoryPath, ".github", "workflows", "ci.yml"),
-		"--directory " + spec.RepositoryPath, "--json", "--rm", "--pull=false", "--network bridge",
-		"--no-cache-server", "--container-daemon-socket -", "--job lint",
-		"--container-options --label=dev.runnir.execution=exec_test --cpus=2 --memory=1073741824",
-		"--platform ubuntu-latest=catthehacker/ubuntu:act-latest",
+		"--workflows=" + filepath.Join(spec.RepositoryPath, ".github", "workflows", "ci.yml"),
+		"--directory=" + spec.RepositoryPath, "--json", "--rm", "--pull=false", "--network=bridge",
+		"--no-cache-server", "--container-daemon-socket=-", "--job=lint",
+		"--container-options=--label=dev.runnir.execution=exec_test --cpus=2 --memory=1073741824",
+		"--platform=ubuntu-latest=catthehacker/ubuntu:act-latest",
 	} {
-		if !strings.Contains(args, want) {
-			t.Fatalf("act args lack %q: %s", want, args)
+		if indexOf(call.Args, want) < 0 {
+			t.Fatalf("act args lack %q: %v", want, call.Args)
 		}
 	}
-	for _, flag := range []string{"--env-file", "--secret-file", "--var-file", "--input-file"} {
-		i := indexOf(call.Args, flag)
+	if n := len(call.Args); n < 2 || call.Args[n-2] != "--" || call.Args[n-1] != "push" {
+		t.Fatalf("the event does not follow --: %v", call.Args)
+	}
+	for _, flag := range []string{"--env-file=", "--secret-file=", "--var-file=", "--input-file="} {
+		value := ""
+		for _, arg := range call.Args {
+			if v, ok := strings.CutPrefix(arg, flag); ok {
+				value = v
+			}
+		}
 		// The scratch directory is gone by now, so compare names.
-		if i < 0 || filepath.Base(filepath.Dir(call.Args[i+1])) != filepath.Base(call.Dir) {
+		if value == "" || filepath.Base(filepath.Dir(value)) != filepath.Base(call.Dir) {
 			t.Fatalf("%s points at %v", flag, call.Args)
 		}
 	}

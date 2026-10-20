@@ -114,3 +114,17 @@ func TestJobsStoppedOnRequestAreCancelledNotFailed(t *testing.T) {
 		t.Fatalf("jobs = %+v", snap.Jobs)
 	}
 }
+
+func TestOnlyErrorLinesOnStandardErrorAreErrors(t *testing.T) {
+	o := NewOutputs()
+	newRun(o, "e1")
+	o.update("e1", func(r *run) {
+		r.consume("Using docker host 'unix:///var/run/docker.sock', and daemon socket '-'", time.Now(), true)
+		r.consume("Error: Job 'lint' failed", time.Now(), true)
+		r.consume(`time="2026-10-20" level=error msg="boom"`, time.Now(), true)
+	})
+	snap, _ := o.Since("e1", 0)
+	if snap.Lines[0].Error || !snap.Lines[1].Error || !snap.Lines[2].Error {
+		t.Fatalf("lines = %+v", snap.Lines)
+	}
+}

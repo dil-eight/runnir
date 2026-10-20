@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -179,9 +178,13 @@ func SearchDirs(home, pathEnv string) []string {
 // Check returns the cached report, or a new one when there is none or
 // refresh is set.
 func (d *Detector) Check(ctx context.Context, refresh bool) Report {
+	requested := d.now()
 	for {
 		d.mu.Lock()
-		if d.last != nil && !refresh {
+		// A refresh takes a report from a check that started after it was
+		// asked for; one that was already running may predate the change
+		// the user is checking for.
+		if d.last != nil && (!refresh || !d.last.CheckedAt.Before(requested)) {
 			report := *d.last
 			d.mu.Unlock()
 			return report
@@ -190,7 +193,6 @@ func (d *Detector) Check(ctx context.Context, refresh bool) Report {
 			d.mu.Unlock()
 			select {
 			case <-wait:
-				refresh = false // a check that started after the request is fresh enough
 				continue
 			case <-ctx.Done():
 				return Report{BundledAct: failed(ctx.Err()), InstalledAct: failed(ctx.Err()), DockerCLI: failed(ctx.Err()),
@@ -389,9 +391,9 @@ func (d *Detector) checkEngine(ctx context.Context, docker string) Engine {
 	// still prints the client part, so the output decides.
 	_ = json.Unmarshal(bytes.TrimSpace(out), &version)
 	if version.Server == nil {
-		if errors.Is(ctx.Err(), context.Canceled) {
+		if ctx.Err() != nil {
 			engine.State = Failed
-			engine.Detail = "The check was cancelled."
+			engine.Detail = "The check was cancelled or took too long."
 			return engine
 		}
 		if socket := unixSocketPath(endpoint); socket != "" && engine.Name == "Docker Engine" {

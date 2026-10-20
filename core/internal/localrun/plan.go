@@ -42,6 +42,14 @@ var (
 	ErrUnknownEvent = errors.New("the workflow is not triggered by this event")
 )
 
+// The shapes GitHub allows for event names and job ids. act gets the event
+// and the chosen job on its command line, so nothing else from a workflow
+// file may reach it there.
+var (
+	eventNamePattern = regexp.MustCompile(`^[a-z][a-z_]*$`)
+	jobIDPattern     = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
+)
+
 type Support int
 
 const (
@@ -140,7 +148,7 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 	}
 
 	for _, event := range workflow.On {
-		if name := event.EventName(); name != "" && !contains(plan.Events, name) {
+		if name := event.EventName(); eventNamePattern.MatchString(name) && !contains(plan.Events, name) {
 			plan.Events = append(plan.Events, name)
 		}
 	}
@@ -157,6 +165,13 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 	ids, err := jobsToRun(workflow, request.JobID)
 	if err != nil {
 		return Plan{}, err
+	}
+	if request.JobID != "" {
+		// act matches job ids exactly; use the id as the file spells it.
+		plan.JobID = planJob(strings.ToLower(request.JobID), workflow.Jobs[strings.ToLower(request.JobID)]).ID
+		if !jobIDPattern.MatchString(plan.JobID) {
+			plan.Blockers = append(plan.Blockers, fmt.Sprintf("Job id %q is not a valid GitHub job id.", plan.JobID))
+		}
 	}
 	images := map[string]bool{}
 	containerJobs := []string{}
@@ -188,9 +203,9 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 		plan.Jobs = append(plan.Jobs, jp)
 	}
 
-	if request.JobID != "" {
-		if chosen := plan.job(request.JobID); chosen != nil && chosen.Support == Unsupported {
-			plan.Blockers = append(plan.Blockers, fmt.Sprintf("Job %s can't run locally: %s.", request.JobID, lowerFirst(chosen.Reason)))
+	if plan.JobID != "" {
+		if chosen := plan.job(plan.JobID); chosen != nil && chosen.Support == Unsupported {
+			plan.Blockers = append(plan.Blockers, fmt.Sprintf("Job %s can't run locally: %s.", plan.JobID, lowerFirst(chosen.Reason)))
 		}
 	}
 	if len(ids) > 0 && runnable == 0 && request.JobID == "" {

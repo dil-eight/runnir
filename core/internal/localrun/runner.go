@@ -22,8 +22,10 @@ import (
 const Label = "dev.runnir.execution"
 
 const (
+	// Stopping and cleaning up fit in the 20 seconds the Core waits for
+	// runs when it shuts down.
 	stopGrace      = 8 * time.Second
-	cleanupTimeout = 30 * time.Second
+	cleanupTimeout = 10 * time.Second
 	maxScanLine    = 1 << 20
 )
 
@@ -191,10 +193,11 @@ func prepareScratch(dir string) error {
 func Args(spec *Spec, executionID, scratch string) []string {
 	plan := spec.Plan
 	empty := filepath.Join(scratch, "empty")
+	// Values are joined to their flags and the event follows "--", so no
+	// value can be read as a flag of its own.
 	args := []string{
-		plan.Event,
-		"--workflows", filepath.Join(spec.RepositoryPath, filepath.FromSlash(plan.WorkflowID)),
-		"--directory", spec.RepositoryPath,
+		"--workflows=" + filepath.Join(spec.RepositoryPath, filepath.FromSlash(plan.WorkflowID)),
+		"--directory=" + spec.RepositoryPath,
 		"--json",
 		// Remove containers and volumes even when a job fails.
 		"--rm",
@@ -202,21 +205,21 @@ func Args(spec *Spec, executionID, scratch string) []string {
 		"--pull=false",
 		// Not the engine's host network, which on some engines reaches the
 		// Mac's own local services.
-		"--network", "bridge",
+		"--network=bridge",
 		// The cache server would listen on a network address of this Mac.
 		"--no-cache-server",
 		// Never mount the engine's socket into job containers.
-		"--container-daemon-socket", "-",
+		"--container-daemon-socket=-",
 		// Override act's defaults (.env, .secrets, .vars, .input in the
 		// repository) so no local file reaches the jobs.
-		"--env-file", empty,
-		"--secret-file", empty,
-		"--var-file", empty,
-		"--input-file", empty,
-		"--container-options", containerOptions(plan.Limits, executionID),
+		"--env-file=" + empty,
+		"--secret-file=" + empty,
+		"--var-file=" + empty,
+		"--input-file=" + empty,
+		"--container-options=" + containerOptions(plan.Limits, executionID),
 	}
 	if plan.JobID != "" {
-		args = append(args, "--job", plan.JobID)
+		args = append(args, "--job="+plan.JobID)
 	}
 	labels := make([]string, 0, len(Platforms))
 	for label := range Platforms {
@@ -224,8 +227,9 @@ func Args(spec *Spec, executionID, scratch string) []string {
 	}
 	sort.Strings(labels)
 	for _, label := range labels {
-		args = append(args, "--platform", label+"="+Platforms[label])
+		args = append(args, "--platform="+label+"="+Platforms[label])
 	}
+	args = append(args, "--", plan.Event)
 	return args
 }
 

@@ -274,7 +274,11 @@ func (r *run) consume(raw string, now time.Time, stderr bool) {
 	}
 	var entry actEntry
 	if !strings.HasPrefix(raw, "{") || json.Unmarshal([]byte(raw), &entry) != nil {
-		r.append("", ansi.ReplaceAllString(raw, ""), stderr)
+		// act writes notices to standard error too ("Using docker host
+		// ..."); only lines that say so are errors.
+		text := ansi.ReplaceAllString(raw, "")
+		isError := stderr && (strings.HasPrefix(text, "Error") || strings.Contains(text, "level=error") || strings.Contains(text, "level=fatal"))
+		r.append("", text, isError)
 		return
 	}
 	message := strings.TrimRight(ansi.ReplaceAllString(entry.Message, ""), "\r\n")

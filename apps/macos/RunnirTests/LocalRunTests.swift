@@ -191,4 +191,23 @@ struct LocalRunTests {
         await offline.check(refresh: false)
         #expect(offline.unavailable)
     }
+
+    @Test func secondRunIsRefusedWhileOneIsGoing() async throws {
+        let (hub, workspace, fake) = await hub {
+            $0.preparedLocalRun = prepared()
+            $0.localOutputs = [output(lines: 1...1)]
+        }
+        let first = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        let second = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        await first.prepare()
+        await second.prepare()
+        first.trusted = true
+        second.trusted = true
+        let run = try #require(await first.run())
+        #expect(await second.run() == nil)
+        #expect(second.error == "A local run of this workspace is still going. Stop it before starting another.")
+        #expect(fake.confirmedLocalRuns.count == 1)
+        #expect(hub.session(for: workspace)?.localRun === run)
+        run.stopFollowing()
+    }
 }
