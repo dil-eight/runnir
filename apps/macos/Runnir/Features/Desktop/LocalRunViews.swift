@@ -457,7 +457,7 @@ struct LocalRunView: View {
             lines
             DesignDivider()
             Label(run.isFinished ? "The run's containers and temporary files were removed when it ended."
-                  : "Stopping removes the run's containers and temporary files. Quitting Runnir stops the run.", systemImage: "info.circle")
+                  : "Stopping removes the run's containers and temporary files. Quitting Runnir or closing this workspace asks what to do with this run.", systemImage: "info.circle")
                 .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 .padding(.horizontal, 16).frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
