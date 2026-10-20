@@ -22,6 +22,14 @@ func write(t *testing.T, root, rel, content string) {
 	}
 }
 
+// setTempDir points os.TempDir at dir: TMPDIR on Unix, TMP and TEMP on Windows.
+func setTempDir(t *testing.T, dir string) {
+	t.Helper()
+	for _, name := range []string{"TMPDIR", "TMP", "TEMP"} {
+		t.Setenv(name, dir)
+	}
+}
+
 func repo(t *testing.T) string {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
@@ -203,7 +211,7 @@ func TestAFileCheckedWithoutAProjectFindsNoneAboveTheCopies(t *testing.T) {
 	host := repo(t)
 	write(t, host, ".github/workflows/host.yml", valid)
 	write(t, host, ".github/workflows/hosted.yml", "on:\n  workflow_call:\n    inputs:\n      host_only: {type: string, required: true}\n")
-	t.Setenv("TMPDIR", filepath.Join(host, "tmp"))
+	setTempDir(t, filepath.Join(host, "tmp"))
 	if err := os.MkdirAll(filepath.Join(host, "tmp"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +254,7 @@ func TestClimbingOutIsDetectedAnywhere(t *testing.T) {
 func TestAnUnwritableTemporaryDirectoryIsAPrepareError(t *testing.T) {
 	root := repo(t)
 	write(t, root, ".github/workflows/ci.yml", valid)
-	t.Setenv("TMPDIR", filepath.Join(root, "does-not-exist"))
+	setTempDir(t, filepath.Join(root, "does-not-exist"))
 	if _, err := Workflows(context.Background(), root, ""); !errors.Is(err, ErrPrepare) {
 		t.Fatalf("err = %v, want ErrPrepare", err)
 	}
