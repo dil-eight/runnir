@@ -9,6 +9,8 @@ on:
       - "contracts/**"
       - "buf.yaml"
       - "buf.gen.yaml"
+      - "scripts/generate-contracts.sh"
+      - "apps/macos/Runnir/IPC/Generated/**"
       - ".github/workflows/core.yml"
   pull_request:
     paths: *core-inputs
@@ -83,6 +85,45 @@ jobs:
         with:
           name: runnir-${{ matrix.goos }}-${{ matrix.goarch }}
           path: build/runnir-*
+
+  contracts:
+    # The weekly run only rescans for vulnerabilities.
+    if: github.event_name != 'schedule'
+    name: Contract and generated code
+    # The Swift generators are built from source, which needs Swift.
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Select newest Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache: false
+      - name: Install generators
+        # The versions that produced the committed code; see scripts/generate-contracts.sh.
+        run: |
+          go install github.com/bufbuild/buf/cmd/buf@v1.65.0
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          for spec in apple/swift-protobuf@1.39.0@protoc-gen-swift grpc/grpc-swift-protobuf@2.5.0@protoc-gen-grpc-swift-2; do
+            repo=${spec%%@*}; rest=${spec#*@}; tag=${rest%%@*}; product=${rest#*@}
+            dir="$RUNNER_TEMP/${repo#*/}"
+            git clone --quiet --depth 1 --branch "$tag" "https://github.com/$repo.git" "$dir"
+            swift build -c release --product "$product" --package-path "$dir"
+            swift build -c release --show-bin-path --package-path "$dir" >> "$GITHUB_PATH"
+          done
+      - name: Lint and generate
+        run: sh scripts/generate-contracts.sh
+      - name: Generated code matches the contract
+        run: git diff --exit-code -- core/internal/gen apps/macos/Runnir/IPC/Generated
+      - name: No breaking changes
+        if: github.event_name == 'pull_request'
+        run: buf breaking --against ".git#branch=origin/${{ github.base_ref }}"
 
   lint-security:
     runs-on: ubuntu-latest

@@ -48,6 +48,8 @@ Setup: ad-hoc signed `.app` with `app-sandbox` + `network.client` only (same as 
 
 ## Progress
 
+Each entry records a phase as it landed; later phases changed some of the facts it states (the app now launches the Core, scanning is real, events stream to the app). The current behavior is in the [API reference](grpc-api.md).
+
 - Phase 0: done, see spike results above.
 - Phase 1: done. Contract and generated code committed; deployment target raised to macOS 15.0.
 - Phase 2: done in Core, not yet launched by the app. `runnir serve --socket PATH [--exit-on-stdin-eof]` serves `HealthCheck` over a Unix socket (mode 0600) under an advisory `flock` on `PATH.lock`. A second instance exits with code 3 without touching the running socket; a stale socket is removed only under the lock; SIGINT/SIGTERM or stdin EOF stops it gracefully and removes the socket. Paths over 103 bytes are rejected. Verified with Go tests (`-race`), cross-builds for darwin/linux/windows, and a manual `grpcurl` call. The other RPCs return `Unimplemented`. `resident_memory_bytes` is currently Go's `MemStats.Sys`, not true RSS (phase 9). The lock file stays on disk after exit, which is harmless. Parent-death behavior has only been tested with a closed pipe, not an app crash.
