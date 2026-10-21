@@ -228,6 +228,25 @@ func TestReportIsCachedUntilRefresh(t *testing.T) {
 	}
 }
 
+func TestRefreshRunsAgainOnACoarseClock(t *testing.T) {
+	// Windows' clock can give the check before a refresh and the refresh
+	// itself the same time; the refresh must still run the checks.
+	host := readyHost()
+	d := host.detector()
+	frozen := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	d.now = func() time.Time { return frozen }
+	d.Check(context.Background(), false)
+	first := host.calls.Load()
+	d.Check(context.Background(), true)
+	if host.calls.Load() != 2*first {
+		t.Fatalf("refresh ran %d commands, want %d", host.calls.Load()-first, first)
+	}
+	d.Check(context.Background(), false)
+	if host.calls.Load() != 2*first {
+		t.Fatal("cached check ran commands")
+	}
+}
+
 func TestConcurrentChecksShareOneRun(t *testing.T) {
 	host := readyHost()
 	d := host.detector()
