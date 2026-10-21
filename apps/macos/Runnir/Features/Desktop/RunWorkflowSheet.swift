@@ -1,4 +1,50 @@
+import LocalAuthentication
 import SwiftUI
+
+/// Settings › Manual Runs: confirm starting a workflow by hand with Touch
+/// ID, or the Mac's password where Touch ID is not set up. Off by default.
+enum ManualRunSettings {
+    static let confirmWithTouchIDKey = "manualRuns.confirmWithTouchID"
+
+    static func confirmWithTouchID(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: confirmWithTouchIDKey)
+    }
+}
+
+/// The Mac's owner confirming an action with Touch ID or the login password.
+enum OwnerConfirmation: Equatable {
+    case confirmed
+    /// Cancelled, or not recognized.
+    case declined
+    /// The Mac cannot ask; the reason is the system's.
+    case unavailable(String)
+
+    /// Asks only when Settings turns it on.
+    @MainActor static func ifEnabled(reason: String, defaults: UserDefaults = .standard,
+                                     ask: @MainActor (String) async -> OwnerConfirmation = { await OwnerConfirmation.ask(reason: $0) }) async -> OwnerConfirmation {
+        guard ManualRunSettings.confirmWithTouchID(in: defaults) else { return .confirmed }
+        return await ask(reason)
+    }
+
+    /// `reason` completes the system's "Runnir is trying to ...".
+    @MainActor static func ask(reason: String) async -> OwnerConfirmation {
+        let context = LAContext()
+        var problem: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &problem) else {
+            return .unavailable(problem?.localizedDescription ?? "Touch ID and the password are not available.")
+        }
+        do {
+            return try await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) ? .confirmed : .declined
+        } catch {
+            return .declined
+        }
+    }
+
+    /// Whether this Mac has Touch ID set up, for the Settings caption.
+    @MainActor static var hasTouchID: Bool {
+        LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+    }
+}
 
 /// Asks for one Run Workflow sheet; `workflowID` preselects a workflow.
 struct RunWorkflowRequest: Identifiable, Equatable {
@@ -41,6 +87,8 @@ final class DispatchFormModel {
     private(set) var presetNotes: [String] = []
     /// Why GitHub refused, with the step that fixes it, shown as an alert.
     var accessHelp: GitHubAccessHelp?
+    /// Touch ID (or the password) is being asked for; Run Workflow waits.
+    private(set) var isAskingOwner = false
 
     @ObservationIgnored let presets: DispatchPresetLibrary?
     @ObservationIgnored private let hub: CoreHub
@@ -52,6 +100,9 @@ final class DispatchFormModel {
     @ObservationIgnored private var loadedDefaults: [String: String] = [:]
 
     @ObservationIgnored private let initialPresetID: UUID?
+    /// Asks the Mac's owner before the request is sent, when Settings says
+    /// so; tests replace it.
+    @ObservationIgnored var confirmOwner: @MainActor (String) async -> OwnerConfirmation = { await OwnerConfirmation.ifEnabled(reason: $0) }
 
     convenience init(workspaceID: UUID, hub: CoreHub, workflows: [CoreGitHubWorkflow], workflowID: Int64?, currentBranch: String,
                      presets: DispatchPresetLibrary? = nil, presetID: UUID? = nil) {
@@ -307,7 +358,22 @@ final class DispatchFormModel {
 
     /// Sends the reviewed dispatch once, then looks for the run it started.
     func confirm() async {
-        guard case .review(let prepared) = step, let dispatchID = prepared.dispatchID, let workflow = selectedWorkflow else { return }
+        guard case .review(let prepared) = step, let dispatchID = prepared.dispatchID, let workflow = selectedWorkflow,
+              !isAskingOwner else { return }
+        isAskingOwner = true
+        let owner = await confirmOwner("start \u{201C}\(workflow.name)\u{201D} on \(ref)")
+        isAskingOwner = false
+        switch owner {
+        case .confirmed:
+            break
+        case .declined:
+            // Back to the review; nothing was sent.
+            return
+        case .unavailable(let reason):
+            step = .failed("Manual runs are set to be confirmed with Touch ID, but this Mac can't ask: \(reason) Nothing was sent. Turn the setting off in Settings › Manual Runs, or set up Touch ID.")
+            return
+        }
+        guard case .review = step else { return }
         step = .sending
         let known = await hub.knownRunIDs(target)
         guard let result = await hub.confirmDispatch(target: target, dispatchID: dispatchID) else {
@@ -597,7 +663,7 @@ struct RunWorkflowSheet: View {
                 .disabled(!model.canReview)
         case .review:
             Button("Back") { model.backToEditing() }
-            Button("Run Workflow") { Task { await model.confirm() } }
+            Button("Run Workflow") { Task { await model.confirm() } }.disabled(model.isAskingOwner)
                 .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .sending, .waitingForRun:
             Button("Close") { dismiss() }

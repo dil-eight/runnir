@@ -143,4 +143,48 @@ struct DispatchFormModelTests {
         }
         #expect(provider.core.confirmed == ["dispatch_1"])
     }
+
+    @Test
+    func touchIDDecidesWhetherARunIsSent() async throws {
+        let (hub, provider, workspace) = await rig()
+        let form = model(hub, workspace)
+        var asked: [String] = []
+        form.confirmOwner = { reason in asked.append(reason); return .declined }
+        await form.load()
+        await form.review()
+        guard case .review = form.step else { Issue.record("step = \(form.step)"); return }
+
+        // Cancelled: back at the review, nothing sent.
+        await form.confirm()
+        #expect(asked == ["start \u{201C}Deploy\u{201D} on feature"])
+        guard case .review = form.step else { Issue.record("step = \(form.step)"); return }
+        #expect(provider.core.confirmed.isEmpty)
+
+        // The Mac can't ask: says so, nothing sent.
+        form.confirmOwner = { _ in .unavailable("No password is set.") }
+        await form.confirm()
+        guard case .failed(let message) = form.step else { Issue.record("step = \(form.step)"); return }
+        #expect(message.contains("Settings › Manual Runs") && provider.core.confirmed.isEmpty)
+
+        // Confirmed: sent once.
+        form.backToEditing()
+        await form.review()
+        form.confirmOwner = { _ in .confirmed }
+        await form.confirm()
+        #expect(provider.core.confirmed.count == 1)
+    }
+
+    @Test
+    func touchIDIsOffUntilTurnedOn() async throws {
+        let suite = "touch-id-" + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var asked = 0
+        let ask: @MainActor (String) async -> OwnerConfirmation = { _ in asked += 1; return .declined }
+        #expect(await OwnerConfirmation.ifEnabled(reason: "test", defaults: defaults, ask: ask) == .confirmed, "off by default: nothing is asked")
+        #expect(asked == 0)
+        defaults.set(true, forKey: ManualRunSettings.confirmWithTouchIDKey)
+        #expect(await OwnerConfirmation.ifEnabled(reason: "test", defaults: defaults, ask: ask) == .declined)
+        #expect(asked == 1)
+    }
 }
