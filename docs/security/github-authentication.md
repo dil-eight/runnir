@@ -25,6 +25,15 @@ Registered 2026-10-18 in the `dil-eight` organization: **Runnir Desktop** (`runn
 - User token expiry is turned off, because refreshing an expiring token needs a client secret, which a desktop app must not ship. Tokens stay in Keychain and can be revoked by the user in GitHub settings or with "Revoke all user tokens". Confirm this choice against GitHub's current documentation when the login flow is built.
 - GitHub requires at least one private key before the app can be installed. The key is kept by the owner outside the repository; the desktop app never uses it. No client secret was generated.
 
+## Personal Access Tokens
+
+Device Flow stays the main way in. A personal access token is the alternative for people who cannot install the app on an organization, or who prefer a token.
+- **Before use:** the Core checks the token without holding it (`CheckGitHubToken`). The connection sheet shows each check, and advice for a token that fits:
+  - fine-grained (recommended): Actions — Read and write, Contents — Read-only, for the repositories used; GitHub adds Metadata;
+  - classic: the `repo` scope, authorized for single sign-on where an organization asks.
+- **Storage:** the token goes only to the Keychain, as the app's sign-in does, and the Core holds it in memory.
+- **Repositories:** with a token, they come from `/user/repos`, and refusals point to the token's settings instead of the app's installations.
+
 ## Current Status
 
 Implemented in Swift (the token never leaves the app process):

@@ -128,6 +128,9 @@ const (
 // installation whose repositories GitHub refuses (suspended, say) is listed
 // without them instead of failing the rest.
 func (c *Client) AccountRepositories(ctx context.Context) (AccountRepositories, error) {
+	if c.credential.Kind() != TokenAppUser {
+		return c.userRepositories(ctx)
+	}
 	installations, total, err := c.Installations(ctx)
 	if err != nil {
 		return AccountRepositories{}, err
@@ -206,6 +209,72 @@ func (c *Client) AccountRepositories(ctx context.Context) (AccountRepositories, 
 	sort.SliceStable(out.Repositories, func(i, j int) bool {
 		return out.Repositories[i].PushedAt.After(out.Repositories[j].PushedAt)
 	})
+	return out, nil
+}
+
+// repositoryJSON is a repository as GitHub lists it.
+type repositoryJSON struct {
+	FullName string `json:"full_name"`
+	Name     string `json:"name"`
+	Owner    struct {
+		Login string `json:"login"`
+	} `json:"owner"`
+	Description   *string    `json:"description"`
+	Private       bool       `json:"private"`
+	Visibility    string     `json:"visibility"`
+	DefaultBranch string     `json:"default_branch"`
+	HTMLURL       string     `json:"html_url"`
+	PushedAt      *time.Time `json:"pushed_at"`
+	Archived      bool       `json:"archived"`
+	Fork          bool       `json:"fork"`
+	Permissions   struct {
+		Push bool `json:"push"`
+	} `json:"permissions"`
+}
+
+func (r repositoryJSON) accountRepository(installationID int64) AccountRepository {
+	visibility := r.Visibility
+	if visibility == "" {
+		visibility = "public"
+		if r.Private {
+			visibility = "private"
+		}
+	}
+	description := ""
+	if r.Description != nil {
+		description = truncate(*r.Description, maxDescriptionChars)
+	}
+	return AccountRepository{
+		FullName: r.FullName, Owner: r.Owner.Login, Name: r.Name, Description: description,
+		Visibility: visibility, DefaultBranch: r.DefaultBranch, HTMLURL: r.HTMLURL, PushedAt: deref(r.PushedAt),
+		Archived: r.Archived, Fork: r.Fork, CanPush: r.Permissions.Push, InstallationID: installationID,
+	}
+}
+
+// userRepositories lists what a personal token reaches (GET /user/repos):
+// installations of the Runnir Desktop app do not apply to it.
+func (c *Client) userRepositories(ctx context.Context) (AccountRepositories, error) {
+	var out AccountRepositories
+	seen := map[string]bool{}
+	for page := 1; page <= maxAccountRepositories/100; page++ {
+		var repositories []repositoryJSON
+		query := url.Values{"per_page": {"100"}, "page": {strconv.Itoa(page)}, "sort": {"pushed"},
+			"affiliation": {"owner,collaborator,organization_member"}}
+		if err := c.get(ctx, "/user/repos", query, &repositories); err != nil {
+			return AccountRepositories{}, err
+		}
+		for _, r := range repositories {
+			if seen[r.FullName] || !ValidRepository(r.FullName) {
+				continue
+			}
+			seen[r.FullName] = true
+			out.Repositories = append(out.Repositories, r.accountRepository(0))
+		}
+		if len(repositories) < 100 {
+			return out, nil
+		}
+	}
+	out.Truncated = true
 	return out, nil
 }
 

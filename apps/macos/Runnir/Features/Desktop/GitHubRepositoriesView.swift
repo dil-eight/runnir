@@ -125,6 +125,8 @@ final class GitHubRepositoriesModel {
     private(set) var installations: [CoreGitHubInstallation] = []
     private(set) var repositories: [CoreGitHubAccountRepository] = []
     private(set) var truncated = false
+    /// A personal token lists what it reaches; it has no installations.
+    private(set) var credentialKind: CoreGitHubCredentialKind = .appUser
     private(set) var loadedAt: Date?
     /// The GitHub login the list was read for.
     private(set) var loadedLogin: String?
@@ -162,6 +164,7 @@ final class GitHubRepositoriesModel {
         installations = account.installations
         repositories = account.repositories
         truncated = account.truncated
+        credentialKind = account.credentialKind
         loadedAt = Date()
         loadedLogin = login
         if let selected = selectedFullName, !repositories.contains(where: { $0.fullName == selected }) { selectedFullName = nil }
@@ -369,11 +372,11 @@ struct GitHubRepositoriesView: View {
         if model.isLoading && model.repositories.isEmpty {
             HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Reading repositories...") }
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(16)
-        } else if let access = model.access, let help = Self.listHelp(access) {
+        } else if let access = model.access, let help = Self.listHelp(access, credential: desktop.core?.credentialKind) {
             GitHubAccessNotice(help: help, style: .banner, github: desktop.github) {
                 if let hub = desktop.core { Task { await model.load(hub: hub, login: desktop.github?.user?.login) } }
             }.padding(8)
-        } else if model.access == .ok, model.installations.isEmpty {
+        } else if model.access == .ok, model.installations.isEmpty, !model.credentialKind.isPersonal {
             GitHubAccessNotice(help: GitHubAccessHelp(title: "Runnir Desktop is not installed yet",
                                                       message: "Install the Runnir Desktop app on your account or an organization, and choose the repositories it may reach.",
                                                       fix: .giveAccess(GitHubAccessHelp.installationURL)),
@@ -398,9 +401,15 @@ struct GitHubRepositoriesView: View {
             HStack {
                 Text(countText).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 Spacer()
-                Button("More Repositories...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
-                    .buttonStyle(.link).font(.system(size: 11))
-                    .help("Install Runnir Desktop on more accounts or repositories on GitHub")
+                if model.credentialKind.isPersonal {
+                    Button("Token Settings...") { openURL(GitHubAccessHelp.tokenSettingsURL(model.credentialKind)) }
+                        .buttonStyle(.link).font(.system(size: 11))
+                        .help("Signed in with a personal access token: the repositories it reaches are set on GitHub")
+                } else {
+                    Button("More Repositories...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
+                        .buttonStyle(.link).font(.system(size: 11))
+                        .help("Install Runnir Desktop on more accounts or repositories on GitHub")
+                }
             }.padding(.horizontal, 12).padding(.vertical, 8)
         }
     }
@@ -413,15 +422,20 @@ struct GitHubRepositoriesView: View {
 
     /// The list's banner: the account's repositories are not about one
     /// repository, so refusals point at the app's installations.
-    static func listHelp(_ access: CoreGitHubAccess) -> GitHubAccessHelp? {
+    static func listHelp(_ access: CoreGitHubAccess, credential: CoreGitHubCredentialKind? = nil) -> GitHubAccessHelp? {
         switch access {
         case .ok, .noRemote: return nil
         case .notVisible, .permissionMissing:
+            if let credential, credential.isPersonal {
+                return GitHubAccessHelp(title: "GitHub did not let this token list repositories",
+                                        message: "Check the token's repository access and permissions on GitHub. The list shows what was read last.",
+                                        fix: .editToken(GitHubAccessHelp.tokenSettingsURL(credential)))
+            }
             return GitHubAccessHelp(title: "GitHub did not let Runnir list repositories",
                                     message: "Check where the Runnir Desktop app is installed and what it may reach. The list shows what was read last.",
                                     fix: .giveAccess(GitHubAccessHelp.installationURL))
         default:
-            return GitHubAccessHelp.forAccess(access, repository: "your account", purpose: .read)
+            return GitHubAccessHelp.forAccess(access, repository: "your account", purpose: .read, credential: credential)
         }
     }
 }
@@ -588,7 +602,8 @@ private struct RemoteRepositoryDetail: View {
             SectionLabel(title: "WORKFLOWS")
             DesignDivider()
             if let access = model.access,
-               let help = GitHubAccessHelp.forAccess(access, repository: repository.fullName, purpose: .read, details: details) {
+               let help = GitHubAccessHelp.forAccess(access, repository: repository.fullName, purpose: .read, details: details,
+                                                     credential: desktop.core?.credentialKind) {
                 GitHubAccessNotice(help: help, style: .note, github: desktop.github) { Task { await model.load(hub: hub) } }
             }
             if let workflows = model.workflows {

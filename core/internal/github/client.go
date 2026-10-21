@@ -309,9 +309,16 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 // or a 403 on a change is returned as *RejectedError with GitHub's message,
 // which never holds the token.
 func (c *Client) send(ctx context.Context, method, path string, query url.Values, body []byte, accept string) ([]byte, int, error) {
+	data, status, _, err := c.exchange(ctx, method, path, query, body, accept)
+	return data, status, err
+}
+
+// exchange is send that also returns the response headers, for what GitHub
+// says only there (a classic token's scopes, its expiry, SSO).
+func (c *Client) exchange(ctx context.Context, method, path string, query url.Values, body []byte, accept string) ([]byte, int, http.Header, error) {
 	token, ok := c.credential.Token()
 	if !ok {
-		return nil, 0, ErrNoCredential
+		return nil, 0, nil, ErrNoCredential
 	}
 	target := c.baseURL + path
 	if len(query) > 0 {
@@ -323,7 +330,7 @@ func (c *Client) send(ctx context.Context, method, path string, query url.Values
 	}
 	request, err := http.NewRequestWithContext(ctx, method, target, reader)
 	if err != nil {
-		return nil, 0, ErrInvalid
+		return nil, 0, nil, ErrInvalid
 	}
 	request.Header.Set("Accept", accept)
 	request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
@@ -336,40 +343,40 @@ func (c *Client) send(ctx context.Context, method, path string, query url.Values
 	response, err := c.http.Do(request)
 	if err != nil {
 		if ctx.Err() != nil {
-			return nil, 0, ctx.Err()
+			return nil, 0, nil, ctx.Err()
 		}
-		return nil, 0, ErrUnavailable
+		return nil, 0, nil, ErrUnavailable
 	}
 	defer response.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes+1))
 	if err != nil {
-		return nil, response.StatusCode, ErrUnavailable
+		return nil, response.StatusCode, response.Header, ErrUnavailable
 	}
 	if len(data) > maxResponseBytes {
-		return nil, response.StatusCode, ErrInvalid
+		return nil, response.StatusCode, response.Header, ErrInvalid
 	}
 	switch status := response.StatusCode; {
 	case status >= 200 && status < 300:
-		return data, status, nil
+		return data, status, response.Header, nil
 	case status == http.StatusUnauthorized:
-		return nil, status, ErrUnauthorized
+		return nil, status, response.Header, ErrUnauthorized
 	case status == http.StatusTooManyRequests, status == http.StatusForbidden && isRateLimited(response):
-		return nil, status, &RateLimitError{Reset: rateLimitReset(response)}
+		return nil, status, response.Header, &RateLimitError{Reset: rateLimitReset(response)}
 	case status == http.StatusForbidden && missingAccess(data):
-		return nil, status, ErrPermissionMissing
+		return nil, status, response.Header, ErrPermissionMissing
 	case status == http.StatusForbidden && method != http.MethodGet:
 		// A refused change carries GitHub's reason, for example a run too
 		// old to re-run or an organization policy. Refused reads stay
 		// NOT_VISIBLE.
-		return nil, status, &RejectedError{Message: problemMessage(data)}
+		return nil, status, response.Header, &RejectedError{Message: problemMessage(data)}
 	case status == http.StatusForbidden, status == http.StatusNotFound:
-		return nil, status, ErrNotVisible
+		return nil, status, response.Header, ErrNotVisible
 	case status == http.StatusUnprocessableEntity, status == http.StatusConflict:
-		return nil, status, &RejectedError{Message: problemMessage(data)}
+		return nil, status, response.Header, &RejectedError{Message: problemMessage(data)}
 	case status >= 500:
-		return nil, status, ErrUnavailable
+		return nil, status, response.Header, ErrUnavailable
 	default:
-		return nil, status, ErrInvalid
+		return nil, status, response.Header, ErrInvalid
 	}
 }
 
@@ -384,7 +391,8 @@ func problemMessage(data []byte) string {
 // missingAccess recognizes GitHub's answer when the app or the user lacks
 // the permission for a call on a repository the app is installed on.
 func missingAccess(data []byte) bool {
-	return strings.Contains(strings.ToLower(problemMessage(data)), "not accessible by integration")
+	message := strings.ToLower(problemMessage(data))
+	return strings.Contains(message, "not accessible by integration") || strings.Contains(message, "not accessible by personal access token")
 }
 
 func isRateLimited(response *http.Response) bool {

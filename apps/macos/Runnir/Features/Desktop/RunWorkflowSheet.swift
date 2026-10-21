@@ -412,7 +412,8 @@ final class DispatchFormModel {
     private func explain(_ access: CoreGitHubAccess) async {
         guard GitHubAccessHelp.needsExplaining(access) else { return }
         let details = access == .permissionMissing ? await hub.githubRepository(target: target) : nil
-        accessHelp = GitHubAccessHelp.forAccess(access, repository: repositoryName, purpose: .run, details: details)
+        accessHelp = GitHubAccessHelp.forAccess(access, repository: repositoryName, purpose: .run, details: details,
+                                                credential: hub.credentialKind)
     }
 
     static func describe(_ access: CoreGitHubAccess) -> String {

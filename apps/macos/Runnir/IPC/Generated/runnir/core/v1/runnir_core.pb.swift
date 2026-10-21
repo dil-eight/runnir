@@ -141,6 +141,107 @@ nonisolated enum Runnir_Core_V1_CoreEventType: SwiftProtobuf.Enum, Swift.CaseIte
 
 }
 
+/// What issued a token, from GitHub's prefixes.
+nonisolated enum Runnir_Core_V1_GithubCredentialKind: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+
+  /// Signing in to the Runnir Desktop app: reaches its installations.
+  case appUser // = 1
+
+  /// Personal access token (classic): scopes.
+  case classic // = 2
+
+  /// Fine-grained personal access token: chosen repositories and permissions.
+  case fineGrained // = 3
+  case oauth // = 4
+  case other // = 5
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .appUser
+    case 2: self = .classic
+    case 3: self = .fineGrained
+    case 4: self = .oauth
+    case 5: self = .other
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .appUser: return 1
+    case .classic: return 2
+    case .fineGrained: return 3
+    case .oauth: return 4
+    case .other: return 5
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_GithubCredentialKind] = [
+    .unspecified,
+    .appUser,
+    .classic,
+    .fineGrained,
+    .oauth,
+    .other,
+  ]
+
+}
+
+nonisolated enum Runnir_Core_V1_GithubTokenCheckState: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+  case passed // = 1
+  case missing // = 2
+
+  /// GitHub does not tell without trying a change.
+  case unknown // = 3
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .passed
+    case 2: self = .missing
+    case 3: self = .unknown
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .passed: return 1
+    case .missing: return 2
+    case .unknown: return 3
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_GithubTokenCheckState] = [
+    .unspecified,
+    .passed,
+    .missing,
+    .unknown,
+  ]
+
+}
+
 nonisolated enum Runnir_Core_V1_GithubAccess: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
   case unspecified // = 0
@@ -941,6 +1042,83 @@ nonisolated struct Runnir_Core_V1_SetGitHubCredentialResponse: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
+  var kind: Runnir_Core_V1_GithubCredentialKind = .unspecified
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_CheckGitHubTokenRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var token: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_CheckGitHubTokenResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var status: Runnir_Core_V1_GitHubStatus {
+    get {_status ?? Runnir_Core_V1_GitHubStatus()}
+    set {_status = newValue}
+  }
+  /// Returns true if `status` has been explicitly set.
+  var hasStatus: Bool {self._status != nil}
+  /// Clears the value of `status`. Subsequent reads from it will return its default value.
+  mutating func clearStatus() {self._status = nil}
+
+  var kind: Runnir_Core_V1_GithubCredentialKind = .unspecified
+
+  var login: String = String()
+
+  /// Scopes of a classic or OAuth token.
+  var scopes: [String] = []
+
+  /// Unset when the token does not expire or GitHub does not say.
+  var expiresAt: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {_expiresAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_expiresAt = newValue}
+  }
+  /// Returns true if `expiresAt` has been explicitly set.
+  var hasExpiresAt: Bool {self._expiresAt != nil}
+  /// Clears the value of `expiresAt`. Subsequent reads from it will return its default value.
+  mutating func clearExpiresAt() {self._expiresAt = nil}
+
+  /// Repositories a fine-grained token reaches, counted up to 100.
+  var repositories: Int32 = 0
+
+  var checks: [Runnir_Core_V1_GitHubTokenCheck] = []
+
+  /// Nothing Runnir needs is missing; unknown checks do not count.
+  var suitable: Bool = false
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _status: Runnir_Core_V1_GitHubStatus? = nil
+  fileprivate var _expiresAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+}
+
+nonisolated struct Runnir_Core_V1_GitHubTokenCheck: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var name: String = String()
+
+  var state: Runnir_Core_V1_GithubTokenCheckState = .unspecified
+
+  var detail: String = String()
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -1216,6 +1394,9 @@ nonisolated struct Runnir_Core_V1_ListGitHubRepositoriesResponse: Sendable {
 
   /// More repositories exist than were read.
   var truncated: Bool = false
+
+  /// A personal token lists what it reaches and has no installations.
+  var credentialKind: Runnir_Core_V1_GithubCredentialKind = .unspecified
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -2700,6 +2881,14 @@ nonisolated extension Runnir_Core_V1_CoreEventType: SwiftProtobuf._ProtoNameProv
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0CORE_EVENT_TYPE_UNSPECIFIED\0\u{1}CORE_EVENT_TYPE_CORE_READY\0\u{1}CORE_EVENT_TYPE_REPOSITORY_OPENED\0\u{1}CORE_EVENT_TYPE_REPOSITORY_REFRESHED\0\u{1}CORE_EVENT_TYPE_REPOSITORY_CLOSED\0\u{1}CORE_EVENT_TYPE_WORKFLOW_STARTED\0\u{1}CORE_EVENT_TYPE_WORKFLOW_STATUS_CHANGED\0\u{1}CORE_EVENT_TYPE_WORKFLOW_COMPLETED\0\u{1}CORE_EVENT_TYPE_WORKFLOW_FAILED\0\u{1}CORE_EVENT_TYPE_CORE_ERROR\0")
 }
 
+nonisolated extension Runnir_Core_V1_GithubCredentialKind: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0GITHUB_CREDENTIAL_KIND_UNSPECIFIED\0\u{1}GITHUB_CREDENTIAL_KIND_APP_USER\0\u{1}GITHUB_CREDENTIAL_KIND_CLASSIC\0\u{1}GITHUB_CREDENTIAL_KIND_FINE_GRAINED\0\u{1}GITHUB_CREDENTIAL_KIND_OAUTH\0\u{1}GITHUB_CREDENTIAL_KIND_OTHER\0")
+}
+
+nonisolated extension Runnir_Core_V1_GithubTokenCheckState: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0GITHUB_TOKEN_CHECK_STATE_UNSPECIFIED\0\u{1}GITHUB_TOKEN_CHECK_STATE_PASSED\0\u{1}GITHUB_TOKEN_CHECK_STATE_MISSING\0\u{1}GITHUB_TOKEN_CHECK_STATE_UNKNOWN\0")
+}
+
 nonisolated extension Runnir_Core_V1_GithubAccess: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0GITHUB_ACCESS_UNSPECIFIED\0\u{1}GITHUB_ACCESS_OK\0\u{1}GITHUB_ACCESS_NO_REMOTE\0\u{1}GITHUB_ACCESS_SIGNED_OUT\0\u{1}GITHUB_ACCESS_TOKEN_REJECTED\0\u{1}GITHUB_ACCESS_NOT_VISIBLE\0\u{1}GITHUB_ACCESS_RATE_LIMITED\0\u{1}GITHUB_ACCESS_UNAVAILABLE\0\u{1}GITHUB_ACCESS_PERMISSION_MISSING\0")
 }
@@ -3368,18 +3557,168 @@ nonisolated extension Runnir_Core_V1_SetGitHubCredentialRequest: SwiftProtobuf.M
 
 nonisolated extension Runnir_Core_V1_SetGitHubCredentialResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".SetGitHubCredentialResponse"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}kind\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    // Load everything into unknown fields
-    while try decoder.nextFieldNumber() != nil {}
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.kind) }()
+      default: break
+      }
+    }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.kind != .unspecified {
+      try visitor.visitSingularEnumField(value: self.kind, fieldNumber: 1)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_SetGitHubCredentialResponse, rhs: Runnir_Core_V1_SetGitHubCredentialResponse) -> Bool {
+    if lhs.kind != rhs.kind {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_CheckGitHubTokenRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".CheckGitHubTokenRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}token\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.token) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.token.isEmpty {
+      try visitor.visitSingularStringField(value: self.token, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_CheckGitHubTokenRequest, rhs: Runnir_Core_V1_CheckGitHubTokenRequest) -> Bool {
+    if lhs.token != rhs.token {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_CheckGitHubTokenResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".CheckGitHubTokenResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{1}kind\0\u{1}login\0\u{1}scopes\0\u{3}expires_at\0\u{1}repositories\0\u{1}checks\0\u{1}suitable\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularMessageField(value: &self._status) }()
+      case 2: try { try decoder.decodeSingularEnumField(value: &self.kind) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.login) }()
+      case 4: try { try decoder.decodeRepeatedStringField(value: &self.scopes) }()
+      case 5: try { try decoder.decodeSingularMessageField(value: &self._expiresAt) }()
+      case 6: try { try decoder.decodeSingularInt32Field(value: &self.repositories) }()
+      case 7: try { try decoder.decodeRepeatedMessageField(value: &self.checks) }()
+      case 8: try { try decoder.decodeSingularBoolField(value: &self.suitable) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    try { if let v = self._status {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+    } }()
+    if self.kind != .unspecified {
+      try visitor.visitSingularEnumField(value: self.kind, fieldNumber: 2)
+    }
+    if !self.login.isEmpty {
+      try visitor.visitSingularStringField(value: self.login, fieldNumber: 3)
+    }
+    if !self.scopes.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.scopes, fieldNumber: 4)
+    }
+    try { if let v = self._expiresAt {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
+    } }()
+    if self.repositories != 0 {
+      try visitor.visitSingularInt32Field(value: self.repositories, fieldNumber: 6)
+    }
+    if !self.checks.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.checks, fieldNumber: 7)
+    }
+    if self.suitable != false {
+      try visitor.visitSingularBoolField(value: self.suitable, fieldNumber: 8)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_CheckGitHubTokenResponse, rhs: Runnir_Core_V1_CheckGitHubTokenResponse) -> Bool {
+    if lhs._status != rhs._status {return false}
+    if lhs.kind != rhs.kind {return false}
+    if lhs.login != rhs.login {return false}
+    if lhs.scopes != rhs.scopes {return false}
+    if lhs._expiresAt != rhs._expiresAt {return false}
+    if lhs.repositories != rhs.repositories {return false}
+    if lhs.checks != rhs.checks {return false}
+    if lhs.suitable != rhs.suitable {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_GitHubTokenCheck: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".GitHubTokenCheck"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}name\0\u{1}state\0\u{1}detail\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 2: try { try decoder.decodeSingularEnumField(value: &self.state) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.detail) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.name.isEmpty {
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 1)
+    }
+    if self.state != .unspecified {
+      try visitor.visitSingularEnumField(value: self.state, fieldNumber: 2)
+    }
+    if !self.detail.isEmpty {
+      try visitor.visitSingularStringField(value: self.detail, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_GitHubTokenCheck, rhs: Runnir_Core_V1_GitHubTokenCheck) -> Bool {
+    if lhs.name != rhs.name {return false}
+    if lhs.state != rhs.state {return false}
+    if lhs.detail != rhs.detail {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3877,7 +4216,7 @@ nonisolated extension Runnir_Core_V1_ListGitHubRepositoriesRequest: SwiftProtobu
 
 nonisolated extension Runnir_Core_V1_ListGitHubRepositoriesResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ListGitHubRepositoriesResponse"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{1}installations\0\u{1}repositories\0\u{1}truncated\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{1}installations\0\u{1}repositories\0\u{1}truncated\0\u{3}credential_kind\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3889,6 +4228,7 @@ nonisolated extension Runnir_Core_V1_ListGitHubRepositoriesResponse: SwiftProtob
       case 2: try { try decoder.decodeRepeatedMessageField(value: &self.installations) }()
       case 3: try { try decoder.decodeRepeatedMessageField(value: &self.repositories) }()
       case 4: try { try decoder.decodeSingularBoolField(value: &self.truncated) }()
+      case 5: try { try decoder.decodeSingularEnumField(value: &self.credentialKind) }()
       default: break
       }
     }
@@ -3911,6 +4251,9 @@ nonisolated extension Runnir_Core_V1_ListGitHubRepositoriesResponse: SwiftProtob
     if self.truncated != false {
       try visitor.visitSingularBoolField(value: self.truncated, fieldNumber: 4)
     }
+    if self.credentialKind != .unspecified {
+      try visitor.visitSingularEnumField(value: self.credentialKind, fieldNumber: 5)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3919,6 +4262,7 @@ nonisolated extension Runnir_Core_V1_ListGitHubRepositoriesResponse: SwiftProtob
     if lhs.installations != rhs.installations {return false}
     if lhs.repositories != rhs.repositories {return false}
     if lhs.truncated != rhs.truncated {return false}
+    if lhs.credentialKind != rhs.credentialKind {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

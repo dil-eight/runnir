@@ -140,7 +140,11 @@ protocol CoreServicing: Sendable {
     /// Renames a workflow file within its folder; returns the new workflow id.
     func renameWorkflowFile(repositoryID: String, workflowID: String, newFileName: String) async throws -> String
     /// Hands the signed-in user's GitHub token to the Core's memory; nil clears it.
-    func setGitHubCredential(_ token: String?) async throws
+    /// The kind of the token now held, nil when cleared.
+    @discardableResult
+    func setGitHubCredential(_ token: String?) async throws -> CoreGitHubCredentialKind?
+    /// What a token can do; the held token is not changed.
+    func checkGitHubToken(_ token: String) async throws -> CoreGitHubTokenCheck
     /// "owner/name" of the github.com repository each working tree's origin
     /// points at, by path; read from git's metadata without opening them.
     func githubOrigins(paths: [String]) async throws -> [String: String]

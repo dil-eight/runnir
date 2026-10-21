@@ -37,6 +37,7 @@ const (
 	RunnirCore_SubscribeEvents_FullMethodName          = "/runnir.core.v1.RunnirCore/SubscribeEvents"
 	RunnirCore_SetGitHubCredential_FullMethodName      = "/runnir.core.v1.RunnirCore/SetGitHubCredential"
 	RunnirCore_ClearGitHubCredential_FullMethodName    = "/runnir.core.v1.RunnirCore/ClearGitHubCredential"
+	RunnirCore_CheckGitHubToken_FullMethodName         = "/runnir.core.v1.RunnirCore/CheckGitHubToken"
 	RunnirCore_GetGitHubOrigins_FullMethodName         = "/runnir.core.v1.RunnirCore/GetGitHubOrigins"
 	RunnirCore_ListGitHubRepositories_FullMethodName   = "/runnir.core.v1.RunnirCore/ListGitHubRepositories"
 	RunnirCore_ListGitHubWorkflows_FullMethodName      = "/runnir.core.v1.RunnirCore/ListGitHubWorkflows"
@@ -91,6 +92,11 @@ type RunnirCoreClient interface {
 	// is never written to disk, logged, sent in events or returned by any call.
 	SetGitHubCredential(ctx context.Context, in *SetGitHubCredentialRequest, opts ...grpc.CallOption) (*SetGitHubCredentialResponse, error)
 	ClearGitHubCredential(ctx context.Context, in *ClearGitHubCredentialRequest, opts ...grpc.CallOption) (*ClearGitHubCredentialResponse, error)
+	// Asks GitHub what a token can do, without holding it: whether it is
+	// accepted, its kind, and the rights Runnir needs that it has, lacks or
+	// that GitHub does not show without trying a change. A refused token is
+	// TOKEN_REJECTED in `status`; the held credential is never changed.
+	CheckGitHubToken(ctx context.Context, in *CheckGitHubTokenRequest, opts ...grpc.CallOption) (*CheckGitHubTokenResponse, error)
 	// The github.com repository each folder's origin points at, read from git's
 	// metadata only, without opening the repositories: lets the app match its
 	// registered working trees to GitHub repositories. At most 500 paths.
@@ -285,6 +291,16 @@ func (c *runnirCoreClient) ClearGitHubCredential(ctx context.Context, in *ClearG
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ClearGitHubCredentialResponse)
 	err := c.cc.Invoke(ctx, RunnirCore_ClearGitHubCredential_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) CheckGitHubToken(ctx context.Context, in *CheckGitHubTokenRequest, opts ...grpc.CallOption) (*CheckGitHubTokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CheckGitHubTokenResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_CheckGitHubToken_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -505,6 +521,11 @@ type RunnirCoreServer interface {
 	// is never written to disk, logged, sent in events or returned by any call.
 	SetGitHubCredential(context.Context, *SetGitHubCredentialRequest) (*SetGitHubCredentialResponse, error)
 	ClearGitHubCredential(context.Context, *ClearGitHubCredentialRequest) (*ClearGitHubCredentialResponse, error)
+	// Asks GitHub what a token can do, without holding it: whether it is
+	// accepted, its kind, and the rights Runnir needs that it has, lacks or
+	// that GitHub does not show without trying a change. A refused token is
+	// TOKEN_REJECTED in `status`; the held credential is never changed.
+	CheckGitHubToken(context.Context, *CheckGitHubTokenRequest) (*CheckGitHubTokenResponse, error)
 	// The github.com repository each folder's origin points at, read from git's
 	// metadata only, without opening the repositories: lets the app match its
 	// registered working trees to GitHub repositories. At most 500 paths.
@@ -604,6 +625,9 @@ func (UnimplementedRunnirCoreServer) SetGitHubCredential(context.Context, *SetGi
 }
 func (UnimplementedRunnirCoreServer) ClearGitHubCredential(context.Context, *ClearGitHubCredentialRequest) (*ClearGitHubCredentialResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ClearGitHubCredential not implemented")
+}
+func (UnimplementedRunnirCoreServer) CheckGitHubToken(context.Context, *CheckGitHubTokenRequest) (*CheckGitHubTokenResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CheckGitHubToken not implemented")
 }
 func (UnimplementedRunnirCoreServer) GetGitHubOrigins(context.Context, *GetGitHubOriginsRequest) (*GetGitHubOriginsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetGitHubOrigins not implemented")
@@ -903,6 +927,24 @@ func _RunnirCore_ClearGitHubCredential_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnirCoreServer).ClearGitHubCredential(ctx, req.(*ClearGitHubCredentialRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_CheckGitHubToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckGitHubTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).CheckGitHubToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_CheckGitHubToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).CheckGitHubToken(ctx, req.(*CheckGitHubTokenRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1285,6 +1327,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClearGitHubCredential",
 			Handler:    _RunnirCore_ClearGitHubCredential_Handler,
+		},
+		{
+			MethodName: "CheckGitHubToken",
+			Handler:    _RunnirCore_CheckGitHubToken_Handler,
 		},
 		{
 			MethodName: "GetGitHubOrigins",

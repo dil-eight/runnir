@@ -44,7 +44,8 @@ private struct FakeService: CoreServicing {
     func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error> {
         AsyncThrowingStream { $0.finish(throwing: CoreServiceError.unavailable) }
     }
-    func setGitHubCredential(_ token: String?) async throws {}
+    func setGitHubCredential(_ token: String?) async throws -> CoreGitHubCredentialKind? { nil }
+    func checkGitHubToken(_ token: String) async throws -> CoreGitHubTokenCheck { .failed(.unavailable) }
     func listGitHubRepositories() async throws -> CoreGitHubAccount { .failed(.ok) }
     func githubOrigins(paths: [String]) async throws -> [String: String] { [:] }
     func listGitHubWorkflows(target: CoreGitHubTarget) async throws -> CoreGitHubResult<CoreGitHubWorkflow> { CoreGitHubResult(access: .ok, items: []) }

@@ -66,6 +66,47 @@ struct GitHubAccessHelpTests {
         #expect(GitHubAccessHelp.permissionName("actions: write") == "Actions (write)")
     }
 
+    @Test func aPersonalTokenIsFixedInItsSettings() {
+        let fine = GitHubAccessHelp.forAccess(.notVisible, repository: "o/r", purpose: .read, credential: .fineGrained)
+        #expect(fine?.fix == .editToken(GitHubTokenAdvice.fineGrainedSettingsURL))
+        #expect(fine?.message.contains("Add o/r to the token's repository access") == true)
+        #expect(fine?.fix.buttonTitle == "Edit Token on GitHub...")
+
+        let classic = GitHubAccessHelp.forAccess(.permissionMissing, repository: "o/r", purpose: .run, details: details(canPush: true), credential: .classic)
+        #expect(classic?.fix == .editToken(GitHubTokenAdvice.classicSettingsURL))
+        #expect(classic?.message.contains("repo scope") == true)
+
+        let actions = GitHubAccessHelp.forAccess(.permissionMissing, repository: "o/r", purpose: .change, details: details(canPush: true), credential: .fineGrained)
+        #expect(actions?.message.contains("Actions: Read and write") == true)
+
+        // The user's own rights are still the user's own.
+        #expect(GitHubAccessHelp.forAccess(.permissionMissing, repository: "o/r", purpose: .run, details: details(canPush: false),
+                                           credential: .fineGrained)?.fix == .askForWriteAccess)
+        #expect(GitHubAccessHelp.forAccess(.tokenRejected, repository: "o/r", purpose: .read, credential: .classic)?.fix == .signInAgain)
+        // Signed in through the app, a repository it does not reach still asks to give it access.
+        #expect(GitHubAccessHelp.forAccess(.notVisible, repository: "o/r", purpose: .read, credential: .appUser)?.fix
+                == .giveAccess(GitHubAccessHelp.installationURL))
+        #expect(GitHubRepositoriesView.listHelp(.notVisible, credential: .fineGrained)?.fix == .editToken(GitHubTokenAdvice.fineGrainedSettingsURL))
+        #expect(GitHubRepositoriesView.listHelp(.notVisible, credential: .appUser)?.fix == .giveAccess(GitHubAccessHelp.installationURL))
+    }
+
+    @Test func theHubKnowsTheTokenKindAndChecksTokens() async {
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        hub.githubTokenProvider = { "github_pat_held" }
+        hub.startMonitoring()
+        provider.ready()
+        #expect(await eventually { hub.credentialKind == .fineGrained })
+
+        provider.core.tokenCheck = CoreGitHubTokenCheck(access: .ok, kind: .classic, login: "octocat", scopes: ["repo"], expiresAt: nil,
+                                                        repositories: 0, checks: [.init(name: "Scope repo", state: .passed, detail: "")],
+                                                        suitable: true)
+        let check = await hub.checkGitHubToken("ghp_checked")
+        #expect(check.suitable && check.login == "octocat")
+        #expect(provider.core.checkedTokens == ["ghp_checked"])
+        #expect(provider.core.credentialCalls.last == "github_pat_held", "checking does not replace the held token")
+    }
+
     @Test func aRefusedDispatchExplainsItself() async {
         let provider = FakeProvider()
         let hub = CoreHub(provider: provider)

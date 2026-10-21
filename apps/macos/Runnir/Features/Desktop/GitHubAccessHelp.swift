@@ -37,6 +37,9 @@ struct GitHubAccessHelp: Equatable, Identifiable {
         /// An installation waits for an owner: review and accept permissions,
         /// or resume a suspended installation.
         case reviewPermissions(URL)
+        /// A personal token lacks the repository or a permission: change it,
+        /// or create one that has them.
+        case editToken(URL)
         /// The user's own rights on the repository; nothing here fixes them.
         case askForWriteAccess
         case retry
@@ -48,6 +51,7 @@ struct GitHubAccessHelp: Equatable, Identifiable {
             case .signInAgain: "Sign In Again..."
             case .giveAccess: "Give Runnir Access..."
             case .reviewPermissions: "Review on GitHub..."
+            case .editToken: "Edit Token on GitHub..."
             case .retry: "Try Again"
             case .askForWriteAccess, .none: nil
             }
@@ -65,8 +69,12 @@ struct GitHubAccessHelp: Equatable, Identifiable {
     /// `details` (the repository as the Core read it) tells a permission an
     /// owner has not accepted from the user's own missing write access.
     static func forAccess(_ access: CoreGitHubAccess, repository: String?, purpose: Purpose,
-                          details: CoreGitHubRepository? = nil) -> GitHubAccessHelp? {
+                          details: CoreGitHubRepository? = nil, credential: CoreGitHubCredentialKind? = nil) -> GitHubAccessHelp? {
         let name = repository.flatMap { $0.isEmpty ? nil : $0 } ?? "this repository"
+        if let credential, credential.isPersonal,
+           let help = forPersonalToken(access, repository: name, purpose: purpose, details: details, credential: credential) {
+            return help
+        }
         switch access {
         case .ok:
             return nil
@@ -98,6 +106,36 @@ struct GitHubAccessHelp: Equatable, Identifiable {
             let shown = purpose == .read ? "What is shown is from the last read. " : "Nothing was sent. "
             return GitHubAccessHelp(title: "GitHub could not be reached", message: "\(shown)Check the connection and try again.", fix: .retry)
         }
+    }
+
+    /// With a personal token, GitHub's refusals are about the token: its
+    /// repositories, permissions or scopes, changed in its settings.
+    private static func forPersonalToken(_ access: CoreGitHubAccess, repository name: String, purpose: Purpose,
+                                         details: CoreGitHubRepository?, credential: CoreGitHubCredentialKind) -> GitHubAccessHelp? {
+        let settings = tokenSettingsURL(credential)
+        switch access {
+        case .tokenRejected:
+            return GitHubAccessHelp(title: "Sign in to GitHub again",
+                                    message: "GitHub no longer accepts the token, for example because it expired or was revoked. Sign in again with a new token or with the Runnir Desktop app.",
+                                    fix: .signInAgain)
+        case .notVisible:
+            let message = credential == .fineGrained
+                ? "Add \(name) to the token's repository access on GitHub, or create a token that includes it."
+                : "For private repositories the token needs the repo scope; an organization that uses single sign-on also needs the token authorized for it."
+            return GitHubAccessHelp(title: "This token can't see \(name)", message: message, fix: .editToken(settings))
+        case .permissionMissing:
+            if purpose != .read, details?.canPush == false { return noWriteAccess(name, purpose: purpose) }
+            let message = credential == .fineGrained
+                ? "To \(purpose.phrase) in \(name), a fine-grained token needs Actions: Read and write and Contents: Read-only for it."
+                : "To \(purpose.phrase) in \(name), the token needs the repo scope."
+            return GitHubAccessHelp(title: "The token lacks a permission", message: message, fix: .editToken(settings))
+        default:
+            return nil
+        }
+    }
+
+    static func tokenSettingsURL(_ credential: CoreGitHubCredentialKind) -> URL {
+        credential == .fineGrained ? GitHubTokenAdvice.fineGrainedSettingsURL : GitHubTokenAdvice.classicSettingsURL
     }
 
     /// What is known to block an action before trying it: a suspended
@@ -232,7 +270,7 @@ struct GitHubAccessNotice: View {
     private func perform(_ fix: GitHubAccessHelp.Fix) {
         switch fix {
         case .connect, .signInAgain: showingConnect = true
-        case .giveAccess(let url), .reviewPermissions(let url): openURL(url)
+        case .giveAccess(let url), .reviewPermissions(let url), .editToken(let url): openURL(url)
         case .retry: retry()
         case .askForWriteAccess, .none: break
         }
@@ -241,7 +279,7 @@ struct GitHubAccessNotice: View {
     private var symbol: String {
         switch help.fix {
         case .connect, .signInAgain: "person.crop.circle.badge.exclamationmark"
-        case .giveAccess, .reviewPermissions: "key"
+        case .giveAccess, .reviewPermissions, .editToken: "key"
         case .askForWriteAccess: "lock"
         case .retry: "arrow.clockwise.circle"
         case .none: "info.circle"
@@ -282,7 +320,7 @@ struct GitHubAccessAlert: ViewModifier {
     private func perform(_ fix: GitHubAccessHelp.Fix) {
         switch fix {
         case .connect, .signInAgain: showingConnect = true
-        case .giveAccess(let url), .reviewPermissions(let url): openURL(url)
+        case .giveAccess(let url), .reviewPermissions(let url), .editToken(let url): openURL(url)
         case .retry, .askForWriteAccess, .none: break
         }
     }

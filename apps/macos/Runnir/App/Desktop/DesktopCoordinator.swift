@@ -687,6 +687,7 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         // The Core holds the token only while the user is signed in.
         hub.githubTokenProvider = { [github] in await github.currentToken() }
         github.onCredentialChange = { [hub] in hub.githubCredentialChanged() }
+        github.tokenChecker = { [hub] token in await hub.checkGitHubToken(token) }
         hub.onGitHubTokenRejected = { [github] in await github.tokenWasRejected() }
     }
 

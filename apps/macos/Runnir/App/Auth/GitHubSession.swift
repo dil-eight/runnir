@@ -61,6 +61,9 @@ final class GitHubSession {
     @ObservationIgnored private var offlineRetry: Task<Void, Never>?
     /// Called whenever the usable token appears or goes away.
     @ObservationIgnored var onCredentialChange: (@MainActor () -> Void)?
+    /// Asks what a pasted token can do before it is used; the app sets it to
+    /// the Core's check. Nil hides signing in with a token.
+    @ObservationIgnored var tokenChecker: (@MainActor (String) async -> CoreGitHubTokenCheck)?
 
     /// Where a user revokes Runnir's authorization at GitHub.
     static let authorizationsURL = URL(string: "https://github.com/settings/apps/authorizations")!
@@ -259,6 +262,26 @@ final class GitHubSession {
         try? await credentials.removeToken()
         connection = .signedOut(.sessionExpired)
         onCredentialChange?()
+    }
+
+    // MARK: Personal access token
+
+    /// Signs in with a token the user pasted instead of the Device Flow: it
+    /// is saved only to the Keychain and confirmed with GitHub like a saved
+    /// sign-in. Check it first with `tokenChecker`.
+    func useToken(_ token: String) async {
+        cancelSignInIfRunning()
+        stopOfflineRetry()
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        do {
+            try await credentials.saveToken(trimmed)
+        } catch {
+            connection = .signedOut(.keychain)
+            return
+        }
+        connection = .restoring
+        await confirmUser(onRejected: .unexpected)
     }
 
     // MARK: Sign out
