@@ -39,6 +39,8 @@ final class DispatchFormModel {
     private(set) var appliedPresetID: UUID?
     /// What a preset could not apply: a branch or inputs that no longer exist.
     private(set) var presetNotes: [String] = []
+    /// Why GitHub refused, with the step that fixes it, shown as an alert.
+    var accessHelp: GitHubAccessHelp?
 
     @ObservationIgnored let presets: DispatchPresetLibrary?
     @ObservationIgnored private let hub: CoreHub
@@ -290,6 +292,7 @@ final class DispatchFormModel {
         let prepared = await hub.prepareDispatch(target: target, workflowID: workflow.id, ref: ref, inputs: inputsToSend)
         if prepared.access != .ok {
             step = .failed(Self.describe(prepared.access))
+            await explain(prepared.access)
         } else if !prepared.problems.isEmpty || prepared.dispatchID == nil {
             problems = prepared.problems
             step = .editing
@@ -317,6 +320,7 @@ final class DispatchFormModel {
         }
         guard result.access == .ok, let dispatchedAt = result.dispatchedAt else {
             step = .failed(Self.describe(result.access) + " The workflow may not have started; check Runs before trying again.")
+            await explain(result.access)
             return
         }
         step = .waitingForRun
@@ -328,12 +332,31 @@ final class DispatchFormModel {
         }
     }
 
+    /// The repository's GitHub name, for messages.
+    var repositoryName: String? {
+        switch target {
+        case .workspace(let id): hub.session(for: id)?.githubRepository
+        case .repository(let name): name
+        }
+    }
+
+    /// Turns a refusal the user can fix into `accessHelp`; a missing
+    /// permission is checked against the repository first, to tell an
+    /// owner's pending approval from the user's missing write access.
+    private func explain(_ access: CoreGitHubAccess) async {
+        guard GitHubAccessHelp.needsExplaining(access) else { return }
+        let details = access == .permissionMissing ? await hub.githubRepository(target: target) : nil
+        accessHelp = GitHubAccessHelp.forAccess(access, repository: repositoryName, purpose: .run, details: details)
+    }
+
     static func describe(_ access: CoreGitHubAccess) -> String {
         switch access {
         case .ok: ""
         case .noRemote: "This working tree has no GitHub remote."
-        case .signedOut, .tokenRejected: "Connect GitHub to run workflows."
+        case .signedOut: "Connect GitHub to run workflows."
+        case .tokenRejected: "GitHub no longer accepts the saved sign-in. Sign in again to run workflows."
         case .notVisible: "Runnir can't see this repository or the workflow on that ref."
+        case .permissionMissing: "GitHub did not allow starting this workflow: Runnir Desktop or your account lacks a permission."
         case .rateLimited: "GitHub is limiting requests. Try again in a moment."
         case .unavailable: "GitHub could not be reached."
         }
@@ -343,6 +366,8 @@ final class DispatchFormModel {
 /// The Run Workflow sheet.
 struct RunWorkflowSheet: View {
     @State var model: DispatchFormModel
+    /// For the sign-in sheet an access alert may offer.
+    var github: GitHubSession? = nil
     let showRun: (CoreWorkflowRun) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var presetPrompt: PresetPrompt?
@@ -376,6 +401,7 @@ struct RunWorkflowSheet: View {
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
         .task { await model.load() }
+        .githubAccessAlert(Binding(get: { model.accessHelp }, set: { model.accessHelp = $0 }), github: github)
         .alert(presetPrompt == .rename ? "Rename Preset" : "Save Preset", isPresented: Binding(
             get: { presetPrompt != nil }, set: { if !$0 { presetPrompt = nil } })) {
             TextField("Name", text: $presetName)

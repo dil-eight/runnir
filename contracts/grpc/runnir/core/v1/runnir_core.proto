@@ -246,6 +246,11 @@ enum GithubAccess {
   GITHUB_ACCESS_NOT_VISIBLE = 5;
   GITHUB_ACCESS_RATE_LIMITED = 6;
   GITHUB_ACCESS_UNAVAILABLE = 7;
+  // The app is installed, but GitHub says it or the user lacks a permission
+  // for this ("Resource not accessible by integration"): the installation
+  // has not accepted permissions the app now asks for, or the user cannot
+  // write to the repository.
+  GITHUB_ACCESS_PERMISSION_MISSING = 8;
 }
 
 message GitHubStatus {
@@ -302,6 +307,10 @@ message GetGitHubRepositoryResponse {
   string visibility = 3;
   string default_branch = 4;
   string html_url = 5;
+  // The signed-in user can push, so can start, cancel and re-run workflows.
+  bool can_push = 6;
+  // The installation of the repository's owner, when the user can see it.
+  GitHubInstallation installation = 7;
 }
 
 message ListGitHubWorkflowsRequest {
@@ -333,8 +342,14 @@ message GitHubInstallation {
   // "all" or "selected": whether the app reaches every repository of the
   // account or only chosen ones.
   string repository_selection = 4;
-  // Where the account's owner changes which repositories the app reaches.
+  // Where the account's owner changes which repositories the app reaches
+  // and accepts new permissions.
   string html_url = 5;
+  // Permissions Runnir needs that the installation has not granted, such as
+  // "actions: write": the app asks for them and an owner has not accepted.
+  repeated string missing_permissions = 6;
+  // GitHub suspended the installation; it reaches no repository.
+  bool suspended = 7;
 }
 
 message GitHubAccountRepository {

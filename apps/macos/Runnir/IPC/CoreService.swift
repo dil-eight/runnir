@@ -147,8 +147,8 @@ protocol CoreServicing: Sendable {
     /// GitHub Actions data for a repository's origin on github.com, or for a
     /// repository named directly.
     func listGitHubWorkflows(target: CoreGitHubTarget) async throws -> CoreGitHubResult<CoreGitHubWorkflow>
-    /// Whether the token can see the linked GitHub repository, and its details.
-    func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository
+    /// Whether the token can see the GitHub repository, and its details.
+    func gitHubRepository(target: CoreGitHubTarget) async throws -> CoreGitHubRepository
     func listWorkflowRuns(target: CoreGitHubTarget, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun>
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob>
     func listGitHubRefs(target: CoreGitHubTarget) async throws -> CoreGitHubRefs
@@ -191,6 +191,10 @@ enum CoreGitHubTarget: Hashable, Sendable {
 }
 
 extension CoreServicing {
+    func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository {
+        try await gitHubRepository(target: .repository(repositoryID))
+    }
+
     func listGitHubWorkflows(repositoryID: String) async throws -> CoreGitHubResult<CoreGitHubWorkflow> {
         try await listGitHubWorkflows(target: .repository(repositoryID))
     }

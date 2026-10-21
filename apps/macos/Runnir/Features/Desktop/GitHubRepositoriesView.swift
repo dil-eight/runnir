@@ -278,12 +278,14 @@ struct GitHubRepositoriesView: View {
     }
 
     private var signedOut: some View {
-        VStack(spacing: 14) {
+        let again = desktop.github?.signedOutAccess == .tokenRejected
+        return VStack(spacing: 14) {
             Image(systemName: "person.crop.circle.badge.questionmark").font(.system(size: 26, weight: .light)).foregroundStyle(RunnirTheme.primary)
-            Text("Connect GitHub to see your repositories").font(.system(size: 16, weight: .semibold))
-            Text("Runnir lists the repositories where the Runnir Desktop app is installed, with their workflows and runs.")
+            Text(again ? "Sign in to GitHub again" : "Connect GitHub to see your repositories").font(.system(size: 16, weight: .semibold))
+            Text(again ? "GitHub no longer accepts the saved sign-in, for example because it was revoked. Sign in again to see your repositories."
+                       : "Runnir lists the repositories where the Runnir Desktop app is installed, with their workflows and runs.")
                 .font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground).multilineTextAlignment(.center).frame(maxWidth: 420)
-            Button("Connect GitHub...") { showingConnect = true }.buttonStyle(DesignButtonStyle(primary: true))
+            Button(again ? "Sign In Again..." : "Connect GitHub...") { showingConnect = true }.buttonStyle(DesignButtonStyle(primary: true))
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -353,14 +355,23 @@ struct GitHubRepositoriesView: View {
         if model.isLoading && model.repositories.isEmpty {
             HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Reading repositories...") }
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(16)
-        } else if let access = model.access, access != .ok {
-            Label(Self.describe(access, hasList: !model.repositories.isEmpty), systemImage: "exclamationmark.triangle")
-                .font(.system(size: 12)).foregroundStyle(RunnirTheme.warning).fixedSize(horizontal: false, vertical: true).padding(12)
+        } else if let access = model.access, let help = Self.listHelp(access) {
+            GitHubAccessNotice(help: help, style: .banner, github: desktop.github) {
+                if let hub = desktop.core { Task { await model.load(hub: hub, login: desktop.github?.user?.login) } }
+            }.padding(8)
         } else if model.access == .ok, model.installations.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Runnir Desktop is not installed on any account you can see.").font(.system(size: 12))
-                Button("Give Runnir Access...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
-            }.padding(12)
+            GitHubAccessNotice(help: GitHubAccessHelp(title: "Runnir Desktop is not installed yet",
+                                                      message: "Install the Runnir Desktop app on your account or an organization, and choose the repositories it may reach.",
+                                                      fix: .giveAccess(GitHubAccessHelp.installationURL)),
+                               style: .banner, github: desktop.github).padding(8)
+        }
+        // Installations that wait for an owner: suspended, or new permissions.
+        ForEach(model.installations.filter { $0.suspended || !$0.missingPermissions.isEmpty }) { installation in
+            if let help = installation.suspended
+                ? GitHubAccessHelp.installationBlocker(installation, purpose: .read, refused: true)
+                : GitHubAccessHelp.pendingPermissions(installation) {
+                GitHubAccessNotice(help: help, style: .banner, github: desktop.github).padding(.horizontal, 8).padding(.bottom, 8)
+            }
         }
         if let problem = desktop.repositoryFavorites.problem {
             Label(problem, systemImage: "star.slash").font(.system(size: 11)).foregroundStyle(RunnirTheme.warning).padding(.horizontal, 12).padding(.vertical, 6)
@@ -386,16 +397,17 @@ struct GitHubRepositoriesView: View {
         return model.truncated ? base + " (the first 1,000)" : base
     }
 
-    static func describe(_ access: CoreGitHubAccess, hasList: Bool) -> String {
-        let suffix = hasList ? " The list shows what was read last." : ""
+    /// The list's banner: the account's repositories are not about one
+    /// repository, so refusals point at the app's installations.
+    static func listHelp(_ access: CoreGitHubAccess) -> GitHubAccessHelp? {
         switch access {
-        case .ok: return ""
-        case .signedOut, .tokenRejected: return "Connect GitHub again to see your repositories."
-        case .rateLimited(let until):
-            let when = until.map { " after \($0.formatted(date: .omitted, time: .shortened))" } ?? " in a moment"
-            return "GitHub is limiting requests. Try again\(when)." + suffix
-        case .notVisible: return "GitHub did not let Runnir list the repositories." + suffix
-        case .noRemote, .unavailable: return "GitHub or Runnir Core could not be reached." + suffix
+        case .ok, .noRemote: return nil
+        case .notVisible, .permissionMissing:
+            return GitHubAccessHelp(title: "GitHub did not let Runnir list repositories",
+                                    message: "Check where the Runnir Desktop app is installed and what it may reach. The list shows what was read last.",
+                                    fix: .giveAccess(GitHubAccessHelp.installationURL))
+        default:
+            return GitHubAccessHelp.forAccess(access, repository: "your account", purpose: .read)
         }
     }
 }
@@ -458,7 +470,31 @@ private struct RemoteRepositoryDetail: View {
     let hub: CoreHub
     @State private var model: RemoteRepositoryModel
     @State private var runRequest: RunWorkflowRequest?
+    /// What stops starting a workflow, shown as an alert.
+    @State private var accessHelp: GitHubAccessHelp?
     @Environment(\.openURL) private var openURL
+
+    /// The installation the repository came from, with any permissions
+    /// waiting for an owner.
+    private var installation: CoreGitHubInstallation? {
+        desktop.githubRepositories.installations.first { $0.id == repository.installationID }
+    }
+
+    /// The repository as the access help needs it.
+    private var details: CoreGitHubRepository {
+        CoreGitHubRepository(access: .ok, fullName: repository.fullName, visibility: repository.visibility,
+                             defaultBranch: repository.defaultBranch, htmlURL: repository.htmlURL,
+                             canPush: repository.canPush, installation: installation)
+    }
+
+    /// Opens Run Workflow, or says in an alert what has to happen first.
+    private func requestRun(_ workflow: CoreGitHubWorkflow) {
+        if let blocker = GitHubAccessHelp.blocker(for: .run, repository: repository, installation: installation) {
+            accessHelp = blocker
+            return
+        }
+        runRequest = RunWorkflowRequest(workflowID: workflow.id)
+    }
 
     init(repository: CoreGitHubAccountRepository, desktop: DesktopCoordinator, hub: CoreHub) {
         self.repository = repository
@@ -486,9 +522,11 @@ private struct RemoteRepositoryDetail: View {
                 await model.load(hub: hub)
             }
         }
+        .githubAccessAlert($accessHelp, github: desktop.github)
         .sheet(item: $runRequest) { request in
             RunWorkflowSheet(model: DispatchFormModel(target: model.target, hub: hub, workflows: model.workflows?.items ?? [],
-                                                      workflowID: request.workflowID, currentBranch: repository.defaultBranch)) { run in
+                                                      workflowID: request.workflowID, currentBranch: repository.defaultBranch),
+                             github: desktop.github) { run in
                 if let url = run.htmlURL { openURL(url) }
             }
             .onDisappear { Task { await model.load(hub: hub) } }
@@ -523,9 +561,10 @@ private struct RemoteRepositoryDetail: View {
                         .buttonStyle(DesignButtonStyle())
                 }
             }
-            if !repository.canPush {
-                Label("You can read this repository but not start its workflows.", systemImage: "lock")
-                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+            // What stops starting workflows here: an owner's pending
+            // approval, or no write access.
+            if let help = GitHubAccessHelp.blocker(for: .run, repository: repository, installation: installation) {
+                GitHubAccessNotice(help: help, style: .note, github: desktop.github)
             }
         }
     }
@@ -534,9 +573,9 @@ private struct RemoteRepositoryDetail: View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel(title: "WORKFLOWS")
             DesignDivider()
-            if let access = model.access, access != .ok {
-                Label(GitHubRepositoriesView.describe(access, hasList: !(model.workflows?.items.isEmpty ?? true)), systemImage: "exclamationmark.triangle")
-                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.warning).fixedSize(horizontal: false, vertical: true)
+            if let access = model.access,
+               let help = GitHubAccessHelp.forAccess(access, repository: repository.fullName, purpose: .read, details: details) {
+                GitHubAccessNotice(help: help, style: .note, github: desktop.github) { Task { await model.load(hub: hub) } }
             }
             if let workflows = model.workflows {
                 if workflows.access == .ok, workflows.items.isEmpty {
@@ -558,9 +597,9 @@ private struct RemoteRepositoryDetail: View {
                         if workflow.state != "active" {
                             Text("Disabled").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                         }
-                        Button("Run...") { runRequest = RunWorkflowRequest(workflowID: workflow.id) }
+                        Button("Run...") { requestRun(workflow) }
                             .buttonStyle(DesignButtonStyle())
-                            .disabled(!repository.canPush || workflow.state != "active" || repository.archived)
+                            .disabled(workflow.state != "active" || repository.archived)
                             .help(runHelp(workflow))
                     }.padding(.vertical, 4)
                 }
@@ -573,8 +612,8 @@ private struct RemoteRepositoryDetail: View {
 
     private func runHelp(_ workflow: CoreGitHubWorkflow) -> String {
         if repository.archived { return "An archived repository cannot run workflows" }
-        if !repository.canPush { return "Starting workflows needs write access to the repository" }
         if workflow.state != "active" { return "This workflow is disabled on GitHub" }
+        if let blocker = GitHubAccessHelp.blocker(for: .run, repository: repository, installation: installation) { return blocker.title }
         return "Choose a branch and inputs, review, then start this workflow on GitHub"
     }
 

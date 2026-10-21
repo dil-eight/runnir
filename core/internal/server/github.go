@@ -53,6 +53,8 @@ func (s *service) githubStatus(err error) (*corev1.GitHubStatus, error) {
 		return &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_TOKEN_REJECTED}, nil
 	case errors.Is(err, github.ErrNotVisible):
 		return &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_NOT_VISIBLE}, nil
+	case errors.Is(err, github.ErrPermissionMissing):
+		return &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_PERMISSION_MISSING}, nil
 	case errors.As(err, &rateLimit):
 		return &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_RATE_LIMITED, RetryAfter: timestamppb.New(rateLimit.Reset)}, nil
 	default:
@@ -69,9 +71,7 @@ func (s *service) ListGitHubRepositories(ctx context.Context, _ *corev1.ListGitH
 	}
 	out := &corev1.ListGitHubRepositoriesResponse{Status: result, Truncated: account.Truncated}
 	for _, i := range account.Installations {
-		out.Installations = append(out.Installations, &corev1.GitHubInstallation{
-			Id: i.ID, Account: i.Account, AccountType: i.AccountType, RepositorySelection: i.RepositorySelection, HtmlUrl: i.HTMLURL,
-		})
+		out.Installations = append(out.Installations, installationMessage(i))
 	}
 	for _, r := range account.Repositories {
 		out.Repositories = append(out.Repositories, &corev1.GitHubAccountRepository{
@@ -110,10 +110,23 @@ func (s *service) GetGitHubRepository(ctx context.Context, request *corev1.GetGi
 	if err != nil {
 		return nil, err
 	}
-	return &corev1.GetGitHubRepositoryResponse{
+	out := &corev1.GetGitHubRepositoryResponse{
 		Status: result, FullName: repository.FullName, Visibility: repository.Visibility,
-		DefaultBranch: repository.DefaultBranch, HtmlUrl: repository.HTMLURL,
-	}, nil
+		DefaultBranch: repository.DefaultBranch, HtmlUrl: repository.HTMLURL, CanPush: repository.CanPush,
+	}
+	// The owner's installation says whether permissions wait for an owner
+	// to accept them; a failed lookup leaves it out.
+	if installation, found, err := s.github.InstallationFor(ctx, owner); err == nil && found {
+		out.Installation = installationMessage(installation)
+	}
+	return out, nil
+}
+
+func installationMessage(i github.Installation) *corev1.GitHubInstallation {
+	return &corev1.GitHubInstallation{
+		Id: i.ID, Account: i.Account, AccountType: i.AccountType, RepositorySelection: i.RepositorySelection, HtmlUrl: i.HTMLURL,
+		MissingPermissions: i.MissingPermissions, Suspended: i.Suspended,
+	}
 }
 
 func (s *service) ListWorkflowRuns(ctx context.Context, request *corev1.ListWorkflowRunsRequest) (*corev1.ListWorkflowRunsResponse, error) {

@@ -45,6 +45,10 @@ final class RepositorySession: Identifiable {
     fileprivate(set) var remoteWorkflows: [CoreGitHubWorkflow] = []
     fileprivate(set) var isLoadingGitHub = false
     fileprivate(set) var githubLoadedAt: Date?
+    /// The GitHub repository as the Core last read it: whether the user can
+    /// push, and the owner's installation with permissions waiting for an
+    /// owner. Read on demand (`githubRepository(workspaceID:)`), not polled.
+    fileprivate(set) var githubDetails: CoreGitHubRepository?
     /// The workspace's latest local run, shared by its windows.
     fileprivate(set) var localRun: LocalRunModel?
     @ObservationIgnored fileprivate var githubPoll: Task<Void, Never>?
@@ -263,11 +267,14 @@ final class CoreHub {
                 session.githubLoadedAt = Date()
             case .rateLimited, .unavailable:
                 break // keep the last data; the access state says it may be stale
-            case .noRemote, .signedOut, .tokenRejected, .notVisible:
+            case .noRemote, .signedOut, .tokenRejected, .notVisible, .permissionMissing:
                 session.runs = []
                 session.remoteWorkflows = []
             }
             if runs.access == .tokenRejected { await onGitHubTokenRejected?() }
+            // Whether an owner has to accept permissions, or the user lacks
+            // access, decides what the notice asks for.
+            if runs.access == .permissionMissing { await githubRepository(workspaceID: workspaceID) }
         } catch is CancellationError {
             return false
         } catch {
@@ -414,6 +421,18 @@ final class CoreHub {
         return nil
     }
 
+    /// The GitHub repository of a workspace or one named directly: whether
+    /// the user can push, and the owner's installation. A workspace keeps it
+    /// in its session.
+    @discardableResult
+    func githubRepository(target: GitHubTarget) async -> CoreGitHubRepository {
+        if case .workspace(let workspaceID) = target { return await githubRepository(workspaceID: workspaceID) }
+        guard let (service, coreTarget) = await serviceAndTarget(target),
+              let repository = try? await service.gitHubRepository(target: coreTarget) else { return .failed(.unavailable) }
+        if repository.access == .tokenRejected { await onGitHubTokenRejected?() }
+        return repository
+    }
+
     // MARK: Repositories without a local clone
 
     /// The github.com repositories the signed-in user's token reaches.
@@ -444,12 +463,15 @@ final class CoreHub {
         return result
     }
 
-    /// The linked GitHub repository as the Core sees it with the current token.
+    /// The linked GitHub repository as the Core sees it with the current
+    /// token, kept in the session's `githubDetails`.
+    @discardableResult
     func githubRepository(workspaceID: UUID) async -> CoreGitHubRepository {
         guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return .failed(.unavailable) }
         do {
             let repository = try await service.gitHubRepository(repositoryID: coreID)
             if repository.access == .tokenRejected { await onGitHubTokenRejected?() }
+            if let session = sessions[workspaceID], session.coreID == coreID { session.githubDetails = repository }
             return repository
         } catch {
             return .failed(.unavailable)

@@ -257,11 +257,14 @@ func TestARepositoryWithoutALocalCloneIsReadAndRunByName(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/user/installations":
-			_, _ = w.Write([]byte(`{"total_count":1,"installations":[{"id":5,"account":{"login":"o","type":"Organization"},"repository_selection":"selected","html_url":"https://github.com/organizations/o/settings/installations/5"}]}`))
+			_, _ = w.Write([]byte(`{"total_count":1,"installations":[{"id":5,"account":{"login":"o","type":"Organization"},"repository_selection":"selected","html_url":"https://github.com/organizations/o/settings/installations/5","permissions":{"actions":"read","contents":"read","metadata":"read"}}]}`))
 		case "/user/installations/5/repositories":
 			_, _ = w.Write([]byte(`{"total_count":1,"repositories":[{"full_name":"o/r","name":"r","owner":{"login":"o"},"private":true,"default_branch":"main","html_url":"https://github.com/o/r","permissions":{"push":true}}]}`))
 		case "/repos/o/r/actions/workflows":
 			_, _ = w.Write([]byte(`{"total_count":1,"workflows":[{"id":7,"name":"Deploy","path":".github/workflows/deploy.yml","state":"active"}]}`))
+		case "/repos/o/locked/actions/workflows":
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"Resource not accessible by integration"}`))
 		default:
 			inner(w, r)
 		}
@@ -320,6 +323,17 @@ func TestARepositoryWithoutALocalCloneIsReadAndRunByName(t *testing.T) {
 	// Still single use.
 	if _, err := client.ConfirmWorkflowDispatch(ctx, &corev1.ConfirmWorkflowDispatchRequest{DispatchId: prepared.DispatchId}); status.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("second confirm = %v", err)
+	}
+
+	// The owner's installation has not accepted Actions write yet.
+	repository, err := client.GetGitHubRepository(ctx, &corev1.GetGitHubRepositoryRequest{GithubRepository: "o/r"})
+	if err != nil || repository.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_OK || repository.CanPush ||
+		repository.Installation == nil || strings.Join(repository.Installation.MissingPermissions, ",") != "actions: write" {
+		t.Fatalf("repository = %v, %v", repository, err)
+	}
+	locked, err := client.ListGitHubWorkflows(ctx, &corev1.ListGitHubWorkflowsRequest{GithubRepository: "o/locked"})
+	if err != nil || locked.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_PERMISSION_MISSING {
+		t.Fatalf("locked = %v, %v", locked, err)
 	}
 
 	hidden, err := client.ListGitHubWorkflows(ctx, &corev1.ListGitHubWorkflowsRequest{GithubRepository: "o/hidden"})

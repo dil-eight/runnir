@@ -144,8 +144,11 @@ struct RunInspectorTests {
     @Test
     func readProblemsDoNotTalkAboutWriteAccess() {
         #expect(!RunActionModel.describeRead(.notVisible).contains("write"))
-        #expect(RunActionModel.describe(.notVisible).contains("write"))
+        // Not reaching the repository and lacking a permission are told apart.
+        #expect(RunActionModel.describe(.notVisible).contains("Give Runnir Desktop access"))
+        #expect(RunActionModel.describe(.permissionMissing).contains("lacks a permission"))
         #expect(RunActionModel.describeRead(.signedOut) == "Connect GitHub to see jobs and logs.")
+        #expect(RunActionModel.describe(.tokenRejected).contains("Sign in again"))
     }
 
     @Test

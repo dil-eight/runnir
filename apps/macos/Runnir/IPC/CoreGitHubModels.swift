@@ -10,6 +10,10 @@ enum CoreGitHubAccess: Equatable, Sendable {
     case tokenRejected
     /// The Runnir Desktop app is not installed on the repository, or the user cannot see it.
     case notVisible
+    /// The app is installed, but it or the user lacks a permission for this:
+    /// the installation has not accepted new permissions, or the user cannot
+    /// write to the repository.
+    case permissionMissing
     case rateLimited(until: Date?)
     case unavailable
 }
@@ -30,6 +34,10 @@ struct CoreGitHubRepository: Equatable, Sendable {
     let visibility: String
     let defaultBranch: String
     let htmlURL: URL?
+    /// The signed-in user can push, so can start, cancel and re-run workflows.
+    var canPush = false
+    /// The installation of the repository's owner, when the user can see it.
+    var installation: CoreGitHubInstallation? = nil
 
     static func failed(_ access: CoreGitHubAccess) -> CoreGitHubRepository {
         CoreGitHubRepository(access: access, fullName: "", visibility: "", defaultBranch: "", htmlURL: nil)
@@ -44,8 +52,13 @@ struct CoreGitHubInstallation: Equatable, Identifiable, Sendable {
     let accountType: String
     /// "all" or "selected".
     let repositorySelection: String
-    /// Where the account's owner changes which repositories the app reaches.
+    /// Where the account's owner changes which repositories the app reaches
+    /// and accepts new permissions.
     let htmlURL: URL?
+    /// Permissions Runnir needs that the installation has not granted, such
+    /// as "actions: write".
+    var missingPermissions: [String] = []
+    var suspended = false
 }
 
 /// A github.com repository the signed-in user's token reaches.

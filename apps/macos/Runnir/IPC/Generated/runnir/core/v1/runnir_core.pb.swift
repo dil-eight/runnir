@@ -159,6 +159,12 @@ nonisolated enum Runnir_Core_V1_GithubAccess: SwiftProtobuf.Enum, Swift.CaseIter
   case notVisible // = 5
   case rateLimited // = 6
   case unavailable // = 7
+
+  /// The app is installed, but GitHub says it or the user lacks a permission
+  /// for this ("Resource not accessible by integration"): the installation
+  /// has not accepted permissions the app now asks for, or the user cannot
+  /// write to the repository.
+  case permissionMissing // = 8
   case UNRECOGNIZED(Int)
 
   init() {
@@ -175,6 +181,7 @@ nonisolated enum Runnir_Core_V1_GithubAccess: SwiftProtobuf.Enum, Swift.CaseIter
     case 5: self = .notVisible
     case 6: self = .rateLimited
     case 7: self = .unavailable
+    case 8: self = .permissionMissing
     default: self = .UNRECOGNIZED(rawValue)
     }
   }
@@ -189,6 +196,7 @@ nonisolated enum Runnir_Core_V1_GithubAccess: SwiftProtobuf.Enum, Swift.CaseIter
     case .notVisible: return 5
     case .rateLimited: return 6
     case .unavailable: return 7
+    case .permissionMissing: return 8
     case .UNRECOGNIZED(let i): return i
     }
   }
@@ -203,6 +211,7 @@ nonisolated enum Runnir_Core_V1_GithubAccess: SwiftProtobuf.Enum, Swift.CaseIter
     .notVisible,
     .rateLimited,
     .unavailable,
+    .permissionMissing,
   ]
 
 }
@@ -1095,11 +1104,25 @@ nonisolated struct Runnir_Core_V1_GetGitHubRepositoryResponse: Sendable {
 
   var htmlURL: String = String()
 
+  /// The signed-in user can push, so can start, cancel and re-run workflows.
+  var canPush: Bool = false
+
+  /// The installation of the repository's owner, when the user can see it.
+  var installation: Runnir_Core_V1_GitHubInstallation {
+    get {_installation ?? Runnir_Core_V1_GitHubInstallation()}
+    set {_installation = newValue}
+  }
+  /// Returns true if `installation` has been explicitly set.
+  var hasInstallation: Bool {self._installation != nil}
+  /// Clears the value of `installation`. Subsequent reads from it will return its default value.
+  mutating func clearInstallation() {self._installation = nil}
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
 
   fileprivate var _status: Runnir_Core_V1_GitHubStatus? = nil
+  fileprivate var _installation: Runnir_Core_V1_GitHubInstallation? = nil
 }
 
 nonisolated struct Runnir_Core_V1_ListGitHubWorkflowsRequest: Sendable {
@@ -1176,8 +1199,16 @@ nonisolated struct Runnir_Core_V1_GitHubInstallation: Sendable {
   /// account or only chosen ones.
   var repositorySelection: String = String()
 
-  /// Where the account's owner changes which repositories the app reaches.
+  /// Where the account's owner changes which repositories the app reaches
+  /// and accepts new permissions.
   var htmlURL: String = String()
+
+  /// Permissions Runnir needs that the installation has not granted, such as
+  /// "actions: write": the app asks for them and an owner has not accepted.
+  var missingPermissions: [String] = []
+
+  /// GitHub suspended the installation; it reaches no repository.
+  var suspended: Bool = false
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -2628,7 +2659,7 @@ nonisolated extension Runnir_Core_V1_CoreEventType: SwiftProtobuf._ProtoNameProv
 }
 
 nonisolated extension Runnir_Core_V1_GithubAccess: SwiftProtobuf._ProtoNameProviding {
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0GITHUB_ACCESS_UNSPECIFIED\0\u{1}GITHUB_ACCESS_OK\0\u{1}GITHUB_ACCESS_NO_REMOTE\0\u{1}GITHUB_ACCESS_SIGNED_OUT\0\u{1}GITHUB_ACCESS_TOKEN_REJECTED\0\u{1}GITHUB_ACCESS_NOT_VISIBLE\0\u{1}GITHUB_ACCESS_RATE_LIMITED\0\u{1}GITHUB_ACCESS_UNAVAILABLE\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0GITHUB_ACCESS_UNSPECIFIED\0\u{1}GITHUB_ACCESS_OK\0\u{1}GITHUB_ACCESS_NO_REMOTE\0\u{1}GITHUB_ACCESS_SIGNED_OUT\0\u{1}GITHUB_ACCESS_TOKEN_REJECTED\0\u{1}GITHUB_ACCESS_NOT_VISIBLE\0\u{1}GITHUB_ACCESS_RATE_LIMITED\0\u{1}GITHUB_ACCESS_UNAVAILABLE\0\u{1}GITHUB_ACCESS_PERMISSION_MISSING\0")
 }
 
 nonisolated extension Runnir_Core_V1_DispatchInputType: SwiftProtobuf._ProtoNameProviding {
@@ -3591,7 +3622,7 @@ nonisolated extension Runnir_Core_V1_GetGitHubRepositoryRequest: SwiftProtobuf.M
 
 nonisolated extension Runnir_Core_V1_GetGitHubRepositoryResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".GetGitHubRepositoryResponse"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{3}full_name\0\u{1}visibility\0\u{3}default_branch\0\u{3}html_url\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{3}full_name\0\u{1}visibility\0\u{3}default_branch\0\u{3}html_url\0\u{3}can_push\0\u{1}installation\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3604,6 +3635,8 @@ nonisolated extension Runnir_Core_V1_GetGitHubRepositoryResponse: SwiftProtobuf.
       case 3: try { try decoder.decodeSingularStringField(value: &self.visibility) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.defaultBranch) }()
       case 5: try { try decoder.decodeSingularStringField(value: &self.htmlURL) }()
+      case 6: try { try decoder.decodeSingularBoolField(value: &self.canPush) }()
+      case 7: try { try decoder.decodeSingularMessageField(value: &self._installation) }()
       default: break
       }
     }
@@ -3629,6 +3662,12 @@ nonisolated extension Runnir_Core_V1_GetGitHubRepositoryResponse: SwiftProtobuf.
     if !self.htmlURL.isEmpty {
       try visitor.visitSingularStringField(value: self.htmlURL, fieldNumber: 5)
     }
+    if self.canPush != false {
+      try visitor.visitSingularBoolField(value: self.canPush, fieldNumber: 6)
+    }
+    try { if let v = self._installation {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 7)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3638,6 +3677,8 @@ nonisolated extension Runnir_Core_V1_GetGitHubRepositoryResponse: SwiftProtobuf.
     if lhs.visibility != rhs.visibility {return false}
     if lhs.defaultBranch != rhs.defaultBranch {return false}
     if lhs.htmlURL != rhs.htmlURL {return false}
+    if lhs.canPush != rhs.canPush {return false}
+    if lhs._installation != rhs._installation {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3748,7 +3789,7 @@ nonisolated extension Runnir_Core_V1_ListGitHubRepositoriesResponse: SwiftProtob
 
 nonisolated extension Runnir_Core_V1_GitHubInstallation: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".GitHubInstallation"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}account\0\u{3}account_type\0\u{3}repository_selection\0\u{3}html_url\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}account\0\u{3}account_type\0\u{3}repository_selection\0\u{3}html_url\0\u{3}missing_permissions\0\u{1}suspended\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3761,6 +3802,8 @@ nonisolated extension Runnir_Core_V1_GitHubInstallation: SwiftProtobuf.Message, 
       case 3: try { try decoder.decodeSingularStringField(value: &self.accountType) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.repositorySelection) }()
       case 5: try { try decoder.decodeSingularStringField(value: &self.htmlURL) }()
+      case 6: try { try decoder.decodeRepeatedStringField(value: &self.missingPermissions) }()
+      case 7: try { try decoder.decodeSingularBoolField(value: &self.suspended) }()
       default: break
       }
     }
@@ -3782,6 +3825,12 @@ nonisolated extension Runnir_Core_V1_GitHubInstallation: SwiftProtobuf.Message, 
     if !self.htmlURL.isEmpty {
       try visitor.visitSingularStringField(value: self.htmlURL, fieldNumber: 5)
     }
+    if !self.missingPermissions.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.missingPermissions, fieldNumber: 6)
+    }
+    if self.suspended != false {
+      try visitor.visitSingularBoolField(value: self.suspended, fieldNumber: 7)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3791,6 +3840,8 @@ nonisolated extension Runnir_Core_V1_GitHubInstallation: SwiftProtobuf.Message, 
     if lhs.accountType != rhs.accountType {return false}
     if lhs.repositorySelection != rhs.repositorySelection {return false}
     if lhs.htmlURL != rhs.htmlURL {return false}
+    if lhs.missingPermissions != rhs.missingPermissions {return false}
+    if lhs.suspended != rhs.suspended {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

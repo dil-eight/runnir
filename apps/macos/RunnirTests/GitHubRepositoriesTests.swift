@@ -107,7 +107,8 @@ struct GitHubRepositoriesTests {
         await model.load(hub: hub, login: "me")
         #expect(model.repositories.count == 1 && model.access == .rateLimited(until: nil))
         #expect(model.needsReload(for: "me"))
-        #expect(GitHubRepositoriesView.describe(.rateLimited(until: nil), hasList: true).hasSuffix("The list shows what was read last."))
+        #expect(GitHubRepositoriesView.listHelp(.rateLimited(until: nil))?.message.hasPrefix("What is shown is from the last read.") == true)
+        #expect(GitHubRepositoriesView.listHelp(.permissionMissing)?.fix == .giveAccess(GitHubAccessHelp.installationURL))
 
         provider.core.accountResult = .failed(.signedOut)
         await model.load(hub: hub, login: "me")

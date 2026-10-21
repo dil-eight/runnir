@@ -119,3 +119,46 @@ func TestAnUnauthorizedTokenFailsTheList(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestInstallationsSayWhichPermissionsWaitForAnOwner(t *testing.T) {
+	client, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/user/installations":
+			_, _ = w.Write([]byte(`{"total_count":3,"installations":[
+				{"id":1,"account":{"login":"Current","type":"Organization"},"permissions":{"actions":"write","contents":"write","metadata":"read"}},
+				{"id":2,"account":{"login":"behind","type":"User"},"permissions":{"actions":"read","metadata":"read"}},
+				{"id":3,"account":{"login":"paused","type":"Organization"},"permissions":{"actions":"write","contents":"read","metadata":"read"},"suspended_at":"2026-10-01T00:00:00Z"}]}`))
+		case "/user/installations/1/repositories":
+			_, _ = w.Write([]byte(`{"total_count":1,"repositories":[{"full_name":"Current/r","name":"r","owner":{"login":"Current"}}]}`))
+		case "/user/installations/2/repositories":
+			_, _ = w.Write([]byte(`{"total_count":0,"repositories":[]}`))
+		default:
+			t.Errorf("unexpected %s", r.URL)
+		}
+	})
+	installations, total, err := client.Installations(context.Background())
+	if err != nil || total != 3 || len(installations) != 3 {
+		t.Fatalf("installations = %+v, %d, %v", installations, total, err)
+	}
+	if len(installations[0].MissingPermissions) != 0 || installations[0].Suspended {
+		t.Fatalf("current = %+v", installations[0])
+	}
+	if strings.Join(installations[1].MissingPermissions, ",") != "actions: write,contents: read" {
+		t.Fatalf("behind = %+v", installations[1])
+	}
+	if !installations[2].Suspended {
+		t.Fatalf("paused = %+v", installations[2])
+	}
+	found, ok, err := client.InstallationFor(context.Background(), "current")
+	if err != nil || !ok || found.ID != 1 {
+		t.Fatalf("for current = %+v, %v, %v", found, ok, err)
+	}
+	if _, ok, _ := client.InstallationFor(context.Background(), "nobody"); ok {
+		t.Fatal("found an installation for nobody")
+	}
+	// A suspended installation's repositories are not read.
+	account, err := client.AccountRepositories(context.Background())
+	if err != nil || len(account.Installations) != 3 || len(account.Repositories) != 1 {
+		t.Fatalf("account = %+v, %v", account, err)
+	}
+}

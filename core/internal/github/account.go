@@ -20,6 +20,76 @@ type Installation struct {
 	AccountType         string
 	RepositorySelection string
 	HTMLURL             string
+	// Permissions Runnir needs that the installation has not granted, as
+	// "name: level", sorted.
+	MissingPermissions []string
+	Suspended          bool
+}
+
+// RequiredPermissions are the repository permissions Runnir Desktop asks
+// for (docs/security/github-authentication.md). An installation granted less
+// has not accepted an update of the app's permissions.
+var RequiredPermissions = map[string]string{"actions": "write", "contents": "read", "metadata": "read"}
+
+// missingPermissions lists what granted lacks of RequiredPermissions; write
+// covers read, and admin covers both.
+func missingPermissions(granted map[string]string) []string {
+	rank := map[string]int{"read": 1, "write": 2, "admin": 3}
+	var missing []string
+	for name, level := range RequiredPermissions {
+		if rank[granted[name]] < rank[level] {
+			missing = append(missing, name+": "+level)
+		}
+	}
+	sort.Strings(missing)
+	return missing
+}
+
+type installationJSON struct {
+	ID      int64 `json:"id"`
+	Account struct {
+		Login string `json:"login"`
+		Type  string `json:"type"`
+	} `json:"account"`
+	RepositorySelection string            `json:"repository_selection"`
+	HTMLURL             string            `json:"html_url"`
+	Permissions         map[string]string `json:"permissions"`
+	SuspendedAt         *time.Time        `json:"suspended_at"`
+}
+
+// Installations lists the installations of the app the user can see, up to
+// 100, and how many there are.
+func (c *Client) Installations(ctx context.Context) ([]Installation, int, error) {
+	var body struct {
+		TotalCount    int                `json:"total_count"`
+		Installations []installationJSON `json:"installations"`
+	}
+	if err := c.get(ctx, "/user/installations", url.Values{"per_page": {strconv.Itoa(maxInstallations)}}, &body); err != nil {
+		return nil, 0, err
+	}
+	installations := make([]Installation, 0, len(body.Installations))
+	for _, i := range body.Installations {
+		installations = append(installations, Installation{
+			ID: i.ID, Account: i.Account.Login, AccountType: i.Account.Type, RepositorySelection: i.RepositorySelection,
+			HTMLURL: i.HTMLURL, MissingPermissions: missingPermissions(i.Permissions), Suspended: i.SuspendedAt != nil,
+		})
+	}
+	return installations, body.TotalCount, nil
+}
+
+// InstallationFor finds the installation of an account (an owner of
+// repositories), ignoring case; false when the user cannot see one.
+func (c *Client) InstallationFor(ctx context.Context, account string) (Installation, bool, error) {
+	installations, _, err := c.Installations(ctx)
+	if err != nil {
+		return Installation{}, false, err
+	}
+	for _, installation := range installations {
+		if strings.EqualFold(installation.Account, account) {
+			return installation, true, nil
+		}
+	}
+	return Installation{}, false, nil
 }
 
 // AccountRepository is a repository the user's token reaches.
@@ -58,29 +128,16 @@ const (
 // installation whose repositories GitHub refuses (suspended, say) is listed
 // without them instead of failing the rest.
 func (c *Client) AccountRepositories(ctx context.Context) (AccountRepositories, error) {
-	var installations struct {
-		TotalCount    int `json:"total_count"`
-		Installations []struct {
-			ID      int64 `json:"id"`
-			Account struct {
-				Login string `json:"login"`
-				Type  string `json:"type"`
-			} `json:"account"`
-			RepositorySelection string `json:"repository_selection"`
-			HTMLURL             string `json:"html_url"`
-		} `json:"installations"`
-	}
-	if err := c.get(ctx, "/user/installations", url.Values{"per_page": {strconv.Itoa(maxInstallations)}}, &installations); err != nil {
+	installations, total, err := c.Installations(ctx)
+	if err != nil {
 		return AccountRepositories{}, err
 	}
-	var out AccountRepositories
-	out.Truncated = installations.TotalCount > len(installations.Installations)
+	out := AccountRepositories{Installations: installations, Truncated: total > len(installations)}
 	seen := map[string]bool{}
-	for _, installation := range installations.Installations {
-		out.Installations = append(out.Installations, Installation{
-			ID: installation.ID, Account: installation.Account.Login, AccountType: installation.Account.Type,
-			RepositorySelection: installation.RepositorySelection, HTMLURL: installation.HTMLURL,
-		})
+	for _, installation := range installations {
+		if installation.Suspended {
+			continue
+		}
 	installationRepositories:
 		for page := 1; ; page++ {
 			if len(out.Repositories) >= maxAccountRepositories {

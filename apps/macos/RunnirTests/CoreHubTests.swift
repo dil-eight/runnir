@@ -84,11 +84,13 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     }
     var repositoryResult = CoreGitHubRepository(access: .ok, fullName: "o/r", visibility: "private", defaultBranch: "main",
                                                 htmlURL: URL(string: "https://github.com/o/r"))
-    func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository { lock.withLock { repositoryResult } }
+    func gitHubRepository(target: CoreGitHubTarget) async throws -> CoreGitHubRepository { lock.withLock { repositoryResult } }
     private var _confirmed: [String] = []
     var confirmed: [String] { lock.withLock { _confirmed } }
     var dispatchDefinition = CoreDispatchDefinition(access: .ok, dispatchable: true, inputs: [], parseError: nil)
     var preparedProblems: [String] = []
+    /// What GitHub answers a prepared dispatch with, when not `.ok`.
+    var preparedAccess: CoreGitHubAccess = .ok
     private var _dispatchTargets: [String] = []
     /// Targets of refs, describe and prepare calls, in order.
     var dispatchTargets: [String] { lock.withLock { _dispatchTargets } }
@@ -106,6 +108,9 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     func prepareWorkflowDispatch(target: CoreGitHubTarget, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch {
         lock.withLock {
             _dispatchTargets.append(Self.key(target))
+            if preparedAccess != .ok {
+                return CorePreparedDispatch(access: preparedAccess, dispatchID: nil, expiresAt: nil, problems: [], workflowPath: "")
+            }
             return preparedProblems.isEmpty
                 ? CorePreparedDispatch(access: .ok, dispatchID: "dispatch_1", expiresAt: Date().addingTimeInterval(120), problems: [], workflowPath: ".github/workflows/ci.yml")
                 : CorePreparedDispatch(access: .ok, dispatchID: nil, expiresAt: nil, problems: preparedProblems, workflowPath: ".github/workflows/ci.yml")

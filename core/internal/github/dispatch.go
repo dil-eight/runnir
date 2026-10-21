@@ -25,6 +25,8 @@ type Repository struct {
 	Visibility    string
 	DefaultBranch string
 	HTMLURL       string
+	// The signed-in user can push to it.
+	CanPush bool
 }
 
 // Repository reads one repository; NOT_VISIBLE when the token cannot see it.
@@ -35,6 +37,9 @@ func (c *Client) Repository(ctx context.Context, owner, name string) (Repository
 		Private       bool   `json:"private"`
 		DefaultBranch string `json:"default_branch"`
 		HTMLURL       string `json:"html_url"`
+		Permissions   struct {
+			Push bool `json:"push"`
+		} `json:"permissions"`
 	}
 	if err := c.get(ctx, repoPath(owner, name, ""), nil, &body); err != nil {
 		return Repository{}, err
@@ -46,7 +51,8 @@ func (c *Client) Repository(ctx context.Context, owner, name string) (Repository
 			visibility = "private"
 		}
 	}
-	return Repository{FullName: body.FullName, Visibility: visibility, DefaultBranch: body.DefaultBranch, HTMLURL: body.HTMLURL}, nil
+	return Repository{FullName: body.FullName, Visibility: visibility, DefaultBranch: body.DefaultBranch, HTMLURL: body.HTMLURL,
+		CanPush: body.Permissions.Push}, nil
 }
 
 // Refs lists up to 300 branches and 100 tags, plus the default branch.

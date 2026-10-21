@@ -199,10 +199,7 @@ struct GRPCCoreService: CoreServicing {
         let response = try await call { try await client.listGitHubRepositories(.init(), options: options) }
         return CoreGitHubAccount(
             access: Self.map(response.status),
-            installations: response.installations.map {
-                CoreGitHubInstallation(id: $0.id, account: $0.account, accountType: $0.accountType,
-                                       repositorySelection: $0.repositorySelection, htmlURL: URL(string: $0.htmlURL))
-            },
+            installations: response.installations.map(Self.map),
             repositories: response.repositories.map {
                 CoreGitHubAccountRepository(fullName: $0.fullName, owner: $0.owner, name: $0.name, description: $0.description_p,
                                             visibility: $0.visibility, defaultBranch: $0.defaultBranch, htmlURL: URL(string: $0.htmlURL),
@@ -226,12 +223,24 @@ struct GRPCCoreService: CoreServicing {
         })
     }
 
-    func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository {
+    func gitHubRepository(target: CoreGitHubTarget) async throws -> CoreGitHubRepository {
         let response = try await call {
-            try await client.getGitHubRepository(.with { $0.repositoryID = repositoryID }, options: Self.options(Self.callTimeout))
+            try await client.getGitHubRepository(.with {
+                switch target {
+                case .repository(let id): $0.repositoryID = id
+                case .named(let name): $0.githubRepository = name
+                }
+            }, options: Self.options(Self.callTimeout))
         }
         return CoreGitHubRepository(access: Self.map(response.status), fullName: response.fullName, visibility: response.visibility,
-                                    defaultBranch: response.defaultBranch, htmlURL: URL(string: response.htmlURL))
+                                    defaultBranch: response.defaultBranch, htmlURL: URL(string: response.htmlURL),
+                                    canPush: response.canPush, installation: response.hasInstallation ? Self.map(response.installation) : nil)
+    }
+
+    static func map(_ installation: Runnir_Core_V1_GitHubInstallation) -> CoreGitHubInstallation {
+        CoreGitHubInstallation(id: installation.id, account: installation.account, accountType: installation.accountType,
+                               repositorySelection: installation.repositorySelection, htmlURL: URL(string: installation.htmlURL),
+                               missingPermissions: installation.missingPermissions, suspended: installation.suspended)
     }
 
     func listWorkflowRuns(target: CoreGitHubTarget, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> {
@@ -569,6 +578,7 @@ struct GRPCCoreService: CoreServicing {
         case .signedOut: .signedOut
         case .tokenRejected: .tokenRejected
         case .notVisible: .notVisible
+        case .permissionMissing: .permissionMissing
         case .rateLimited: .rateLimited(until: status.hasRetryAfter ? status.retryAfter.date : nil)
         default: .unavailable
         }
