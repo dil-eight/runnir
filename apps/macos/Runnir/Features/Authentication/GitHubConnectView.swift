@@ -348,10 +348,14 @@ struct GitHubAccountSettings: View {
                         .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 } else {
                     Text("Signed in as \(user.login)")
-                    HStack {
-                        Button("Sign Out") { Task { await session.signOut() } }
-                        Button("Manage Repository Access...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
-                        Button("Manage Authorization on GitHub...") { openURL(GitHubSession.authorizationsURL) }
+                    // Settings is 600 points wide: the three buttons wrap
+                    // rather than cut the last title short.
+                    ViewThatFits(in: .horizontal) {
+                        HStack { signOut; manageAccess; manageAuthorization }
+                        VStack(alignment: .leading) {
+                            HStack { signOut; manageAccess }
+                            manageAuthorization
+                        }
                     }
                     Text("Runnir sees only repositories where the Runnir Desktop app is installed. Manage Repository Access adds or removes them on GitHub.")
                         .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
@@ -361,11 +365,29 @@ struct GitHubAccountSettings: View {
             case .offline:
                 Text("Signed in; GitHub is unreachable right now.")
                 Button("Sign Out") { Task { await session.signOut() } }
+            case .restoring:
+                // The Keychain may be asking whether Runnir can read the sign-in.
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Checking the saved sign-in...").foregroundStyle(RunnirTheme.secondaryForeground)
+                }
             default:
                 Text("Not connected").foregroundStyle(RunnirTheme.secondaryForeground)
                 Button("Connect GitHub...") { showingConnect = true }
             }
         }
         .sheet(isPresented: $showingConnect) { GitHubConnectView(session: session) }
+    }
+
+    private var signOut: some View {
+        Button("Sign Out") { Task { await session.signOut() } }
+    }
+
+    private var manageAccess: some View {
+        Button("Manage Repository Access...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
+    }
+
+    private var manageAuthorization: some View {
+        Button("Manage Authorization on GitHub...") { openURL(GitHubSession.authorizationsURL) }
     }
 }

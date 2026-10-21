@@ -378,8 +378,11 @@ struct PullRequestsWindowView: View {
             HStack {
                 Text("Pull Requests").font(.system(size: 15, weight: .semibold))
                 if let loaded = model.loadedAt {
-                    Text("updated \(loaded.formatted(.relative(presentation: .named)))")
-                        .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                    // Ticks while the window stays open, not only when the list is read.
+                    TimelineView(.periodic(from: .now, by: 15)) { _ in
+                        Text("updated \(loaded.formatted(.relative(presentation: .named)))")
+                    }
+                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
                 Spacer()
                 if let hub = desktop.core {
