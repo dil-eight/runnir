@@ -31,8 +31,9 @@ type service struct {
 	repositories *repository.Manager
 	events       *events.Bus
 	executions   *execution.Coordinator
-	credential   *github.Credential
-	github       *github.Client
+	// accounts holds github.com and the Enterprise servers, each with its
+	// own token and client.
+	accounts     *github.Accounts
 	dispatches   *dispatch.Store
 	runActions   *approval.Store[runAction]
 	tools        toolChecker
@@ -61,23 +62,36 @@ func (s *service) HealthCheck(context.Context, *corev1.HealthCheckRequest) (*cor
 	}, nil
 }
 
+// hasCredential reports github.com's token, as before Enterprise servers.
 func (s *service) hasCredential() bool {
-	if s.credential == nil {
-		return false
-	}
-	_, ok := s.credential.Token()
+	dotcom, _ := s.accounts.Get("")
+	_, ok := dotcom.Credential.Token()
 	return ok
 }
 
-func (s *service) SetGitHubCredential(_ context.Context, request *corev1.SetGitHubCredentialRequest) (*corev1.SetGitHubCredentialResponse, error) {
-	if err := s.credential.Set(request.GetToken()); err != nil {
-		return nil, status.Error(codes.InvalidArgument, "not a valid GitHub token")
+// serverFrom reads a request's server; nil or an empty id is github.com.
+func serverFrom(message *corev1.GithubServer) github.Server {
+	if message.GetId() == "" {
+		return github.Server{}
 	}
-	return &corev1.SetGitHubCredentialResponse{Kind: credentialKind(s.credential.Kind())}, nil
+	return github.Server{ID: message.GetId(), APIURL: message.GetApiUrl(), WebHost: message.GetWebHost()}
 }
 
-func (s *service) ClearGitHubCredential(context.Context, *corev1.ClearGitHubCredentialRequest) (*corev1.ClearGitHubCredentialResponse, error) {
-	s.credential.Clear()
+func (s *service) SetGitHubCredential(_ context.Context, request *corev1.SetGitHubCredentialRequest) (*corev1.SetGitHubCredentialResponse, error) {
+	account, err := s.accounts.Set(serverFrom(request.GetServer()), request.GetToken())
+	switch {
+	case errors.Is(err, github.ErrInvalidServer):
+		return nil, status.Error(codes.InvalidArgument, "not a valid GitHub server")
+	case errors.Is(err, github.ErrTooManyServers):
+		return nil, status.Errorf(codes.ResourceExhausted, "at most %d Enterprise servers", github.MaxEnterpriseServers)
+	case err != nil:
+		return nil, status.Error(codes.InvalidArgument, "not a valid GitHub token")
+	}
+	return &corev1.SetGitHubCredentialResponse{Kind: credentialKind(account.Credential.Kind())}, nil
+}
+
+func (s *service) ClearGitHubCredential(_ context.Context, request *corev1.ClearGitHubCredentialRequest) (*corev1.ClearGitHubCredentialResponse, error) {
+	s.accounts.Clear(request.GetServerId())
 	return &corev1.ClearGitHubCredentialResponse{}, nil
 }
 
@@ -239,8 +253,9 @@ func (s *service) repositoryMessage(info repository.Info) *corev1.Repository {
 		Id: info.ID, Path: info.Path, Branch: info.Branch, WorkflowCount: uint32(info.WorkflowCount),
 		OriginHost: info.OriginHost,
 	}
-	if info.OriginHost == github.DotComHost {
+	if account, ok := s.accounts.ForHost(info.OriginHost); ok && info.OriginRepository != "" {
 		out.GithubRepository = info.OriginRepository
+		out.GithubServerId = account.Server.ID
 	}
 	if !info.LastRefresh.IsZero() {
 		out.LastRefresh = timestamppb.New(info.LastRefresh)

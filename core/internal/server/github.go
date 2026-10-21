@@ -15,33 +15,46 @@ import (
 	"runnir/core/internal/scanner"
 )
 
-// githubTarget resolves a request's repository to its github.com owner and
-// name: githubRepository ("owner/name") when set, for a repository without a
-// local clone, otherwise the origin of the open repository repositoryID. A
-// missing remote is a status, not an error; an unknown id is NOT_FOUND and a
-// malformed name INVALID_ARGUMENT.
-func (s *service) githubTarget(repositoryID, githubRepository string) (owner, name string, problem *corev1.GitHubStatus, err error) {
+// githubRepo is a repository on one server, with that server's account.
+type githubRepo struct {
+	account     *github.Account
+	owner, name string
+}
+
+// githubTarget resolves a request's repository: githubRepository
+// ("owner/name") on serverID ("" is github.com) for a repository without a
+// local clone, otherwise the origin of the open repository repositoryID on
+// the server whose web host it names. An unknown server is SIGNED_OUT and
+// an origin on no known server NO_REMOTE, both statuses; an unknown
+// repository id is NOT_FOUND and a malformed name INVALID_ARGUMENT.
+func (s *service) githubTarget(repositoryID, serverID, githubRepository string) (githubRepo, *corev1.GitHubStatus, error) {
 	if githubRepository != "" {
 		if !github.ValidRepository(githubRepository) {
-			return "", "", nil, status.Error(codes.InvalidArgument, "github_repository must be owner/name")
+			return githubRepo{}, nil, status.Error(codes.InvalidArgument, "github_repository must be owner/name")
 		}
-		owner, name, _ = strings.Cut(githubRepository, "/")
-		return owner, name, nil, nil
+		account, ok := s.accounts.Get(serverID)
+		if !ok {
+			return githubRepo{}, &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_SIGNED_OUT}, nil
+		}
+		owner, name, _ := strings.Cut(githubRepository, "/")
+		return githubRepo{account: account, owner: owner, name: name}, nil, nil
 	}
 	info, err := s.repositories.Get(repositoryID)
 	if err != nil {
-		return "", "", nil, rpcError(err)
+		return githubRepo{}, nil, rpcError(err)
 	}
 	owner, name, ok := strings.Cut(info.OriginRepository, "/")
-	if !ok || owner == "" || name == "" || info.OriginHost != github.DotComHost {
-		return "", "", &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_NO_REMOTE}, nil
+	account, known := s.accounts.ForHost(info.OriginHost)
+	if !ok || owner == "" || name == "" || !known {
+		return githubRepo{}, &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_NO_REMOTE}, nil
 	}
-	return owner, name, nil, nil
+	return githubRepo{account: account, owner: owner, name: name}, nil, nil
 }
 
 // githubStatus maps a client error to the status returned to the app, and
-// forgets a token GitHub rejected. Context errors stay call errors.
-func (s *service) githubStatus(err error) (*corev1.GitHubStatus, error) {
+// forgets the token of the account GitHub rejected. Context errors stay
+// call errors.
+func (s *service) githubStatus(account *github.Account, err error) (*corev1.GitHubStatus, error) {
 	var rateLimit *github.RateLimitError
 	switch {
 	case err == nil:
@@ -51,7 +64,7 @@ func (s *service) githubStatus(err error) (*corev1.GitHubStatus, error) {
 	case errors.Is(err, github.ErrNoCredential):
 		return &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_SIGNED_OUT}, nil
 	case errors.Is(err, github.ErrUnauthorized):
-		s.credential.Clear()
+		account.Credential.Clear()
 		return &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_TOKEN_REJECTED}, nil
 	case errors.Is(err, github.ErrNotVisible):
 		return &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_NOT_VISIBLE}, nil
@@ -65,18 +78,22 @@ func (s *service) githubStatus(err error) (*corev1.GitHubStatus, error) {
 }
 
 // ListGitHubRepositories lists the repositories the user's token reaches.
-func (s *service) ListGitHubRepositories(ctx context.Context, _ *corev1.ListGitHubRepositoriesRequest) (*corev1.ListGitHubRepositoriesResponse, error) {
-	account, fetchErr := s.github.AccountRepositories(ctx)
-	result, err := s.githubStatus(fetchErr)
+func (s *service) ListGitHubRepositories(ctx context.Context, request *corev1.ListGitHubRepositoriesRequest) (*corev1.ListGitHubRepositoriesResponse, error) {
+	account, ok := s.accounts.Get(request.GetGithubServer())
+	if !ok {
+		return &corev1.ListGitHubRepositoriesResponse{Status: &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_SIGNED_OUT}}, nil
+	}
+	listing, fetchErr := account.Client.AccountRepositories(ctx)
+	result, err := s.githubStatus(account, fetchErr)
 	if err != nil {
 		return nil, err
 	}
-	out := &corev1.ListGitHubRepositoriesResponse{Status: result, Truncated: account.Truncated,
-		CredentialKind: credentialKind(s.credential.Kind())}
-	for _, i := range account.Installations {
+	out := &corev1.ListGitHubRepositoriesResponse{Status: result, Truncated: listing.Truncated,
+		CredentialKind: credentialKind(account.Credential.Kind())}
+	for _, i := range listing.Installations {
 		out.Installations = append(out.Installations, installationMessage(i))
 	}
-	for _, r := range account.Repositories {
+	for _, r := range listing.Repositories {
 		out.Repositories = append(out.Repositories, &corev1.GitHubAccountRepository{
 			FullName: r.FullName, Owner: r.Owner, Name: r.Name, Description: r.Description, Visibility: r.Visibility,
 			DefaultBranch: r.DefaultBranch, HtmlUrl: r.HTMLURL, PushedAt: timestamp(r.PushedAt),
@@ -87,12 +104,12 @@ func (s *service) ListGitHubRepositories(ctx context.Context, _ *corev1.ListGitH
 }
 
 func (s *service) ListGitHubWorkflows(ctx context.Context, request *corev1.ListGitHubWorkflowsRequest) (*corev1.ListGitHubWorkflowsResponse, error) {
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubRepository())
+	target, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubServer(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.ListGitHubWorkflowsResponse{Status: problem}, err
 	}
-	workflows, fetchErr := s.github.Workflows(ctx, owner, name)
-	result, err := s.githubStatus(fetchErr)
+	workflows, fetchErr := target.account.Client.Workflows(ctx, target.owner, target.name)
+	result, err := s.githubStatus(target.account, fetchErr)
 	if err != nil {
 		return nil, err
 	}
@@ -104,12 +121,12 @@ func (s *service) ListGitHubWorkflows(ctx context.Context, request *corev1.ListG
 }
 
 func (s *service) GetGitHubRepository(ctx context.Context, request *corev1.GetGitHubRepositoryRequest) (*corev1.GetGitHubRepositoryResponse, error) {
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubRepository())
+	target, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubServer(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.GetGitHubRepositoryResponse{Status: problem}, err
 	}
-	repository, fetchErr := s.github.Repository(ctx, owner, name)
-	result, err := s.githubStatus(fetchErr)
+	repository, fetchErr := target.account.Client.Repository(ctx, target.owner, target.name)
+	result, err := s.githubStatus(target.account, fetchErr)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +136,7 @@ func (s *service) GetGitHubRepository(ctx context.Context, request *corev1.GetGi
 	}
 	// The owner's installation says whether permissions wait for an owner
 	// to accept them; a failed lookup leaves it out.
-	if installation, found, err := s.github.InstallationFor(ctx, owner); err == nil && found {
+	if installation, found, err := target.account.Client.InstallationFor(ctx, target.owner); err == nil && found {
 		out.Installation = installationMessage(installation)
 	}
 	return out, nil
@@ -136,12 +153,12 @@ func (s *service) ListWorkflowRuns(ctx context.Context, request *corev1.ListWork
 	if request.GetLimit() > 100 {
 		return nil, status.Error(codes.InvalidArgument, "limit must be 100 or less")
 	}
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubRepository())
+	target, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubServer(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.ListWorkflowRunsResponse{Status: problem}, err
 	}
-	runs, fetchErr := s.github.Runs(ctx, owner, name, request.GetBranch(), int(request.GetLimit()))
-	result, err := s.githubStatus(fetchErr)
+	runs, fetchErr := target.account.Client.Runs(ctx, target.owner, target.name, request.GetBranch(), int(request.GetLimit()))
+	result, err := s.githubStatus(target.account, fetchErr)
 	if err != nil {
 		return nil, err
 	}
@@ -156,12 +173,12 @@ func (s *service) ListRunJobs(ctx context.Context, request *corev1.ListRunJobsRe
 	if request.GetRunId() <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "run_id is required")
 	}
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubRepository())
+	target, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubServer(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.ListRunJobsResponse{Status: problem}, err
 	}
-	jobs, fetchErr := s.github.Jobs(ctx, owner, name, request.GetRunId())
-	result, err := s.githubStatus(fetchErr)
+	jobs, fetchErr := target.account.Client.Jobs(ctx, target.owner, target.name, request.GetRunId())
+	result, err := s.githubStatus(target.account, fetchErr)
 	if err != nil {
 		return nil, err
 	}
@@ -182,8 +199,8 @@ func (s *service) ListRunJobs(ctx context.Context, request *corev1.ListRunJobsRe
 
 const maxOriginPaths = 500
 
-// GetGitHubOrigins reads the github.com origin of each working tree without
-// opening it.
+// GetGitHubOrigins reads the origin of each working tree, on github.com or
+// an Enterprise server the Core holds, without opening it.
 func (s *service) GetGitHubOrigins(ctx context.Context, request *corev1.GetGitHubOriginsRequest) (*corev1.GetGitHubOriginsResponse, error) {
 	if len(request.GetPaths()) > maxOriginPaths {
 		return nil, status.Errorf(codes.InvalidArgument, "at most %d paths", maxOriginPaths)
@@ -196,8 +213,9 @@ func (s *service) GetGitHubOrigins(ctx context.Context, request *corev1.GetGitHu
 		if !filepath.IsAbs(path) {
 			continue
 		}
-		if host, name := scanner.Origin(filepath.Clean(path)); host == github.DotComHost && name != "" {
-			out.Origins = append(out.Origins, &corev1.GitHubOrigin{Path: path, GithubRepository: name})
+		host, name := scanner.Origin(filepath.Clean(path))
+		if account, ok := s.accounts.ForHost(host); ok && name != "" {
+			out.Origins = append(out.Origins, &corev1.GitHubOrigin{Path: path, GithubRepository: name, GithubServerId: account.Server.ID})
 		}
 	}
 	return out, nil
@@ -206,7 +224,11 @@ func (s *service) GetGitHubOrigins(ctx context.Context, request *corev1.GetGitHu
 // CheckGitHubToken reports what a token can do without holding it; the
 // token the Core holds is left as it is, even when GitHub refuses this one.
 func (s *service) CheckGitHubToken(ctx context.Context, request *corev1.CheckGitHubTokenRequest) (*corev1.CheckGitHubTokenResponse, error) {
-	check, err := s.github.CheckToken(ctx, request.GetToken())
+	checker, err := s.accounts.Checker(serverFrom(request.GetServer()))
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "not a valid GitHub server")
+	}
+	check, err := checker.CheckToken(ctx, request.GetToken())
 	var rateLimit *github.RateLimitError
 	switch {
 	case errors.Is(err, github.ErrInvalidToken):

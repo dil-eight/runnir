@@ -135,10 +135,9 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 		grpc.UnaryInterceptor(authUnary(options.ClientSecret)),
 		grpc.StreamInterceptor(authStream(options.ClientSecret)),
 	)
-	credential := &github.Credential{}
 	corev1.RegisterRunnirCoreServer(grpcServer, &service{
-		repositories: repositories, events: bus, executions: executions, credential: credential,
-		github:       github.NewClient(credential, options.GitHubBaseURL, buildinfo.Version),
+		repositories: repositories, events: bus, executions: executions,
+		accounts:     github.NewAccounts(options.GitHubBaseURL, buildinfo.Version),
 		dispatches:   dispatch.NewStore(0, nil),
 		runActions:   approval.NewStore[runAction]("action_", 0, nil),
 		tools:        checker,

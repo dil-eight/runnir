@@ -10,8 +10,8 @@ import (
 
 const maxClosedLookback = 7 * 24 * time.Hour
 
-// ListPullRequests lists the signed-in user's open pull requests with their
-// CI, and those closed recently.
+// ListPullRequests lists the signed-in user's open pull requests on one
+// server with their CI, and those closed recently.
 func (s *service) ListPullRequests(ctx context.Context, request *corev1.ListPullRequestsRequest) (*corev1.ListPullRequestsResponse, error) {
 	now := time.Now()
 	since := now.Add(-24 * time.Hour)
@@ -21,8 +21,12 @@ func (s *service) ListPullRequests(ctx context.Context, request *corev1.ListPull
 	if since.Before(now.Add(-maxClosedLookback)) {
 		since = now.Add(-maxClosedLookback)
 	}
-	pulls, fetchErr := s.github.MyPullRequests(ctx, since)
-	result, err := s.githubStatus(fetchErr)
+	account, ok := s.accounts.Get(request.GetGithubServer())
+	if !ok {
+		return &corev1.ListPullRequestsResponse{Status: &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_SIGNED_OUT}}, nil
+	}
+	pulls, fetchErr := account.Client.MyPullRequests(ctx, since)
+	result, err := s.githubStatus(account, fetchErr)
 	if err != nil {
 		return nil, err
 	}

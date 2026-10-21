@@ -16,12 +16,12 @@ import (
 )
 
 func (s *service) ListGitHubRefs(ctx context.Context, request *corev1.ListGitHubRefsRequest) (*corev1.ListGitHubRefsResponse, error) {
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubRepository())
+	target, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubServer(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.ListGitHubRefsResponse{Status: problem}, err
 	}
-	refs, fetchErr := s.github.Refs(ctx, owner, name)
-	result, err := s.githubStatus(fetchErr)
+	refs, fetchErr := target.account.Client.Refs(ctx, target.owner, target.name)
+	result, err := s.githubStatus(target.account, fetchErr)
 	if err != nil {
 		return nil, err
 	}
@@ -32,12 +32,12 @@ func (s *service) DescribeWorkflowDispatch(ctx context.Context, request *corev1.
 	if request.GetWorkflowPath() == "" || request.GetRef() == "" {
 		return nil, status.Error(codes.InvalidArgument, "workflow_path and ref are required")
 	}
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubRepository())
+	target, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubServer(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.DescribeWorkflowDispatchResponse{Status: problem}, err
 	}
-	data, fetchErr := s.github.File(ctx, owner, name, request.GetWorkflowPath(), request.GetRef())
-	result, err := s.githubStatus(fetchErr)
+	data, fetchErr := target.account.Client.File(ctx, target.owner, target.name, request.GetWorkflowPath(), request.GetRef())
+	result, err := s.githubStatus(target.account, fetchErr)
 	if err != nil {
 		return nil, err
 	}
@@ -64,18 +64,18 @@ func (s *service) PrepareWorkflowDispatch(ctx context.Context, request *corev1.P
 	if request.GetWorkflowId() <= 0 || request.GetRef() == "" {
 		return nil, status.Error(codes.InvalidArgument, "workflow_id and ref are required")
 	}
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubRepository())
+	target, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubServer(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.PrepareWorkflowDispatchResponse{Status: problem}, err
 	}
 	// Validate against the definition GitHub will run: the workflow's own file
 	// at the requested ref.
-	path, fetchErr := s.github.WorkflowPath(ctx, owner, name, request.GetWorkflowId())
+	path, fetchErr := target.account.Client.WorkflowPath(ctx, target.owner, target.name, request.GetWorkflowId())
 	var data []byte
 	if fetchErr == nil {
-		data, fetchErr = s.github.File(ctx, owner, name, path, request.GetRef())
+		data, fetchErr = target.account.Client.File(ctx, target.owner, target.name, path, request.GetRef())
 	}
-	result, err := s.githubStatus(fetchErr)
+	result, err := s.githubStatus(target.account, fetchErr)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func (s *service) PrepareWorkflowDispatch(ctx context.Context, request *corev1.P
 		repositoryID = ""
 	}
 	pending, err := s.dispatches.Prepare(dispatch.Request{
-		RepositoryID: repositoryID, Owner: owner, Name: name,
+		RepositoryID: repositoryID, ServerID: target.account.Server.ID, Owner: target.owner, Name: target.name,
 		WorkflowID: request.GetWorkflowId(), WorkflowPath: path, Ref: request.GetRef(), Inputs: request.GetInputs(),
 	})
 	if errors.Is(err, dispatch.ErrTooMany) {
@@ -123,8 +123,13 @@ func (s *service) ConfirmWorkflowDispatch(ctx context.Context, request *corev1.C
 			return nil, rpcError(err)
 		}
 	}
+	// The server it was prepared for; one removed since is signed out.
+	account, ok := s.accounts.Get(prepared.ServerID)
+	if !ok {
+		return &corev1.ConfirmWorkflowDispatchResponse{Status: &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_SIGNED_OUT}}, nil
+	}
 	sentAt := time.Now()
-	runID, sendErr := s.github.Dispatch(ctx, prepared.Owner, prepared.Name, prepared.WorkflowID, prepared.Ref, prepared.Inputs)
+	runID, sendErr := account.Client.Dispatch(ctx, prepared.Owner, prepared.Name, prepared.WorkflowID, prepared.Ref, prepared.Inputs)
 	var rejected *github.RejectedError
 	if errors.As(sendErr, &rejected) {
 		return &corev1.ConfirmWorkflowDispatchResponse{
@@ -132,7 +137,7 @@ func (s *service) ConfirmWorkflowDispatch(ctx context.Context, request *corev1.C
 			Rejection: rejected.Message,
 		}, nil
 	}
-	result, err := s.githubStatus(sendErr)
+	result, err := s.githubStatus(account, sendErr)
 	if err != nil {
 		return nil, err
 	}
