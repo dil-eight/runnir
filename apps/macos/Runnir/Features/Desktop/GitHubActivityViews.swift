@@ -58,14 +58,22 @@ struct RecentRunsList: View {
     let github: GitHubSession?
     let hub: CoreHub?
     var limit = 5
+    /// Off where the screen already says what is missing (the Overview's
+    /// GitHub card or stale banner), so the same notice is not shown twice.
+    var showsAccessNotice = true
     let open: (CoreWorkflowRun) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if let access = session.githubAccess,
                let help = GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails) {
-                GitHubAccessNotice(help: help, style: .note, github: github) {
-                    Task { await hub?.loadGitHubActivity(workspaceID: session.workspaceID) }
+                if showsAccessNotice {
+                    GitHubAccessNotice(help: help, style: .note, github: github) {
+                        Task { await hub?.loadGitHubActivity(workspaceID: session.workspaceID) }
+                    }
+                } else if session.runs.isEmpty {
+                    Text("Runs appear here once Runnir can read them from GitHub.")
+                        .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(.vertical, 6)
                 }
             }
             if session.runs.isEmpty {

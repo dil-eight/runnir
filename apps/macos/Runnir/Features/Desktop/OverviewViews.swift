@@ -317,7 +317,7 @@ struct WorkspaceOverview: View {
             }
             DesignDivider()
             if let session, session.githubRepository != nil {
-                RecentRunsList(session: session, github: github, hub: hub, limit: 5, open: openRun)
+                RecentRunsList(session: session, github: github, hub: hub, limit: 5, showsAccessNotice: false, open: openRun)
             } else {
                 UnavailableFeature(title: "No runs available", detail: "This working tree has no GitHub remote.", symbol: "play.circle")
             }
@@ -336,6 +336,12 @@ struct WorkspaceOverview: View {
                 Button("New...") { runWorkflow(nil, nil) }.buttonStyle(.link).font(.system(size: 12)).disabled(!available)
             }
             DesignDivider()
+            // Reading works, but starting waits for an owner's approval or
+            // for write access: said where workflows are started.
+            if available, let repository = session?.githubRepository,
+               let blocker = GitHubAccessHelp.blocker(for: .run, repository: repository, details: session?.githubDetails) {
+                GitHubAccessNotice(help: blocker, style: .note, github: github).padding(.vertical, 6)
+            }
             if rows.isEmpty {
                 Text(available ? "Presets you save in Run Workflow appear here." : "Running workflows needs access to the repository on GitHub.")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(.vertical, 6)

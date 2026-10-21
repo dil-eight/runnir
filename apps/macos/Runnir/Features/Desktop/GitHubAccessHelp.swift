@@ -20,7 +20,7 @@ struct GitHubAccessHelp: Equatable, Identifiable {
 
         var phrase: String {
             switch self {
-            case .read: "see its workflows and runs"
+            case .read: "see workflows and runs"
             case .run: "start workflows"
             case .change: "cancel or re-run runs"
             }
@@ -182,11 +182,23 @@ struct GitHubAccessNotice: View {
     @ViewBuilder private var content: some View {
         switch style {
         case .banner:
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: symbol).foregroundStyle(tint).padding(.top, 1)
-                text
-                Spacer(minLength: 8)
-                button
+            // The button sits beside the text where there is room, and
+            // under it in a narrow list such as Runs.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: symbol).foregroundStyle(tint).padding(.top, 1)
+                    text.frame(minWidth: 260, alignment: .leading)
+                    Spacer(minLength: 8)
+                    button
+                }
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: symbol).foregroundStyle(tint).padding(.top, 1)
+                    VStack(alignment: .leading, spacing: 8) {
+                        text
+                        button
+                    }
+                    Spacer(minLength: 0)
+                }
             }
             .buttonStyle(DesignButtonStyle())
             .padding(.horizontal, 12).padding(.vertical, 10)
