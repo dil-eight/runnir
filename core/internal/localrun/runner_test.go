@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -329,4 +330,22 @@ func sameDir(a, b string) bool {
 	ra, errA := filepath.EvalSymlinks(a)
 	rb, errB := filepath.EvalSymlinks(b)
 	return errA == nil && errB == nil && ra == rb
+}
+
+func TestArgsNameTheEnterpriseInstance(t *testing.T) {
+	spec := &Spec{RepositoryPath: "/repo", Plan: Plan{WorkflowID: ".github/workflows/ci.yml", Event: "push"}}
+	for _, arg := range Args(spec, "e1", "/scratch") {
+		if strings.HasPrefix(arg, "--github-instance") {
+			t.Fatalf("a github.com run has %q", arg)
+		}
+	}
+	spec.GitHubInstance = "github.company.com"
+	args := Args(spec, "e1", "/scratch")
+	at := slices.Index(args, "--github-instance=github.company.com")
+	if at < 0 {
+		t.Fatalf("args = %v", args)
+	}
+	if at > slices.Index(args, "--") {
+		t.Fatal("the flag comes after --")
+	}
 }

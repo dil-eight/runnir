@@ -84,13 +84,18 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 		return nil, status.Error(codes.Internal, "the run could not be planned")
 	}
 
+	// act fetches actions from the Enterprise server the repository is on.
+	instance := ""
+	if account, ok := s.accounts.ForHost(info.OriginHost); ok && account.Server.ID != "" {
+		instance = account.Server.WebHost
+	}
 	approved := localRunApproval{
 		RepositoryID: info.ID, Workflow: workflow,
 		ActVersion: act.Version, Installed: actSource == tools.ActInstalled,
 		EngineName: report.Engine.Name, EngineContext: report.Engine.Context,
 		Spec: &localrun.Spec{
 			ActPath: act.Path, DockerPath: report.DockerCLI.Path, DockerHost: report.Engine.Endpoint,
-			UserHome: s.home, RepositoryPath: info.Path, Plan: plan, CacheDir: s.actCache,
+			UserHome: s.home, RepositoryPath: info.Path, Plan: plan, CacheDir: s.actCache, GitHubInstance: instance,
 		},
 	}
 	out := &corev1.PrepareLocalRunResponse{Readiness: readinessMessage(report), Plan: planMessage(approved)}
