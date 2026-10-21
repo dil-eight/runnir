@@ -132,6 +132,12 @@ type Detector struct {
 	mu      sync.Mutex
 	last    *Report
 	pending chan struct{}
+	// started counts the checks begun; lastStarted is the number of the
+	// check that produced last. Counting, not clock time, tells which
+	// checks began after a refresh was asked for: a coarse clock (Windows)
+	// gives a request and the check before it the same time.
+	started     uint64
+	lastStarted uint64
 }
 
 // NewDetector checks the act bundled at bundledAct (empty when the build has
@@ -178,13 +184,15 @@ func SearchDirs(home, pathEnv string) []string {
 // Check returns the cached report, or a new one when there is none or
 // refresh is set.
 func (d *Detector) Check(ctx context.Context, refresh bool) Report {
-	requested := d.now()
+	d.mu.Lock()
+	startedBefore := d.started
+	d.mu.Unlock()
 	for {
 		d.mu.Lock()
 		// A refresh takes a report from a check that started after it was
 		// asked for; one that was already running may predate the change
 		// the user is checking for.
-		if d.last != nil && (!refresh || !d.last.CheckedAt.Before(requested)) {
+		if d.last != nil && (!refresh || d.lastStarted > startedBefore) {
 			report := *d.last
 			d.mu.Unlock()
 			return report
@@ -201,6 +209,8 @@ func (d *Detector) Check(ctx context.Context, refresh bool) Report {
 		}
 		done := make(chan struct{})
 		d.pending = done
+		d.started++
+		number := d.started
 		d.mu.Unlock()
 
 		report := d.check(ctx)
@@ -208,6 +218,7 @@ func (d *Detector) Check(ctx context.Context, refresh bool) Report {
 		d.mu.Lock()
 		if ctx.Err() == nil {
 			d.last = &report
+			d.lastStarted = number
 		}
 		d.pending = nil
 		close(done)

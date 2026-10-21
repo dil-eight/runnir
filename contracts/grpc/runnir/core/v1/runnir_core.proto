@@ -47,10 +47,15 @@ service RunnirCore {
   rpc SetGitHubCredential(SetGitHubCredentialRequest) returns (SetGitHubCredentialResponse);
   rpc ClearGitHubCredential(ClearGitHubCredentialRequest) returns (ClearGitHubCredentialResponse);
 
-  // GitHub Actions data for the github.com repository an open repository's
-  // origin points at, read with the token from SetGitHubCredential. Only
-  // repositories open in the Core can be queried. GitHub-side problems are
-  // reported in `status`, not as call errors.
+  // The github.com repositories the signed-in user's token reaches: those of
+  // the accounts where the Runnir Desktop app is installed, up to 1,000.
+  rpc ListGitHubRepositories(ListGitHubRepositoriesRequest) returns (ListGitHubRepositoriesResponse);
+
+  // GitHub Actions data for a github.com repository, read with the token
+  // from SetGitHubCredential: the one an open repository's origin points at
+  // (repository_id), or any repository by name (github_repository) for one
+  // without a local clone. GitHub-side problems are reported in `status`,
+  // not as call errors.
   rpc ListGitHubWorkflows(ListGitHubWorkflowsRequest) returns (ListGitHubWorkflowsResponse);
   // The GitHub repository itself: whether the token can see it, and its
   // visibility and default branch.
@@ -241,6 +246,11 @@ enum GithubAccess {
   GITHUB_ACCESS_NOT_VISIBLE = 5;
   GITHUB_ACCESS_RATE_LIMITED = 6;
   GITHUB_ACCESS_UNAVAILABLE = 7;
+  // The app is installed, but GitHub says it or the user lacks a permission
+  // for this ("Resource not accessible by integration"): the installation
+  // has not accepted permissions the app now asks for, or the user cannot
+  // write to the repository.
+  GITHUB_ACCESS_PERMISSION_MISSING = 8;
 }
 
 message GitHubStatus {
@@ -284,6 +294,9 @@ message ValidateWorkflowsResponse {
 
 message GetGitHubRepositoryRequest {
   string repository_id = 1;
+  // "owner/name" on github.com, used instead of repository_id for a
+  // repository without a local clone.
+  string github_repository = 2;
 }
 
 message GetGitHubRepositoryResponse {
@@ -294,10 +307,67 @@ message GetGitHubRepositoryResponse {
   string visibility = 3;
   string default_branch = 4;
   string html_url = 5;
+  // The signed-in user can push, so can start, cancel and re-run workflows.
+  bool can_push = 6;
+  // The installation of the repository's owner, when the user can see it.
+  GitHubInstallation installation = 7;
 }
 
 message ListGitHubWorkflowsRequest {
   string repository_id = 1;
+  // "owner/name" on github.com, used instead of repository_id for a
+  // repository without a local clone.
+  string github_repository = 2;
+}
+
+message ListGitHubRepositoriesRequest {}
+
+message ListGitHubRepositoriesResponse {
+  GitHubStatus status = 1;
+  // Accounts where the Runnir Desktop app is installed and the user can see
+  // the installation.
+  repeated GitHubInstallation installations = 2;
+  // Newest push first.
+  repeated GitHubAccountRepository repositories = 3;
+  // More repositories exist than were read.
+  bool truncated = 4;
+}
+
+message GitHubInstallation {
+  int64 id = 1;
+  // The user or organization login.
+  string account = 2;
+  // "User" or "Organization".
+  string account_type = 3;
+  // "all" or "selected": whether the app reaches every repository of the
+  // account or only chosen ones.
+  string repository_selection = 4;
+  // Where the account's owner changes which repositories the app reaches
+  // and accepts new permissions.
+  string html_url = 5;
+  // Permissions Runnir needs that the installation has not granted, such as
+  // "actions: write": the app asks for them and an owner has not accepted.
+  repeated string missing_permissions = 6;
+  // GitHub suspended the installation; it reaches no repository.
+  bool suspended = 7;
+}
+
+message GitHubAccountRepository {
+  // "owner/name" as GitHub spells it.
+  string full_name = 1;
+  string owner = 2;
+  string name = 3;
+  string description = 4;
+  // "public", "private" or "internal".
+  string visibility = 5;
+  string default_branch = 6;
+  string html_url = 7;
+  google.protobuf.Timestamp pushed_at = 8;
+  bool archived = 9;
+  bool fork = 10;
+  // The user can push, so can start workflows.
+  bool can_push = 11;
+  int64 installation_id = 12;
 }
 
 message ListGitHubWorkflowsResponse {
@@ -319,6 +389,9 @@ message ListWorkflowRunsRequest {
   string branch = 2;
   // 1 to 100; 0 means 100.
   uint32 limit = 3;
+  // "owner/name" on github.com, used instead of repository_id for a
+  // repository without a local clone.
+  string github_repository = 4;
 }
 
 message ListWorkflowRunsResponse {
@@ -349,6 +422,9 @@ message WorkflowRun {
 message ListRunJobsRequest {
   string repository_id = 1;
   int64 run_id = 2;
+  // "owner/name" on github.com, used instead of repository_id for a
+  // repository without a local clone.
+  string github_repository = 3;
 }
 
 message ListRunJobsResponse {
@@ -378,6 +454,9 @@ message RunStep {
 
 message ListGitHubRefsRequest {
   string repository_id = 1;
+  // "owner/name" on github.com, used instead of repository_id for a
+  // repository without a local clone.
+  string github_repository = 2;
 }
 
 message ListGitHubRefsResponse {
@@ -409,6 +488,9 @@ message DescribeWorkflowDispatchRequest {
   string repository_id = 1;
   string workflow_path = 2;
   string ref = 3;
+  // "owner/name" on github.com, used instead of repository_id for a
+  // repository without a local clone.
+  string github_repository = 4;
 }
 
 message DescribeWorkflowDispatchResponse {
@@ -426,6 +508,9 @@ message PrepareWorkflowDispatchRequest {
   string ref = 3;
   // Only the inputs the user set; GitHub applies the defaults.
   map<string, string> inputs = 4;
+  // "owner/name" on github.com, used instead of repository_id for a
+  // repository without a local clone.
+  string github_repository = 5;
 }
 
 message PrepareWorkflowDispatchResponse {

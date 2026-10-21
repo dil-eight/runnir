@@ -35,7 +35,7 @@ func (s *service) GetJobLog(ctx context.Context, request *corev1.GetJobLogReques
 	if request.GetJobId() <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "job_id is required")
 	}
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId())
+	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), "")
 	if err != nil || problem != nil {
 		return &corev1.GetJobLogResponse{Status: problem}, err
 	}
@@ -94,7 +94,7 @@ func (s *service) PrepareRunAction(ctx context.Context, request *corev1.PrepareR
 	if request.GetRunId() <= 0 || action == corev1.RunAction_RUN_ACTION_UNSPECIFIED || corev1.RunAction_name[int32(action)] == "" {
 		return nil, status.Error(codes.InvalidArgument, "run_id and a known action are required")
 	}
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId())
+	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), "")
 	if err != nil || problem != nil {
 		return &corev1.PrepareRunActionResponse{Status: problem}, err
 	}

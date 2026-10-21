@@ -70,6 +70,9 @@ struct ProjectLink: View {
 
 struct WorkspaceManagerView: View {
     @Bindable var desktop: DesktopCoordinator
+    @State private var tab: ManagerTab = .workspaces
+
+    enum ManagerTab: Hashable { case workspaces, github }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -85,7 +88,14 @@ struct WorkspaceManagerView: View {
                     .disabled(desktop.persistenceBlocked)
                 }
             }
-            .frame(height: 51).padding(.bottom, 22)
+            .frame(height: 51).padding(.bottom, 16)
+
+            HStack(spacing: 4) {
+                Button("Workspaces") { tab = .workspaces }.buttonStyle(WorkflowTabStyle(selected: tab == .workspaces))
+                Button("GitHub") { tab = .github }.buttonStyle(WorkflowTabStyle(selected: tab == .github))
+                    .accessibilityIdentifier("manager-github-tab")
+                Spacer()
+            }.padding(.bottom, 14)
 
             if let message = desktop.message {
                 HStack(alignment: .top, spacing: 10) {
@@ -102,7 +112,9 @@ struct WorkspaceManagerView: View {
                 .padding(.bottom, 16)
             }
 
-            if desktop.snapshot.workspaces.isEmpty {
+            if tab == .github {
+                GitHubRepositoriesView(desktop: desktop)
+            } else if desktop.snapshot.workspaces.isEmpty {
                 VStack(spacing: 16) {
                     Image(systemName: "folder").font(.system(size: 26, weight: .light))
                         .foregroundStyle(RunnirTheme.primary).frame(width: 56, height: 56).background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 8))
@@ -439,6 +451,8 @@ struct DesktopWorkspaceView: View {
     let reader: RepositoryReader?
     private var files: WorkspaceFilesModel { state.files }
     @State private var fileNameRequest: WorkflowFileNameRequest?
+    /// What stops starting a workflow here, shown as an alert.
+    @State private var accessHelp: GitHubAccessHelp?
     /// A file created from the name sheet, opened once the sheet is gone so
     /// a question about unsaved edits does not sit on top of it.
     @State private var openAfterSheet: String?
@@ -468,11 +482,18 @@ struct DesktopWorkspaceView: View {
         .ignoresSafeArea()
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
+        // Once the Core has opened the working tree: its origin's GitHub
+        // name, or none ("") when the origin is not on github.com.
+        .onChange(of: session?.phase == .ready ? (session?.githubRepository ?? "") : nil, initial: true) { _, value in
+            guard let value else { return }
+            desktop.noteGitHubRepository(value.isEmpty ? nil : value, workspaceID: workspace.id)
+        }
         .sheet(item: Binding(get: { state.runWorkflowRequest }, set: { state.runWorkflowRequest = $0 })) { request in
             if let session, let hub = desktop.core {
                 RunWorkflowSheet(model: DispatchFormModel(workspaceID: workspace.id, hub: hub, workflows: session.remoteWorkflows,
                                                           workflowID: request.workflowID, currentBranch: session.branch,
-                                                          presets: desktop.presets, presetID: request.presetID)) { run in
+                                                          presets: desktop.presets, presetID: request.presetID),
+                                 github: desktop.github) { run in
                     state.selectedRunID = run.id
                     state.selectedSection = .runs
                 }
@@ -517,6 +538,12 @@ struct DesktopWorkspaceView: View {
                 case .rename: await renameSelected(to: name)
                 }
             }
+        }
+        .githubAccessAlert($accessHelp, github: desktop.github)
+        // What the repository allows (push, the owner's installation) is read
+        // once GitHub answers, and again after a new sign-in.
+        .task(id: "\(session?.githubAccess == .ok)|\(desktop.core?.credentialGeneration ?? 0)") {
+            if session?.githubAccess == .ok { await desktop.core?.githubRepository(workspaceID: workspace.id) }
         }
         .sheet(isPresented: Binding(get: { state.showingSwitcher }, set: { state.showingSwitcher = $0 })) {
             WorkspaceSwitcherView(desktop: desktop, currentWorkspaceID: workspace.id, windowID: windowID)
@@ -635,10 +662,31 @@ struct DesktopWorkspaceView: View {
     }
 
     private var runWorkflowHelp: String {
-        if session?.githubRepository == nil { return "This working tree has no GitHub remote" }
-        if desktop.github?.user == nil { return "Connect GitHub to run workflows" }
-        if session?.githubAccess != .ok { return "Runnir can't reach this repository on GitHub" }
-        return "Start a workflow_dispatch workflow on GitHub"
+        runBlocker?.title ?? "Start a workflow_dispatch workflow on GitHub"
+    }
+
+    /// What stops starting a workflow here, known before trying: no sign-in,
+    /// GitHub refusing the repository, an owner's pending approval, or no
+    /// write access.
+    private var runBlocker: GitHubAccessHelp? {
+        guard let session else { return GitHubAccessHelp.forAccess(.unavailable, repository: nil, purpose: .run) }
+        guard let repository = session.githubRepository else { return GitHubAccessHelp.forAccess(.noRemote, repository: nil, purpose: .run) }
+        guard let github = desktop.github, github.user != nil else {
+            return GitHubAccessHelp.forAccess(desktop.github?.signedOutAccess ?? .signedOut, repository: repository, purpose: .run)
+        }
+        if let access = session.githubAccess, access != .ok {
+            return GitHubAccessHelp.forAccess(access, repository: repository, purpose: .run, details: session.githubDetails)
+        }
+        return GitHubAccessHelp.blocker(for: .run, repository: repository, details: session.githubDetails)
+    }
+
+    /// Opens Run Workflow, or says in an alert what has to happen first.
+    private func requestRun(workflowID: Int64?, presetID: UUID? = nil) {
+        if let blocker = runBlocker {
+            accessHelp = blocker
+            return
+        }
+        state.runWorkflowRequest = RunWorkflowRequest(workflowID: workflowID, presetID: presetID)
     }
 
     private var coreSummary: String { session?.summary ?? "Working tree" }
@@ -722,9 +770,9 @@ struct DesktopWorkspaceView: View {
                     }
                 }
                 .disabled(reader == nil || files.isLoading || session?.isRefreshing == true).help("Refresh local workflows")
-                Button { state.runWorkflowRequest = RunWorkflowRequest(workflowID: nil) } label: { Label("Run Workflow...", systemImage: "play") }
+                Button { requestRun(workflowID: nil) } label: { Label("Run Workflow...", systemImage: "play") }
                     .buttonStyle(DesignButtonStyle(primary: true))
-                    .disabled(session?.githubRepository == nil || desktop.github?.user == nil || session?.githubAccess != .ok)
+                    .disabled(session?.githubRepository == nil)
                     .help(runWorkflowHelp)
             }
             ProjectLink().buttonStyle(.plain)
@@ -861,9 +909,7 @@ struct DesktopWorkspaceView: View {
                                   state.workspaceTab = .editor
                                   open(file)
                               },
-                              runWorkflow: { workflowID, presetID in
-                                  state.runWorkflowRequest = RunWorkflowRequest(workflowID: workflowID, presetID: presetID)
-                              },
+                              runWorkflow: { workflowID, presetID in requestRun(workflowID: workflowID, presetID: presetID) },
                               selectedPath: Binding(get: { state.overviewWorkflowPath }, set: { state.overviewWorkflowPath = $0 }))
         case .workspace:
             VStack(spacing: 0) {
@@ -886,9 +932,7 @@ struct DesktopWorkspaceView: View {
                 WorkspaceWorkflowsView(session: session, hub: hub, github: desktop.github, favorites: desktop.favorites, showRun: { run in
                     state.selectedRunID = run.id
                     state.selectedSection = .runs
-                }, runWorkflow: { workflow in
-                    state.runWorkflowRequest = RunWorkflowRequest(workflowID: workflow.id)
-                })
+                }, runWorkflow: { workflow in requestRun(workflowID: workflow.id) })
             } else {
                 coreUnavailable
             }
@@ -1183,26 +1227,48 @@ struct GitHubLinkCard: View {
     let github: GitHubSession?
     let hub: CoreHub?
     let workspaceID: UUID
-    var installationURL: URL = GitHubAppConfiguration.runnirDesktop.installationURL
     @Environment(\.openURL) private var openURL
     @State private var details: CoreGitHubRepository?
     @State private var attempt = 0
-    @State private var showingConnect = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: symbol).foregroundStyle(tint)
-                Text(title).font(.system(size: 14, weight: .semibold))
+            switch display {
+            case .reading:
+                header("Reading the repository...", symbol: "point.3.connected.trianglepath.dotted", tint: RunnirTheme.secondaryForeground)
+            case .checking:
+                header("Checking access to \(repository ?? "")...", symbol: "point.3.connected.trianglepath.dotted", tint: RunnirTheme.secondaryForeground)
+            case .linked(let linked):
+                header(linked.fullName.isEmpty ? (repository ?? "") : linked.fullName, symbol: "checkmark.circle", tint: RunnirTheme.success)
+                Text("\(linked.visibility.capitalized) · default branch \(linked.defaultBranch)")
+                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                if let url = linked.htmlURL ?? URL(string: "https://github.com/\(linked.fullName)") {
+                    Button("Open on GitHub") { openURL(url) }.buttonStyle(DesignButtonStyle())
+                }
+                // Reading works; what waits for an owner, or for write access, is said here.
+                if let help = GitHubAccessHelp.blocker(for: .run, repository: linked.fullName.isEmpty ? (repository ?? "") : linked.fullName, details: linked) {
+                    GitHubAccessNotice(help: help, style: .note, github: github)
+                }
+            case .problem(let help):
+                GitHubAccessNotice(help: help, style: .note, github: github) { attempt += 1 }
+                if case .giveAccess = help.fix {
+                    Button("Check Again") { attempt += 1 }.buttonStyle(DesignButtonStyle())
+                } else if case .reviewPermissions = help.fix {
+                    Button("Check Again") { attempt += 1 }.buttonStyle(DesignButtonStyle())
+                }
             }
-            if let detail { Text(detail).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground) }
-            HStack(spacing: 8) { buttons }.buttonStyle(DesignButtonStyle())
         }
         .task(id: checkKey) { await check() }
-        .sheet(isPresented: $showingConnect) { if let github { GitHubConnectView(session: github) } }
     }
 
-    private var checkKey: String { "\(repository ?? "")|\(github?.user?.login ?? "")|\(coreReady)|\(attempt)" }
+    private func header(_ title: String, symbol: String, tint: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbol).foregroundStyle(tint)
+            Text(title).font(.system(size: 14, weight: .semibold))
+        }
+    }
+
+    private var checkKey: String { "\(repository ?? "")|\(github?.user?.login ?? "")|\(coreReady)|\(attempt)|\(hub?.credentialGeneration ?? 0)" }
 
     private func check() async {
         details = nil
@@ -1210,80 +1276,18 @@ struct GitHubLinkCard: View {
         details = await hub.githubRepository(workspaceID: workspaceID)
     }
 
-    private enum Display { case reading, noRemote, signedOut, checking, linked(CoreGitHubRepository), notVisible, failed(String) }
+    private enum Display { case reading, checking, linked(CoreGitHubRepository), problem(GitHubAccessHelp) }
 
     private var display: Display {
-        guard repository != nil else { return coreReady ? .noRemote : .reading }
-        guard let github, github.user != nil else { return .signedOut }
+        guard let repository else {
+            return coreReady ? .problem(GitHubAccessHelp.forAccess(.noRemote, repository: nil, purpose: .read)!) : .reading
+        }
+        guard let github, github.user != nil else {
+            return .problem(GitHubAccessHelp.forAccess(.signedOut, repository: repository, purpose: .read)!)
+        }
         guard let details else { return .checking }
-        switch details.access {
-        case .ok: return .linked(details)
-        case .noRemote: return .noRemote
-        case .signedOut, .tokenRejected: return .signedOut
-        case .notVisible: return .notVisible
-        case .rateLimited(let until):
-            return .failed(until.map { "GitHub is limiting requests until \($0.formatted(date: .omitted, time: .shortened))." }
-                           ?? "GitHub is limiting requests. Try again in a moment.")
-        case .unavailable: return .failed("GitHub could not be reached. Try again in a moment.")
-        }
-    }
-
-    private var title: String {
-        let name = repository ?? ""
-        switch display {
-        case .reading: return "Reading the repository..."
-        case .noRemote: return "No GitHub remote"
-        case .signedOut: return name
-        case .checking: return "Checking access to \(name)..."
-        case .linked(let linked): return linked.fullName.isEmpty ? name : linked.fullName
-        case .notVisible: return "Runnir can't see \(name)"
-        case .failed: return name
-        }
-    }
-
-    private var detail: String? {
-        switch display {
-        case .reading, .checking: return nil
-        case .noRemote: return "This working tree has no origin remote on github.com, so there are no GitHub runs to show for it."
-        case .signedOut: return "Connect GitHub to see workflow runs and job status for this repository."
-        case .linked(let linked): return "\(linked.visibility.capitalized) · default branch \(linked.defaultBranch)"
-        case .notVisible:
-            return "Runnir Desktop only sees repositories it is installed on. Install it on this repository on GitHub, then check again."
-        case .failed(let message): return message
-        }
-    }
-
-    private var symbol: String {
-        switch display {
-        case .linked: "checkmark.circle"
-        case .notVisible, .failed: "exclamationmark.triangle"
-        default: "point.3.connected.trianglepath.dotted"
-        }
-    }
-
-    private var tint: Color {
-        switch display {
-        case .linked: RunnirTheme.success
-        case .notVisible, .failed: RunnirTheme.warning
-        default: RunnirTheme.secondaryForeground
-        }
-    }
-
-    @ViewBuilder private var buttons: some View {
-        switch display {
-        case .signedOut:
-            Button("Connect GitHub...") { showingConnect = true }
-        case .linked(let linked):
-            if let url = linked.htmlURL ?? URL(string: "https://github.com/\(linked.fullName)") {
-                Button("Open on GitHub") { openURL(url) }
-            }
-        case .notVisible:
-            Button("Give Runnir Access...") { openURL(installationURL) }
-            Button("Check Again") { attempt += 1 }
-        case .failed:
-            Button("Check Again") { attempt += 1 }
-        default:
-            EmptyView()
-        }
+        if details.access == .ok { return .linked(details) }
+        return .problem(GitHubAccessHelp.forAccess(details.access, repository: repository, purpose: .read, details: details)
+                        ?? GitHubAccessHelp.forAccess(.unavailable, repository: repository, purpose: .read)!)
     }
 }

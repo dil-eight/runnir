@@ -194,6 +194,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "ListGitHubRepositories" metadata.
+        internal enum ListGitHubRepositories: Sendable {
+            /// Request type for "ListGitHubRepositories".
+            internal typealias Input = Runnir_Core_V1_ListGitHubRepositoriesRequest
+            /// Response type for "ListGitHubRepositories".
+            internal typealias Output = Runnir_Core_V1_ListGitHubRepositoriesResponse
+            /// Descriptor for "ListGitHubRepositories".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ListGitHubRepositories",
+                type: .unary
+            )
+        }
         /// Namespace for "ListGitHubWorkflows" metadata.
         internal enum ListGitHubWorkflows: Sendable {
             /// Request type for "ListGitHubWorkflows".
@@ -417,6 +430,7 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             SubscribeEvents.descriptor,
             SetGitHubCredential.descriptor,
             ClearGitHubCredential.descriptor,
+            ListGitHubRepositories.descriptor,
             ListGitHubWorkflows.descriptor,
             GetGitHubRepository.descriptor,
             ListWorkflowRuns.descriptor,
@@ -679,14 +693,34 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>
 
+        /// Handle the "ListGitHubRepositories" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The github.com repositories the signed-in user's token reaches: those of
+        /// > the accounts where the Runnir Desktop app is installed, up to 1,000.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ListGitHubRepositoriesRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ListGitHubRepositoriesResponse` messages.
+        func listGitHubRepositories(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListGitHubRepositoriesRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListGitHubRepositoriesResponse>
+
         /// Handle the "ListGitHubWorkflows" method.
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > GitHub Actions data for the github.com repository an open repository's
-        /// > origin points at, read with the token from SetGitHubCredential. Only
-        /// > repositories open in the Core can be queried. GitHub-side problems are
-        /// > reported in `status`, not as call errors.
+        /// > GitHub Actions data for a github.com repository, read with the token
+        /// > from SetGitHubCredential: the one an open repository's origin points at
+        /// > (repository_id), or any repository by name (github_repository) for one
+        /// > without a local clone. GitHub-side problems are reported in `status`,
+        /// > not as call errors.
         ///
         /// - Parameters:
         ///   - request: A streaming request of `Runnir_Core_V1_ListGitHubWorkflowsRequest` messages.
@@ -1192,14 +1226,34 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>
 
+        /// Handle the "ListGitHubRepositories" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The github.com repositories the signed-in user's token reaches: those of
+        /// > the accounts where the Runnir Desktop app is installed, up to 1,000.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubRepositoriesRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ListGitHubRepositoriesResponse` message.
+        func listGitHubRepositories(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ListGitHubRepositoriesRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListGitHubRepositoriesResponse>
+
         /// Handle the "ListGitHubWorkflows" method.
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > GitHub Actions data for the github.com repository an open repository's
-        /// > origin points at, read with the token from SetGitHubCredential. Only
-        /// > repositories open in the Core can be queried. GitHub-side problems are
-        /// > reported in `status`, not as call errors.
+        /// > GitHub Actions data for a github.com repository, read with the token
+        /// > from SetGitHubCredential: the one an open repository's origin points at
+        /// > (repository_id), or any repository by name (github_repository) for one
+        /// > without a local clone. GitHub-side problems are reported in `status`,
+        /// > not as call errors.
         ///
         /// - Parameters:
         ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubWorkflowsRequest` message.
@@ -1704,14 +1758,34 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_ClearGitHubCredentialResponse
 
+        /// Handle the "ListGitHubRepositories" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The github.com repositories the signed-in user's token reaches: those of
+        /// > the accounts where the Runnir Desktop app is installed, up to 1,000.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ListGitHubRepositoriesRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ListGitHubRepositoriesResponse` to respond with.
+        func listGitHubRepositories(
+            request: Runnir_Core_V1_ListGitHubRepositoriesRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ListGitHubRepositoriesResponse
+
         /// Handle the "ListGitHubWorkflows" method.
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > GitHub Actions data for the github.com repository an open repository's
-        /// > origin points at, read with the token from SetGitHubCredential. Only
-        /// > repositories open in the Core can be queried. GitHub-side problems are
-        /// > reported in `status`, not as call errors.
+        /// > GitHub Actions data for a github.com repository, read with the token
+        /// > from SetGitHubCredential: the one an open repository's origin points at
+        /// > (repository_id), or any repository by name (github_repository) for one
+        /// > without a local clone. GitHub-side problems are reported in `status`,
+        /// > not as call errors.
         ///
         /// - Parameters:
         ///   - request: A `Runnir_Core_V1_ListGitHubWorkflowsRequest` message.
@@ -2138,6 +2212,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ListGitHubRepositories.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListGitHubRepositoriesRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListGitHubRepositoriesResponse>(),
+            handler: { request, context in
+                try await self.listGitHubRepositories(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.ListGitHubWorkflows.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListGitHubWorkflowsRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListGitHubWorkflowsResponse>(),
@@ -2456,6 +2541,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse> {
         let response = try await self.clearGitHubCredential(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func listGitHubRepositories(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListGitHubRepositoriesRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListGitHubRepositoriesResponse> {
+        let response = try await self.listGitHubRepositories(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -2808,6 +2904,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>(
             message: try await self.clearGitHubCredential(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func listGitHubRepositories(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ListGitHubRepositoriesRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListGitHubRepositoriesResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ListGitHubRepositoriesResponse>(
+            message: try await self.listGitHubRepositories(
                 request: request.message,
                 context: context
             ),
@@ -3318,14 +3427,39 @@ extension Runnir_Core_V1_RunnirCore {
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearGitHubCredentialResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
+        /// Call the "ListGitHubRepositories" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The github.com repositories the signed-in user's token reaches: those of
+        /// > the accounts where the Runnir Desktop app is installed, up to 1,000.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubRepositoriesRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListGitHubRepositoriesRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListGitHubRepositoriesResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func listGitHubRepositories<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListGitHubRepositoriesRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListGitHubRepositoriesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListGitHubRepositoriesResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListGitHubRepositoriesResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
         /// Call the "ListGitHubWorkflows" method.
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > GitHub Actions data for the github.com repository an open repository's
-        /// > origin points at, read with the token from SetGitHubCredential. Only
-        /// > repositories open in the Core can be queried. GitHub-side problems are
-        /// > reported in `status`, not as call errors.
+        /// > GitHub Actions data for a github.com repository, read with the token
+        /// > from SetGitHubCredential: the one an open repository's origin points at
+        /// > (repository_id), or any repository by name (github_repository) for one
+        /// > without a local clone. GitHub-side problems are reported in `status`,
+        /// > not as call errors.
         ///
         /// - Parameters:
         ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubWorkflowsRequest` message.
@@ -4125,14 +4259,50 @@ extension Runnir_Core_V1_RunnirCore {
             )
         }
 
+        /// Call the "ListGitHubRepositories" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The github.com repositories the signed-in user's token reaches: those of
+        /// > the accounts where the Runnir Desktop app is installed, up to 1,000.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubRepositoriesRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListGitHubRepositoriesRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListGitHubRepositoriesResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func listGitHubRepositories<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListGitHubRepositoriesRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListGitHubRepositoriesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListGitHubRepositoriesResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListGitHubRepositoriesResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ListGitHubRepositories.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
         /// Call the "ListGitHubWorkflows" method.
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > GitHub Actions data for the github.com repository an open repository's
-        /// > origin points at, read with the token from SetGitHubCredential. Only
-        /// > repositories open in the Core can be queried. GitHub-side problems are
-        /// > reported in `status`, not as call errors.
+        /// > GitHub Actions data for a github.com repository, read with the token
+        /// > from SetGitHubCredential: the one an open repository's origin points at
+        /// > (repository_id), or any repository by name (github_repository) for one
+        /// > without a local clone. GitHub-side problems are reported in `status`,
+        /// > not as call errors.
         ///
         /// - Parameters:
         ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubWorkflowsRequest` message.
@@ -5031,14 +5201,45 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "ListGitHubRepositories" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The github.com repositories the signed-in user's token reaches: those of
+    /// > the accounts where the Runnir Desktop app is installed, up to 1,000.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubRepositoriesRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listGitHubRepositories<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ListGitHubRepositoriesRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListGitHubRepositoriesResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.listGitHubRepositories(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListGitHubRepositoriesRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListGitHubRepositoriesResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "ListGitHubWorkflows" method.
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > GitHub Actions data for the github.com repository an open repository's
-    /// > origin points at, read with the token from SetGitHubCredential. Only
-    /// > repositories open in the Core can be queried. GitHub-side problems are
-    /// > reported in `status`, not as call errors.
+    /// > GitHub Actions data for a github.com repository, read with the token
+    /// > from SetGitHubCredential: the one an open repository's origin points at
+    /// > (repository_id), or any repository by name (github_repository) for one
+    /// > without a local clone. GitHub-side problems are reported in `status`,
+    /// > not as call errors.
     ///
     /// - Parameters:
     ///   - request: A request containing a single `Runnir_Core_V1_ListGitHubWorkflowsRequest` message.
@@ -5908,14 +6109,49 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "ListGitHubRepositories" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The github.com repositories the signed-in user's token reaches: those of
+    /// > the accounts where the Runnir Desktop app is installed, up to 1,000.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listGitHubRepositories<Result>(
+        _ message: Runnir_Core_V1_ListGitHubRepositoriesRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListGitHubRepositoriesResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ListGitHubRepositoriesRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.listGitHubRepositories(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "ListGitHubWorkflows" method.
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > GitHub Actions data for the github.com repository an open repository's
-    /// > origin points at, read with the token from SetGitHubCredential. Only
-    /// > repositories open in the Core can be queried. GitHub-side problems are
-    /// > reported in `status`, not as call errors.
+    /// > GitHub Actions data for a github.com repository, read with the token
+    /// > from SetGitHubCredential: the one an open repository's origin points at
+    /// > (repository_id), or any repository by name (github_repository) for one
+    /// > without a local clone. GitHub-side problems are reported in `status`,
+    /// > not as call errors.
     ///
     /// - Parameters:
     ///   - message: request message to send.

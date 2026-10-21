@@ -33,7 +33,7 @@ S01/C03 gains a trailing GitHub action linking to https://github.com/dil-eight/r
 
 ## Desktop Lifecycle Amendments (2026-10-14)
 
-S14/S15 govern startup; S03 is not the universal first screen. S16/S17 live within a registered workspace; S18 is contextual recovery. Account-wide GitHub discovery (S04) remains distinct from local registry identity; exact presentation is an open UX decision, not permission to auto-clone or silently reassign windows.
+S14/S15 govern startup; S03 is not the universal first screen. S16/S17 live within a registered workspace; S18 is contextual recovery. Account-wide GitHub discovery (S04) remains distinct from local registry identity. Decided 2026-10-20: it is a GitHub tab in the Workspace Manager, next to the registered workspaces. A repository with a registered local clone opens as that workspace; one without can be browsed and its workflows started, and Runnir never clones it or reassigns a window.
 
 Draw Reuse Current Window / Open New Window / conditional Focus Existing explicitly. Different windows may select different workflows for the same workspace while sharing DB/sync/freshness. Same-file dirty buffers remain independent and use external-change recovery, not silent overwrite.
 

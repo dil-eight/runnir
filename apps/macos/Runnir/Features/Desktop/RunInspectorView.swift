@@ -21,6 +21,8 @@ final class RunActionModel {
     }
 
     private(set) var phase: Phase = .idle
+    /// What stops the action, with the step that fixes it, shown as an alert.
+    var accessHelp: GitHubAccessHelp?
     @ObservationIgnored private let hub: CoreHub
     @ObservationIgnored private let workspaceID: UUID
     @ObservationIgnored private var follow: Task<Void, Never>?
@@ -44,6 +46,14 @@ final class RunActionModel {
 
     func prepare(_ action: CoreRunAction, for run: CoreWorkflowRun) async {
         guard !isBusy else { return }
+        // Known before asking: no write access, or Actions write waiting
+        // for an owner of the account.
+        let session = hub.session(for: workspaceID)
+        if let repository = session?.githubRepository,
+           let blocker = GitHubAccessHelp.blocker(for: .change, repository: repository, details: session?.githubDetails) {
+            accessHelp = blocker
+            return
+        }
         phase = .preparing(action)
         let prepared = await hub.prepareRunAction(workspaceID: workspaceID, runID: run.id, action: action)
         if prepared.access == .ok, prepared.actionID != nil {
@@ -52,7 +62,16 @@ final class RunActionModel {
             phase = .failed(problem)
         } else {
             phase = .failed(Self.describe(prepared.access))
+            await explain(prepared.access)
         }
+    }
+
+    /// Turns a refusal the user can fix into `accessHelp`.
+    private func explain(_ access: CoreGitHubAccess) async {
+        guard GitHubAccessHelp.needsExplaining(access) else { return }
+        let details = access == .permissionMissing ? await hub.githubRepository(workspaceID: workspaceID) : nil
+        accessHelp = GitHubAccessHelp.forAccess(access, repository: hub.session(for: workspaceID)?.githubRepository,
+                                                purpose: .change, details: details)
     }
 
     func dismiss() {
@@ -98,6 +117,7 @@ final class RunActionModel {
         }
         guard result.acceptedAt != nil else {
             phase = .failed(Self.describe(result.access))
+            await explain(result.access)
             return
         }
         phase = .requested(action)
@@ -133,8 +153,10 @@ final class RunActionModel {
     /// Why a change could not be made.
     static func describe(_ access: CoreGitHubAccess) -> String {
         switch access {
-        case .signedOut, .tokenRejected: "Connect GitHub to change runs."
-        case .notVisible: "GitHub did not allow this. Runnir Desktop needs access to this repository with Actions write permission."
+        case .signedOut: "Connect GitHub to change runs."
+        case .tokenRejected: "GitHub no longer accepts the saved sign-in. Sign in again to change runs."
+        case .notVisible: "Runnir can't see this repository on GitHub. Give Runnir Desktop access to it."
+        case .permissionMissing: "GitHub did not allow this: Runnir Desktop or your account lacks a permission. Nothing was changed."
         case .rateLimited: "GitHub is limiting requests. Nothing was changed; try again later."
         case .noRemote: "This working tree has no origin on github.com."
         case .ok, .unavailable: "GitHub could not be reached. Nothing was changed."
@@ -144,8 +166,10 @@ final class RunActionModel {
     /// Why jobs or a log could not be read.
     static func describeRead(_ access: CoreGitHubAccess) -> String {
         switch access {
-        case .signedOut, .tokenRejected: "Connect GitHub to see jobs and logs."
-        case .notVisible: "Runnir can't read this repository on GitHub. Install Runnir Desktop on it, then try again."
+        case .signedOut: "Connect GitHub to see jobs and logs."
+        case .tokenRejected: "GitHub no longer accepts the saved sign-in. Sign in again to see jobs and logs."
+        case .notVisible: "Runnir can't read this repository on GitHub. Give Runnir Desktop access to it, then try again."
+        case .permissionMissing: "Runnir Desktop can't read Actions here yet: an owner has not accepted its permissions, or your account lacks access."
         case .rateLimited: "GitHub is limiting requests. Try again later."
         case .noRemote: "This working tree has no origin on github.com."
         case .ok, .unavailable: "GitHub could not be reached."
@@ -221,6 +245,8 @@ struct RunInspectorView: View {
     let run: CoreWorkflowRun
     let workspaceID: UUID
     let hub: CoreHub
+    /// For the sign-in sheet an access alert may offer.
+    var github: GitHubSession? = nil
     @State private var actions: RunActionModel
     @State private var jobs: CoreGitHubResult<CoreRunJob>?
     @State private var jobsStale = false
@@ -228,10 +254,11 @@ struct RunInspectorView: View {
     @State private var selectedStep: Int64?
     @Environment(\.openURL) private var openURL
 
-    init(run: CoreWorkflowRun, workspaceID: UUID, hub: CoreHub) {
+    init(run: CoreWorkflowRun, workspaceID: UUID, hub: CoreHub, github: GitHubSession? = nil) {
         self.run = run
         self.workspaceID = workspaceID
         self.hub = hub
+        self.github = github
         _actions = State(initialValue: RunActionModel(hub: hub, workspaceID: workspaceID))
     }
 
@@ -268,6 +295,7 @@ struct RunInspectorView: View {
             }
         }
         .onDisappear { actions.stopFollowing() }
+        .githubAccessAlert(Binding(get: { actions.accessHelp }, set: { actions.accessHelp = $0 }), github: github)
         .confirmationDialog(confirmationTitle, isPresented: confirmationShown, titleVisibility: .visible) {
             if let pending = actions.pending {
                 let text = RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run)

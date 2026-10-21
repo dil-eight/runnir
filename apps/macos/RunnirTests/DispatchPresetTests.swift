@@ -175,7 +175,7 @@ struct DispatchPresetFormTests {
         form.values["deploy_token"] = "ghp_should_never_be_saved"
         #expect(form.inputsLeftOutOfPresets == ["deploy_token"])
         #expect(form.saveAsPreset(named: "Production"))
-        let saved = try #require(library.presets(workspaceID: form.workspaceID, workflowPath: workflow.path).first)
+        let saved = try #require(library.presets(workspaceID: form.workspaceID!, workflowPath: workflow.path).first)
         #expect(saved.ref == "feature")
         #expect(saved.inputs == ["environment": "production", "version": "1.4.0"])
         let file = try String(contentsOf: FileDispatchPresetStore(directory: directory).fileURL, encoding: .utf8)
@@ -217,7 +217,7 @@ struct DispatchPresetFormTests {
     func applyingAPresetSwitchesBranchThenFillsTheInputs() async throws {
         let (form, library, _, directory) = await rig()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let preset = try #require(library.add(name: "Main release", workspaceID: form.workspaceID, workflowPath: workflow.path,
+        let preset = try #require(library.add(name: "Main release", workspaceID: form.workspaceID!, workflowPath: workflow.path,
                                               ref: "main", inputs: ["environment": "production", "version": "2.0.0"]))
         form.values["version"] = "typed"
         form.apply(preset)
@@ -232,7 +232,7 @@ struct DispatchPresetFormTests {
     func aPresetFromAnOlderSchemaSaysWhatNoLongerApplies() async throws {
         let (form, library, _, directory) = await rig()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let preset = try #require(library.add(name: "Old", workspaceID: form.workspaceID, workflowPath: workflow.path,
+        let preset = try #require(library.add(name: "Old", workspaceID: form.workspaceID!, workflowPath: workflow.path,
                                               ref: "gone-branch", inputs: ["environment": "qa", "region": "eu", "version": "3.0"]))
         form.apply(preset)
         #expect(form.ref == "feature")
@@ -249,13 +249,13 @@ struct DispatchPresetFormTests {
     func choosingAnotherWorkflowForgetsTheAppliedPreset() async throws {
         let (form, library, _, directory) = await rig()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let preset = try #require(library.add(name: "P", workspaceID: form.workspaceID, workflowPath: workflow.path, ref: "feature", inputs: [:]))
+        let preset = try #require(library.add(name: "P", workspaceID: form.workspaceID!, workflowPath: workflow.path, ref: "feature", inputs: [:]))
         form.apply(preset)
         #expect(form.appliedPresetID == preset.id)
         form.select(workflowID: 1)
         #expect(form.appliedPresetID == nil && form.presetNotes.isEmpty)
         form.apply(preset)
         form.deleteAppliedPreset()
-        #expect(form.appliedPresetID == nil && library.presets(workspaceID: form.workspaceID, workflowPath: workflow.path).isEmpty)
+        #expect(form.appliedPresetID == nil && library.presets(workspaceID: form.workspaceID!, workflowPath: workflow.path).isEmpty)
     }
 }

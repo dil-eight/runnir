@@ -37,6 +37,7 @@ const (
 	RunnirCore_SubscribeEvents_FullMethodName          = "/runnir.core.v1.RunnirCore/SubscribeEvents"
 	RunnirCore_SetGitHubCredential_FullMethodName      = "/runnir.core.v1.RunnirCore/SetGitHubCredential"
 	RunnirCore_ClearGitHubCredential_FullMethodName    = "/runnir.core.v1.RunnirCore/ClearGitHubCredential"
+	RunnirCore_ListGitHubRepositories_FullMethodName   = "/runnir.core.v1.RunnirCore/ListGitHubRepositories"
 	RunnirCore_ListGitHubWorkflows_FullMethodName      = "/runnir.core.v1.RunnirCore/ListGitHubWorkflows"
 	RunnirCore_GetGitHubRepository_FullMethodName      = "/runnir.core.v1.RunnirCore/GetGitHubRepository"
 	RunnirCore_ListWorkflowRuns_FullMethodName         = "/runnir.core.v1.RunnirCore/ListWorkflowRuns"
@@ -89,10 +90,14 @@ type RunnirCoreClient interface {
 	// is never written to disk, logged, sent in events or returned by any call.
 	SetGitHubCredential(ctx context.Context, in *SetGitHubCredentialRequest, opts ...grpc.CallOption) (*SetGitHubCredentialResponse, error)
 	ClearGitHubCredential(ctx context.Context, in *ClearGitHubCredentialRequest, opts ...grpc.CallOption) (*ClearGitHubCredentialResponse, error)
-	// GitHub Actions data for the github.com repository an open repository's
-	// origin points at, read with the token from SetGitHubCredential. Only
-	// repositories open in the Core can be queried. GitHub-side problems are
-	// reported in `status`, not as call errors.
+	// The github.com repositories the signed-in user's token reaches: those of
+	// the accounts where the Runnir Desktop app is installed, up to 1,000.
+	ListGitHubRepositories(ctx context.Context, in *ListGitHubRepositoriesRequest, opts ...grpc.CallOption) (*ListGitHubRepositoriesResponse, error)
+	// GitHub Actions data for a github.com repository, read with the token
+	// from SetGitHubCredential: the one an open repository's origin points at
+	// (repository_id), or any repository by name (github_repository) for one
+	// without a local clone. GitHub-side problems are reported in `status`,
+	// not as call errors.
 	ListGitHubWorkflows(ctx context.Context, in *ListGitHubWorkflowsRequest, opts ...grpc.CallOption) (*ListGitHubWorkflowsResponse, error)
 	// The GitHub repository itself: whether the token can see it, and its
 	// visibility and default branch.
@@ -275,6 +280,16 @@ func (c *runnirCoreClient) ClearGitHubCredential(ctx context.Context, in *ClearG
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ClearGitHubCredentialResponse)
 	err := c.cc.Invoke(ctx, RunnirCore_ClearGitHubCredential_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) ListGitHubRepositories(ctx context.Context, in *ListGitHubRepositoriesRequest, opts ...grpc.CallOption) (*ListGitHubRepositoriesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGitHubRepositoriesResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ListGitHubRepositories_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -475,10 +490,14 @@ type RunnirCoreServer interface {
 	// is never written to disk, logged, sent in events or returned by any call.
 	SetGitHubCredential(context.Context, *SetGitHubCredentialRequest) (*SetGitHubCredentialResponse, error)
 	ClearGitHubCredential(context.Context, *ClearGitHubCredentialRequest) (*ClearGitHubCredentialResponse, error)
-	// GitHub Actions data for the github.com repository an open repository's
-	// origin points at, read with the token from SetGitHubCredential. Only
-	// repositories open in the Core can be queried. GitHub-side problems are
-	// reported in `status`, not as call errors.
+	// The github.com repositories the signed-in user's token reaches: those of
+	// the accounts where the Runnir Desktop app is installed, up to 1,000.
+	ListGitHubRepositories(context.Context, *ListGitHubRepositoriesRequest) (*ListGitHubRepositoriesResponse, error)
+	// GitHub Actions data for a github.com repository, read with the token
+	// from SetGitHubCredential: the one an open repository's origin points at
+	// (repository_id), or any repository by name (github_repository) for one
+	// without a local clone. GitHub-side problems are reported in `status`,
+	// not as call errors.
 	ListGitHubWorkflows(context.Context, *ListGitHubWorkflowsRequest) (*ListGitHubWorkflowsResponse, error)
 	// The GitHub repository itself: whether the token can see it, and its
 	// visibility and default branch.
@@ -566,6 +585,9 @@ func (UnimplementedRunnirCoreServer) SetGitHubCredential(context.Context, *SetGi
 }
 func (UnimplementedRunnirCoreServer) ClearGitHubCredential(context.Context, *ClearGitHubCredentialRequest) (*ClearGitHubCredentialResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ClearGitHubCredential not implemented")
+}
+func (UnimplementedRunnirCoreServer) ListGitHubRepositories(context.Context, *ListGitHubRepositoriesRequest) (*ListGitHubRepositoriesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListGitHubRepositories not implemented")
 }
 func (UnimplementedRunnirCoreServer) ListGitHubWorkflows(context.Context, *ListGitHubWorkflowsRequest) (*ListGitHubWorkflowsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListGitHubWorkflows not implemented")
@@ -859,6 +881,24 @@ func _RunnirCore_ClearGitHubCredential_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnirCoreServer).ClearGitHubCredential(ctx, req.(*ClearGitHubCredentialRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_ListGitHubRepositories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGitHubRepositoriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ListGitHubRepositories(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ListGitHubRepositories_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ListGitHubRepositories(ctx, req.(*ListGitHubRepositoriesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1205,6 +1245,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClearGitHubCredential",
 			Handler:    _RunnirCore_ClearGitHubCredential_Handler,
+		},
+		{
+			MethodName: "ListGitHubRepositories",
+			Handler:    _RunnirCore_ListGitHubRepositories_Handler,
 		},
 		{
 			MethodName: "ListGitHubWorkflows",

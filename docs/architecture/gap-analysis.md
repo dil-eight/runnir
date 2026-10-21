@@ -48,6 +48,6 @@ Add tests with the feature they protect. Native execution on every Go target, pr
 
 ## Scope Reconciliation
 
-Preserve ADR 0002 and current Xcode paths. ADR 0003 adds workspace/window identity, native startup routing and per-workspace SQLite. Product spelling stays Runnir until an explicit rename decision; .runnir is exact. Dashboard becomes a workspace tab rather than unconditional launch destination. AI/MCP remain deferred; FR-06 local execution is still required even if config parsing precedes executor implementation. Account-wide remote browsing placement, pure-Go SQLite driver, critical-close durability, signed grants and config merging details remain open.
+Preserve ADR 0002 and current Xcode paths. ADR 0003 adds workspace/window identity, native startup routing and per-workspace SQLite. Product spelling stays Runnir until an explicit rename decision; .runnir is exact. Dashboard becomes a workspace tab rather than unconditional launch destination. AI/MCP remain deferred; FR-06 local execution is still required even if config parsing precedes executor implementation. Pure-Go SQLite driver, critical-close durability, signed grants and config merging details remain open.
 
 See [prioritized backlog](../product/mvp-implementation-checklist.md) and [first slice](../product/first-implementation-slice.md).

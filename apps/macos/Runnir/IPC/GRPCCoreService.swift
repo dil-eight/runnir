@@ -192,27 +192,64 @@ struct GRPCCoreService: CoreServicing {
         }
     }
 
-    func listGitHubWorkflows(repositoryID: String) async throws -> CoreGitHubResult<CoreGitHubWorkflow> {
+    func listGitHubRepositories() async throws -> CoreGitHubAccount {
+        // Up to 1,000 repositories over several GitHub pages.
+        var options = Self.options(.seconds(60))
+        options.maxResponseMessageBytes = 8 << 20
+        let response = try await call { try await client.listGitHubRepositories(.init(), options: options) }
+        return CoreGitHubAccount(
+            access: Self.map(response.status),
+            installations: response.installations.map(Self.map),
+            repositories: response.repositories.map {
+                CoreGitHubAccountRepository(fullName: $0.fullName, owner: $0.owner, name: $0.name, description: $0.description_p,
+                                            visibility: $0.visibility, defaultBranch: $0.defaultBranch, htmlURL: URL(string: $0.htmlURL),
+                                            pushedAt: $0.hasPushedAt ? $0.pushedAt.date : nil, archived: $0.archived, fork: $0.fork,
+                                            canPush: $0.canPush, installationID: $0.installationID)
+            },
+            truncated: response.truncated)
+    }
+
+    func listGitHubWorkflows(target: CoreGitHubTarget) async throws -> CoreGitHubResult<CoreGitHubWorkflow> {
         let response = try await call {
-            try await client.listGitHubWorkflows(.with { $0.repositoryID = repositoryID }, options: Self.options(Self.callTimeout))
+            try await client.listGitHubWorkflows(.with {
+                switch target {
+                case .repository(let id): $0.repositoryID = id
+                case .named(let name): $0.githubRepository = name
+                }
+            }, options: Self.options(Self.callTimeout))
         }
         return CoreGitHubResult(access: Self.map(response.status), items: response.workflows.map {
             CoreGitHubWorkflow(id: $0.id, name: $0.name, path: $0.path, state: $0.state, htmlURL: URL(string: $0.htmlURL))
         })
     }
 
-    func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository {
+    func gitHubRepository(target: CoreGitHubTarget) async throws -> CoreGitHubRepository {
         let response = try await call {
-            try await client.getGitHubRepository(.with { $0.repositoryID = repositoryID }, options: Self.options(Self.callTimeout))
+            try await client.getGitHubRepository(.with {
+                switch target {
+                case .repository(let id): $0.repositoryID = id
+                case .named(let name): $0.githubRepository = name
+                }
+            }, options: Self.options(Self.callTimeout))
         }
         return CoreGitHubRepository(access: Self.map(response.status), fullName: response.fullName, visibility: response.visibility,
-                                    defaultBranch: response.defaultBranch, htmlURL: URL(string: response.htmlURL))
+                                    defaultBranch: response.defaultBranch, htmlURL: URL(string: response.htmlURL),
+                                    canPush: response.canPush, installation: response.hasInstallation ? Self.map(response.installation) : nil)
     }
 
-    func listWorkflowRuns(repositoryID: String, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> {
+    static func map(_ installation: Runnir_Core_V1_GitHubInstallation) -> CoreGitHubInstallation {
+        CoreGitHubInstallation(id: installation.id, account: installation.account, accountType: installation.accountType,
+                               repositorySelection: installation.repositorySelection, htmlURL: URL(string: installation.htmlURL),
+                               missingPermissions: installation.missingPermissions, suspended: installation.suspended)
+    }
+
+    func listWorkflowRuns(target: CoreGitHubTarget, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> {
         let response = try await call {
             try await client.listWorkflowRuns(.with {
-                $0.repositoryID = repositoryID
+                switch target {
+                case .repository(let id): $0.repositoryID = id
+                case .named(let name): $0.githubRepository = name
+                }
                 $0.branch = branch ?? ""
                 $0.limit = UInt32(clamping: max(0, min(limit, 100)))
             }, options: Self.options(Self.callTimeout))
@@ -255,18 +292,26 @@ struct GRPCCoreService: CoreServicing {
         })
     }
 
-    func listGitHubRefs(repositoryID: String) async throws -> CoreGitHubRefs {
+    func listGitHubRefs(target: CoreGitHubTarget) async throws -> CoreGitHubRefs {
         let response = try await call {
-            try await client.listGitHubRefs(.with { $0.repositoryID = repositoryID }, options: Self.options(Self.callTimeout))
+            try await client.listGitHubRefs(.with {
+                switch target {
+                case .repository(let id): $0.repositoryID = id
+                case .named(let name): $0.githubRepository = name
+                }
+            }, options: Self.options(Self.callTimeout))
         }
         return CoreGitHubRefs(access: Self.map(response.status), defaultBranch: response.defaultBranch,
                               branches: response.branches, tags: response.tags)
     }
 
-    func describeWorkflowDispatch(repositoryID: String, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition {
+    func describeWorkflowDispatch(target: CoreGitHubTarget, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition {
         let response = try await call {
             try await client.describeWorkflowDispatch(.with {
-                $0.repositoryID = repositoryID
+                switch target {
+                case .repository(let id): $0.repositoryID = id
+                case .named(let name): $0.githubRepository = name
+                }
                 $0.workflowPath = workflowPath
                 $0.ref = ref
             }, options: Self.options(Self.callTimeout))
@@ -289,10 +334,13 @@ struct GRPCCoreService: CoreServicing {
         )
     }
 
-    func prepareWorkflowDispatch(repositoryID: String, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch {
+    func prepareWorkflowDispatch(target: CoreGitHubTarget, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch {
         let response = try await call {
             try await client.prepareWorkflowDispatch(.with {
-                $0.repositoryID = repositoryID
+                switch target {
+                case .repository(let id): $0.repositoryID = id
+                case .named(let name): $0.githubRepository = name
+                }
                 $0.workflowID = workflowID
                 $0.ref = ref
                 $0.inputs = inputs
@@ -530,6 +578,7 @@ struct GRPCCoreService: CoreServicing {
         case .signedOut: .signedOut
         case .tokenRejected: .tokenRejected
         case .notVisible: .notVisible
+        case .permissionMissing: .permissionMissing
         case .rateLimited: .rateLimited(until: status.hasRetryAfter ? status.retryAfter.date : nil)
         default: .unavailable
         }

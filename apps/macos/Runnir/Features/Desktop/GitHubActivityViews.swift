@@ -22,53 +22,6 @@ struct RunOutcomeIcon: View {
     }
 }
 
-/// Why GitHub data is missing, with the step that fixes it.
-struct GitHubAccessNotice: View {
-    let access: CoreGitHubAccess
-    let repository: String?
-    let github: GitHubSession?
-    let retry: () -> Void
-    @Environment(\.openURL) private var openURL
-    @State private var showingConnect = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(message).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) { actions }.buttonStyle(DesignButtonStyle())
-        }
-        .sheet(isPresented: $showingConnect) { if let github { GitHubConnectView(session: github) } }
-    }
-
-    private var message: String {
-        let name = repository ?? "this repository"
-        switch access {
-        case .ok: return ""
-        case .noRemote: return "This working tree has no origin on github.com, so there are no GitHub runs to show."
-        case .signedOut: return "Connect GitHub to see runs for \(name)."
-        case .tokenRejected: return "GitHub no longer accepts the saved sign-in. Connect again."
-        case .notVisible: return "Runnir can't see \(name). Install Runnir Desktop on it, then try again."
-        case .rateLimited(let until):
-            if let until { return "GitHub is limiting requests until \(until.formatted(date: .omitted, time: .shortened)). Showing the last data." }
-            return "GitHub is limiting requests. Showing the last data."
-        case .unavailable: return "GitHub could not be reached. Showing the last data."
-        }
-    }
-
-    @ViewBuilder private var actions: some View {
-        switch access {
-        case .signedOut, .tokenRejected:
-            if github != nil { Button("Connect GitHub...") { showingConnect = true } }
-        case .notVisible:
-            Button("Give Runnir Access...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
-            Button("Try Again", action: retry)
-        case .rateLimited, .unavailable:
-            Button("Try Again", action: retry)
-        case .ok, .noRemote:
-            EmptyView()
-        }
-    }
-}
 
 /// One line per run: status, title, number, branch, event and age.
 struct RunRow: View {
@@ -105,13 +58,22 @@ struct RecentRunsList: View {
     let github: GitHubSession?
     let hub: CoreHub?
     var limit = 5
+    /// Off where the screen already says what is missing (the Overview's
+    /// GitHub card or stale banner), so the same notice is not shown twice.
+    var showsAccessNotice = true
     let open: (CoreWorkflowRun) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            if let access = session.githubAccess, access != .ok {
-                GitHubAccessNotice(access: access, repository: session.githubRepository, github: github) {
-                    Task { await hub?.loadGitHubActivity(workspaceID: session.workspaceID) }
+            if let access = session.githubAccess,
+               let help = GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails) {
+                if showsAccessNotice {
+                    GitHubAccessNotice(help: help, style: .note, github: github) {
+                        Task { await hub?.loadGitHubActivity(workspaceID: session.workspaceID) }
+                    }
+                } else if session.runs.isEmpty {
+                    Text("Runs appear here once Runnir can read them from GitHub.")
+                        .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(.vertical, 6)
                 }
             }
             if session.runs.isEmpty {
@@ -157,8 +119,9 @@ struct WorkspaceRunsView: View {
                 DesignDivider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
-                        if let access = session.githubAccess, access != .ok {
-                            GitHubAccessNotice(access: access, repository: session.githubRepository, github: github) {
+                        if let access = session.githubAccess,
+                           let help = GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails) {
+                            GitHubAccessNotice(help: help, style: .banner, github: github) {
                                 Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
                             }.padding(8)
                         }
@@ -177,7 +140,7 @@ struct WorkspaceRunsView: View {
             DesignDivider(vertical: true)
             Group {
                 if let run = session.runs.first(where: { $0.id == selectedRunID }) {
-                    RunInspectorView(run: run, workspaceID: session.workspaceID, hub: hub)
+                    RunInspectorView(run: run, workspaceID: session.workspaceID, hub: hub, github: github)
                         .id(run.id)
                 } else {
                     UnavailableFeature(title: "Select a run", detail: "Choose a run to see its jobs, steps and logs.", symbol: "play.circle")
@@ -203,10 +166,15 @@ struct WorkspaceWorkflowsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 4) {
-                if let access = session.githubAccess, access != .ok {
-                    GitHubAccessNotice(access: access, repository: session.githubRepository, github: github) {
+                if let access = session.githubAccess,
+                   let help = GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails) {
+                    GitHubAccessNotice(help: help, style: .banner, github: github) {
                         Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
                     }.padding(.bottom, 12)
+                } else if let installation = session.githubDetails?.installation,
+                          let help = GitHubAccessHelp.installationBlocker(installation, purpose: .run, refused: false) {
+                    // Workflows can be read, but starting them waits for an owner.
+                    GitHubAccessNotice(help: help, style: .banner, github: github).padding(.bottom, 12)
                 }
                 ForEach(favorites?.ordered(session.remoteWorkflows, workspaceID: session.workspaceID, path: \.path) ?? session.remoteWorkflows) { workflow in
                     let latest = session.runs.first { $0.workflowID == workflow.id }

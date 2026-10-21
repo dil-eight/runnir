@@ -1,4 +1,50 @@
+import LocalAuthentication
 import SwiftUI
+
+/// Settings › Manual Runs: confirm starting a workflow by hand with Touch
+/// ID, or the Mac's password where Touch ID is not set up. Off by default.
+enum ManualRunSettings {
+    static let confirmWithTouchIDKey = "manualRuns.confirmWithTouchID"
+
+    static func confirmWithTouchID(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: confirmWithTouchIDKey)
+    }
+}
+
+/// The Mac's owner confirming an action with Touch ID or the login password.
+enum OwnerConfirmation: Equatable {
+    case confirmed
+    /// Cancelled, or not recognized.
+    case declined
+    /// The Mac cannot ask; the reason is the system's.
+    case unavailable(String)
+
+    /// Asks only when Settings turns it on.
+    @MainActor static func ifEnabled(reason: String, defaults: UserDefaults = .standard,
+                                     ask: @MainActor (String) async -> OwnerConfirmation = { await OwnerConfirmation.ask(reason: $0) }) async -> OwnerConfirmation {
+        guard ManualRunSettings.confirmWithTouchID(in: defaults) else { return .confirmed }
+        return await ask(reason)
+    }
+
+    /// `reason` completes the system's "Runnir is trying to ...".
+    @MainActor static func ask(reason: String) async -> OwnerConfirmation {
+        let context = LAContext()
+        var problem: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &problem) else {
+            return .unavailable(problem?.localizedDescription ?? "Touch ID and the password are not available.")
+        }
+        do {
+            return try await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) ? .confirmed : .declined
+        } catch {
+            return .declined
+        }
+    }
+
+    /// Whether this Mac has Touch ID set up, for the Settings caption.
+    @MainActor static var hasTouchID: Bool {
+        LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+    }
+}
 
 /// Asks for one Run Workflow sheet; `workflowID` preselects a workflow.
 struct RunWorkflowRequest: Identifiable, Equatable {
@@ -24,7 +70,8 @@ final class DispatchFormModel {
         case failed(String)
     }
 
-    let workspaceID: UUID
+    /// The workspace or the repository without a local clone to run on.
+    let target: CoreHub.GitHubTarget
     let workflows: [CoreGitHubWorkflow]
     private(set) var selectedWorkflowID: Int64?
     private(set) var refs: CoreGitHubRefs?
@@ -38,6 +85,10 @@ final class DispatchFormModel {
     private(set) var appliedPresetID: UUID?
     /// What a preset could not apply: a branch or inputs that no longer exist.
     private(set) var presetNotes: [String] = []
+    /// Why GitHub refused, with the step that fixes it, shown as an alert.
+    var accessHelp: GitHubAccessHelp?
+    /// Touch ID (or the password) is being asked for; Run Workflow waits.
+    private(set) var isAskingOwner = false
 
     @ObservationIgnored let presets: DispatchPresetLibrary?
     @ObservationIgnored private let hub: CoreHub
@@ -49,13 +100,24 @@ final class DispatchFormModel {
     @ObservationIgnored private var loadedDefaults: [String: String] = [:]
 
     @ObservationIgnored private let initialPresetID: UUID?
+    /// Asks the Mac's owner before the request is sent, when Settings says
+    /// so; tests replace it.
+    @ObservationIgnored var confirmOwner: @MainActor (String) async -> OwnerConfirmation = { await OwnerConfirmation.ifEnabled(reason: $0) }
 
-    init(workspaceID: UUID, hub: CoreHub, workflows: [CoreGitHubWorkflow], workflowID: Int64?, currentBranch: String,
+    convenience init(workspaceID: UUID, hub: CoreHub, workflows: [CoreGitHubWorkflow], workflowID: Int64?, currentBranch: String,
+                     presets: DispatchPresetLibrary? = nil, presetID: UUID? = nil) {
+        self.init(target: .workspace(workspaceID), hub: hub, workflows: workflows, workflowID: workflowID,
+                  currentBranch: currentBranch, presets: presets, presetID: presetID)
+    }
+
+    /// Presets belong to a workspace, so a repository without a local clone
+    /// has none.
+    init(target: CoreHub.GitHubTarget, hub: CoreHub, workflows: [CoreGitHubWorkflow], workflowID: Int64?, currentBranch: String,
          presets: DispatchPresetLibrary? = nil, presetID: UUID? = nil) {
         self.initialPresetID = presetID
-        self.workspaceID = workspaceID
+        self.target = target
         self.hub = hub
-        self.presets = presets
+        if case .workspace = target { self.presets = presets } else { self.presets = nil }
         self.workflows = workflows.filter { $0.state == "active" }
         self.currentBranch = currentBranch
         selectedWorkflowID = workflowID ?? self.workflows.first?.id
@@ -63,11 +125,18 @@ final class DispatchFormModel {
 
     var selectedWorkflow: CoreGitHubWorkflow? { workflows.first { $0.id == selectedWorkflowID } }
 
+    /// The workspace presets are kept for; nil for a repository without a
+    /// local clone.
+    var workspaceID: UUID? {
+        if case .workspace(let id) = target { return id }
+        return nil
+    }
+
     /// Loads refs, picks the current branch when GitHub has it (else the
     /// default branch), then the workflow's definition at that ref.
     func load() async {
         presets?.prepare()
-        let refs = await hub.refs(workspaceID: workspaceID)
+        let refs = await hub.refs(target: target)
         self.refs = refs
         if refs.access == .ok {
             ref = refs.branches.contains(currentBranch) ? currentBranch : refs.defaultBranch
@@ -98,7 +167,7 @@ final class DispatchFormModel {
         problems = []
         guard let workflow = selectedWorkflow, !ref.isEmpty else { definition = nil; return }
         isLoadingDefinition = true
-        let loaded = await hub.describeDispatch(workspaceID: workspaceID, workflowPath: workflow.path, ref: ref)
+        let loaded = await hub.describeDispatch(target: target, workflowPath: workflow.path, ref: ref)
         guard generation == definitionGeneration else { return }
         isLoadingDefinition = false
         definition = loaded
@@ -116,7 +185,7 @@ final class DispatchFormModel {
 
     /// Presets saved for the selected workflow in this workspace.
     var availablePresets: [DispatchPreset] {
-        guard let path = selectedWorkflow?.path, let presets else { return [] }
+        guard let path = selectedWorkflow?.path, let presets, let workspaceID else { return [] }
         return presets.presets(workspaceID: workspaceID, workflowPath: path)
     }
 
@@ -192,7 +261,7 @@ final class DispatchFormModel {
     /// Saves the current branch and values as a new preset and applies it.
     @discardableResult
     func saveAsPreset(named name: String) -> Bool {
-        guard canSavePreset, let workflow = selectedWorkflow,
+        guard canSavePreset, let workflow = selectedWorkflow, let workspaceID,
               let preset = presets?.add(name: name, workspaceID: workspaceID, workflowPath: workflow.path, ref: ref, inputs: presetValues) else {
             return false
         }
@@ -271,9 +340,10 @@ final class DispatchFormModel {
     func review() async {
         guard canReview, let workflow = selectedWorkflow else { return }
         step = .preparing
-        let prepared = await hub.prepareDispatch(workspaceID: workspaceID, workflowID: workflow.id, ref: ref, inputs: inputsToSend)
+        let prepared = await hub.prepareDispatch(target: target, workflowID: workflow.id, ref: ref, inputs: inputsToSend)
         if prepared.access != .ok {
             step = .failed(Self.describe(prepared.access))
+            await explain(prepared.access)
         } else if !prepared.problems.isEmpty || prepared.dispatchID == nil {
             problems = prepared.problems
             step = .editing
@@ -288,10 +358,25 @@ final class DispatchFormModel {
 
     /// Sends the reviewed dispatch once, then looks for the run it started.
     func confirm() async {
-        guard case .review(let prepared) = step, let dispatchID = prepared.dispatchID, let workflow = selectedWorkflow else { return }
-        let known = Set(hub.session(for: workspaceID)?.runs.map(\.id) ?? [])
+        guard case .review(let prepared) = step, let dispatchID = prepared.dispatchID, let workflow = selectedWorkflow,
+              !isAskingOwner else { return }
+        isAskingOwner = true
+        let owner = await confirmOwner("start \u{201C}\(workflow.name)\u{201D} on \(ref)")
+        isAskingOwner = false
+        switch owner {
+        case .confirmed:
+            break
+        case .declined:
+            // Back to the review; nothing was sent.
+            return
+        case .unavailable(let reason):
+            step = .failed("Manual runs are set to be confirmed with Touch ID, but this Mac can't ask: \(reason) Nothing was sent. Turn the setting off in Settings › Manual Runs, or set up Touch ID.")
+            return
+        }
+        guard case .review = step else { return }
         step = .sending
-        guard let result = await hub.confirmDispatch(workspaceID: workspaceID, dispatchID: dispatchID) else {
+        let known = await hub.knownRunIDs(target)
+        guard let result = await hub.confirmDispatch(target: target, dispatchID: dispatchID) else {
             step = .failed("This confirmation expired or was already used, so nothing was sent. Review the run again.")
             return
         }
@@ -301,10 +386,11 @@ final class DispatchFormModel {
         }
         guard result.access == .ok, let dispatchedAt = result.dispatchedAt else {
             step = .failed(Self.describe(result.access) + " The workflow may not have started; check Runs before trying again.")
+            await explain(result.access)
             return
         }
         step = .waitingForRun
-        if let run = await hub.locateDispatchedRun(workspaceID: workspaceID, workflowID: workflow.id, ref: ref,
+        if let run = await hub.locateDispatchedRun(target: target, workflowID: workflow.id, ref: ref,
                                                    dispatchedAt: dispatchedAt, knownRunIDs: known, reportedRunID: result.runID) {
             step = .found(run)
         } else {
@@ -312,12 +398,31 @@ final class DispatchFormModel {
         }
     }
 
+    /// The repository's GitHub name, for messages.
+    var repositoryName: String? {
+        switch target {
+        case .workspace(let id): hub.session(for: id)?.githubRepository
+        case .repository(let name): name
+        }
+    }
+
+    /// Turns a refusal the user can fix into `accessHelp`; a missing
+    /// permission is checked against the repository first, to tell an
+    /// owner's pending approval from the user's missing write access.
+    private func explain(_ access: CoreGitHubAccess) async {
+        guard GitHubAccessHelp.needsExplaining(access) else { return }
+        let details = access == .permissionMissing ? await hub.githubRepository(target: target) : nil
+        accessHelp = GitHubAccessHelp.forAccess(access, repository: repositoryName, purpose: .run, details: details)
+    }
+
     static func describe(_ access: CoreGitHubAccess) -> String {
         switch access {
         case .ok: ""
         case .noRemote: "This working tree has no GitHub remote."
-        case .signedOut, .tokenRejected: "Connect GitHub to run workflows."
+        case .signedOut: "Connect GitHub to run workflows."
+        case .tokenRejected: "GitHub no longer accepts the saved sign-in. Sign in again to run workflows."
         case .notVisible: "Runnir can't see this repository or the workflow on that ref."
+        case .permissionMissing: "GitHub did not allow starting this workflow: Runnir Desktop or your account lacks a permission."
         case .rateLimited: "GitHub is limiting requests. Try again in a moment."
         case .unavailable: "GitHub could not be reached."
         }
@@ -327,6 +432,8 @@ final class DispatchFormModel {
 /// The Run Workflow sheet.
 struct RunWorkflowSheet: View {
     @State var model: DispatchFormModel
+    /// For the sign-in sheet an access alert may offer.
+    var github: GitHubSession? = nil
     let showRun: (CoreWorkflowRun) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var presetPrompt: PresetPrompt?
@@ -360,6 +467,7 @@ struct RunWorkflowSheet: View {
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
         .task { await model.load() }
+        .githubAccessAlert(Binding(get: { model.accessHelp }, set: { model.accessHelp = $0 }), github: github)
         .alert(presetPrompt == .rename ? "Rename Preset" : "Save Preset", isPresented: Binding(
             get: { presetPrompt != nil }, set: { if !$0 { presetPrompt = nil } })) {
             TextField("Name", text: $presetName)
@@ -442,7 +550,7 @@ struct RunWorkflowSheet: View {
                 RunRow(run: run)
             }
         case .notFoundYet:
-            Label("GitHub accepted the request, but the run has not appeared yet. It will show in Runs when it starts.",
+            Label("GitHub accepted the request, but the run has not appeared yet. It will show with the recent runs when it starts.",
                   systemImage: "clock").font(.system(size: 13))
         case .failed(let message):
             Label(message, systemImage: "exclamationmark.triangle").foregroundStyle(RunnirTheme.warning).font(.system(size: 13))
@@ -555,7 +663,7 @@ struct RunWorkflowSheet: View {
                 .disabled(!model.canReview)
         case .review:
             Button("Back") { model.backToEditing() }
-            Button("Run Workflow") { Task { await model.confirm() } }
+            Button("Run Workflow") { Task { await model.confirm() } }.disabled(model.isAskingOwner)
                 .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .sending, .waitingForRun:
             Button("Close") { dismiss() }

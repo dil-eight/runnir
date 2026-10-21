@@ -27,15 +27,40 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     var runsCalls: [String] { lock.withLock { _runsCalls } }
     func setRuns(_ result: CoreGitHubResult<CoreWorkflowRun>, for path: String) { lock.withLock { runsResults[Self.id(for: path)] = result } }
     func setJobs(_ result: CoreGitHubResult<CoreRunJob>) { lock.withLock { jobsResult = result } }
-    func listGitHubWorkflows(repositoryID: String) async throws -> CoreGitHubResult<CoreGitHubWorkflow> {
-        CoreGitHubResult(access: .ok, items: [CoreGitHubWorkflow(id: 1, name: "CI", path: ".github/workflows/ci.yml", state: "active", htmlURL: nil)])
+    /// Runs of a repository named directly, without a local clone.
+    func setRuns(_ result: CoreGitHubResult<CoreWorkflowRun>, forRepository name: String) {
+        lock.withLock { runsResults["github:" + name] = result }
+    }
+    /// What a call's target is recorded and looked up as: the Core id, or
+    /// "github:owner/name".
+    static func key(_ target: CoreGitHubTarget) -> String {
+        switch target {
+        case .repository(let id): id
+        case .named(let name): "github:" + name
+        }
+    }
+    var accountResult = CoreGitHubAccount.failed(.signedOut)
+    private var _accountCalls = 0
+    var accountCalls: Int { lock.withLock { _accountCalls } }
+    func listGitHubRepositories() async throws -> CoreGitHubAccount {
+        lock.withLock {
+            _accountCalls += 1
+            return accountResult
+        }
+    }
+    private var _workflowTargets: [String] = []
+    var workflowTargets: [String] { lock.withLock { _workflowTargets } }
+    func listGitHubWorkflows(target: CoreGitHubTarget) async throws -> CoreGitHubResult<CoreGitHubWorkflow> {
+        lock.withLock { _workflowTargets.append(Self.key(target)) }
+        return CoreGitHubResult(access: .ok, items: [CoreGitHubWorkflow(id: 1, name: "CI", path: ".github/workflows/ci.yml", state: "active", htmlURL: nil)])
     }
     /// Answers with the result set when the call started, after this delay.
     var runsDelay: Duration?
-    func listWorkflowRuns(repositoryID: String, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> {
+    func listWorkflowRuns(target: CoreGitHubTarget, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> {
+        let key = Self.key(target)
         let (result, delay) = lock.withLock {
-            _runsCalls.append(repositoryID)
-            return (runsResults[repositoryID] ?? CoreGitHubResult(access: .ok, items: []), runsDelay)
+            _runsCalls.append(key)
+            return (runsResults[key] ?? CoreGitHubResult(access: .ok, items: []), runsDelay)
         }
         if let delay { try? await Task.sleep(for: delay) }
         return result
@@ -59,20 +84,34 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     }
     var repositoryResult = CoreGitHubRepository(access: .ok, fullName: "o/r", visibility: "private", defaultBranch: "main",
                                                 htmlURL: URL(string: "https://github.com/o/r"))
-    func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository { lock.withLock { repositoryResult } }
+    func gitHubRepository(target: CoreGitHubTarget) async throws -> CoreGitHubRepository { lock.withLock { repositoryResult } }
     private var _confirmed: [String] = []
     var confirmed: [String] { lock.withLock { _confirmed } }
     var dispatchDefinition = CoreDispatchDefinition(access: .ok, dispatchable: true, inputs: [], parseError: nil)
     var preparedProblems: [String] = []
-    func listGitHubRefs(repositoryID: String) async throws -> CoreGitHubRefs {
+    /// What GitHub answers a prepared dispatch with, when not `.ok`.
+    var preparedAccess: CoreGitHubAccess = .ok
+    private var _dispatchTargets: [String] = []
+    /// Targets of refs, describe and prepare calls, in order.
+    var dispatchTargets: [String] { lock.withLock { _dispatchTargets } }
+    func listGitHubRefs(target: CoreGitHubTarget) async throws -> CoreGitHubRefs {
+        lock.withLock { _dispatchTargets.append(Self.key(target)) }
+        return 
         CoreGitHubRefs(access: .ok, defaultBranch: "main", branches: ["main", "feature"], tags: ["v1.0"])
     }
-    func describeWorkflowDispatch(repositoryID: String, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition {
-        lock.withLock { dispatchDefinition }
-    }
-    func prepareWorkflowDispatch(repositoryID: String, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch {
+    func describeWorkflowDispatch(target: CoreGitHubTarget, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition {
         lock.withLock {
-            preparedProblems.isEmpty
+            _dispatchTargets.append(Self.key(target))
+            return dispatchDefinition
+        }
+    }
+    func prepareWorkflowDispatch(target: CoreGitHubTarget, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch {
+        lock.withLock {
+            _dispatchTargets.append(Self.key(target))
+            if preparedAccess != .ok {
+                return CorePreparedDispatch(access: preparedAccess, dispatchID: nil, expiresAt: nil, problems: [], workflowPath: "")
+            }
+            return preparedProblems.isEmpty
                 ? CorePreparedDispatch(access: .ok, dispatchID: "dispatch_1", expiresAt: Date().addingTimeInterval(120), problems: [], workflowPath: ".github/workflows/ci.yml")
                 : CorePreparedDispatch(access: .ok, dispatchID: nil, expiresAt: nil, problems: preparedProblems, workflowPath: ".github/workflows/ci.yml")
         }

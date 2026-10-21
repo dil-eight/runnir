@@ -20,9 +20,13 @@ var (
 	ErrUnauthorized = errors.New("GitHub rejected the token")
 	// ErrNotVisible covers 404 and permission 403: the app is not installed on
 	// the repository, or the user cannot see it.
-	ErrNotVisible  = errors.New("repository is not visible to Runnir")
-	ErrUnavailable = errors.New("GitHub is unavailable")
-	ErrInvalid     = errors.New("unexpected GitHub response")
+	ErrNotVisible = errors.New("repository is not visible to Runnir")
+	// ErrPermissionMissing is GitHub's "Resource not accessible by
+	// integration": the app is installed, but it or the user lacks the
+	// permission for the call.
+	ErrPermissionMissing = errors.New("Runnir Desktop or the user lacks the permission")
+	ErrUnavailable       = errors.New("GitHub is unavailable")
+	ErrInvalid           = errors.New("unexpected GitHub response")
 )
 
 // RejectedError is GitHub refusing a change it understood (HTTP 422, 409, or
@@ -351,10 +355,12 @@ func (c *Client) send(ctx context.Context, method, path string, query url.Values
 		return nil, status, ErrUnauthorized
 	case status == http.StatusTooManyRequests, status == http.StatusForbidden && isRateLimited(response):
 		return nil, status, &RateLimitError{Reset: rateLimitReset(response)}
-	case status == http.StatusForbidden && method != http.MethodGet && !missingAccess(data):
+	case status == http.StatusForbidden && missingAccess(data):
+		return nil, status, ErrPermissionMissing
+	case status == http.StatusForbidden && method != http.MethodGet:
 		// A refused change carries GitHub's reason, for example a run too
-		// old to re-run or an organization policy. Missing installation or
-		// permission, and refused reads, stay NOT_VISIBLE.
+		// old to re-run or an organization policy. Refused reads stay
+		// NOT_VISIBLE.
 		return nil, status, &RejectedError{Message: problemMessage(data)}
 	case status == http.StatusForbidden, status == http.StatusNotFound:
 		return nil, status, ErrNotVisible
@@ -375,8 +381,8 @@ func problemMessage(data []byte) string {
 	return problem.Message
 }
 
-// missingAccess recognizes GitHub's answer when the app is not installed on
-// the repository or lacks the permission, which the app can help fix.
+// missingAccess recognizes GitHub's answer when the app or the user lacks
+// the permission for a call on a repository the app is installed on.
 func missingAccess(data []byte) bool {
 	return strings.Contains(strings.ToLower(problemMessage(data)), "not accessible by integration")
 }

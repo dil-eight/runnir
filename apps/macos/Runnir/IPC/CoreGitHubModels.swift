@@ -10,6 +10,10 @@ enum CoreGitHubAccess: Equatable, Sendable {
     case tokenRejected
     /// The Runnir Desktop app is not installed on the repository, or the user cannot see it.
     case notVisible
+    /// The app is installed, but it or the user lacks a permission for this:
+    /// the installation has not accepted new permissions, or the user cannot
+    /// write to the repository.
+    case permissionMissing
     case rateLimited(until: Date?)
     case unavailable
 }
@@ -30,9 +34,64 @@ struct CoreGitHubRepository: Equatable, Sendable {
     let visibility: String
     let defaultBranch: String
     let htmlURL: URL?
+    /// The signed-in user can push, so can start, cancel and re-run workflows.
+    var canPush = false
+    /// The installation of the repository's owner, when the user can see it.
+    var installation: CoreGitHubInstallation? = nil
 
     static func failed(_ access: CoreGitHubAccess) -> CoreGitHubRepository {
         CoreGitHubRepository(access: access, fullName: "", visibility: "", defaultBranch: "", htmlURL: nil)
+    }
+}
+
+/// An account where the Runnir Desktop app is installed.
+struct CoreGitHubInstallation: Equatable, Identifiable, Sendable {
+    let id: Int64
+    let account: String
+    /// "User" or "Organization".
+    let accountType: String
+    /// "all" or "selected".
+    let repositorySelection: String
+    /// Where the account's owner changes which repositories the app reaches
+    /// and accepts new permissions.
+    let htmlURL: URL?
+    /// Permissions Runnir needs that the installation has not granted, such
+    /// as "actions: write".
+    var missingPermissions: [String] = []
+    var suspended = false
+}
+
+/// A github.com repository the signed-in user's token reaches.
+struct CoreGitHubAccountRepository: Equatable, Identifiable, Sendable {
+    var id: String { fullName }
+    /// "owner/name" as GitHub spells it.
+    let fullName: String
+    let owner: String
+    let name: String
+    let description: String
+    /// "public", "private" or "internal".
+    let visibility: String
+    let defaultBranch: String
+    let htmlURL: URL?
+    let pushedAt: Date?
+    let archived: Bool
+    let fork: Bool
+    /// The user can push, so can start workflows.
+    let canPush: Bool
+    let installationID: Int64
+}
+
+/// The repositories of the accounts where the app is installed.
+struct CoreGitHubAccount: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    let installations: [CoreGitHubInstallation]
+    /// Newest push first.
+    let repositories: [CoreGitHubAccountRepository]
+    /// More repositories exist than the Core read.
+    let truncated: Bool
+
+    static func failed(_ access: CoreGitHubAccess) -> CoreGitHubAccount {
+        CoreGitHubAccount(access: access, installations: [], repositories: [], truncated: false)
     }
 }
 
