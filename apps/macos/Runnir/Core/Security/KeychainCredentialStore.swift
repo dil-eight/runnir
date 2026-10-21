@@ -3,10 +3,14 @@ import Security
 
 actor KeychainCredentialStore: CredentialStoring {
     private let service: String
-    private let account = "oauth-token"
+    private let account: String
 
-    init(service: String = KeychainCredentialStore.defaultService) {
+    /// github.com's sign-in, as before Enterprise servers.
+    static let defaultAccount = "oauth-token"
+
+    init(service: String = KeychainCredentialStore.defaultService, account: String = KeychainCredentialStore.defaultAccount) {
         self.service = service
+        self.account = account
     }
 
     /// The sign-in's Keychain item, or, for UI tests of a Debug build, an
