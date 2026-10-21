@@ -435,6 +435,13 @@ final class CoreHub {
 
     // MARK: Repositories without a local clone
 
+    /// The GitHub repository of each working tree's origin, by path; nil
+    /// when the Core is not ready.
+    func githubOrigins(paths: [String]) async -> [String: String]? {
+        guard isReady, let service = try? await provider.service() else { return nil }
+        return try? await service.githubOrigins(paths: Array(paths.prefix(500)))
+    }
+
     /// The github.com repositories the signed-in user's token reaches.
     func accountRepositories() async -> CoreGitHubAccount {
         guard isReady, let service = try? await provider.service() else { return .failed(.unavailable) }

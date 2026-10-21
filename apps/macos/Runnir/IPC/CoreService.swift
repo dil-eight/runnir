@@ -141,6 +141,9 @@ protocol CoreServicing: Sendable {
     func renameWorkflowFile(repositoryID: String, workflowID: String, newFileName: String) async throws -> String
     /// Hands the signed-in user's GitHub token to the Core's memory; nil clears it.
     func setGitHubCredential(_ token: String?) async throws
+    /// "owner/name" of the github.com repository each working tree's origin
+    /// points at, by path; read from git's metadata without opening them.
+    func githubOrigins(paths: [String]) async throws -> [String: String]
     /// The github.com repositories the token reaches, and the accounts where
     /// the Runnir Desktop app is installed.
     func listGitHubRepositories() async throws -> CoreGitHubAccount

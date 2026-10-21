@@ -142,3 +142,30 @@ func TestGitHubCallsReportMissingRemoteAndBadInput(t *testing.T) {
 		t.Fatalf("unreachable = %v, %v", runs, err)
 	}
 }
+
+func TestGitHubOriginsAreReadWithoutOpening(t *testing.T) {
+	path := socketPath(t)
+	stop := start(t, path)
+	defer stop()
+	client := connect(t, path)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	github := linkedRepository(t, "git@github.com:Dil-Eight/runnir.git")
+	elsewhere := linkedRepository(t, "https://gitlab.com/o/r.git")
+	plain := t.TempDir()
+	response, err := client.GetGitHubOrigins(ctx, &corev1.GetGitHubOriginsRequest{
+		Paths: []string{github, elsewhere, plain, "relative/path", filepath.Join(plain, "missing")},
+	})
+	if err != nil || len(response.Origins) != 1 || response.Origins[0].Path != github ||
+		response.Origins[0].GithubRepository != "Dil-Eight/runnir" {
+		t.Fatalf("origins = %v, %v", response, err)
+	}
+	many := make([]string, 501)
+	for i := range many {
+		many[i] = github
+	}
+	if _, err := client.GetGitHubOrigins(ctx, &corev1.GetGitHubOriginsRequest{Paths: many}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("501 paths = %v", err)
+	}
+}

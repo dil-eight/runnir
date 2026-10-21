@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 
 	"google.golang.org/grpc/codes"
@@ -11,6 +12,7 @@ import (
 
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
+	"runnir/core/internal/scanner"
 )
 
 // githubTarget resolves a request's repository to its github.com owner and
@@ -173,6 +175,29 @@ func (s *service) ListRunJobs(ctx context.Context, request *corev1.ListRunJobsRe
 				StartedAt: timestamp(step.StartedAt), CompletedAt: timestamp(step.CompletedAt)})
 		}
 		out.Jobs = append(out.Jobs, job)
+	}
+	return out, nil
+}
+
+const maxOriginPaths = 500
+
+// GetGitHubOrigins reads the github.com origin of each working tree without
+// opening it.
+func (s *service) GetGitHubOrigins(ctx context.Context, request *corev1.GetGitHubOriginsRequest) (*corev1.GetGitHubOriginsResponse, error) {
+	if len(request.GetPaths()) > maxOriginPaths {
+		return nil, status.Errorf(codes.InvalidArgument, "at most %d paths", maxOriginPaths)
+	}
+	out := &corev1.GetGitHubOriginsResponse{}
+	for _, path := range request.GetPaths() {
+		if err := ctx.Err(); err != nil {
+			return nil, status.FromContextError(err).Err()
+		}
+		if !filepath.IsAbs(path) {
+			continue
+		}
+		if name := scanner.GitHubOrigin(filepath.Clean(path)); name != "" {
+			out.Origins = append(out.Origins, &corev1.GitHubOrigin{Path: path, GithubRepository: name})
+		}
 	}
 	return out, nil
 }

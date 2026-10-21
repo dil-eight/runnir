@@ -260,7 +260,13 @@ struct GitHubRepositoriesView: View {
     var body: some View {
         Group {
             if let github = desktop.github, let hub = desktop.core {
-                if github.user == nil {
+                if case .restoring = github.connection {
+                    // Not signed out yet: the saved sign-in is being read,
+                    // which can wait for the Keychain to allow it.
+                    HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Checking the saved sign-in...") }
+                        .font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if github.user == nil {
                     signedOut
                 } else {
                     browser(hub: hub)
@@ -275,6 +281,14 @@ struct GitHubRepositoriesView: View {
             }
         }
         .sheet(isPresented: $showingConnect) { if let github = desktop.github { GitHubConnectView(session: github) } }
+        // Registered clones are matched to GitHub repositories right away,
+        // not only once they are opened.
+        .task(id: "\(desktop.snapshot.workspaces.map(\.id))|\(coreReady)") { await desktop.findGitHubOrigins() }
+    }
+
+    private var coreReady: Bool {
+        if case .ready = desktop.core?.status { return true }
+        return false
     }
 
     private var signedOut: some View {

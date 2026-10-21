@@ -39,6 +39,16 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         case .named(let name): "github:" + name
         }
     }
+    /// GitHub origins by working tree path.
+    var origins: [String: String] = [:]
+    private var _originRequests: [[String]] = []
+    var originRequests: [[String]] { lock.withLock { _originRequests } }
+    func githubOrigins(paths: [String]) async throws -> [String: String] {
+        lock.withLock {
+            _originRequests.append(paths)
+            return origins.filter { paths.contains($0.key) }
+        }
+    }
     var accountResult = CoreGitHubAccount.failed(.signedOut)
     private var _accountCalls = 0
     var accountCalls: Int { lock.withLock { _accountCalls } }

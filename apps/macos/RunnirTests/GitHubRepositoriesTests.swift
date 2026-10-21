@@ -203,6 +203,28 @@ struct GitHubRepositoriesTests {
         #expect(desktop.workspace(forGitHubRepository: "dil-eight/runnir")?.id == older.id)
     }
 
+    @Test func registeredClonesAreFoundWithoutOpeningThem() async throws {
+        let folder = directory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let store = FileDesktopStateStore(directory: folder)
+        let clone = WorkspaceRecord(id: UUID(), path: "/tmp/runnir", name: "runnir", bookmark: Data(), lastOpenedAt: Date())
+        let other = WorkspaceRecord(id: UUID(), path: "/tmp/notes", name: "notes", bookmark: Data(), lastOpenedAt: Date())
+        try store.save(DesktopSnapshot(workspaces: [clone, other]))
+        let (hub, provider) = await readyHub()
+        provider.core.origins = ["/tmp/runnir": "dil-eight/runnir"]
+        let desktop = DesktopCoordinator(store: store, core: hub)
+        await desktop.loadSession()
+
+        await desktop.findGitHubOrigins()
+        #expect(desktop.workspace(forGitHubRepository: "dil-eight/runnir")?.id == clone.id)
+        #expect(try store.load().workspaces.first { $0.id == clone.id }?.githubRepository == "dil-eight/runnir")
+        #expect(provider.core.originRequests == [["/tmp/runnir", "/tmp/notes"]])
+
+        // A working tree without a GitHub origin is asked once per launch.
+        await desktop.findGitHubOrigins()
+        #expect(provider.core.originRequests.count == 1)
+    }
+
     @Test func aRegistrySavedBeforeGitHubNamesStillLoads() throws {
         let json = #"{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","path":"/a","name":"a","bookmark":"","lastOpenedAt":0}"#
         let record = try JSONDecoder().decode(WorkspaceRecord.self, from: Data(json.utf8))

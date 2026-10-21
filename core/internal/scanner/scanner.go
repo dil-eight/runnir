@@ -62,6 +62,17 @@ func (Scanner) Scan(ctx context.Context, root string) (repository.Snapshot, erro
 	return snapshot, nil
 }
 
+// GitHubOrigin returns "owner/name" of the github.com repository the working
+// tree at root pushes to (its origin, also through a linked worktree), or ""
+// when it has none or cannot be read. It reads only git's metadata, bounded,
+// and nothing of the working tree.
+func GitHubOrigin(root string) string {
+	if gitDir, linked, ok := resolveGitDir(root); ok {
+		return readGitHubRepository(gitDir, linked)
+	}
+	return ""
+}
+
 // absentOrError maps "does not exist" to no error and permission problems to
 // repository.ErrAccessDenied.
 func absentOrError(err error) error {

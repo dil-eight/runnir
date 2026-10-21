@@ -47,6 +47,11 @@ service RunnirCore {
   rpc SetGitHubCredential(SetGitHubCredentialRequest) returns (SetGitHubCredentialResponse);
   rpc ClearGitHubCredential(ClearGitHubCredentialRequest) returns (ClearGitHubCredentialResponse);
 
+  // The github.com repository each folder's origin points at, read from git's
+  // metadata only, without opening the repositories: lets the app match its
+  // registered working trees to GitHub repositories. At most 500 paths.
+  rpc GetGitHubOrigins(GetGitHubOriginsRequest) returns (GetGitHubOriginsResponse);
+
   // The github.com repositories the signed-in user's token reaches: those of
   // the accounts where the Runnir Desktop app is installed, up to 1,000.
   rpc ListGitHubRepositories(ListGitHubRepositoriesRequest) returns (ListGitHubRepositoriesResponse);
@@ -317,6 +322,23 @@ message ListGitHubWorkflowsRequest {
   string repository_id = 1;
   // "owner/name" on github.com, used instead of repository_id for a
   // repository without a local clone.
+  string github_repository = 2;
+}
+
+message GetGitHubOriginsRequest {
+  // Absolute paths of working trees.
+  repeated string paths = 1;
+}
+
+message GetGitHubOriginsResponse {
+  // One per path that has an origin on github.com; paths without one, or
+  // that cannot be read, are left out.
+  repeated GitHubOrigin origins = 1;
+}
+
+message GitHubOrigin {
+  string path = 1;
+  // "owner/name".
   string github_repository = 2;
 }
 

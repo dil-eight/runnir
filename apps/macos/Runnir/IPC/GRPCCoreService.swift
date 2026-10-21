@@ -192,6 +192,13 @@ struct GRPCCoreService: CoreServicing {
         }
     }
 
+    func githubOrigins(paths: [String]) async throws -> [String: String] {
+        let response = try await call {
+            try await client.getGitHubOrigins(.with { $0.paths = paths }, options: Self.options(Self.callTimeout))
+        }
+        return Dictionary(response.origins.map { ($0.path, $0.githubRepository) }, uniquingKeysWith: { first, _ in first })
+    }
+
     func listGitHubRepositories() async throws -> CoreGitHubAccount {
         // Up to 1,000 repositories over several GitHub pages.
         var options = Self.options(.seconds(60))

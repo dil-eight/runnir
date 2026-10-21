@@ -37,6 +37,7 @@ const (
 	RunnirCore_SubscribeEvents_FullMethodName          = "/runnir.core.v1.RunnirCore/SubscribeEvents"
 	RunnirCore_SetGitHubCredential_FullMethodName      = "/runnir.core.v1.RunnirCore/SetGitHubCredential"
 	RunnirCore_ClearGitHubCredential_FullMethodName    = "/runnir.core.v1.RunnirCore/ClearGitHubCredential"
+	RunnirCore_GetGitHubOrigins_FullMethodName         = "/runnir.core.v1.RunnirCore/GetGitHubOrigins"
 	RunnirCore_ListGitHubRepositories_FullMethodName   = "/runnir.core.v1.RunnirCore/ListGitHubRepositories"
 	RunnirCore_ListGitHubWorkflows_FullMethodName      = "/runnir.core.v1.RunnirCore/ListGitHubWorkflows"
 	RunnirCore_GetGitHubRepository_FullMethodName      = "/runnir.core.v1.RunnirCore/GetGitHubRepository"
@@ -90,6 +91,10 @@ type RunnirCoreClient interface {
 	// is never written to disk, logged, sent in events or returned by any call.
 	SetGitHubCredential(ctx context.Context, in *SetGitHubCredentialRequest, opts ...grpc.CallOption) (*SetGitHubCredentialResponse, error)
 	ClearGitHubCredential(ctx context.Context, in *ClearGitHubCredentialRequest, opts ...grpc.CallOption) (*ClearGitHubCredentialResponse, error)
+	// The github.com repository each folder's origin points at, read from git's
+	// metadata only, without opening the repositories: lets the app match its
+	// registered working trees to GitHub repositories. At most 500 paths.
+	GetGitHubOrigins(ctx context.Context, in *GetGitHubOriginsRequest, opts ...grpc.CallOption) (*GetGitHubOriginsResponse, error)
 	// The github.com repositories the signed-in user's token reaches: those of
 	// the accounts where the Runnir Desktop app is installed, up to 1,000.
 	ListGitHubRepositories(ctx context.Context, in *ListGitHubRepositoriesRequest, opts ...grpc.CallOption) (*ListGitHubRepositoriesResponse, error)
@@ -280,6 +285,16 @@ func (c *runnirCoreClient) ClearGitHubCredential(ctx context.Context, in *ClearG
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ClearGitHubCredentialResponse)
 	err := c.cc.Invoke(ctx, RunnirCore_ClearGitHubCredential_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) GetGitHubOrigins(ctx context.Context, in *GetGitHubOriginsRequest, opts ...grpc.CallOption) (*GetGitHubOriginsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGitHubOriginsResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_GetGitHubOrigins_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -490,6 +505,10 @@ type RunnirCoreServer interface {
 	// is never written to disk, logged, sent in events or returned by any call.
 	SetGitHubCredential(context.Context, *SetGitHubCredentialRequest) (*SetGitHubCredentialResponse, error)
 	ClearGitHubCredential(context.Context, *ClearGitHubCredentialRequest) (*ClearGitHubCredentialResponse, error)
+	// The github.com repository each folder's origin points at, read from git's
+	// metadata only, without opening the repositories: lets the app match its
+	// registered working trees to GitHub repositories. At most 500 paths.
+	GetGitHubOrigins(context.Context, *GetGitHubOriginsRequest) (*GetGitHubOriginsResponse, error)
 	// The github.com repositories the signed-in user's token reaches: those of
 	// the accounts where the Runnir Desktop app is installed, up to 1,000.
 	ListGitHubRepositories(context.Context, *ListGitHubRepositoriesRequest) (*ListGitHubRepositoriesResponse, error)
@@ -585,6 +604,9 @@ func (UnimplementedRunnirCoreServer) SetGitHubCredential(context.Context, *SetGi
 }
 func (UnimplementedRunnirCoreServer) ClearGitHubCredential(context.Context, *ClearGitHubCredentialRequest) (*ClearGitHubCredentialResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ClearGitHubCredential not implemented")
+}
+func (UnimplementedRunnirCoreServer) GetGitHubOrigins(context.Context, *GetGitHubOriginsRequest) (*GetGitHubOriginsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGitHubOrigins not implemented")
 }
 func (UnimplementedRunnirCoreServer) ListGitHubRepositories(context.Context, *ListGitHubRepositoriesRequest) (*ListGitHubRepositoriesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListGitHubRepositories not implemented")
@@ -881,6 +903,24 @@ func _RunnirCore_ClearGitHubCredential_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnirCoreServer).ClearGitHubCredential(ctx, req.(*ClearGitHubCredentialRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_GetGitHubOrigins_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGitHubOriginsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).GetGitHubOrigins(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_GetGitHubOrigins_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).GetGitHubOrigins(ctx, req.(*GetGitHubOriginsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1245,6 +1285,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClearGitHubCredential",
 			Handler:    _RunnirCore_ClearGitHubCredential_Handler,
+		},
+		{
+			MethodName: "GetGitHubOrigins",
+			Handler:    _RunnirCore_GetGitHubOrigins_Handler,
 		},
 		{
 			MethodName: "ListGitHubRepositories",
