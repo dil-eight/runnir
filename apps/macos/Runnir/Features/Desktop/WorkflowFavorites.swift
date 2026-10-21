@@ -133,6 +133,18 @@ final class WorkflowFavorites {
         return commit(candidate)
     }
 
+    /// Keeps a renamed workflow's star, in its place.
+    func moveWorkflow(workspaceID: UUID, from oldPath: String, to newPath: String) {
+        guard oldPath != newPath, Self.canFavorite(newPath),
+              let index = workspaces.firstIndex(where: { $0.workspaceID == workspaceID }),
+              let position = workspaces[index].paths.firstIndex(of: oldPath) else { return }
+        var candidate = workspaces
+        candidate[index].paths[position] = newPath
+        // A star left on the new path by an earlier file of that name goes.
+        candidate[index].paths = candidate[index].paths.enumerated().filter { $0.element != newPath || $0.offset == position }.map(\.element)
+        commit(candidate)
+    }
+
     func removeAll(workspaceID: UUID) {
         guard workspaces.contains(where: { $0.workspaceID == workspaceID }) else { return }
         commit(workspaces.filter { $0.workspaceID != workspaceID })

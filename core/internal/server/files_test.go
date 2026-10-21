@@ -80,3 +80,81 @@ func TestSaveWorkflowFileOverGRPC(t *testing.T) {
 		t.Fatalf("read-only = %v", err)
 	}
 }
+
+func TestCreateAndRenameWorkflowFilesOverGRPC(t *testing.T) {
+	path := socketPath(t)
+	stop := start(t, path)
+	defer stop()
+	client := connect(t, path)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := opened.Repository.Id
+
+	// A repository without workflows gets the folders and a starter.
+	created, err := client.CreateWorkflowFile(ctx, &corev1.CreateWorkflowFileRequest{RepositoryId: repo, FileName: "deploy.yml"})
+	if err != nil || created.WorkflowId != ".github/workflows/deploy.yml" {
+		t.Fatalf("create = %v, %v", created, err)
+	}
+	listed, err := client.ListWorkflows(ctx, &corev1.ListWorkflowsRequest{RepositoryId: repo})
+	if err != nil || len(listed.Workflows) != 1 || listed.Workflows[0].Name != "deploy" || listed.Workflows[0].ParseError != "" {
+		t.Fatalf("workflows = %v, %v", listed, err)
+	}
+	// The starter passes actionlint.
+	report, err := client.ValidateWorkflows(ctx, &corev1.ValidateWorkflowsRequest{RepositoryId: repo})
+	if err != nil || len(report.Workflows) != 1 || len(report.Workflows[0].Diagnostics) != 0 || report.Workflows[0].Problem != "" {
+		t.Fatalf("validation = %v, %v", report, err)
+	}
+
+	renamed, err := client.RenameWorkflowFile(ctx, &corev1.RenameWorkflowFileRequest{
+		RepositoryId: repo, WorkflowId: ".github/workflows/deploy.yml", NewFileName: "release.yml",
+	})
+	if err != nil || renamed.WorkflowId != ".github/workflows/release.yml" {
+		t.Fatalf("rename = %v, %v", renamed, err)
+	}
+	listed, err = client.ListWorkflows(ctx, &corev1.ListWorkflowsRequest{RepositoryId: repo})
+	if err != nil || len(listed.Workflows) != 1 || listed.Workflows[0].Id != ".github/workflows/release.yml" {
+		t.Fatalf("after rename = %v, %v", listed, err)
+	}
+
+	if _, err := client.CreateWorkflowFile(ctx, &corev1.CreateWorkflowFileRequest{RepositoryId: repo, FileName: "ci.yml"}); err != nil {
+		t.Fatal(err)
+	}
+	for name, tc := range map[string]struct {
+		call func() error
+		want codes.Code
+	}{
+		"taken name": {func() error {
+			_, err := client.CreateWorkflowFile(ctx, &corev1.CreateWorkflowFileRequest{RepositoryId: repo, FileName: "release.yml"})
+			return err
+		}, codes.AlreadyExists},
+		"rename onto another file": {func() error {
+			_, err := client.RenameWorkflowFile(ctx, &corev1.RenameWorkflowFileRequest{RepositoryId: repo, WorkflowId: ".github/workflows/ci.yml", NewFileName: "release.yml"})
+			return err
+		}, codes.AlreadyExists},
+		"bad name": {func() error {
+			_, err := client.CreateWorkflowFile(ctx, &corev1.CreateWorkflowFileRequest{RepositoryId: repo, FileName: "../x.yml"})
+			return err
+		}, codes.InvalidArgument},
+		"unknown workflow": {func() error {
+			_, err := client.RenameWorkflowFile(ctx, &corev1.RenameWorkflowFileRequest{RepositoryId: repo, WorkflowId: ".github/workflows/gone.yml", NewFileName: "x.yml"})
+			return err
+		}, codes.NotFound},
+		"unknown repository": {func() error {
+			_, err := client.CreateWorkflowFile(ctx, &corev1.CreateWorkflowFileRequest{RepositoryId: "repo_nope", FileName: "x.yml"})
+			return err
+		}, codes.NotFound},
+	} {
+		if err := tc.call(); status.Code(err) != tc.want {
+			t.Errorf("%s: %v, want %v", name, err, tc.want)
+		}
+	}
+}

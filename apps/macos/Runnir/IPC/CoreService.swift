@@ -106,6 +106,8 @@ enum CoreServiceError: Error, Equatable, Sendable {
     case notFound
     case invalidArgument(String)
     case failedPrecondition(String)
+    /// The name is taken; nothing was replaced.
+    case alreadyExists(String)
     /// The operating system denies the Core read access to the folder.
     case accessDenied
     /// The call's deadline passed; the Core may still be healthy.
@@ -132,6 +134,11 @@ protocol CoreServicing: Sendable {
     /// (or `overwrite`); a changed file comes back as a conflict, unwritten.
     func saveWorkflowFile(repositoryID: String, workflowID: String, content: String, baseSHA256: String,
                           overwrite: Bool) async throws -> CoreWorkflowSave
+    /// Adds a workflow file named `fileName` to .github/workflows; empty
+    /// `content` writes the Core's starter. Returns the new workflow id.
+    func createWorkflowFile(repositoryID: String, fileName: String, content: String) async throws -> String
+    /// Renames a workflow file within its folder; returns the new workflow id.
+    func renameWorkflowFile(repositoryID: String, workflowID: String, newFileName: String) async throws -> String
     /// Hands the signed-in user's GitHub token to the Core's memory; nil clears it.
     func setGitHubCredential(_ token: String?) async throws
     /// GitHub Actions data for the repository's origin on github.com.

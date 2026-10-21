@@ -28,6 +28,13 @@ service RunnirCore {
   // changes, unless overwrite is set. The repository is scanned again after
   // a save.
   rpc SaveWorkflowFile(SaveWorkflowFileRequest) returns (SaveWorkflowFileResponse);
+  // Adds a workflow file to .github/workflows, making the folders when they
+  // are missing, and scans the repository again. A name that is taken is
+  // refused (ALREADY_EXISTS); no file is ever replaced.
+  rpc CreateWorkflowFile(CreateWorkflowFileRequest) returns (CreateWorkflowFileResponse);
+  // Renames a workflow file within .github/workflows and scans the
+  // repository again. A name another file has is refused (ALREADY_EXISTS).
+  rpc RenameWorkflowFile(RenameWorkflowFileRequest) returns (RenameWorkflowFileResponse);
 
   // Starts an execution without a reviewed plan. Local runs need one, so
   // executions started this way fail; use PrepareLocalRun.
@@ -767,4 +774,32 @@ message SaveWorkflowFileResponse {
   // The file changed since it was loaded and was left as it is; sha256 is
   // then the digest of that version.
   bool conflict = 2;
+}
+
+message CreateWorkflowFileRequest {
+  string repository_id = 1;
+  // A file name such as "deploy.yml": letters, digits, ".", "_" and "-",
+  // starting with a letter or digit, ending in .yml or .yaml, at most 100
+  // characters.
+  string file_name = 2;
+  // The file, UTF-8, at most 1 MiB. Empty: a starter workflow with one job
+  // that runs by hand (workflow_dispatch).
+  string content = 3;
+}
+
+message CreateWorkflowFileResponse {
+  // The new file's Workflow.id, such as ".github/workflows/deploy.yml".
+  string workflow_id = 1;
+}
+
+message RenameWorkflowFileRequest {
+  string repository_id = 1;
+  string workflow_id = 2;
+  // The new file name, with the rules of CreateWorkflowFileRequest.file_name.
+  string new_file_name = 3;
+}
+
+message RenameWorkflowFileResponse {
+  // The file's Workflow.id under its new name.
+  string workflow_id = 1;
 }

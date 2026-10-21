@@ -171,6 +171,25 @@ final class DispatchPresetLibrary {
         commit(presets.filter { $0.id != id })
     }
 
+    /// Copies a workflow's presets to the path a rename gave its file. The
+    /// old ones stay: GitHub runs the workflow under its old path until the
+    /// rename reaches the default branch, and Run Workflow looks presets up
+    /// by that path. A preset whose name the new path already has (after
+    /// renaming back, say) is not copied again; the per-workflow limit holds.
+    func copyWorkflowPresets(workspaceID: UUID, from oldPath: String, to newPath: String) {
+        loadIfNeeded()
+        guard oldPath != newPath else { return }
+        let existing = self.presets(workspaceID: workspaceID, workflowPath: newPath)
+        let names = Set(existing.map(\.name))
+        let copies = self.presets(workspaceID: workspaceID, workflowPath: oldPath)
+            .filter { !names.contains($0.name) }
+            .prefix(max(0, Self.perWorkflowLimit - existing.count))
+            .map { DispatchPreset(id: UUID(), name: $0.name, workspaceID: workspaceID, workflowPath: newPath,
+                                  ref: $0.ref, inputs: $0.inputs, updatedAt: Date()) }
+        guard !copies.isEmpty else { return }
+        commit(presets + copies)
+    }
+
     /// Removes a workspace's presets with its registration.
     func removeAll(workspaceID: UUID) {
         loadIfNeeded()

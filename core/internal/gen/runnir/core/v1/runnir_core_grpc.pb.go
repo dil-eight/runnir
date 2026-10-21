@@ -31,6 +31,8 @@ const (
 	RunnirCore_ListWorkflows_FullMethodName            = "/runnir.core.v1.RunnirCore/ListWorkflows"
 	RunnirCore_ValidateWorkflows_FullMethodName        = "/runnir.core.v1.RunnirCore/ValidateWorkflows"
 	RunnirCore_SaveWorkflowFile_FullMethodName         = "/runnir.core.v1.RunnirCore/SaveWorkflowFile"
+	RunnirCore_CreateWorkflowFile_FullMethodName       = "/runnir.core.v1.RunnirCore/CreateWorkflowFile"
+	RunnirCore_RenameWorkflowFile_FullMethodName       = "/runnir.core.v1.RunnirCore/RenameWorkflowFile"
 	RunnirCore_StartWorkflow_FullMethodName            = "/runnir.core.v1.RunnirCore/StartWorkflow"
 	RunnirCore_SubscribeEvents_FullMethodName          = "/runnir.core.v1.RunnirCore/SubscribeEvents"
 	RunnirCore_SetGitHubCredential_FullMethodName      = "/runnir.core.v1.RunnirCore/SetGitHubCredential"
@@ -72,6 +74,13 @@ type RunnirCoreClient interface {
 	// changes, unless overwrite is set. The repository is scanned again after
 	// a save.
 	SaveWorkflowFile(ctx context.Context, in *SaveWorkflowFileRequest, opts ...grpc.CallOption) (*SaveWorkflowFileResponse, error)
+	// Adds a workflow file to .github/workflows, making the folders when they
+	// are missing, and scans the repository again. A name that is taken is
+	// refused (ALREADY_EXISTS); no file is ever replaced.
+	CreateWorkflowFile(ctx context.Context, in *CreateWorkflowFileRequest, opts ...grpc.CallOption) (*CreateWorkflowFileResponse, error)
+	// Renames a workflow file within .github/workflows and scans the
+	// repository again. A name another file has is refused (ALREADY_EXISTS).
+	RenameWorkflowFile(ctx context.Context, in *RenameWorkflowFileRequest, opts ...grpc.CallOption) (*RenameWorkflowFileResponse, error)
 	// Starts an execution without a reviewed plan. Local runs need one, so
 	// executions started this way fail; use PrepareLocalRun.
 	StartWorkflow(ctx context.Context, in *StartWorkflowRequest, opts ...grpc.CallOption) (*ExecutionResponse, error)
@@ -197,6 +206,26 @@ func (c *runnirCoreClient) SaveWorkflowFile(ctx context.Context, in *SaveWorkflo
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SaveWorkflowFileResponse)
 	err := c.cc.Invoke(ctx, RunnirCore_SaveWorkflowFile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) CreateWorkflowFile(ctx context.Context, in *CreateWorkflowFileRequest, opts ...grpc.CallOption) (*CreateWorkflowFileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateWorkflowFileResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_CreateWorkflowFile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) RenameWorkflowFile(ctx context.Context, in *RenameWorkflowFileRequest, opts ...grpc.CallOption) (*RenameWorkflowFileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RenameWorkflowFileResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_RenameWorkflowFile_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -431,6 +460,13 @@ type RunnirCoreServer interface {
 	// changes, unless overwrite is set. The repository is scanned again after
 	// a save.
 	SaveWorkflowFile(context.Context, *SaveWorkflowFileRequest) (*SaveWorkflowFileResponse, error)
+	// Adds a workflow file to .github/workflows, making the folders when they
+	// are missing, and scans the repository again. A name that is taken is
+	// refused (ALREADY_EXISTS); no file is ever replaced.
+	CreateWorkflowFile(context.Context, *CreateWorkflowFileRequest) (*CreateWorkflowFileResponse, error)
+	// Renames a workflow file within .github/workflows and scans the
+	// repository again. A name another file has is refused (ALREADY_EXISTS).
+	RenameWorkflowFile(context.Context, *RenameWorkflowFileRequest) (*RenameWorkflowFileResponse, error)
 	// Starts an execution without a reviewed plan. Local runs need one, so
 	// executions started this way fail; use PrepareLocalRun.
 	StartWorkflow(context.Context, *StartWorkflowRequest) (*ExecutionResponse, error)
@@ -512,6 +548,12 @@ func (UnimplementedRunnirCoreServer) ValidateWorkflows(context.Context, *Validat
 }
 func (UnimplementedRunnirCoreServer) SaveWorkflowFile(context.Context, *SaveWorkflowFileRequest) (*SaveWorkflowFileResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SaveWorkflowFile not implemented")
+}
+func (UnimplementedRunnirCoreServer) CreateWorkflowFile(context.Context, *CreateWorkflowFileRequest) (*CreateWorkflowFileResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateWorkflowFile not implemented")
+}
+func (UnimplementedRunnirCoreServer) RenameWorkflowFile(context.Context, *RenameWorkflowFileRequest) (*RenameWorkflowFileResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RenameWorkflowFile not implemented")
 }
 func (UnimplementedRunnirCoreServer) StartWorkflow(context.Context, *StartWorkflowRequest) (*ExecutionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method StartWorkflow not implemented")
@@ -716,6 +758,42 @@ func _RunnirCore_SaveWorkflowFile_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnirCoreServer).SaveWorkflowFile(ctx, req.(*SaveWorkflowFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_CreateWorkflowFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateWorkflowFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).CreateWorkflowFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_CreateWorkflowFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).CreateWorkflowFile(ctx, req.(*CreateWorkflowFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_RenameWorkflowFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RenameWorkflowFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).RenameWorkflowFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_RenameWorkflowFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).RenameWorkflowFile(ctx, req.(*RenameWorkflowFileRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1107,6 +1185,14 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SaveWorkflowFile",
 			Handler:    _RunnirCore_SaveWorkflowFile_Handler,
+		},
+		{
+			MethodName: "CreateWorkflowFile",
+			Handler:    _RunnirCore_CreateWorkflowFile_Handler,
+		},
+		{
+			MethodName: "RenameWorkflowFile",
+			Handler:    _RunnirCore_RenameWorkflowFile_Handler,
 		},
 		{
 			MethodName: "StartWorkflow",

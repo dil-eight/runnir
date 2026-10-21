@@ -160,6 +160,30 @@ struct GRPCCoreService: CoreServicing {
         return CoreWorkflowSave(sha256: response.sha256, conflict: response.conflict)
     }
 
+    func createWorkflowFile(repositoryID: String, fileName: String, content: String) async throws -> String {
+        var options = Self.options(Self.callTimeout)
+        options.maxRequestMessageBytes = 4 << 20
+        let response = try await call {
+            try await client.createWorkflowFile(.with {
+                $0.repositoryID = repositoryID
+                $0.fileName = fileName
+                $0.content = content
+            }, options: options)
+        }
+        return response.workflowID
+    }
+
+    func renameWorkflowFile(repositoryID: String, workflowID: String, newFileName: String) async throws -> String {
+        let response = try await call {
+            try await client.renameWorkflowFile(.with {
+                $0.repositoryID = repositoryID
+                $0.workflowID = workflowID
+                $0.newFileName = newFileName
+            }, options: Self.options(Self.callTimeout))
+        }
+        return response.workflowID
+    }
+
     func setGitHubCredential(_ token: String?) async throws {
         if let token {
             _ = try await call { try await client.setGitHubCredential(.with { $0.token = token }, options: Self.options(Self.callTimeout)) }
@@ -552,6 +576,7 @@ struct GRPCCoreService: CoreServicing {
         case .notFound: return .notFound
         case .invalidArgument: return .invalidArgument(rpc.message)
         case .failedPrecondition: return .failedPrecondition(rpc.message)
+        case .alreadyExists: return .alreadyExists(rpc.message)
         case .resourceExhausted: return .resourceExhausted
         case .permissionDenied: return .accessDenied
         case .deadlineExceeded: return .timedOut

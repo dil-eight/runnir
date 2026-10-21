@@ -431,6 +431,50 @@ final class CoreHub {
         }
     }
 
+    enum WorkflowFileChange: Equatable {
+        /// Done; the file's workflow id now.
+        case done(String)
+        case failed(String)
+    }
+
+    /// Adds a workflow file through the Core; empty `content` writes the
+    /// Core's starter. The Core scans the repository again, and its event
+    /// updates the session's workflows.
+    func createWorkflowFile(workspaceID: UUID, fileName: String, content: String = "") async -> WorkflowFileChange {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else {
+            return .failed("Runnir Core is not ready. Files are created by the Core.")
+        }
+        do {
+            return .done(try await service.createWorkflowFile(repositoryID: coreID, fileName: fileName, content: content))
+        } catch {
+            return .failed(Self.fileChangeMessage(error))
+        }
+    }
+
+    /// Renames a workflow file through the Core.
+    func renameWorkflowFile(workspaceID: UUID, workflowID: String, newFileName: String) async -> WorkflowFileChange {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else {
+            return .failed("Runnir Core is not ready. Files are renamed by the Core.")
+        }
+        do {
+            return .done(try await service.renameWorkflowFile(repositoryID: coreID, workflowID: workflowID, newFileName: newFileName))
+        } catch {
+            return .failed(Self.fileChangeMessage(error))
+        }
+    }
+
+    private static func fileChangeMessage(_ error: any Error) -> String {
+        switch error {
+        case CoreServiceError.notFound:
+            "Runnir Core does not know this workflow file yet. Refresh, then try again."
+        case CoreServiceError.invalidArgument(let message), CoreServiceError.failedPrecondition(let message),
+             CoreServiceError.alreadyExists(let message):
+            sentence(message)
+        default:
+            describe(error)
+        }
+    }
+
     // MARK: Local runs
 
     /// act, the Docker CLI and the container engine as the Core finds them;
@@ -871,7 +915,7 @@ final class CoreHub {
             case .unavailable: "The Core is not available."
             case .notFound: "The repository is not open in the Core."
             case .accessDenied: "The Core cannot read this folder. Use Locate / Grant Access to renew access."
-            case .invalidArgument, .failedPrecondition: "The Core could not use this folder."
+            case .invalidArgument, .failedPrecondition, .alreadyExists: "The Core could not use this folder."
             case .resourceExhausted: "The Core is busy. Try again."
             case .timedOut: "The Core took too long to answer. Press Refresh to try again."
             case .incompatibleProtocol(let version): "The Core speaks protocol \(version), which this app does not support."

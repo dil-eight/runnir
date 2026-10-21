@@ -143,6 +143,9 @@ final class DesktopCoordinator {
         }
     }
 
+    /// The window of a workspace window record, for sheets shown on it.
+    func window(_ windowID: UUID) -> NSWindow? { windows[windowID]?.window }
+
     func openCount(_ workspaceID: UUID) -> Int {
         windows.values.filter { $0.record.workspaceID == workspaceID }.count
     }
@@ -336,6 +339,14 @@ final class DesktopCoordinator {
             favorites.removeAll(workspaceID: workspace.id)
         }
         catch { message = "Registration could not be removed. Repository files were not changed." }
+    }
+
+    /// A workflow file of a workspace was renamed: its star moves with it,
+    /// and its presets are copied to the new name (see
+    /// `DispatchPresetLibrary.copyWorkflowPresets`).
+    func workflowRenamed(workspaceID: UUID, from oldPath: String, to newPath: String) {
+        presets.copyWorkflowPresets(workspaceID: workspaceID, from: oldPath, to: newPath)
+        favorites.moveWorkflow(workspaceID: workspaceID, from: oldPath, to: newPath)
     }
 
     func selectSection(_ section: AppSection, windowID: UUID) {

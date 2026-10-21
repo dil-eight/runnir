@@ -116,6 +116,32 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "CreateWorkflowFile" metadata.
+        internal enum CreateWorkflowFile: Sendable {
+            /// Request type for "CreateWorkflowFile".
+            internal typealias Input = Runnir_Core_V1_CreateWorkflowFileRequest
+            /// Response type for "CreateWorkflowFile".
+            internal typealias Output = Runnir_Core_V1_CreateWorkflowFileResponse
+            /// Descriptor for "CreateWorkflowFile".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "CreateWorkflowFile",
+                type: .unary
+            )
+        }
+        /// Namespace for "RenameWorkflowFile" metadata.
+        internal enum RenameWorkflowFile: Sendable {
+            /// Request type for "RenameWorkflowFile".
+            internal typealias Input = Runnir_Core_V1_RenameWorkflowFileRequest
+            /// Response type for "RenameWorkflowFile".
+            internal typealias Output = Runnir_Core_V1_RenameWorkflowFileResponse
+            /// Descriptor for "RenameWorkflowFile".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "RenameWorkflowFile",
+                type: .unary
+            )
+        }
         /// Namespace for "StartWorkflow" metadata.
         internal enum StartWorkflow: Sendable {
             /// Request type for "StartWorkflow".
@@ -385,6 +411,8 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             ListWorkflows.descriptor,
             ValidateWorkflows.descriptor,
             SaveWorkflowFile.descriptor,
+            CreateWorkflowFile.descriptor,
+            RenameWorkflowFile.descriptor,
             StartWorkflow.descriptor,
             SubscribeEvents.descriptor,
             SetGitHubCredential.descriptor,
@@ -545,6 +573,45 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SaveWorkflowFileRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SaveWorkflowFileResponse>
+
+        /// Handle the "CreateWorkflowFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Adds a workflow file to .github/workflows, making the folders when they
+        /// > are missing, and scans the repository again. A name that is taken is
+        /// > refused (ALREADY_EXISTS); no file is ever replaced.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_CreateWorkflowFileRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_CreateWorkflowFileResponse` messages.
+        func createWorkflowFile(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_CreateWorkflowFileRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_CreateWorkflowFileResponse>
+
+        /// Handle the "RenameWorkflowFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Renames a workflow file within .github/workflows and scans the
+        /// > repository again. A name another file has is refused (ALREADY_EXISTS).
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_RenameWorkflowFileRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_RenameWorkflowFileResponse` messages.
+        func renameWorkflowFile(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_RenameWorkflowFileRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_RenameWorkflowFileResponse>
 
         /// Handle the "StartWorkflow" method.
         ///
@@ -1020,6 +1087,45 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SaveWorkflowFileResponse>
 
+        /// Handle the "CreateWorkflowFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Adds a workflow file to .github/workflows, making the folders when they
+        /// > are missing, and scans the repository again. A name that is taken is
+        /// > refused (ALREADY_EXISTS); no file is ever replaced.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_CreateWorkflowFileRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_CreateWorkflowFileResponse` message.
+        func createWorkflowFile(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_CreateWorkflowFileRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_CreateWorkflowFileResponse>
+
+        /// Handle the "RenameWorkflowFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Renames a workflow file within .github/workflows and scans the
+        /// > repository again. A name another file has is refused (ALREADY_EXISTS).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_RenameWorkflowFileRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_RenameWorkflowFileResponse` message.
+        func renameWorkflowFile(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_RenameWorkflowFileRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_RenameWorkflowFileResponse>
+
         /// Handle the "StartWorkflow" method.
         ///
         /// > Source IDL Documentation:
@@ -1492,6 +1598,45 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_SaveWorkflowFileResponse
 
+        /// Handle the "CreateWorkflowFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Adds a workflow file to .github/workflows, making the folders when they
+        /// > are missing, and scans the repository again. A name that is taken is
+        /// > refused (ALREADY_EXISTS); no file is ever replaced.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_CreateWorkflowFileRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_CreateWorkflowFileResponse` to respond with.
+        func createWorkflowFile(
+            request: Runnir_Core_V1_CreateWorkflowFileRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_CreateWorkflowFileResponse
+
+        /// Handle the "RenameWorkflowFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Renames a workflow file within .github/workflows and scans the
+        /// > repository again. A name another file has is refused (ALREADY_EXISTS).
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_RenameWorkflowFileRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_RenameWorkflowFileResponse` to respond with.
+        func renameWorkflowFile(
+            request: Runnir_Core_V1_RenameWorkflowFileRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_RenameWorkflowFileResponse
+
         /// Handle the "StartWorkflow" method.
         ///
         /// > Source IDL Documentation:
@@ -1927,6 +2072,28 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.CreateWorkflowFile.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_CreateWorkflowFileRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_CreateWorkflowFileResponse>(),
+            handler: { request, context in
+                try await self.createWorkflowFile(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.RenameWorkflowFile.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_RenameWorkflowFileRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_RenameWorkflowFileResponse>(),
+            handler: { request, context in
+                try await self.renameWorkflowFile(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.StartWorkflow.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_StartWorkflowRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ExecutionResponse>(),
@@ -2223,6 +2390,28 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SaveWorkflowFileResponse> {
         let response = try await self.saveWorkflowFile(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func createWorkflowFile(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_CreateWorkflowFileRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_CreateWorkflowFileResponse> {
+        let response = try await self.createWorkflowFile(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func renameWorkflowFile(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_RenameWorkflowFileRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_RenameWorkflowFileResponse> {
+        let response = try await self.renameWorkflowFile(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -2537,6 +2726,32 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SaveWorkflowFileResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_SaveWorkflowFileResponse>(
             message: try await self.saveWorkflowFile(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func createWorkflowFile(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_CreateWorkflowFileRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_CreateWorkflowFileResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_CreateWorkflowFileResponse>(
+            message: try await self.createWorkflowFile(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func renameWorkflowFile(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_RenameWorkflowFileRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_RenameWorkflowFileResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_RenameWorkflowFileResponse>(
+            message: try await self.renameWorkflowFile(
                 request: request.message,
                 context: context
             ),
@@ -2966,6 +3181,55 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SaveWorkflowFileResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SaveWorkflowFileResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "CreateWorkflowFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Adds a workflow file to .github/workflows, making the folders when they
+        /// > are missing, and scans the repository again. A name that is taken is
+        /// > refused (ALREADY_EXISTS); no file is ever replaced.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_CreateWorkflowFileRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_CreateWorkflowFileRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_CreateWorkflowFileResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func createWorkflowFile<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_CreateWorkflowFileRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_CreateWorkflowFileRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_CreateWorkflowFileResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_CreateWorkflowFileResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "RenameWorkflowFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Renames a workflow file within .github/workflows and scans the
+        /// > repository again. A name another file has is refused (ALREADY_EXISTS).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_RenameWorkflowFileRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_RenameWorkflowFileRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_RenameWorkflowFileResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func renameWorkflowFile<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_RenameWorkflowFileRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_RenameWorkflowFileRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_RenameWorkflowFileResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_RenameWorkflowFileResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "StartWorkflow" method.
@@ -3655,6 +3919,77 @@ extension Runnir_Core_V1_RunnirCore {
             try await self.client.unary(
                 request: request,
                 descriptor: Runnir_Core_V1_RunnirCore.Method.SaveWorkflowFile.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "CreateWorkflowFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Adds a workflow file to .github/workflows, making the folders when they
+        /// > are missing, and scans the repository again. A name that is taken is
+        /// > refused (ALREADY_EXISTS); no file is ever replaced.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_CreateWorkflowFileRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_CreateWorkflowFileRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_CreateWorkflowFileResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func createWorkflowFile<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_CreateWorkflowFileRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_CreateWorkflowFileRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_CreateWorkflowFileResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_CreateWorkflowFileResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.CreateWorkflowFile.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "RenameWorkflowFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Renames a workflow file within .github/workflows and scans the
+        /// > repository again. A name another file has is refused (ALREADY_EXISTS).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_RenameWorkflowFileRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_RenameWorkflowFileRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_RenameWorkflowFileResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func renameWorkflowFile<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_RenameWorkflowFileRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_RenameWorkflowFileRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_RenameWorkflowFileResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_RenameWorkflowFileResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.RenameWorkflowFile.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -4527,6 +4862,67 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "CreateWorkflowFile" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Adds a workflow file to .github/workflows, making the folders when they
+    /// > are missing, and scans the repository again. A name that is taken is
+    /// > refused (ALREADY_EXISTS); no file is ever replaced.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_CreateWorkflowFileRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func createWorkflowFile<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_CreateWorkflowFileRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_CreateWorkflowFileResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.createWorkflowFile(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_CreateWorkflowFileRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_CreateWorkflowFileResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "RenameWorkflowFile" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Renames a workflow file within .github/workflows and scans the
+    /// > repository again. A name another file has is refused (ALREADY_EXISTS).
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_RenameWorkflowFileRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func renameWorkflowFile<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_RenameWorkflowFileRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_RenameWorkflowFileResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.renameWorkflowFile(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_RenameWorkflowFileRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_RenameWorkflowFileResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "StartWorkflow" method.
     ///
     /// > Source IDL Documentation:
@@ -5313,6 +5709,75 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.saveWorkflowFile(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "CreateWorkflowFile" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Adds a workflow file to .github/workflows, making the folders when they
+    /// > are missing, and scans the repository again. A name that is taken is
+    /// > refused (ALREADY_EXISTS); no file is ever replaced.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func createWorkflowFile<Result>(
+        _ message: Runnir_Core_V1_CreateWorkflowFileRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_CreateWorkflowFileResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_CreateWorkflowFileRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.createWorkflowFile(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "RenameWorkflowFile" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Renames a workflow file within .github/workflows and scans the
+    /// > repository again. A name another file has is refused (ALREADY_EXISTS).
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func renameWorkflowFile<Result>(
+        _ message: Runnir_Core_V1_RenameWorkflowFileRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_RenameWorkflowFileResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_RenameWorkflowFileRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.renameWorkflowFile(
             request: request,
             options: options,
             onResponse: handleResponse

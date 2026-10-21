@@ -245,6 +245,8 @@ final class WorkspaceFilesModel {
     private(set) var savedDigest: String?
     private(set) var isWritable = true
     private(set) var isSaving = false
+    /// The open file is being read; a rename waits for it.
+    private(set) var isLoadingSource = false
     private(set) var saveError: String?
     private(set) var diskChange: DiskChange?
     var isLoading = false
@@ -334,7 +336,9 @@ final class WorkspaceFilesModel {
         diskChange = nil
         saveError = nil
         sourceTask?.cancel()
+        isLoadingSource = true
         sourceTask = Task {
+            defer { if !Task.isCancelled { isLoadingSource = false } }
             do {
                 let (loaded, writable) = try await Task.detached {
                     (try reader.loadSource(for: file), reader.isWritable(file))
@@ -389,6 +393,38 @@ final class WorkspaceFilesModel {
         }
     }
 
+    /// Adds a workflow file through the Core and lists the files again; the
+    /// caller opens it (asking first when the open file has edits).
+    func create(fileName: String, hub: CoreHub, workspaceID: UUID, reader: RepositoryReader) async -> CoreHub.WorkflowFileChange {
+        let outcome = await hub.createWorkflowFile(workspaceID: workspaceID, fileName: fileName)
+        if case .done = outcome { await relist(reader) }
+        return outcome
+    }
+
+    /// Renames the open file through the Core. The editor keeps its text,
+    /// edits included: only the name changed, so the version it started
+    /// from is still the one on disk.
+    func renameSelected(to fileName: String, hub: CoreHub, workspaceID: UUID, reader: RepositoryReader) async -> CoreHub.WorkflowFileChange {
+        guard let file = selected, !isLoadingSource, !isSaving else { return .failed("Wait until the file has loaded and saved, then rename it.") }
+        let outcome = await hub.renameWorkflowFile(workspaceID: workspaceID, workflowID: file.relativePath, newFileName: fileName)
+        if case .done(let id) = outcome {
+            await relist(reader)
+            if selected == file {
+                let renamed = LocalWorkflowFile(relativePath: id)
+                // A file that could not be read is tried again under its new name.
+                if savedDigest == nil { select(renamed, reader: reader) } else { selected = renamed }
+            }
+        }
+        return outcome
+    }
+
+    private func relist(_ reader: RepositoryReader) async {
+        do {
+            files = try await Task.detached { try reader.workflows() }.value
+            error = nil
+        } catch { self.error = "Workflow files could not be read. Check access and keep files inside this repository." }
+    }
+
     private func noticeDiskChange(_ file: LocalWorkflowFile, reader: RepositoryReader) async {
         guard let loaded = try? await Task.detached(operation: { try reader.loadSource(for: file) }).value else { return }
         if loaded.sha256 != savedDigest, diskChange == nil { diskChange = .changedOnDisk }
@@ -402,6 +438,10 @@ struct DesktopWorkspaceView: View {
     let windowID: UUID
     let reader: RepositoryReader?
     private var files: WorkspaceFilesModel { state.files }
+    @State private var fileNameRequest: WorkflowFileNameRequest?
+    /// A file created from the name sheet, opened once the sheet is gone so
+    /// a question about unsaved edits does not sit on top of it.
+    @State private var openAfterSheet: String?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -466,6 +506,18 @@ struct DesktopWorkspaceView: View {
                 .padding(20).frame(width: 420)
             }
         }
+        .sheet(item: $fileNameRequest, onDismiss: {
+            guard let id = openAfterSheet else { return }
+            openAfterSheet = nil
+            open(LocalWorkflowFile(relativePath: id))
+        }) { request in
+            WorkflowFileNameSheet(request: request, files: files.files) { name in
+                switch request {
+                case .create: await createFile(named: name)
+                case .rename: await renameSelected(to: name)
+                }
+            }
+        }
         .sheet(isPresented: Binding(get: { state.showingSwitcher }, set: { state.showingSwitcher = $0 })) {
             WorkspaceSwitcherView(desktop: desktop, currentWorkspaceID: workspace.id, windowID: windowID)
         }
@@ -483,24 +535,66 @@ struct DesktopWorkspaceView: View {
         Task { await files.validate(hub: hub, workspaceID: workspace.id) }
     }
 
-    /// Opens another file in the editor, asking first when the open one has
-    /// edits that are not saved.
+    /// Opens another file in the editor, asking first, in a sheet on this
+    /// window, when the open one has edits that are not saved.
     private func open(_ file: LocalWorkflowFile) {
         guard let reader, file != files.selected else { return }
         guard files.isDirty, let current = files.selected else {
             files.select(file, reader: reader)
             return
         }
-        switch UnsavedChangesPrompt.ask(fileName: current.name) {
-        case .save:
-            Task {
+        Task {
+            let choice = await UnsavedChangesPrompt.ask(fileName: current.name, sheetOn: desktop.window(windowID))
+            // Answered for the file that was open when asked.
+            guard files.selected == current else { return }
+            switch choice {
+            case .save:
                 if await saveAndRevalidate() { files.select(file, reader: reader) }
+            case .discard:
+                files.select(file, reader: reader)
+            case .cancel:
+                break
             }
-        case .discard:
-            files.select(file, reader: reader)
-        case .cancel:
-            break
         }
+    }
+
+    private func askForFileName(_ request: WorkflowFileNameRequest) {
+        openAfterSheet = nil
+        fileNameRequest = request
+    }
+
+    /// Adds a workflow file through the Core; it opens when the sheet closes.
+    private func createFile(named name: String) async -> String? {
+        guard let reader, let hub = desktop.core else { return "Runnir Core is not ready. Files are created by the Core." }
+        switch await files.create(fileName: name, hub: hub, workspaceID: workspace.id, reader: reader) {
+        case .done(let id):
+            openAfterSheet = id
+            Task { await files.validate(hub: hub, workspaceID: workspace.id) }
+            return nil
+        case .failed(let message):
+            return message
+        }
+    }
+
+    /// Renames the open file; its presets, star and Overview selection follow.
+    private func renameSelected(to name: String) async -> String? {
+        guard let reader, let hub = desktop.core, let old = files.selected else { return "Runnir Core is not ready. Files are renamed by the Core." }
+        switch await files.renameSelected(to: name, hub: hub, workspaceID: workspace.id, reader: reader) {
+        case .done(let id):
+            desktop.workflowRenamed(workspaceID: workspace.id, from: old.relativePath, to: id)
+            if state.overviewWorkflowPath == old.relativePath { state.overviewWorkflowPath = id }
+            Task { await files.validate(hub: hub, workspaceID: workspace.id) }
+            return nil
+        case .failed(let message):
+            return message
+        }
+    }
+
+    private var renameHelp: String {
+        if !canValidate { return "Files are renamed by Runnir Core, which has not opened this repository yet" }
+        if files.isSaving { return "Wait for the save to finish" }
+        if files.isLoadingSource { return "Wait for the file to open" }
+        return "Rename this workflow file; unsaved edits stay in the editor"
     }
 
     private func save(overwrite: Bool = false) {
@@ -585,6 +679,15 @@ struct DesktopWorkspaceView: View {
                     ForEach(desktop.favorites.ordered(files.files, workspaceID: workspace.id, path: \.relativePath)) { file in
                         Button(menuTitle(file)) { open(file) }
                     }
+                    if !files.files.isEmpty { Divider() }
+                    Button("New Workflow File...") { askForFileName(.create) }
+                        .disabled(!canValidate)
+                        .help(canValidate ? "Add a workflow file to .github/workflows" : "Files are created by Runnir Core, which has not opened this repository yet")
+                    if let file = files.selected {
+                        Button("Rename \(file.name)...") { askForFileName(.rename(file)) }
+                            .disabled(!canValidate || files.isSaving || files.isLoadingSource)
+                            .help(renameHelp)
+                    }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "doc.text")
@@ -593,7 +696,7 @@ struct DesktopWorkspaceView: View {
                     }.font(.system(size: 12)).frame(maxWidth: 150)
                         .padding(.horizontal, 10).frame(height: 26)
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
-                }.menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize().disabled(files.files.isEmpty)
+                }.menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize().disabled(reader == nil)
                 editorStatus
             }
             Spacer(minLength: 4)
@@ -770,7 +873,8 @@ struct DesktopWorkspaceView: View {
                 } else {
                     LocalWorkflowBrowser(model: files, canValidate: canValidate, validate: validateWorkflows,
                                          reload: { if let reader { files.reloadFromDisk(reader: reader) } },
-                                         saveAnyway: { save(overwrite: true) })
+                                         saveAnyway: { save(overwrite: true) },
+                                         newFile: { askForFileName(.create) })
                         .task(id: canValidate) {
                             // The first visit checks the files; later ones keep the last report.
                             if canValidate, files.validation == nil, files.validationError == nil { validateWorkflows() }
@@ -813,6 +917,7 @@ private struct LocalWorkflowBrowser: View {
     let validate: () -> Void
     let reload: () -> Void
     let saveAnyway: () -> Void
+    let newFile: () -> Void
 
     var body: some View {
         HSplitView {
@@ -860,7 +965,13 @@ private struct LocalWorkflowBrowser: View {
                 Label(error, systemImage: "exclamationmark.triangle").font(.system(size: 12)).padding(20)
                 Spacer(minLength: 0)
             } else if model.selected == nil {
-                UnavailableFeature(title: "No workflows", detail: "No YAML files in .github/workflows.", symbol: "doc.text").padding(20)
+                VStack(alignment: .leading, spacing: 12) {
+                    UnavailableFeature(title: "No workflows", detail: "No YAML files in .github/workflows.", symbol: "doc.text")
+                    if !model.isLoading {
+                        Button("New Workflow File...", action: newFile).buttonStyle(DesignButtonStyle()).disabled(!canValidate)
+                            .help(canValidate ? "Add a workflow file with one job you can run by hand" : "Files are created by Runnir Core, which has not opened this repository yet")
+                    }
+                }.padding(20)
                 Spacer(minLength: 0)
             } else {
                 editorBanner
