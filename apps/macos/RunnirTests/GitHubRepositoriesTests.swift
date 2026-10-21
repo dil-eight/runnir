@@ -126,6 +126,8 @@ struct GitHubRepositoriesTests {
 
     @Test func aNewTokenInTheCoreIsCounted() async {
         let (hub, _) = await readyHub()
+        // A ready Core is handed the token once by itself; count from after that.
+        #expect(await eventually { hub.credentialGeneration >= 1 })
         let before = hub.credentialGeneration
         hub.githubCredentialChanged()
         #expect(await eventually { hub.credentialGeneration == before + 1 },
