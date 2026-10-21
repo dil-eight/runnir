@@ -125,15 +125,45 @@ final class PullRequestsModel {
         dismissed = [:]
     }
 
-    /// Reads now and then every three minutes while `isSignedIn` holds.
-    func startPolling(hub: CoreHub, isSignedIn: @escaping @MainActor () -> Bool) {
+    /// Reads every three minutes while `isSignedIn` holds, looking every
+    /// `retry`: a sign-in (the saved one comes up after launch, as does the
+    /// Core) is read within seconds, so the menu bar icon is right, and a
+    /// sign-out clears the list.
+    func startPolling(hub: CoreHub, retry: Duration = .seconds(5), isSignedIn: @escaping @MainActor () -> Bool) {
         poll?.cancel()
         poll = Task { [weak self] in
+            let clock = ContinuousClock()
+            var lastRead: ContinuousClock.Instant?
             while !Task.isCancelled {
-                if let self, isSignedIn() { await self.refresh(hub: hub) }
-                try? await Task.sleep(for: Self.pollInterval)
+                guard let self else { return }
+                if !isSignedIn() {
+                    self.clear()
+                    lastRead = nil
+                } else {
+                    // Until a first read succeeds, an unready Core is tried again soon.
+                    let every = self.loadedAt == nil && self.access == .unavailable ? retry : Self.pollInterval
+                    if lastRead.map({ clock.now - $0 >= every }) ?? true {
+                        lastRead = clock.now
+                        await self.refresh(hub: hub)
+                    }
+                }
+                try? await Task.sleep(for: retry)
             }
         }
+    }
+
+    func stopPolling() {
+        poll?.cancel()
+        poll = nil
+    }
+
+    private func clear() {
+        guard access != nil || loadedAt != nil else { return }
+        access = nil
+        open = []
+        recentlyClosed = []
+        headsUnreadable = false
+        loadedAt = nil
     }
 }
 

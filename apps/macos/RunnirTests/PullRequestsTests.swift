@@ -77,6 +77,24 @@ struct PullRequestsTests {
         #expect(provider.core.pullRequestCalls.count == 2)
     }
 
+    @Test func pollingReadsSoonAfterSignInAndClearsOnSignOut() async {
+        let (hub, provider) = await readyHub()
+        provider.core.pullRequestsResult = CorePullRequests(access: .ok, open: [pr(1, ci: .failed)], closed: [], headsUnreadable: false)
+        let model = PullRequestsModel(store: nil)
+        var signedIn = false
+        model.startPolling(hub: hub, retry: .milliseconds(20)) { signedIn }
+        defer { model.stopPolling() }
+        try? await Task.sleep(for: .milliseconds(60))
+        #expect(provider.core.pullRequestCalls.isEmpty, "nothing is read while signed out")
+
+        signedIn = true
+        #expect(await eventually { model.worstCI == .failed }, "the first read does not wait three minutes")
+        #expect(provider.core.pullRequestCalls.count == 1)
+
+        signedIn = false
+        #expect(await eventually { model.open.isEmpty && model.worstCI == nil })
+    }
+
     // MARK: Shortcut
 
     @Test func shortcutsShowAndNeedACommandKey() throws {
@@ -86,6 +104,9 @@ struct PullRequestsTests {
         #expect(KeyShortcut(keyCode: UInt16(kVK_ANSI_P), flags: [.shift], characters: "p") == nil, "Shift alone is typing")
         #expect(KeyShortcut(keyCode: UInt16(kVK_ANSI_P), flags: [], characters: "p") == nil)
         #expect(KeyShortcut(keyCode: UInt16(kVK_F5), flags: [.control], characters: nil)?.display == "⌃F5")
+        // By key position, whatever the layout types.
+        #expect(KeyShortcut(keyCode: UInt16(kVK_ANSI_R), flags: [.command, .option], characters: "к") == .pullRequestsDefault)
+        #expect(KeyShortcut(keyCode: UInt16(kVK_ANSI_2), flags: [.command, .shift], characters: "@")?.display == "⇧⌘2")
     }
 
     @Test func conflictsWithMacOSAndRunnirMenusAreFound() {
