@@ -36,6 +36,52 @@ struct CoreGitHubRepository: Equatable, Sendable {
     }
 }
 
+/// An account where the Runnir Desktop app is installed.
+struct CoreGitHubInstallation: Equatable, Identifiable, Sendable {
+    let id: Int64
+    let account: String
+    /// "User" or "Organization".
+    let accountType: String
+    /// "all" or "selected".
+    let repositorySelection: String
+    /// Where the account's owner changes which repositories the app reaches.
+    let htmlURL: URL?
+}
+
+/// A github.com repository the signed-in user's token reaches.
+struct CoreGitHubAccountRepository: Equatable, Identifiable, Sendable {
+    var id: String { fullName }
+    /// "owner/name" as GitHub spells it.
+    let fullName: String
+    let owner: String
+    let name: String
+    let description: String
+    /// "public", "private" or "internal".
+    let visibility: String
+    let defaultBranch: String
+    let htmlURL: URL?
+    let pushedAt: Date?
+    let archived: Bool
+    let fork: Bool
+    /// The user can push, so can start workflows.
+    let canPush: Bool
+    let installationID: Int64
+}
+
+/// The repositories of the accounts where the app is installed.
+struct CoreGitHubAccount: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    let installations: [CoreGitHubInstallation]
+    /// Newest push first.
+    let repositories: [CoreGitHubAccountRepository]
+    /// More repositories exist than the Core read.
+    let truncated: Bool
+
+    static func failed(_ access: CoreGitHubAccess) -> CoreGitHubAccount {
+        CoreGitHubAccount(access: access, installations: [], repositories: [], truncated: false)
+    }
+}
+
 struct CoreGitHubWorkflow: Equatable, Identifiable, Sendable {
     let id: Int64
     let name: String

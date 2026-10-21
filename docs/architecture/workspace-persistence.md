@@ -38,7 +38,7 @@ Local cache may include private repository metadata needed for functionality. It
 
 Allocate workspaceId once on registration. Track path/display name/optional sanitized remote metadata/lastOpenedAt; never persist embedded URL credentials. Two separate clones or registered working-tree instances get separate IDs, even for one remote. Canonical paths/resource identity avoid accidentally registering one directory twice, with case/symlink semantics tested. Remote URL changes do not reset identity.
 
-Missing/moved roots retain records/cache and offer user-assisted relinking; preserve workspaceId and explicit folder authorization. Do not silently grant a new path, delete state or merge clones by remote URL. No GitHub remote or .runnir directory is required for local use. Registry removal never silently deletes the working tree or portable files. Account-wide remote browsing is not local workspace registration; its precise placement remains an open UX decision.
+Missing/moved roots retain records/cache and offer user-assisted relinking; preserve workspaceId and explicit folder authorization. Do not silently grant a new path, delete state or merge clones by remote URL. No GitHub remote or .runnir directory is required for local use. Registry removal never silently deletes the working tree or portable files. Account-wide remote browsing is not local workspace registration: it is the Workspace Manager's GitHub tab. A workspace record remembers the `owner/name` its origin pointed at when the Core last opened it, only so that tab can open the registered clone.
 
 ## Portable Configuration Examples
 

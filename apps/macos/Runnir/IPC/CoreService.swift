@@ -141,16 +141,20 @@ protocol CoreServicing: Sendable {
     func renameWorkflowFile(repositoryID: String, workflowID: String, newFileName: String) async throws -> String
     /// Hands the signed-in user's GitHub token to the Core's memory; nil clears it.
     func setGitHubCredential(_ token: String?) async throws
-    /// GitHub Actions data for the repository's origin on github.com.
-    func listGitHubWorkflows(repositoryID: String) async throws -> CoreGitHubResult<CoreGitHubWorkflow>
+    /// The github.com repositories the token reaches, and the accounts where
+    /// the Runnir Desktop app is installed.
+    func listGitHubRepositories() async throws -> CoreGitHubAccount
+    /// GitHub Actions data for a repository's origin on github.com, or for a
+    /// repository named directly.
+    func listGitHubWorkflows(target: CoreGitHubTarget) async throws -> CoreGitHubResult<CoreGitHubWorkflow>
     /// Whether the token can see the linked GitHub repository, and its details.
     func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository
-    func listWorkflowRuns(repositoryID: String, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun>
+    func listWorkflowRuns(target: CoreGitHubTarget, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun>
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob>
-    func listGitHubRefs(repositoryID: String) async throws -> CoreGitHubRefs
-    func describeWorkflowDispatch(repositoryID: String, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition
+    func listGitHubRefs(target: CoreGitHubTarget) async throws -> CoreGitHubRefs
+    func describeWorkflowDispatch(target: CoreGitHubTarget, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition
     /// Validates a dispatch in the Core; nothing is sent to GitHub yet.
-    func prepareWorkflowDispatch(repositoryID: String, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch
+    func prepareWorkflowDispatch(target: CoreGitHubTarget, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch
     /// Sends a prepared dispatch once. Throws when the confirmation expired or was used.
     func confirmWorkflowDispatch(dispatchID: String) async throws -> CoreDispatchResult
     /// The end of one job's log, split into lines tagged with kind and step.
@@ -176,4 +180,34 @@ protocol CoreServicing: Sendable {
     /// `.resourceExhausted` when the subscriber falls behind and with
     /// `.unavailable` when the Core goes away; callers resubscribe and reload.
     func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error>
+}
+
+/// The GitHub repository a call is about.
+enum CoreGitHubTarget: Hashable, Sendable {
+    /// The origin of a repository open in the Core, by its Core id.
+    case repository(String)
+    /// A github.com repository named "owner/name", with no local clone.
+    case named(String)
+}
+
+extension CoreServicing {
+    func listGitHubWorkflows(repositoryID: String) async throws -> CoreGitHubResult<CoreGitHubWorkflow> {
+        try await listGitHubWorkflows(target: .repository(repositoryID))
+    }
+
+    func listWorkflowRuns(repositoryID: String, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> {
+        try await listWorkflowRuns(target: .repository(repositoryID), branch: branch, limit: limit)
+    }
+
+    func listGitHubRefs(repositoryID: String) async throws -> CoreGitHubRefs {
+        try await listGitHubRefs(target: .repository(repositoryID))
+    }
+
+    func describeWorkflowDispatch(repositoryID: String, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition {
+        try await describeWorkflowDispatch(target: .repository(repositoryID), workflowPath: workflowPath, ref: ref)
+    }
+
+    func prepareWorkflowDispatch(repositoryID: String, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch {
+        try await prepareWorkflowDispatch(target: .repository(repositoryID), workflowID: workflowID, ref: ref, inputs: inputs)
+    }
 }

@@ -13,9 +13,19 @@ import (
 	"runnir/core/internal/github"
 )
 
-// githubTarget resolves an open repository to its github.com owner and name.
-// A missing remote is a status, not an error; an unknown id is NOT_FOUND.
-func (s *service) githubTarget(repositoryID string) (owner, name string, problem *corev1.GitHubStatus, err error) {
+// githubTarget resolves a request's repository to its github.com owner and
+// name: githubRepository ("owner/name") when set, for a repository without a
+// local clone, otherwise the origin of the open repository repositoryID. A
+// missing remote is a status, not an error; an unknown id is NOT_FOUND and a
+// malformed name INVALID_ARGUMENT.
+func (s *service) githubTarget(repositoryID, githubRepository string) (owner, name string, problem *corev1.GitHubStatus, err error) {
+	if githubRepository != "" {
+		if !github.ValidRepository(githubRepository) {
+			return "", "", nil, status.Error(codes.InvalidArgument, "github_repository must be owner/name")
+		}
+		owner, name, _ = strings.Cut(githubRepository, "/")
+		return owner, name, nil, nil
+	}
 	info, err := s.repositories.Get(repositoryID)
 	if err != nil {
 		return "", "", nil, rpcError(err)
@@ -50,8 +60,31 @@ func (s *service) githubStatus(err error) (*corev1.GitHubStatus, error) {
 	}
 }
 
+// ListGitHubRepositories lists the repositories the user's token reaches.
+func (s *service) ListGitHubRepositories(ctx context.Context, _ *corev1.ListGitHubRepositoriesRequest) (*corev1.ListGitHubRepositoriesResponse, error) {
+	account, fetchErr := s.github.AccountRepositories(ctx)
+	result, err := s.githubStatus(fetchErr)
+	if err != nil {
+		return nil, err
+	}
+	out := &corev1.ListGitHubRepositoriesResponse{Status: result, Truncated: account.Truncated}
+	for _, i := range account.Installations {
+		out.Installations = append(out.Installations, &corev1.GitHubInstallation{
+			Id: i.ID, Account: i.Account, AccountType: i.AccountType, RepositorySelection: i.RepositorySelection, HtmlUrl: i.HTMLURL,
+		})
+	}
+	for _, r := range account.Repositories {
+		out.Repositories = append(out.Repositories, &corev1.GitHubAccountRepository{
+			FullName: r.FullName, Owner: r.Owner, Name: r.Name, Description: r.Description, Visibility: r.Visibility,
+			DefaultBranch: r.DefaultBranch, HtmlUrl: r.HTMLURL, PushedAt: timestamp(r.PushedAt),
+			Archived: r.Archived, Fork: r.Fork, CanPush: r.CanPush, InstallationId: r.InstallationID,
+		})
+	}
+	return out, nil
+}
+
 func (s *service) ListGitHubWorkflows(ctx context.Context, request *corev1.ListGitHubWorkflowsRequest) (*corev1.ListGitHubWorkflowsResponse, error) {
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId())
+	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.ListGitHubWorkflowsResponse{Status: problem}, err
 	}
@@ -68,7 +101,7 @@ func (s *service) ListGitHubWorkflows(ctx context.Context, request *corev1.ListG
 }
 
 func (s *service) GetGitHubRepository(ctx context.Context, request *corev1.GetGitHubRepositoryRequest) (*corev1.GetGitHubRepositoryResponse, error) {
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId())
+	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.GetGitHubRepositoryResponse{Status: problem}, err
 	}
@@ -87,7 +120,7 @@ func (s *service) ListWorkflowRuns(ctx context.Context, request *corev1.ListWork
 	if request.GetLimit() > 100 {
 		return nil, status.Error(codes.InvalidArgument, "limit must be 100 or less")
 	}
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId())
+	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.ListWorkflowRunsResponse{Status: problem}, err
 	}
@@ -107,7 +140,7 @@ func (s *service) ListRunJobs(ctx context.Context, request *corev1.ListRunJobsRe
 	if request.GetRunId() <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "run_id is required")
 	}
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId())
+	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.ListRunJobsResponse{Status: problem}, err
 	}

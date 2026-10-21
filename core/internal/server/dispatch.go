@@ -16,7 +16,7 @@ import (
 )
 
 func (s *service) ListGitHubRefs(ctx context.Context, request *corev1.ListGitHubRefsRequest) (*corev1.ListGitHubRefsResponse, error) {
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId())
+	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.ListGitHubRefsResponse{Status: problem}, err
 	}
@@ -32,7 +32,7 @@ func (s *service) DescribeWorkflowDispatch(ctx context.Context, request *corev1.
 	if request.GetWorkflowPath() == "" || request.GetRef() == "" {
 		return nil, status.Error(codes.InvalidArgument, "workflow_path and ref are required")
 	}
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId())
+	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.DescribeWorkflowDispatchResponse{Status: problem}, err
 	}
@@ -64,7 +64,7 @@ func (s *service) PrepareWorkflowDispatch(ctx context.Context, request *corev1.P
 	if request.GetWorkflowId() <= 0 || request.GetRef() == "" {
 		return nil, status.Error(codes.InvalidArgument, "workflow_id and ref are required")
 	}
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId())
+	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.PrepareWorkflowDispatchResponse{Status: problem}, err
 	}
@@ -92,8 +92,13 @@ func (s *service) PrepareWorkflowDispatch(ctx context.Context, request *corev1.P
 		out.Problems = problems
 		return out, nil
 	}
+	// A dispatch for a repository named directly belongs to no open repository.
+	repositoryID := request.GetRepositoryId()
+	if request.GetGithubRepository() != "" {
+		repositoryID = ""
+	}
 	pending, err := s.dispatches.Prepare(dispatch.Request{
-		RepositoryID: request.GetRepositoryId(), Owner: owner, Name: name,
+		RepositoryID: repositoryID, Owner: owner, Name: name,
 		WorkflowID: request.GetWorkflowId(), WorkflowPath: path, Ref: request.GetRef(), Inputs: request.GetInputs(),
 	})
 	if errors.Is(err, dispatch.ErrTooMany) {
@@ -111,9 +116,12 @@ func (s *service) ConfirmWorkflowDispatch(ctx context.Context, request *corev1.C
 	if err != nil {
 		return nil, status.Error(codes.FailedPrecondition, "this confirmation expired or was already used; review the run again")
 	}
-	// The repository must still be open: a closed one may have been relinked.
-	if _, err := s.repositories.Get(prepared.RepositoryID); err != nil {
-		return nil, rpcError(err)
+	// An open repository it was prepared for must still be open: a closed
+	// one may have been relinked. One named directly has none.
+	if prepared.RepositoryID != "" {
+		if _, err := s.repositories.Get(prepared.RepositoryID); err != nil {
+			return nil, rpcError(err)
+		}
 	}
 	sentAt := time.Now()
 	runID, sendErr := s.github.Dispatch(ctx, prepared.Owner, prepared.Name, prepared.WorkflowID, prepared.Ref, prepared.Inputs)

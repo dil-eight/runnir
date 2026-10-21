@@ -52,12 +52,17 @@ final class DesktopCoordinator {
     let presets: DispatchPresetLibrary
     /// Favorite workflows of each workspace, kept on this Mac.
     let favorites: WorkflowFavorites
+    /// Repositories starred in the Workspace Manager's GitHub tab.
+    let repositoryFavorites: RepositoryFavorites
+    /// The GitHub tab's list, kept while the Manager is closed.
+    let githubRepositories = GitHubRepositoriesModel()
 
     init(store: (any DesktopStateStoring)? = nil,
          core: CoreHub? = nil,
          github: GitHubSession? = nil,
          presets: DispatchPresetLibrary = DispatchPresetLibrary(store: nil),
          favorites: WorkflowFavorites = WorkflowFavorites(store: nil),
+         repositoryFavorites: RepositoryFavorites = RepositoryFavorites(store: nil),
          makeGrant: @escaping (WorkspaceRecord) throws -> any RepositoryGranting = { try RepositoryGrant(record: $0) },
          makeWorkspaceWindow: @escaping (WorkspaceWindowRecord, WorkspaceRecord, (any RepositoryGranting)?, DesktopCoordinator) -> any WorkspaceWindowManaging = {
              WorkspaceWindowController(record: $0, workspace: $1, grant: $2, desktop: $3)
@@ -67,6 +72,7 @@ final class DesktopCoordinator {
         self.github = github
         self.presets = presets
         self.favorites = favorites
+        self.repositoryFavorites = repositoryFavorites
         self.makeGrant = makeGrant
         self.makeWorkspaceWindow = makeWorkspaceWindow
     }
@@ -122,10 +128,11 @@ final class DesktopCoordinator {
 
     func showManager() {
         if manager == nil {
-            let window = makeWindow(size: NSSize(width: 900, height: 600), title: "Workspaces")
-            window.minSize = NSSize(width: 700, height: 480)
+            // Wide enough for the GitHub tab's list next to a repository.
+            let window = makeWindow(size: NSSize(width: 1000, height: 660), title: "Workspaces")
+            window.minSize = NSSize(width: 820, height: 520)
             window.contentViewController = NSHostingController(rootView: WorkspaceManagerView(desktop: self))
-            window.setContentSize(NSSize(width: 900, height: 600))
+            window.setContentSize(NSSize(width: 1000, height: 660))
             window.identifier = NSUserInterfaceItemIdentifier("workspace-manager")
             manager = window
         }
@@ -339,6 +346,29 @@ final class DesktopCoordinator {
             favorites.removeAll(workspaceID: workspace.id)
         }
         catch { message = "Registration could not be removed. Repository files were not changed." }
+    }
+
+    /// The registered workspace whose origin is this github.com repository
+    /// (names are not case-sensitive); the most recently opened when several are.
+    func workspace(forGitHubRepository fullName: String) -> WorkspaceRecord? {
+        snapshot.workspaces
+            .filter { $0.githubRepository?.caseInsensitiveCompare(fullName) == .orderedSame }
+            .max { $0.lastOpenedAt < $1.lastOpenedAt }
+    }
+
+    /// Remembers which GitHub repository a workspace's origin points at, so
+    /// the GitHub tab can open its local clone.
+    func noteGitHubRepository(_ fullName: String?, workspaceID: UUID) {
+        guard let index = snapshot.workspaces.firstIndex(where: { $0.id == workspaceID }),
+              snapshot.workspaces[index].githubRepository != fullName,
+              fullName.map(GitHubRepositoryName.isValid) ?? true else { return }
+        var candidate = snapshot
+        candidate.workspaces[index].githubRepository = fullName
+        try? commit(candidate)
+    }
+
+    func openOrFocus(_ workspace: WorkspaceRecord) {
+        if openCount(workspace.id) > 0 { focus(workspace.id) } else { openRegistered(workspace) }
     }
 
     /// A workflow file of a workspace was renamed: its star moves with it,
@@ -626,7 +656,8 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         )
         desktop = DesktopCoordinator(core: hub, github: github,
                                      presets: DispatchPresetLibrary(store: try? FileDispatchPresetStore.live()),
-                                     favorites: WorkflowFavorites(store: try? FileWorkflowFavoritesStore.live()))
+                                     favorites: WorkflowFavorites(store: try? FileWorkflowFavoritesStore.live()),
+                                     repositoryFavorites: RepositoryFavorites(store: try? FileRepositoryFavoritesStore.live()))
         super.init()
         // The Core holds the token only while the user is signed in.
         hub.githubTokenProvider = { [github] in await github.currentToken() }

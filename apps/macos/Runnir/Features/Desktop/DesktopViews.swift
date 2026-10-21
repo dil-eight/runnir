@@ -70,6 +70,9 @@ struct ProjectLink: View {
 
 struct WorkspaceManagerView: View {
     @Bindable var desktop: DesktopCoordinator
+    @State private var tab: ManagerTab = .workspaces
+
+    enum ManagerTab: Hashable { case workspaces, github }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -85,7 +88,14 @@ struct WorkspaceManagerView: View {
                     .disabled(desktop.persistenceBlocked)
                 }
             }
-            .frame(height: 51).padding(.bottom, 22)
+            .frame(height: 51).padding(.bottom, 16)
+
+            HStack(spacing: 4) {
+                Button("Workspaces") { tab = .workspaces }.buttonStyle(WorkflowTabStyle(selected: tab == .workspaces))
+                Button("GitHub") { tab = .github }.buttonStyle(WorkflowTabStyle(selected: tab == .github))
+                    .accessibilityIdentifier("manager-github-tab")
+                Spacer()
+            }.padding(.bottom, 14)
 
             if let message = desktop.message {
                 HStack(alignment: .top, spacing: 10) {
@@ -102,7 +112,9 @@ struct WorkspaceManagerView: View {
                 .padding(.bottom, 16)
             }
 
-            if desktop.snapshot.workspaces.isEmpty {
+            if tab == .github {
+                GitHubRepositoriesView(desktop: desktop)
+            } else if desktop.snapshot.workspaces.isEmpty {
                 VStack(spacing: 16) {
                     Image(systemName: "folder").font(.system(size: 26, weight: .light))
                         .foregroundStyle(RunnirTheme.primary).frame(width: 56, height: 56).background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 8))
@@ -468,6 +480,9 @@ struct DesktopWorkspaceView: View {
         .ignoresSafeArea()
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
+        .onChange(of: session?.githubRepository, initial: true) { _, value in
+            if let value { desktop.noteGitHubRepository(value, workspaceID: workspace.id) }
+        }
         .sheet(item: Binding(get: { state.runWorkflowRequest }, set: { state.runWorkflowRequest = $0 })) { request in
             if let session, let hub = desktop.core {
                 RunWorkflowSheet(model: DispatchFormModel(workspaceID: workspace.id, hub: hub, workflows: session.remoteWorkflows,

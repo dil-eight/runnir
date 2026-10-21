@@ -7,6 +7,9 @@ struct WorkspaceRecord: Codable, Identifiable, Equatable, Sendable {
     var name: String
     var bookmark: Data
     var lastOpenedAt: Date
+    /// "owner/name" of the github.com repository the working tree's origin
+    /// pointed at when Runnir Core last opened it; nil until then.
+    var githubRepository: String? = nil
 }
 
 struct WorkspaceWindowRecord: Codable, Identifiable, Equatable, Sendable {
@@ -41,7 +44,8 @@ struct DesktopSnapshot: Codable, Equatable, Sendable {
         guard version == 1, workspaces.count <= Self.maxWorkspaces, windows.count <= Self.maxWindows,
               workspaceIDs.count == workspaces.count,
               Set(windows.map(\.id)).count == windows.count,
-              workspaces.allSatisfy({ $0.path.hasPrefix("/") && !$0.name.isEmpty && $0.bookmark.count <= 65536 }),
+              workspaces.allSatisfy({ $0.path.hasPrefix("/") && !$0.name.isEmpty && $0.bookmark.count <= 65536
+                  && ($0.githubRepository.map(GitHubRepositoryName.isValid) ?? true) }),
               windows.allSatisfy({ workspaceIDs.contains($0.workspaceID) && ($0.frame?.isValid ?? true) }) else {
             throw DesktopStoreError.invalidState
         }

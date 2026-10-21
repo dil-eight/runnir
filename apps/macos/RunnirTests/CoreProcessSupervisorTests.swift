@@ -45,15 +45,16 @@ private struct FakeService: CoreServicing {
         AsyncThrowingStream { $0.finish(throwing: CoreServiceError.unavailable) }
     }
     func setGitHubCredential(_ token: String?) async throws {}
-    func listGitHubWorkflows(repositoryID: String) async throws -> CoreGitHubResult<CoreGitHubWorkflow> { CoreGitHubResult(access: .ok, items: []) }
-    func listWorkflowRuns(repositoryID: String, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> { CoreGitHubResult(access: .ok, items: []) }
+    func listGitHubRepositories() async throws -> CoreGitHubAccount { .failed(.ok) }
+    func listGitHubWorkflows(target: CoreGitHubTarget) async throws -> CoreGitHubResult<CoreGitHubWorkflow> { CoreGitHubResult(access: .ok, items: []) }
+    func listWorkflowRuns(target: CoreGitHubTarget, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> { CoreGitHubResult(access: .ok, items: []) }
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { CoreGitHubResult(access: .ok, items: []) }
     func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository { .failed(.ok) }
-    func listGitHubRefs(repositoryID: String) async throws -> CoreGitHubRefs { CoreGitHubRefs(access: .ok, defaultBranch: "main", branches: ["main"], tags: []) }
-    func describeWorkflowDispatch(repositoryID: String, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition {
+    func listGitHubRefs(target: CoreGitHubTarget) async throws -> CoreGitHubRefs { CoreGitHubRefs(access: .ok, defaultBranch: "main", branches: ["main"], tags: []) }
+    func describeWorkflowDispatch(target: CoreGitHubTarget, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition {
         CoreDispatchDefinition(access: .ok, dispatchable: false, inputs: [], parseError: nil)
     }
-    func prepareWorkflowDispatch(repositoryID: String, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch {
+    func prepareWorkflowDispatch(target: CoreGitHubTarget, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch {
         CorePreparedDispatch(access: .ok, dispatchID: nil, expiresAt: nil, problems: [], workflowPath: "")
     }
     func confirmWorkflowDispatch(dispatchID: String) async throws -> CoreDispatchResult { throw CoreServiceError.unavailable }

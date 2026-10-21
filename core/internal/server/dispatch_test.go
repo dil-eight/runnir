@@ -250,3 +250,85 @@ func TestDispatchNeedsASignIn(t *testing.T) {
 		t.Fatalf("missing workflow id = %v", err)
 	}
 }
+
+func TestARepositoryWithoutALocalCloneIsReadAndRunByName(t *testing.T) {
+	fake := &fakeDispatchGitHub{runID: 99}
+	inner := fake.handler(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/user/installations":
+			_, _ = w.Write([]byte(`{"total_count":1,"installations":[{"id":5,"account":{"login":"o","type":"Organization"},"repository_selection":"selected","html_url":"https://github.com/organizations/o/settings/installations/5"}]}`))
+		case "/user/installations/5/repositories":
+			_, _ = w.Write([]byte(`{"total_count":1,"repositories":[{"full_name":"o/r","name":"r","owner":{"login":"o"},"private":true,"default_branch":"main","html_url":"https://github.com/o/r","permissions":{"push":true}}]}`))
+		case "/repos/o/r/actions/workflows":
+			_, _ = w.Write([]byte(`{"total_count":1,"workflows":[{"id":7,"name":"Deploy","path":".github/workflows/deploy.yml","state":"active"}]}`))
+		default:
+			inner(w, r)
+		}
+	}))
+	defer server.Close()
+
+	path := socketPath(t)
+	stop := startWith(t, path, Options{GitHubBaseURL: server.URL})
+	defer stop()
+	client := connect(t, path)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	listed, err := client.ListGitHubRepositories(ctx, &corev1.ListGitHubRepositoriesRequest{})
+	if err != nil || listed.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_SIGNED_OUT {
+		t.Fatalf("signed out = %v, %v", listed, err)
+	}
+	if _, err := client.SetGitHubCredential(ctx, &corev1.SetGitHubCredentialRequest{Token: "ghu_test"}); err != nil {
+		t.Fatal(err)
+	}
+	listed, err = client.ListGitHubRepositories(ctx, &corev1.ListGitHubRepositoriesRequest{})
+	if err != nil || listed.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_OK || len(listed.Repositories) != 1 ||
+		listed.Repositories[0].FullName != "o/r" || !listed.Repositories[0].CanPush || len(listed.Installations) != 1 ||
+		listed.Installations[0].RepositorySelection != "selected" {
+		t.Fatalf("listed = %v, %v", listed, err)
+	}
+
+	workflows, err := client.ListGitHubWorkflows(ctx, &corev1.ListGitHubWorkflowsRequest{GithubRepository: "o/r"})
+	if err != nil || workflows.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_OK || len(workflows.Workflows) != 1 {
+		t.Fatalf("workflows = %v, %v", workflows, err)
+	}
+	refs, err := client.ListGitHubRefs(ctx, &corev1.ListGitHubRefsRequest{GithubRepository: "o/r"})
+	if err != nil || refs.DefaultBranch != "main" || len(refs.Branches) != 2 {
+		t.Fatalf("refs = %v, %v", refs, err)
+	}
+	described, err := client.DescribeWorkflowDispatch(ctx, &corev1.DescribeWorkflowDispatchRequest{GithubRepository: "o/r", WorkflowPath: ".github/workflows/deploy.yml", Ref: "main"})
+	if err != nil || !described.Dispatchable || len(described.Inputs) != 2 {
+		t.Fatalf("described = %v, %v", described, err)
+	}
+	prepared, err := client.PrepareWorkflowDispatch(ctx, &corev1.PrepareWorkflowDispatchRequest{
+		GithubRepository: "o/r", WorkflowId: 7, Ref: "main", Inputs: map[string]string{"environment": "staging"},
+	})
+	if err != nil || prepared.DispatchId == "" {
+		t.Fatalf("prepared = %v, %v", prepared, err)
+	}
+	confirmed, err := client.ConfirmWorkflowDispatch(ctx, &corev1.ConfirmWorkflowDispatchRequest{DispatchId: prepared.DispatchId})
+	if err != nil || confirmed.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_OK || confirmed.RunId != 99 {
+		t.Fatalf("confirmed = %v, %v", confirmed, err)
+	}
+	fake.mu.Lock()
+	sent := fake.dispatches
+	fake.mu.Unlock()
+	if len(sent) != 1 || sent[0]["ref"] != "main" {
+		t.Fatalf("dispatches = %v", sent)
+	}
+	// Still single use.
+	if _, err := client.ConfirmWorkflowDispatch(ctx, &corev1.ConfirmWorkflowDispatchRequest{DispatchId: prepared.DispatchId}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("second confirm = %v", err)
+	}
+
+	hidden, err := client.ListGitHubWorkflows(ctx, &corev1.ListGitHubWorkflowsRequest{GithubRepository: "o/hidden"})
+	if err != nil || hidden.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_NOT_VISIBLE {
+		t.Fatalf("hidden = %v, %v", hidden, err)
+	}
+	for _, name := range []string{"o", "o/r/x", "../o/r", "o/..", "o/r?x"} {
+		if _, err := client.ListWorkflowRuns(ctx, &corev1.ListWorkflowRunsRequest{GithubRepository: name}); status.Code(err) != codes.InvalidArgument {
+			t.Errorf("%q: %v", name, err)
+		}
+	}
+}

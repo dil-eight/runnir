@@ -24,7 +24,8 @@ final class DispatchFormModel {
         case failed(String)
     }
 
-    let workspaceID: UUID
+    /// The workspace or the repository without a local clone to run on.
+    let target: CoreHub.GitHubTarget
     let workflows: [CoreGitHubWorkflow]
     private(set) var selectedWorkflowID: Int64?
     private(set) var refs: CoreGitHubRefs?
@@ -50,12 +51,20 @@ final class DispatchFormModel {
 
     @ObservationIgnored private let initialPresetID: UUID?
 
-    init(workspaceID: UUID, hub: CoreHub, workflows: [CoreGitHubWorkflow], workflowID: Int64?, currentBranch: String,
+    convenience init(workspaceID: UUID, hub: CoreHub, workflows: [CoreGitHubWorkflow], workflowID: Int64?, currentBranch: String,
+                     presets: DispatchPresetLibrary? = nil, presetID: UUID? = nil) {
+        self.init(target: .workspace(workspaceID), hub: hub, workflows: workflows, workflowID: workflowID,
+                  currentBranch: currentBranch, presets: presets, presetID: presetID)
+    }
+
+    /// Presets belong to a workspace, so a repository without a local clone
+    /// has none.
+    init(target: CoreHub.GitHubTarget, hub: CoreHub, workflows: [CoreGitHubWorkflow], workflowID: Int64?, currentBranch: String,
          presets: DispatchPresetLibrary? = nil, presetID: UUID? = nil) {
         self.initialPresetID = presetID
-        self.workspaceID = workspaceID
+        self.target = target
         self.hub = hub
-        self.presets = presets
+        if case .workspace = target { self.presets = presets } else { self.presets = nil }
         self.workflows = workflows.filter { $0.state == "active" }
         self.currentBranch = currentBranch
         selectedWorkflowID = workflowID ?? self.workflows.first?.id
@@ -63,11 +72,18 @@ final class DispatchFormModel {
 
     var selectedWorkflow: CoreGitHubWorkflow? { workflows.first { $0.id == selectedWorkflowID } }
 
+    /// The workspace presets are kept for; nil for a repository without a
+    /// local clone.
+    var workspaceID: UUID? {
+        if case .workspace(let id) = target { return id }
+        return nil
+    }
+
     /// Loads refs, picks the current branch when GitHub has it (else the
     /// default branch), then the workflow's definition at that ref.
     func load() async {
         presets?.prepare()
-        let refs = await hub.refs(workspaceID: workspaceID)
+        let refs = await hub.refs(target: target)
         self.refs = refs
         if refs.access == .ok {
             ref = refs.branches.contains(currentBranch) ? currentBranch : refs.defaultBranch
@@ -98,7 +114,7 @@ final class DispatchFormModel {
         problems = []
         guard let workflow = selectedWorkflow, !ref.isEmpty else { definition = nil; return }
         isLoadingDefinition = true
-        let loaded = await hub.describeDispatch(workspaceID: workspaceID, workflowPath: workflow.path, ref: ref)
+        let loaded = await hub.describeDispatch(target: target, workflowPath: workflow.path, ref: ref)
         guard generation == definitionGeneration else { return }
         isLoadingDefinition = false
         definition = loaded
@@ -116,7 +132,7 @@ final class DispatchFormModel {
 
     /// Presets saved for the selected workflow in this workspace.
     var availablePresets: [DispatchPreset] {
-        guard let path = selectedWorkflow?.path, let presets else { return [] }
+        guard let path = selectedWorkflow?.path, let presets, let workspaceID else { return [] }
         return presets.presets(workspaceID: workspaceID, workflowPath: path)
     }
 
@@ -192,7 +208,7 @@ final class DispatchFormModel {
     /// Saves the current branch and values as a new preset and applies it.
     @discardableResult
     func saveAsPreset(named name: String) -> Bool {
-        guard canSavePreset, let workflow = selectedWorkflow,
+        guard canSavePreset, let workflow = selectedWorkflow, let workspaceID,
               let preset = presets?.add(name: name, workspaceID: workspaceID, workflowPath: workflow.path, ref: ref, inputs: presetValues) else {
             return false
         }
@@ -271,7 +287,7 @@ final class DispatchFormModel {
     func review() async {
         guard canReview, let workflow = selectedWorkflow else { return }
         step = .preparing
-        let prepared = await hub.prepareDispatch(workspaceID: workspaceID, workflowID: workflow.id, ref: ref, inputs: inputsToSend)
+        let prepared = await hub.prepareDispatch(target: target, workflowID: workflow.id, ref: ref, inputs: inputsToSend)
         if prepared.access != .ok {
             step = .failed(Self.describe(prepared.access))
         } else if !prepared.problems.isEmpty || prepared.dispatchID == nil {
@@ -289,9 +305,9 @@ final class DispatchFormModel {
     /// Sends the reviewed dispatch once, then looks for the run it started.
     func confirm() async {
         guard case .review(let prepared) = step, let dispatchID = prepared.dispatchID, let workflow = selectedWorkflow else { return }
-        let known = Set(hub.session(for: workspaceID)?.runs.map(\.id) ?? [])
         step = .sending
-        guard let result = await hub.confirmDispatch(workspaceID: workspaceID, dispatchID: dispatchID) else {
+        let known = await hub.knownRunIDs(target)
+        guard let result = await hub.confirmDispatch(target: target, dispatchID: dispatchID) else {
             step = .failed("This confirmation expired or was already used, so nothing was sent. Review the run again.")
             return
         }
@@ -304,7 +320,7 @@ final class DispatchFormModel {
             return
         }
         step = .waitingForRun
-        if let run = await hub.locateDispatchedRun(workspaceID: workspaceID, workflowID: workflow.id, ref: ref,
+        if let run = await hub.locateDispatchedRun(target: target, workflowID: workflow.id, ref: ref,
                                                    dispatchedAt: dispatchedAt, knownRunIDs: known, reportedRunID: result.runID) {
             step = .found(run)
         } else {
@@ -442,7 +458,7 @@ struct RunWorkflowSheet: View {
                 RunRow(run: run)
             }
         case .notFoundYet:
-            Label("GitHub accepted the request, but the run has not appeared yet. It will show in Runs when it starts.",
+            Label("GitHub accepted the request, but the run has not appeared yet. It will show with the recent runs when it starts.",
                   systemImage: "clock").font(.system(size: 13))
         case .failed(let message):
             Label(message, systemImage: "exclamationmark.triangle").foregroundStyle(RunnirTheme.warning).font(.system(size: 13))
