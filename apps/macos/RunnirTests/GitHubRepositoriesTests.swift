@@ -159,7 +159,7 @@ struct GitHubRepositoriesTests {
         let (hub, provider) = await readyHub()
         let workflow = CoreGitHubWorkflow(id: 1, name: "CI", path: ".github/workflows/ci.yml", state: "active", htmlURL: nil)
         let presets = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: directory()))
-        let form = DispatchFormModel(target: .repository("o/r"), hub: hub, workflows: [workflow], workflowID: 1,
+        let form = DispatchFormModel(target: .repository(GitHubRepositoryRef(serverID: "", fullName: "o/r")), hub: hub, workflows: [workflow], workflowID: 1,
                                      currentBranch: "main", presets: presets)
         #expect(form.presets == nil && form.workspaceID == nil, "presets belong to workspaces")
         await form.load()

@@ -57,6 +57,48 @@ enum CorePullRequestCI: Equatable, Sendable {
 }
 
 /// One of the signed-in user's pull requests.
+/// A GitHub server as the Core knows it: github.com (empty id) or an
+/// Enterprise server the user added.
+struct GitHubServerRef: Hashable, Sendable, Codable {
+    /// Empty for github.com; a lowercase UUID for an Enterprise server.
+    let id: String
+    /// The REST API root; nil for github.com.
+    let apiURL: URL?
+    /// The web URL's host, lowercased, without port.
+    let webHost: String
+
+    static let dotCom = GitHubServerRef(id: "", apiURL: nil, webHost: "github.com")
+    var isDotCom: Bool { id.isEmpty }
+}
+
+/// A repository on one server.
+struct GitHubRepositoryRef: Hashable, Sendable, Codable {
+    /// Empty for github.com.
+    let serverID: String
+    /// "owner/name".
+    let fullName: String
+
+    /// What lists and files store: "owner/name" on github.com, as before
+    /// Enterprise servers, and "<server id>:owner/name" elsewhere.
+    var key: String { serverID.isEmpty ? fullName : serverID + ":" + fullName }
+
+    init(serverID: String, fullName: String) {
+        self.serverID = serverID
+        self.fullName = fullName
+    }
+
+    /// Reads a `key`; nil when the name or the server id is malformed.
+    init?(key: String) {
+        let parts = key.split(separator: ":", maxSplits: 1).map(String.init)
+        let (server, name) = parts.count == 2 ? (parts[0], parts[1]) : ("", key)
+        if !server.isEmpty {
+            guard let uuid = UUID(uuidString: server), uuid.uuidString.lowercased() == server else { return nil }
+        }
+        guard GitHubRepositoryName.isValid(name) else { return nil }
+        self.init(serverID: server, fullName: name)
+    }
+}
+
 struct CorePullRequest: Equatable, Identifiable, Sendable {
     var id: String { htmlURL?.absoluteString ?? "\(repository)#\(number)" }
     let repository: String
@@ -75,6 +117,8 @@ struct CorePullRequest: Equatable, Identifiable, Sendable {
     let ciRunning: Int
     /// The run to look at: the first failed one, else the first running one.
     let ciURL: URL?
+    /// The server it is on; empty is github.com. Set by the hub.
+    var server: String = ""
 }
 
 /// The user's open pull requests and those closed recently.

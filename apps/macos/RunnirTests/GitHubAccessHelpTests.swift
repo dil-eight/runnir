@@ -117,7 +117,7 @@ struct GitHubAccessHelpTests {
         provider.core.repositoryResult = CoreGitHubRepository(access: .ok, fullName: "o/r", visibility: "private", defaultBranch: "main",
                                                               htmlURL: nil, canPush: false)
         let workflow = CoreGitHubWorkflow(id: 1, name: "CI", path: ".github/workflows/ci.yml", state: "active", htmlURL: nil)
-        let form = DispatchFormModel(target: .repository("o/r"), hub: hub, workflows: [workflow], workflowID: 1, currentBranch: "main")
+        let form = DispatchFormModel(target: .repository(GitHubRepositoryRef(serverID: "", fullName: "o/r")), hub: hub, workflows: [workflow], workflowID: 1, currentBranch: "main")
         await form.load()
         await form.review()
         #expect(form.accessHelp?.fix == .askForWriteAccess)

@@ -35,6 +35,14 @@ final class RepositorySession: Identifiable {
     fileprivate(set) var branch = ""
     /// The GitHub repository this working tree pushes to ("owner/name").
     fileprivate(set) var githubRepository: String?
+    /// The server of `githubRepository`; empty is github.com.
+    fileprivate(set) var githubServerID: String?
+    /// The origin's host, even when it is on no server Runnir knows.
+    fileprivate(set) var originHost: String?
+    /// `githubRepository` on its server.
+    var githubRef: GitHubRepositoryRef? {
+        githubRepository.map { GitHubRepositoryRef(serverID: githubServerID ?? "", fullName: $0) }
+    }
     fileprivate(set) var workflows: [CoreWorkflow] = []
     fileprivate(set) var lastRefresh: Date?
     fileprivate(set) var isRefreshing = false
@@ -310,10 +318,10 @@ final class CoreHub {
     }
 
     /// The repository a GitHub call is about: a workspace's origin, or a
-    /// github.com repository named "owner/name" that has no local clone.
+    /// repository on a server that has no local clone.
     enum GitHubTarget: Hashable, Sendable {
         case workspace(UUID)
-        case repository(String)
+        case repository(GitHubRepositoryRef)
     }
 
     private func serviceAndTarget(_ target: GitHubTarget) async -> (any CoreServicing, CoreGitHubTarget)? {
@@ -321,9 +329,9 @@ final class CoreHub {
         case .workspace(let workspaceID):
             guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return nil }
             return (service, .repository(coreID))
-        case .repository(let name):
+        case .repository(let ref):
             guard isReady, let service = try? await provider.service() else { return nil }
-            return (service, .named(name))
+            return (service, .named(ref))
         }
     }
 
@@ -440,7 +448,7 @@ final class CoreHub {
 
     /// The GitHub repository of each working tree's origin, by path; nil
     /// when the Core is not ready.
-    func githubOrigins(paths: [String]) async -> [String: String]? {
+    func githubOrigins(paths: [String]) async -> [String: GitHubRepositoryRef]? {
         guard isReady, let service = try? await provider.service() else { return nil }
         return try? await service.githubOrigins(paths: Array(paths.prefix(500)))
     }
@@ -448,7 +456,7 @@ final class CoreHub {
     /// The user's open pull requests with their CI, and those closed since.
     func pullRequests(closedSince: Date) async -> CorePullRequests {
         guard isReady, let service = try? await provider.service() else { return .failed(.unavailable) }
-        guard let result = try? await service.listPullRequests(closedSince: closedSince) else { return .failed(.unavailable) }
+        guard let result = try? await service.listPullRequests(server: "", closedSince: closedSince) else { return .failed(.unavailable) }
         if result.access == .tokenRejected { await onGitHubTokenRejected?() }
         return result
     }
@@ -469,7 +477,7 @@ final class CoreHub {
     /// The github.com repositories the signed-in user's token reaches.
     func accountRepositories() async -> CoreGitHubAccount {
         guard isReady, let service = try? await provider.service() else { return .failed(.unavailable) }
-        guard let account = try? await service.listGitHubRepositories() else { return .failed(.unavailable) }
+        guard let account = try? await service.listGitHubRepositories(server: "") else { return .failed(.unavailable) }
         if account.access == .tokenRejected { await onGitHubTokenRejected?() }
         return account
     }
@@ -953,6 +961,8 @@ final class CoreHub {
         session.coreID = repository.id
         session.branch = repository.branch
         session.githubRepository = repository.githubRepository
+        session.githubServerID = repository.githubServerID
+        session.originHost = repository.originHost
         session.lastRefresh = repository.lastRefresh
         session.workflows = workflows
     }

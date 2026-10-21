@@ -380,25 +380,30 @@ final class DesktopCoordinator {
         catch { message = "Registration could not be removed. Repository files were not changed." }
     }
 
-    /// The registered workspace whose origin is this github.com repository
-    /// (names are not case-sensitive); the most recently opened when several
-    /// are. A name that is not a GitHub name matches nothing; it never makes
-    /// the registry unreadable.
-    func workspace(forGitHubRepository fullName: String) -> WorkspaceRecord? {
-        guard GitHubRepositoryName.isValid(fullName) else { return nil }
+    /// The registered workspace whose origin is this repository, by its
+    /// `GitHubRepositoryRef.key` ("owner/name" on github.com, "<server
+    /// id>:owner/name" on an Enterprise server; not case-sensitive); the most
+    /// recently opened when several are. A malformed key matches nothing; it
+    /// never makes the registry unreadable.
+    func workspace(forGitHubRepository key: String) -> WorkspaceRecord? {
+        guard GitHubRepositoryRef(key: key) != nil else { return nil }
         return snapshot.workspaces
-            .filter { $0.githubRepository?.caseInsensitiveCompare(fullName) == .orderedSame }
+            .filter { $0.githubRepository?.caseInsensitiveCompare(key) == .orderedSame }
             .max { $0.lastOpenedAt < $1.lastOpenedAt }
     }
 
-    /// Remembers which GitHub repository a workspace's origin points at, so
-    /// the GitHub tab can open its local clone.
-    func noteGitHubRepository(_ fullName: String?, workspaceID: UUID) {
+    func workspace(for ref: GitHubRepositoryRef) -> WorkspaceRecord? {
+        workspace(forGitHubRepository: ref.key)
+    }
+
+    /// Remembers which GitHub repository a workspace's origin points at, by
+    /// its key, so the GitHub tab can open its local clone.
+    func noteGitHubRepository(_ key: String?, workspaceID: UUID) {
         guard let index = snapshot.workspaces.firstIndex(where: { $0.id == workspaceID }),
-              snapshot.workspaces[index].githubRepository != fullName,
-              fullName.map(GitHubRepositoryName.isValid) ?? true else { return }
+              snapshot.workspaces[index].githubRepository != key,
+              key.map({ GitHubRepositoryRef(key: $0) != nil }) ?? true else { return }
         var candidate = snapshot
-        candidate.workspaces[index].githubRepository = fullName
+        candidate.workspaces[index].githubRepository = key
         try? commit(candidate)
     }
 
@@ -417,8 +422,8 @@ final class DesktopCoordinator {
         var candidate = snapshot
         var changed = false
         for index in candidate.workspaces.indices where candidate.workspaces[index].githubRepository == nil {
-            guard let name = found[candidate.workspaces[index].path], GitHubRepositoryName.isValid(name) else { continue }
-            candidate.workspaces[index].githubRepository = name
+            guard let ref = found[candidate.workspaces[index].path], GitHubRepositoryRef(key: ref.key) != nil else { continue }
+            candidate.workspaces[index].githubRepository = ref.key
             changed = true
         }
         if changed { try? commit(candidate) }

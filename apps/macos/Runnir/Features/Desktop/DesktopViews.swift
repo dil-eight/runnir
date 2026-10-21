@@ -483,8 +483,8 @@ struct DesktopWorkspaceView: View {
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
         // Once the Core has opened the working tree: its origin's GitHub
-        // name, or none ("") when the origin is not on github.com.
-        .onChange(of: session?.phase == .ready ? (session?.githubRepository ?? "") : nil, initial: true) { _, value in
+        // repository key, or none ("") when the origin is on no GitHub server.
+        .onChange(of: session?.phase == .ready ? (session?.githubRef?.key ?? "") : nil, initial: true) { _, value in
             guard let value else { return }
             desktop.noteGitHubRepository(value.isEmpty ? nil : value, workspaceID: workspace.id)
         }

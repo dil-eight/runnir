@@ -44,11 +44,11 @@ private struct FakeService: CoreServicing {
     func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error> {
         AsyncThrowingStream { $0.finish(throwing: CoreServiceError.unavailable) }
     }
-    func setGitHubCredential(_ token: String?) async throws -> CoreGitHubCredentialKind? { nil }
-    func checkGitHubToken(_ token: String) async throws -> CoreGitHubTokenCheck { .failed(.unavailable) }
-    func listGitHubRepositories() async throws -> CoreGitHubAccount { .failed(.ok) }
-    func githubOrigins(paths: [String]) async throws -> [String: String] { [:] }
-    func listPullRequests(closedSince: Date) async throws -> CorePullRequests { .failed(.ok) }
+    func setGitHubCredential(_ token: String?, server: GitHubServerRef) async throws -> CoreGitHubCredentialKind? { nil }
+    func checkGitHubToken(_ token: String, server: GitHubServerRef) async throws -> CoreGitHubTokenCheck { .failed(.unavailable) }
+    func listGitHubRepositories(server: String) async throws -> CoreGitHubAccount { .failed(.ok) }
+    func githubOrigins(paths: [String]) async throws -> [String: GitHubRepositoryRef] { [:] }
+    func listPullRequests(server: String, closedSince: Date) async throws -> CorePullRequests { .failed(.ok) }
     func listGitHubWorkflows(target: CoreGitHubTarget) async throws -> CoreGitHubResult<CoreGitHubWorkflow> { CoreGitHubResult(access: .ok, items: []) }
     func listWorkflowRuns(target: CoreGitHubTarget, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> { CoreGitHubResult(access: .ok, items: []) }
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { CoreGitHubResult(access: .ok, items: []) }

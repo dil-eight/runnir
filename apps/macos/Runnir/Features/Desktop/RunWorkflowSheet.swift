@@ -402,7 +402,7 @@ final class DispatchFormModel {
     var repositoryName: String? {
         switch target {
         case .workspace(let id): hub.session(for: id)?.githubRepository
-        case .repository(let name): name
+        case .repository(let ref): ref.fullName
         }
     }
 

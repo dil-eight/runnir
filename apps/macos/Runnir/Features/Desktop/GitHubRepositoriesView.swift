@@ -211,15 +211,19 @@ final class GitHubRepositoriesModel {
 @Observable
 final class RemoteRepositoryModel {
     let fullName: String
+    /// The server it is on; empty is github.com.
+    let serverID: String
     private(set) var workflows: CoreGitHubResult<CoreGitHubWorkflow>?
     private(set) var runs: CoreGitHubResult<CoreWorkflowRun>?
     private(set) var isLoading = false
 
-    init(fullName: String) {
+    init(fullName: String, serverID: String = "") {
         self.fullName = fullName
+        self.serverID = serverID
     }
 
-    var target: CoreHub.GitHubTarget { .repository(fullName) }
+    var ref: GitHubRepositoryRef { GitHubRepositoryRef(serverID: serverID, fullName: fullName) }
+    var target: CoreHub.GitHubTarget { .repository(ref) }
 
     func load(hub: CoreHub) async {
         guard !isLoading else { return }
