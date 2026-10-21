@@ -926,9 +926,17 @@ nonisolated struct Runnir_Core_V1_Repository: Sendable {
   /// Clears the value of `lastRefresh`. Subsequent reads from it will return its default value.
   mutating func clearLastRefresh() {self._lastRefresh = nil}
 
-  /// "owner/name" when the "origin" remote points at github.com; empty
-  /// otherwise. The raw remote URL is never sent: it can embed credentials.
+  /// "owner/name" when the origin's host is github.com or a server the Core
+  /// holds; empty otherwise. The raw remote URL is never sent: it can embed
+  /// credentials.
   var githubRepository: String = String()
+
+  /// Server id for github_repository; empty is github.com.
+  var githubServerID: String = String()
+
+  /// Host of the origin remote, lowercased, even when no server matches it,
+  /// so the app can say which server to add. Empty without an origin.
+  var originHost: String = String()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1087,6 +1095,39 @@ nonisolated struct Runnir_Core_V1_SetGitHubCredentialRequest: Sendable {
 
   var token: String = String()
 
+  /// Which server the token is for; unset is github.com.
+  var server: Runnir_Core_V1_GithubServer {
+    get {_server ?? Runnir_Core_V1_GithubServer()}
+    set {_server = newValue}
+  }
+  /// Returns true if `server` has been explicitly set.
+  var hasServer: Bool {self._server != nil}
+  /// Clears the value of `server`. Subsequent reads from it will return its default value.
+  mutating func clearServer() {self._server = nil}
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _server: Runnir_Core_V1_GithubServer? = nil
+}
+
+/// A GitHub server: github.com when id is empty (api_url and web_host are
+/// then ignored), otherwise an Enterprise server the app registered.
+nonisolated struct Runnir_Core_V1_GithubServer: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// Empty for github.com; a lowercase UUID for an Enterprise server.
+  var id: String = String()
+
+  /// "https://github.company.com/api/v3"; http only for a loopback host.
+  var apiURL: String = String()
+
+  /// Host of the web URL, lowercased, without port: "github.company.com".
+  var webHost: String = String()
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -1111,9 +1152,21 @@ nonisolated struct Runnir_Core_V1_CheckGitHubTokenRequest: Sendable {
 
   var token: String = String()
 
+  /// The server to ask; unset is github.com.
+  var server: Runnir_Core_V1_GithubServer {
+    get {_server ?? Runnir_Core_V1_GithubServer()}
+    set {_server = newValue}
+  }
+  /// Returns true if `server` has been explicitly set.
+  var hasServer: Bool {self._server != nil}
+  /// Clears the value of `server`. Subsequent reads from it will return its default value.
+  mutating func clearServer() {self._server = nil}
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
+
+  fileprivate var _server: Runnir_Core_V1_GithubServer? = nil
 }
 
 nonisolated struct Runnir_Core_V1_CheckGitHubTokenResponse: Sendable {
@@ -1183,6 +1236,9 @@ nonisolated struct Runnir_Core_V1_ClearGitHubCredentialRequest: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
+
+  /// Empty clears github.com's token; an Enterprise id forgets that server.
+  var serverID: String = String()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1304,9 +1360,12 @@ nonisolated struct Runnir_Core_V1_GetGitHubRepositoryRequest: Sendable {
 
   var repositoryID: String = String()
 
-  /// "owner/name" on github.com, used instead of repository_id for a
-  /// repository without a local clone.
+  /// "owner/name" on the server github_server names, used instead of
+  /// repository_id for a repository without a local clone.
   var githubRepository: String = String()
+
+  /// Server id for github_repository; empty is github.com.
+  var githubServer: String = String()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1365,9 +1424,12 @@ nonisolated struct Runnir_Core_V1_ListGitHubWorkflowsRequest: Sendable {
 
   var repositoryID: String = String()
 
-  /// "owner/name" on github.com, used instead of repository_id for a
-  /// repository without a local clone.
+  /// "owner/name" on the server github_server names, used instead of
+  /// repository_id for a repository without a local clone.
   var githubRepository: String = String()
+
+  /// Server id for github_repository; empty is github.com.
+  var githubServer: String = String()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1389,6 +1451,9 @@ nonisolated struct Runnir_Core_V1_ListPullRequestsRequest: Sendable {
   var hasClosedSince: Bool {self._closedSince != nil}
   /// Clears the value of `closedSince`. Subsequent reads from it will return its default value.
   mutating func clearClosedSince() {self._closedSince = nil}
+
+  /// Server id; empty is github.com.
+  var githubServer: String = String()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1502,8 +1567,8 @@ nonisolated struct Runnir_Core_V1_GetGitHubOriginsResponse: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  /// One per path that has an origin on github.com; paths without one, or
-  /// that cannot be read, are left out.
+  /// One per path whose origin host is github.com or a server the Core
+  /// holds; paths without one, or that cannot be read, are left out.
   var origins: [Runnir_Core_V1_GitHubOrigin] = []
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
@@ -1521,6 +1586,9 @@ nonisolated struct Runnir_Core_V1_GitHubOrigin: Sendable {
   /// "owner/name".
   var githubRepository: String = String()
 
+  /// Server id of the origin's host; empty is github.com.
+  var githubServerID: String = String()
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -1530,6 +1598,9 @@ nonisolated struct Runnir_Core_V1_ListGitHubRepositoriesRequest: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
+
+  /// Server id; empty is github.com.
+  var githubServer: String = String()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1705,9 +1776,12 @@ nonisolated struct Runnir_Core_V1_ListWorkflowRunsRequest: Sendable {
   /// 1 to 100; 0 means 100.
   var limit: UInt32 = 0
 
-  /// "owner/name" on github.com, used instead of repository_id for a
-  /// repository without a local clone.
+  /// "owner/name" on the server github_server names, used instead of
+  /// repository_id for a repository without a local clone.
   var githubRepository: String = String()
+
+  /// Server id for github_repository; empty is github.com.
+  var githubServer: String = String()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1843,9 +1917,12 @@ nonisolated struct Runnir_Core_V1_ListRunJobsRequest: Sendable {
 
   var runID: Int64 = 0
 
-  /// "owner/name" on github.com, used instead of repository_id for a
-  /// repository without a local clone.
+  /// "owner/name" on the server github_server names, used instead of
+  /// repository_id for a repository without a local clone.
   var githubRepository: String = String()
+
+  /// Server id for github_repository; empty is github.com.
+  var githubServer: String = String()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1964,9 +2041,12 @@ nonisolated struct Runnir_Core_V1_ListGitHubRefsRequest: Sendable {
 
   var repositoryID: String = String()
 
-  /// "owner/name" on github.com, used instead of repository_id for a
-  /// repository without a local clone.
+  /// "owner/name" on the server github_server names, used instead of
+  /// repository_id for a repository without a local clone.
   var githubRepository: String = String()
+
+  /// Server id for github_repository; empty is github.com.
+  var githubServer: String = String()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -2033,9 +2113,12 @@ nonisolated struct Runnir_Core_V1_DescribeWorkflowDispatchRequest: Sendable {
 
   var ref: String = String()
 
-  /// "owner/name" on github.com, used instead of repository_id for a
-  /// repository without a local clone.
+  /// "owner/name" on the server github_server names, used instead of
+  /// repository_id for a repository without a local clone.
   var githubRepository: String = String()
+
+  /// Server id for github_repository; empty is github.com.
+  var githubServer: String = String()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -2085,9 +2168,12 @@ nonisolated struct Runnir_Core_V1_PrepareWorkflowDispatchRequest: Sendable {
   /// Only the inputs the user set; GitHub applies the defaults.
   var inputs: Dictionary<String,String> = [:]
 
-  /// "owner/name" on github.com, used instead of repository_id for a
-  /// repository without a local clone.
+  /// "owner/name" on the server github_server names, used instead of
+  /// repository_id for a repository without a local clone.
   var githubRepository: String = String()
+
+  /// Server id for github_repository; empty is github.com.
+  var githubServer: String = String()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -3313,7 +3399,7 @@ nonisolated extension Runnir_Core_V1_RepositoryResponse: SwiftProtobuf.Message, 
 
 nonisolated extension Runnir_Core_V1_Repository: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".Repository"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}path\0\u{1}branch\0\u{3}workflow_count\0\u{3}last_refresh\0\u{3}github_repository\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}path\0\u{1}branch\0\u{3}workflow_count\0\u{3}last_refresh\0\u{3}github_repository\0\u{3}github_server_id\0\u{3}origin_host\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3327,6 +3413,8 @@ nonisolated extension Runnir_Core_V1_Repository: SwiftProtobuf.Message, SwiftPro
       case 4: try { try decoder.decodeSingularUInt32Field(value: &self.workflowCount) }()
       case 5: try { try decoder.decodeSingularMessageField(value: &self._lastRefresh) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.githubRepository) }()
+      case 7: try { try decoder.decodeSingularStringField(value: &self.githubServerID) }()
+      case 8: try { try decoder.decodeSingularStringField(value: &self.originHost) }()
       default: break
       }
     }
@@ -3355,6 +3443,12 @@ nonisolated extension Runnir_Core_V1_Repository: SwiftProtobuf.Message, SwiftPro
     if !self.githubRepository.isEmpty {
       try visitor.visitSingularStringField(value: self.githubRepository, fieldNumber: 6)
     }
+    if !self.githubServerID.isEmpty {
+      try visitor.visitSingularStringField(value: self.githubServerID, fieldNumber: 7)
+    }
+    if !self.originHost.isEmpty {
+      try visitor.visitSingularStringField(value: self.originHost, fieldNumber: 8)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3365,6 +3459,8 @@ nonisolated extension Runnir_Core_V1_Repository: SwiftProtobuf.Message, SwiftPro
     if lhs.workflowCount != rhs.workflowCount {return false}
     if lhs._lastRefresh != rhs._lastRefresh {return false}
     if lhs.githubRepository != rhs.githubRepository {return false}
+    if lhs.githubServerID != rhs.githubServerID {return false}
+    if lhs.originHost != rhs.originHost {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3696,7 +3792,7 @@ nonisolated extension Runnir_Core_V1_CoreEvent: SwiftProtobuf.Message, SwiftProt
 
 nonisolated extension Runnir_Core_V1_SetGitHubCredentialRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".SetGitHubCredentialRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}token\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}token\0\u{1}server\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3705,20 +3801,69 @@ nonisolated extension Runnir_Core_V1_SetGitHubCredentialRequest: SwiftProtobuf.M
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.token) }()
+      case 2: try { try decoder.decodeSingularMessageField(value: &self._server) }()
       default: break
       }
     }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
     if !self.token.isEmpty {
       try visitor.visitSingularStringField(value: self.token, fieldNumber: 1)
     }
+    try { if let v = self._server {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_SetGitHubCredentialRequest, rhs: Runnir_Core_V1_SetGitHubCredentialRequest) -> Bool {
     if lhs.token != rhs.token {return false}
+    if lhs._server != rhs._server {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_GithubServer: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".GithubServer"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{3}api_url\0\u{3}web_host\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.apiURL) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.webHost) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.id.isEmpty {
+      try visitor.visitSingularStringField(value: self.id, fieldNumber: 1)
+    }
+    if !self.apiURL.isEmpty {
+      try visitor.visitSingularStringField(value: self.apiURL, fieldNumber: 2)
+    }
+    if !self.webHost.isEmpty {
+      try visitor.visitSingularStringField(value: self.webHost, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_GithubServer, rhs: Runnir_Core_V1_GithubServer) -> Bool {
+    if lhs.id != rhs.id {return false}
+    if lhs.apiURL != rhs.apiURL {return false}
+    if lhs.webHost != rhs.webHost {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3756,7 +3901,7 @@ nonisolated extension Runnir_Core_V1_SetGitHubCredentialResponse: SwiftProtobuf.
 
 nonisolated extension Runnir_Core_V1_CheckGitHubTokenRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".CheckGitHubTokenRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}token\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}token\0\u{1}server\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3765,20 +3910,29 @@ nonisolated extension Runnir_Core_V1_CheckGitHubTokenRequest: SwiftProtobuf.Mess
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.token) }()
+      case 2: try { try decoder.decodeSingularMessageField(value: &self._server) }()
       default: break
       }
     }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
     if !self.token.isEmpty {
       try visitor.visitSingularStringField(value: self.token, fieldNumber: 1)
     }
+    try { if let v = self._server {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_CheckGitHubTokenRequest, rhs: Runnir_Core_V1_CheckGitHubTokenRequest) -> Bool {
     if lhs.token != rhs.token {return false}
+    if lhs._server != rhs._server {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3895,18 +4049,29 @@ nonisolated extension Runnir_Core_V1_GitHubTokenCheck: SwiftProtobuf.Message, Sw
 
 nonisolated extension Runnir_Core_V1_ClearGitHubCredentialRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ClearGitHubCredentialRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}server_id\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    // Load everything into unknown fields
-    while try decoder.nextFieldNumber() != nil {}
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.serverID) }()
+      default: break
+      }
+    }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.serverID.isEmpty {
+      try visitor.visitSingularStringField(value: self.serverID, fieldNumber: 1)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_ClearGitHubCredentialRequest, rhs: Runnir_Core_V1_ClearGitHubCredentialRequest) -> Bool {
+    if lhs.serverID != rhs.serverID {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -4137,7 +4302,7 @@ nonisolated extension Runnir_Core_V1_ValidateWorkflowsResponse: SwiftProtobuf.Me
 
 nonisolated extension Runnir_Core_V1_GetGitHubRepositoryRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".GetGitHubRepositoryRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}github_repository\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}github_repository\0\u{3}github_server\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -4147,6 +4312,7 @@ nonisolated extension Runnir_Core_V1_GetGitHubRepositoryRequest: SwiftProtobuf.M
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.repositoryID) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.githubRepository) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.githubServer) }()
       default: break
       }
     }
@@ -4159,12 +4325,16 @@ nonisolated extension Runnir_Core_V1_GetGitHubRepositoryRequest: SwiftProtobuf.M
     if !self.githubRepository.isEmpty {
       try visitor.visitSingularStringField(value: self.githubRepository, fieldNumber: 2)
     }
+    if !self.githubServer.isEmpty {
+      try visitor.visitSingularStringField(value: self.githubServer, fieldNumber: 3)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_GetGitHubRepositoryRequest, rhs: Runnir_Core_V1_GetGitHubRepositoryRequest) -> Bool {
     if lhs.repositoryID != rhs.repositoryID {return false}
     if lhs.githubRepository != rhs.githubRepository {return false}
+    if lhs.githubServer != rhs.githubServer {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -4236,7 +4406,7 @@ nonisolated extension Runnir_Core_V1_GetGitHubRepositoryResponse: SwiftProtobuf.
 
 nonisolated extension Runnir_Core_V1_ListGitHubWorkflowsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ListGitHubWorkflowsRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}github_repository\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}github_repository\0\u{3}github_server\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -4246,6 +4416,7 @@ nonisolated extension Runnir_Core_V1_ListGitHubWorkflowsRequest: SwiftProtobuf.M
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.repositoryID) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.githubRepository) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.githubServer) }()
       default: break
       }
     }
@@ -4258,12 +4429,16 @@ nonisolated extension Runnir_Core_V1_ListGitHubWorkflowsRequest: SwiftProtobuf.M
     if !self.githubRepository.isEmpty {
       try visitor.visitSingularStringField(value: self.githubRepository, fieldNumber: 2)
     }
+    if !self.githubServer.isEmpty {
+      try visitor.visitSingularStringField(value: self.githubServer, fieldNumber: 3)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_ListGitHubWorkflowsRequest, rhs: Runnir_Core_V1_ListGitHubWorkflowsRequest) -> Bool {
     if lhs.repositoryID != rhs.repositoryID {return false}
     if lhs.githubRepository != rhs.githubRepository {return false}
+    if lhs.githubServer != rhs.githubServer {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -4271,7 +4446,7 @@ nonisolated extension Runnir_Core_V1_ListGitHubWorkflowsRequest: SwiftProtobuf.M
 
 nonisolated extension Runnir_Core_V1_ListPullRequestsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ListPullRequestsRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}closed_since\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}closed_since\0\u{3}github_server\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -4280,6 +4455,7 @@ nonisolated extension Runnir_Core_V1_ListPullRequestsRequest: SwiftProtobuf.Mess
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularMessageField(value: &self._closedSince) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.githubServer) }()
       default: break
       }
     }
@@ -4293,11 +4469,15 @@ nonisolated extension Runnir_Core_V1_ListPullRequestsRequest: SwiftProtobuf.Mess
     try { if let v = self._closedSince {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
     } }()
+    if !self.githubServer.isEmpty {
+      try visitor.visitSingularStringField(value: self.githubServer, fieldNumber: 2)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_ListPullRequestsRequest, rhs: Runnir_Core_V1_ListPullRequestsRequest) -> Bool {
     if lhs._closedSince != rhs._closedSince {return false}
+    if lhs.githubServer != rhs.githubServer {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -4513,7 +4693,7 @@ nonisolated extension Runnir_Core_V1_GetGitHubOriginsResponse: SwiftProtobuf.Mes
 
 nonisolated extension Runnir_Core_V1_GitHubOrigin: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".GitHubOrigin"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}path\0\u{3}github_repository\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}path\0\u{3}github_repository\0\u{3}github_server_id\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -4523,6 +4703,7 @@ nonisolated extension Runnir_Core_V1_GitHubOrigin: SwiftProtobuf.Message, SwiftP
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.path) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.githubRepository) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.githubServerID) }()
       default: break
       }
     }
@@ -4535,12 +4716,16 @@ nonisolated extension Runnir_Core_V1_GitHubOrigin: SwiftProtobuf.Message, SwiftP
     if !self.githubRepository.isEmpty {
       try visitor.visitSingularStringField(value: self.githubRepository, fieldNumber: 2)
     }
+    if !self.githubServerID.isEmpty {
+      try visitor.visitSingularStringField(value: self.githubServerID, fieldNumber: 3)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_GitHubOrigin, rhs: Runnir_Core_V1_GitHubOrigin) -> Bool {
     if lhs.path != rhs.path {return false}
     if lhs.githubRepository != rhs.githubRepository {return false}
+    if lhs.githubServerID != rhs.githubServerID {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -4548,18 +4733,29 @@ nonisolated extension Runnir_Core_V1_GitHubOrigin: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Runnir_Core_V1_ListGitHubRepositoriesRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ListGitHubRepositoriesRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}github_server\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    // Load everything into unknown fields
-    while try decoder.nextFieldNumber() != nil {}
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.githubServer) }()
+      default: break
+      }
+    }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.githubServer.isEmpty {
+      try visitor.visitSingularStringField(value: self.githubServer, fieldNumber: 1)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_ListGitHubRepositoriesRequest, rhs: Runnir_Core_V1_ListGitHubRepositoriesRequest) -> Bool {
+    if lhs.githubServer != rhs.githubServer {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -4859,7 +5055,7 @@ nonisolated extension Runnir_Core_V1_GitHubWorkflow: SwiftProtobuf.Message, Swif
 
 nonisolated extension Runnir_Core_V1_ListWorkflowRunsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ListWorkflowRunsRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{1}branch\0\u{1}limit\0\u{3}github_repository\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{1}branch\0\u{1}limit\0\u{3}github_repository\0\u{3}github_server\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -4871,6 +5067,7 @@ nonisolated extension Runnir_Core_V1_ListWorkflowRunsRequest: SwiftProtobuf.Mess
       case 2: try { try decoder.decodeSingularStringField(value: &self.branch) }()
       case 3: try { try decoder.decodeSingularUInt32Field(value: &self.limit) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.githubRepository) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.githubServer) }()
       default: break
       }
     }
@@ -4889,6 +5086,9 @@ nonisolated extension Runnir_Core_V1_ListWorkflowRunsRequest: SwiftProtobuf.Mess
     if !self.githubRepository.isEmpty {
       try visitor.visitSingularStringField(value: self.githubRepository, fieldNumber: 4)
     }
+    if !self.githubServer.isEmpty {
+      try visitor.visitSingularStringField(value: self.githubServer, fieldNumber: 5)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -4897,6 +5097,7 @@ nonisolated extension Runnir_Core_V1_ListWorkflowRunsRequest: SwiftProtobuf.Mess
     if lhs.branch != rhs.branch {return false}
     if lhs.limit != rhs.limit {return false}
     if lhs.githubRepository != rhs.githubRepository {return false}
+    if lhs.githubServer != rhs.githubServer {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -5111,7 +5312,7 @@ nonisolated extension Runnir_Core_V1_WorkflowRun: SwiftProtobuf.Message, SwiftPr
 
 nonisolated extension Runnir_Core_V1_ListRunJobsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ListRunJobsRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}run_id\0\u{3}github_repository\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}run_id\0\u{3}github_repository\0\u{3}github_server\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -5122,6 +5323,7 @@ nonisolated extension Runnir_Core_V1_ListRunJobsRequest: SwiftProtobuf.Message, 
       case 1: try { try decoder.decodeSingularStringField(value: &self.repositoryID) }()
       case 2: try { try decoder.decodeSingularInt64Field(value: &self.runID) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.githubRepository) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.githubServer) }()
       default: break
       }
     }
@@ -5137,6 +5339,9 @@ nonisolated extension Runnir_Core_V1_ListRunJobsRequest: SwiftProtobuf.Message, 
     if !self.githubRepository.isEmpty {
       try visitor.visitSingularStringField(value: self.githubRepository, fieldNumber: 3)
     }
+    if !self.githubServer.isEmpty {
+      try visitor.visitSingularStringField(value: self.githubServer, fieldNumber: 4)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -5144,6 +5349,7 @@ nonisolated extension Runnir_Core_V1_ListRunJobsRequest: SwiftProtobuf.Message, 
     if lhs.repositoryID != rhs.repositoryID {return false}
     if lhs.runID != rhs.runID {return false}
     if lhs.githubRepository != rhs.githubRepository {return false}
+    if lhs.githubServer != rhs.githubServer {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -5318,7 +5524,7 @@ nonisolated extension Runnir_Core_V1_RunStep: SwiftProtobuf.Message, SwiftProtob
 
 nonisolated extension Runnir_Core_V1_ListGitHubRefsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ListGitHubRefsRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}github_repository\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}github_repository\0\u{3}github_server\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -5328,6 +5534,7 @@ nonisolated extension Runnir_Core_V1_ListGitHubRefsRequest: SwiftProtobuf.Messag
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.repositoryID) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.githubRepository) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.githubServer) }()
       default: break
       }
     }
@@ -5340,12 +5547,16 @@ nonisolated extension Runnir_Core_V1_ListGitHubRefsRequest: SwiftProtobuf.Messag
     if !self.githubRepository.isEmpty {
       try visitor.visitSingularStringField(value: self.githubRepository, fieldNumber: 2)
     }
+    if !self.githubServer.isEmpty {
+      try visitor.visitSingularStringField(value: self.githubServer, fieldNumber: 3)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_ListGitHubRefsRequest, rhs: Runnir_Core_V1_ListGitHubRefsRequest) -> Bool {
     if lhs.repositoryID != rhs.repositoryID {return false}
     if lhs.githubRepository != rhs.githubRepository {return false}
+    if lhs.githubServer != rhs.githubServer {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -5457,7 +5668,7 @@ nonisolated extension Runnir_Core_V1_DispatchInput: SwiftProtobuf.Message, Swift
 
 nonisolated extension Runnir_Core_V1_DescribeWorkflowDispatchRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".DescribeWorkflowDispatchRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}workflow_path\0\u{1}ref\0\u{3}github_repository\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}workflow_path\0\u{1}ref\0\u{3}github_repository\0\u{3}github_server\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -5469,6 +5680,7 @@ nonisolated extension Runnir_Core_V1_DescribeWorkflowDispatchRequest: SwiftProto
       case 2: try { try decoder.decodeSingularStringField(value: &self.workflowPath) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.ref) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.githubRepository) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.githubServer) }()
       default: break
       }
     }
@@ -5487,6 +5699,9 @@ nonisolated extension Runnir_Core_V1_DescribeWorkflowDispatchRequest: SwiftProto
     if !self.githubRepository.isEmpty {
       try visitor.visitSingularStringField(value: self.githubRepository, fieldNumber: 4)
     }
+    if !self.githubServer.isEmpty {
+      try visitor.visitSingularStringField(value: self.githubServer, fieldNumber: 5)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -5495,6 +5710,7 @@ nonisolated extension Runnir_Core_V1_DescribeWorkflowDispatchRequest: SwiftProto
     if lhs.workflowPath != rhs.workflowPath {return false}
     if lhs.ref != rhs.ref {return false}
     if lhs.githubRepository != rhs.githubRepository {return false}
+    if lhs.githubServer != rhs.githubServer {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -5551,7 +5767,7 @@ nonisolated extension Runnir_Core_V1_DescribeWorkflowDispatchResponse: SwiftProt
 
 nonisolated extension Runnir_Core_V1_PrepareWorkflowDispatchRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".PrepareWorkflowDispatchRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}workflow_id\0\u{1}ref\0\u{1}inputs\0\u{3}github_repository\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}workflow_id\0\u{1}ref\0\u{1}inputs\0\u{3}github_repository\0\u{3}github_server\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -5564,6 +5780,7 @@ nonisolated extension Runnir_Core_V1_PrepareWorkflowDispatchRequest: SwiftProtob
       case 3: try { try decoder.decodeSingularStringField(value: &self.ref) }()
       case 4: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.inputs) }()
       case 5: try { try decoder.decodeSingularStringField(value: &self.githubRepository) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.githubServer) }()
       default: break
       }
     }
@@ -5585,6 +5802,9 @@ nonisolated extension Runnir_Core_V1_PrepareWorkflowDispatchRequest: SwiftProtob
     if !self.githubRepository.isEmpty {
       try visitor.visitSingularStringField(value: self.githubRepository, fieldNumber: 5)
     }
+    if !self.githubServer.isEmpty {
+      try visitor.visitSingularStringField(value: self.githubServer, fieldNumber: 6)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -5594,6 +5814,7 @@ nonisolated extension Runnir_Core_V1_PrepareWorkflowDispatchRequest: SwiftProtob
     if lhs.ref != rhs.ref {return false}
     if lhs.inputs != rhs.inputs {return false}
     if lhs.githubRepository != rhs.githubRepository {return false}
+    if lhs.githubServer != rhs.githubServer {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
