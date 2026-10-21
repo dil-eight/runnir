@@ -108,8 +108,8 @@ enum PullRequestShortcutSettings {
 }
 
 /// Who else uses a shortcut: macOS's own (System Settings › Keyboard ›
-/// Keyboard Shortcuts) and Runnir's menus. Other apps' global shortcuts
-/// show when registering (`GlobalShortcutCenter`).
+/// Keyboard Shortcuts) and Runnir's menus. Other apps' exclusive global
+/// shortcuts show when registering (`GlobalShortcutCenter`).
 enum ShortcutConflicts {
     struct SystemHotKey: Equatable, Sendable {
         let keyCode: UInt32
@@ -188,8 +188,11 @@ final class GlobalShortcutCenter {
         }
         installHandlerIfNeeded()
         var reference: EventHotKeyRef?
+        // Exclusive: refused while another app holds the same keys
+        // exclusively, and no app can take them exclusively from Runnir.
+        // An app that registered them without exclusivity is not reported.
         let result = RegisterEventHotKey(shortcut.keyCode, shortcut.modifiers, EventHotKeyID(signature: Self.signature, id: 1),
-                                         GetApplicationEventTarget(), 0, &reference)
+                                         GetApplicationEventTarget(), OptionBits(kEventHotKeyExclusive), &reference)
         switch result {
         case noErr:
             hotKey = reference

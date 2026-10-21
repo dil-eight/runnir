@@ -330,6 +330,11 @@ struct PullRequestsMenu: View {
     let model: PullRequestsModel
     let desktop: DesktopCoordinator
     let shortcut: String?
+    /// The list's own height: a scroll view in the menu bar window has none
+    /// and would show nothing.
+    @State private var listHeight: CGFloat = 0
+
+    static let maxListHeight: CGFloat = 460
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -341,8 +346,11 @@ struct PullRequestsMenu: View {
                         .buttonStyle(.borderless).disabled(model.isLoading).help("Read pull requests again")
                 }
             }
-            ScrollView { PullRequestsList(model: model, desktop: desktop).frame(maxWidth: .infinity, alignment: .leading) }
-                .frame(maxHeight: 460)
+            ScrollView {
+                PullRequestsList(model: model, desktop: desktop).frame(maxWidth: .infinity, alignment: .leading)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
+            }
+            .frame(height: min(max(listHeight, 16), Self.maxListHeight))
             DesignDivider()
             HStack {
                 Button("Show Pull Requests Window") { desktop.showPullRequests() }.buttonStyle(.link)

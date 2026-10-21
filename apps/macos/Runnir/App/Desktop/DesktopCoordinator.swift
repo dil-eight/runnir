@@ -156,10 +156,20 @@ final class DesktopCoordinator {
             window.contentViewController = NSHostingController(rootView: PullRequestsWindowView(model: pullRequests, desktop: self))
             window.setContentSize(NSSize(width: 560, height: 640))
             window.identifier = NSUserInterfaceItemIdentifier("pull-requests")
+            // The shortcut works from any app: the window comes to the Space
+            // the user is on instead of switching to its own.
+            window.collectionBehavior.insert(.moveToActiveSpace)
             pullRequestsWindow = window
         }
-        pullRequestsWindow?.makeKeyAndOrderFront(nil)
+        guard let window = pullRequestsWindow else { return }
+        // Runnir may be hidden or the window minimized when the shortcut is
+        // pressed in another app.
+        if NSApp.isHidden { NSApp.unhide(nil) }
+        if window.isMiniaturized { window.deminiaturize(nil) }
         NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        // In front even when macOS keeps another app active.
+        window.orderFrontRegardless()
     }
 
     /// "Open Quickly": the switcher in the key workspace window, or the

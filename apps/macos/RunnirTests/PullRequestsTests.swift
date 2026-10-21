@@ -126,6 +126,19 @@ struct PullRequestsTests {
         #expect(ShortcutConflicts.find(.pullRequestsDefault, system: system, menu: menu).isEmpty)
     }
 
+    @Test func aShortcutAlreadyRegisteredIsRefusedWithAReason() {
+        let unusual = KeyShortcut(keyCode: UInt32(kVK_F12), modifiers: UInt32(controlKey | optionKey | shiftKey), key: "F12")
+        let first = GlobalShortcutCenter()
+        let second = GlobalShortcutCenter()
+        first.apply(enabled: true, shortcut: unusual)
+        defer { first.apply(enabled: false, shortcut: unusual) }
+        #expect(first.status == .registered(unusual))
+        second.apply(enabled: true, shortcut: unusual)
+        #expect(second.status == .unavailable("Another app already uses ⌃⌥⇧F12. Choose another shortcut."))
+        second.apply(enabled: false, shortcut: unusual)
+        #expect(second.status == .off)
+    }
+
     @Test func theShortcutIsOnByDefaultAndSaved() throws {
         let suite = "shortcut-" + UUID().uuidString
         let defaults = try #require(UserDefaults(suiteName: suite))
