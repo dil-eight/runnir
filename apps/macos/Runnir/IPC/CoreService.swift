@@ -145,6 +145,8 @@ protocol CoreServicing: Sendable {
     func setGitHubCredential(_ token: String?) async throws -> CoreGitHubCredentialKind?
     /// What a token can do; the held token is not changed.
     func checkGitHubToken(_ token: String) async throws -> CoreGitHubTokenCheck
+    /// The user's open pull requests with their CI, and those closed since.
+    func listPullRequests(closedSince: Date) async throws -> CorePullRequests
     /// "owner/name" of the github.com repository each working tree's origin
     /// points at, by path; read from git's metadata without opening them.
     func githubOrigins(paths: [String]) async throws -> [String: String]

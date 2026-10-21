@@ -44,6 +44,52 @@ struct CoreGitHubRepository: Equatable, Sendable {
     }
 }
 
+/// The GitHub Actions runs on a pull request's head commit, summed up.
+enum CorePullRequestCI: Equatable, Sendable {
+    /// No workflow ran on the head commit.
+    case none
+    case running
+    case passed
+    case failed
+    case cancelled
+    /// The head could not be read (the token lacks Pull requests read).
+    case unknown
+}
+
+/// One of the signed-in user's pull requests.
+struct CorePullRequest: Equatable, Identifiable, Sendable {
+    var id: String { htmlURL?.absoluteString ?? "\(repository)#\(number)" }
+    let repository: String
+    let number: Int64
+    let title: String
+    let htmlURL: URL?
+    /// "open", "closed" or "merged".
+    let state: String
+    let draft: Bool
+    let headBranch: String
+    let updatedAt: Date?
+    let closedAt: Date?
+    let ci: CorePullRequestCI
+    let ciRuns: Int
+    let ciFailed: Int
+    let ciRunning: Int
+    /// The run to look at: the first failed one, else the first running one.
+    let ciURL: URL?
+}
+
+/// The user's open pull requests and those closed recently.
+struct CorePullRequests: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    let open: [CorePullRequest]
+    let closed: [CorePullRequest]
+    /// Some open pull request's head could not be read; its CI is unknown.
+    let headsUnreadable: Bool
+
+    static func failed(_ access: CoreGitHubAccess) -> CorePullRequests {
+        CorePullRequests(access: access, open: [], closed: [], headsUnreadable: false)
+    }
+}
+
 /// What issued the token Runnir uses, as the Core tells it.
 enum CoreGitHubCredentialKind: Equatable, Sendable {
     /// Signing in to the Runnir Desktop app: reaches its installations.

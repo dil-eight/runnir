@@ -223,6 +223,31 @@ struct GRPCCoreService: CoreServicing {
         }
     }
 
+    func listPullRequests(closedSince: Date) async throws -> CorePullRequests {
+        var options = Self.options(.seconds(60))
+        options.maxResponseMessageBytes = 4 << 20
+        let response = try await call {
+            try await client.listPullRequests(.with { $0.closedSince = .init(date: closedSince) }, options: options)
+        }
+        func map(_ pr: Runnir_Core_V1_PullRequest) -> CorePullRequest {
+            let ci: CorePullRequestCI = switch pr.ci {
+            case .none: .none
+            case .running: .running
+            case .passed: .passed
+            case .failed: .failed
+            case .cancelled: .cancelled
+            default: .unknown
+            }
+            return CorePullRequest(repository: pr.repository, number: pr.number, title: pr.title, htmlURL: URL(string: pr.htmlURL),
+                                   state: pr.state, draft: pr.draft, headBranch: pr.headBranch,
+                                   updatedAt: pr.hasUpdatedAt ? pr.updatedAt.date : nil, closedAt: pr.hasClosedAt ? pr.closedAt.date : nil,
+                                   ci: ci, ciRuns: Int(pr.ciRuns), ciFailed: Int(pr.ciFailed), ciRunning: Int(pr.ciRunning),
+                                   ciURL: pr.ciURL.isEmpty ? nil : URL(string: pr.ciURL))
+        }
+        return CorePullRequests(access: Self.map(response.status), open: response.open.map(map), closed: response.closed.map(map),
+                                headsUnreadable: response.headsUnreadable)
+    }
+
     func githubOrigins(paths: [String]) async throws -> [String: String] {
         let response = try await call {
             try await client.getGitHubOrigins(.with { $0.paths = paths }, options: Self.options(Self.callTimeout))
