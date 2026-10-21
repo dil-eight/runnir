@@ -118,7 +118,7 @@ final class DispatchFormModel {
         self.target = target
         self.hub = hub
         if case .workspace = target { self.presets = presets } else { self.presets = nil }
-        self.workflows = workflows.filter { $0.state == "active" }
+        self.workflows = workflows.filter(\.canBeStartedByHand)
         self.currentBranch = currentBranch
         selectedWorkflowID = workflowID ?? self.workflows.first?.id
     }

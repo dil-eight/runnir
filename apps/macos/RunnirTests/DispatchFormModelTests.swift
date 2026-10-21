@@ -187,4 +187,16 @@ struct DispatchFormModelTests {
         #expect(await OwnerConfirmation.ifEnabled(reason: "test", defaults: defaults, ask: ask) == .declined)
         #expect(asked == 1)
     }
+
+    @Test
+    func workflowsGitHubRunsItselfAreNotOffered() async {
+        let (hub, _, workspace) = await rig()
+        let dependabot = CoreGitHubWorkflow(id: 9, name: "Dependabot Updates", path: "dynamic/dependabot/dependabot-updates",
+                                            state: "active", htmlURL: nil)
+        let disabled = CoreGitHubWorkflow(id: 8, name: "Old", path: ".github/workflows/old.yml", state: "disabled_manually", htmlURL: nil)
+        let form = DispatchFormModel(workspaceID: workspace, hub: hub, workflows: [dependabot, workflow, disabled], workflowID: nil,
+                                     currentBranch: "feature")
+        #expect(form.workflows.map(\.id) == [workflow.id])
+        #expect(!dependabot.canBeStartedByHand && workflow.canBeStartedByHand && !disabled.canBeStartedByHand)
+    }
 }

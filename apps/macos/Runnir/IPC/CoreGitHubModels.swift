@@ -101,6 +101,11 @@ struct CoreGitHubWorkflow: Equatable, Identifiable, Sendable {
     let path: String
     let state: String
     let htmlURL: URL?
+
+    /// A workflow file that can be started by hand when it has a
+    /// workflow_dispatch trigger. Workflows GitHub runs itself (Dependabot,
+    /// code scanning: "dynamic/...") cannot be.
+    var canBeStartedByHand: Bool { state == "active" && path.hasPrefix(".github/workflows/") }
 }
 
 /// GitHub's run status and conclusion, kept as strings from the API and

@@ -597,10 +597,12 @@ private struct RemoteRepositoryDetail: View {
                         if workflow.state != "active" {
                             Text("Disabled").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                         }
-                        Button("Run...") { requestRun(workflow) }
-                            .buttonStyle(DesignButtonStyle())
-                            .disabled(workflow.state != "active" || repository.archived)
-                            .help(runHelp(workflow))
+                        if workflow.path.hasPrefix(".github/workflows/") {
+                            Button("Run...") { requestRun(workflow) }
+                                .buttonStyle(DesignButtonStyle())
+                                .disabled(!workflow.canBeStartedByHand || repository.archived)
+                                .help(runHelp(workflow))
+                        }
                     }.padding(.vertical, 4)
                 }
             } else if model.isLoading {

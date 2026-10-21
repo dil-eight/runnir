@@ -204,7 +204,7 @@ struct WorkspaceWorkflowsView: View {
                         if let latest {
                             Button("Last run") { showRun(latest) }.buttonStyle(.link).font(.system(size: 12))
                         }
-                        if workflow.state == "active" {
+                        if workflow.canBeStartedByHand {
                             Button("Run...") { runWorkflow(workflow) }.buttonStyle(.link).font(.system(size: 12))
                                 .help("Start this workflow by hand if it has a workflow_dispatch trigger")
                         }
