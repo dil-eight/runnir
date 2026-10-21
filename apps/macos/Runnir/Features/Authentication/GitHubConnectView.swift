@@ -51,9 +51,12 @@ struct GitHubConnectView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Enter this code on GitHub:").font(.system(size: 13))
                 HStack(spacing: 12) {
+                    // Not selectable: Copy is next to it. A selectable Text is
+                    // an AppKit view, and an accessibility label on it made
+                    // SwiftUI ask itself for the label until the stack ran
+                    // out when an accessibility client read the sheet.
                     Text(authorization.userCode)
                         .font(.system(size: 28, weight: .semibold, design: .monospaced))
-                        .textSelection(.enabled)
                         .accessibilityLabel("Code \(authorization.userCode)")
                     Button(copied ? "Copied" : "Copy") {
                         NSPasteboard.general.clearContents()
