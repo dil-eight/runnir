@@ -32,8 +32,8 @@ func (s *service) githubTarget(repositoryID, githubRepository string) (owner, na
 	if err != nil {
 		return "", "", nil, rpcError(err)
 	}
-	owner, name, ok := strings.Cut(info.GitHubRepository, "/")
-	if !ok || owner == "" || name == "" {
+	owner, name, ok := strings.Cut(info.OriginRepository, "/")
+	if !ok || owner == "" || name == "" || info.OriginHost != github.DotComHost {
 		return "", "", &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_NO_REMOTE}, nil
 	}
 	return owner, name, nil, nil
@@ -196,7 +196,7 @@ func (s *service) GetGitHubOrigins(ctx context.Context, request *corev1.GetGitHu
 		if !filepath.IsAbs(path) {
 			continue
 		}
-		if name := scanner.GitHubOrigin(filepath.Clean(path)); name != "" {
+		if host, name := scanner.Origin(filepath.Clean(path)); host == github.DotComHost && name != "" {
 			out.Origins = append(out.Origins, &corev1.GitHubOrigin{Path: path, GithubRepository: name})
 		}
 	}

@@ -349,25 +349,32 @@ func TestNeedsAcceptsOnlyScalarsOrSequences(t *testing.T) {
 	}
 }
 
-func TestGitHubRepositoryFromOrigin(t *testing.T) {
-	for remote, want := range map[string]string{
-		"https://github.com/dil-eight/runnir.git":          "dil-eight/runnir",
-		"https://github.com/dil-eight/runnir":              "dil-eight/runnir",
-		"https://x-access-token:secret@github.com/o/r.git": "o/r",
-		"git@github.com:dil-eight/runnir.git":              "dil-eight/runnir",
-		"ssh://git@github.com/dil-eight/runnir.git":        "dil-eight/runnir",
-		"ssh://git@github.com:22/o/r":                      "o/r",
-		"https://GitHub.com/o/r.git/":                      "o/r",
-		"https://gitlab.com/o/r.git":                       "",
-		"git@gitlab.com:o/r.git":                           "",
-		"https://github.com/o":                             "",
-		"https://github.com/o/r/extra":                     "",
-		"file:///Users/me/repo":                            "",
-		"https://github.com.evil.test/o/r":                 "",
-		"":                                                 "",
-	} {
-		if got := gitHubRepository(remote); got != want {
-			t.Errorf("gitHubRepository(%q) = %q, want %q", remote, got, want)
+func TestParseOrigin(t *testing.T) {
+	cases := []struct{ remote, host, repository string }{
+		{"https://github.com/dil-eight/runnir.git", "github.com", "dil-eight/runnir"},
+		{"https://github.com/dil-eight/runnir", "github.com", "dil-eight/runnir"},
+		{"https://x-access-token:secret@github.com/o/r.git", "github.com", "o/r"},
+		{"git@github.com:dil-eight/runnir.git", "github.com", "dil-eight/runnir"},
+		{"ssh://git@github.com/dil-eight/runnir.git", "github.com", "dil-eight/runnir"},
+		{"ssh://git@github.com:22/o/r", "github.com", "o/r"},
+		{"https://GitHub.com/o/r.git/", "github.com", "o/r"},
+		{"git@GitHub.Company.com:org/app.git", "github.company.com", "org/app"},
+		{"ssh://git@github.company.com:2222/org/app.git", "github.company.com", "org/app"},
+		{"https://company.ghe.com/org/app.git", "company.ghe.com", "org/app"},
+		{"https://github.com.evil.test/o/r", "github.com.evil.test", "o/r"},
+		{"https://gitlab.com/o/r.git", "gitlab.com", "o/r"},
+		{"git@gitlab.com:o/r.git", "gitlab.com", "o/r"},
+		{"https://github.com/o", "", ""},
+		{"https://github.com/o/r/extra", "", ""},
+		{"file:///Users/me/repo", "", ""},
+		{"git@github.com:../r.git", "", ""},
+		{"git@:o/r.git", "", ""},
+		{"", "", ""},
+	}
+	for _, c := range cases {
+		host, repository := parseOrigin(c.remote)
+		if host != c.host || repository != c.repository {
+			t.Errorf("parseOrigin(%q) = %q, %q; want %q, %q", c.remote, host, repository, c.host, c.repository)
 		}
 	}
 }
@@ -384,15 +391,16 @@ func TestOriginIsReadFromTheRepositoryConfigOnly(t *testing.T) {
 	fetch = +refs/heads/*:refs/remotes/origin/*
 `)
 	snapshot := scan(t, root)
-	if snapshot.GitHubRepository != "dil-eight/runnir" || snapshot.Branch != "main" {
+	if snapshot.OriginHost != "github.com" || snapshot.OriginRepository != "dil-eight/runnir" || snapshot.Branch != "main" {
 		t.Fatalf("snapshot = %+v", snapshot)
 	}
 
-	none := t.TempDir()
-	write(t, none, ".git/HEAD", "ref: refs/heads/main\n")
-	write(t, none, ".git/config", "[remote \"origin\"]\n\turl = https://gitlab.com/o/r.git\n")
-	if got := scan(t, none).GitHubRepository; got != "" {
-		t.Fatalf("non-GitHub origin = %q", got)
+	// Any host is reported; the Core decides which ones are GitHub servers.
+	other := t.TempDir()
+	write(t, other, ".git/HEAD", "ref: refs/heads/main\n")
+	write(t, other, ".git/config", "[remote \"origin\"]\n\turl = https://gitlab.com/o/r.git\n")
+	if got := scan(t, other); got.OriginHost != "gitlab.com" || got.OriginRepository != "o/r" {
+		t.Fatalf("other host = %+v", got)
 	}
 }
 
@@ -405,7 +413,7 @@ func TestLinkedWorktreeUsesTheMainRepositoryConfig(t *testing.T) {
 	write(t, main, ".git/worktrees/wt/gitdir", filepath.Join(worktree, ".git")+"\n")
 	write(t, worktree, ".git", "gitdir: "+filepath.Join(main, ".git", "worktrees", "wt")+"\n")
 	snapshot := scan(t, worktree)
-	if snapshot.GitHubRepository != "o/r" || snapshot.Branch != "topic" {
+	if snapshot.OriginRepository != "o/r" || snapshot.Branch != "topic" {
 		t.Fatalf("snapshot = %+v", snapshot)
 	}
 }
@@ -432,7 +440,7 @@ func TestCommonDirIsFollowedOnlyForALinkedWorktree(t *testing.T) {
 	repo := t.TempDir()
 	write(t, repo, ".git/config", "[remote \"origin\"]\n\turl = https://github.com/o/r.git\n")
 	write(t, repo, ".git/commondir", filepath.Join(other, ".git")+"\n")
-	if got := scan(t, repo).GitHubRepository; got != "o/r" {
+	if got := scan(t, repo).OriginRepository; got != "o/r" {
 		t.Fatalf("a plain repository read %q through its commondir file", got)
 	}
 
@@ -444,7 +452,7 @@ func TestCommonDirIsFollowedOnlyForALinkedWorktree(t *testing.T) {
 	write(t, main, ".git/worktrees/wt/commondir", filepath.Join(other, ".git")+"\n")
 	write(t, main, ".git/worktrees/wt/gitdir", filepath.Join(worktree, ".git")+"\n")
 	write(t, worktree, ".git", "gitdir: "+filepath.Join(main, ".git", "worktrees", "wt")+"\n")
-	if got := scan(t, worktree); got.GitHubRepository != "" || got.Branch != "topic" {
+	if got := scan(t, worktree); got.OriginRepository != "" || got.Branch != "topic" {
 		t.Fatalf("worktree with a foreign commondir = %+v", got)
 	}
 }

@@ -86,7 +86,7 @@ func (s *service) OpenRepository(ctx context.Context, request *corev1.OpenReposi
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	return &corev1.RepositoryResponse{Repository: toProto(info)}, nil
+	return &corev1.RepositoryResponse{Repository: s.repositoryMessage(info)}, nil
 }
 
 func (s *service) RefreshRepository(ctx context.Context, request *corev1.RefreshRepositoryRequest) (*corev1.RepositoryResponse, error) {
@@ -94,7 +94,7 @@ func (s *service) RefreshRepository(ctx context.Context, request *corev1.Refresh
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	return &corev1.RepositoryResponse{Repository: toProto(info)}, nil
+	return &corev1.RepositoryResponse{Repository: s.repositoryMessage(info)}, nil
 }
 
 func (s *service) CloseRepository(_ context.Context, request *corev1.CloseRepositoryRequest) (*corev1.CloseRepositoryResponse, error) {
@@ -232,13 +232,15 @@ func fromRepository(e repository.Event) events.Event {
 	return out
 }
 
-func toProto(info repository.Info) *corev1.Repository {
+// repositoryMessage is a repository as the app sees it. github_repository
+// is set only for an origin on a GitHub server the Core knows.
+func (s *service) repositoryMessage(info repository.Info) *corev1.Repository {
 	out := &corev1.Repository{
-		Id:               info.ID,
-		Path:             info.Path,
-		Branch:           info.Branch,
-		GithubRepository: info.GitHubRepository,
-		WorkflowCount:    uint32(info.WorkflowCount),
+		Id: info.ID, Path: info.Path, Branch: info.Branch, WorkflowCount: uint32(info.WorkflowCount),
+		OriginHost: info.OriginHost,
+	}
+	if info.OriginHost == github.DotComHost {
+		out.GithubRepository = info.OriginRepository
 	}
 	if !info.LastRefresh.IsZero() {
 		out.LastRefresh = timestamppb.New(info.LastRefresh)
