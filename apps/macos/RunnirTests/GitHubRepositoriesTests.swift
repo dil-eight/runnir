@@ -78,7 +78,7 @@ struct GitHubRepositoriesTests {
                            repository("octocat/hello", pushed: 2), repository("dil-eight/site", pushed: 1)],
             truncated: false)
         let model = GitHubRepositoriesModel()
-        await model.load(hub: hub)
+        await model.load(hub: hub, login: "me")
         let favorites = RepositoryFavorites(store: FileRepositoryFavoritesStore(directory: folder))
         favorites.toggle("dil-eight/site")
 
@@ -97,20 +97,38 @@ struct GitHubRepositoriesTests {
         let (hub, provider) = await readyHub()
         provider.core.accountResult = CoreGitHubAccount(access: .ok, installations: [], repositories: [repository("o/r")], truncated: true)
         let model = GitHubRepositoriesModel()
-        await model.load(hub: hub)
+        await model.load(hub: hub, login: "me")
         model.selectedFullName = "o/r"
         #expect(model.repositories.count == 1 && model.truncated && model.selected?.fullName == "o/r")
-        #expect(!model.needsReload, "a fresh list is not read again when the tab opens")
+        #expect(!model.needsReload(for: "me"), "a fresh list is not read again when the tab opens")
+        #expect(model.needsReload(for: "someone-else"))
 
         provider.core.accountResult = .failed(.rateLimited(until: nil))
-        await model.load(hub: hub)
+        await model.load(hub: hub, login: "me")
         #expect(model.repositories.count == 1 && model.access == .rateLimited(until: nil))
-        #expect(model.needsReload)
+        #expect(model.needsReload(for: "me"))
         #expect(GitHubRepositoriesView.describe(.rateLimited(until: nil), hasList: true).hasSuffix("The list shows what was read last."))
 
         provider.core.accountResult = .failed(.signedOut)
-        await model.load(hub: hub)
+        await model.load(hub: hub, login: "me")
         #expect(model.repositories.isEmpty && model.selected == nil)
+
+        // Another account never sees the first one's list, even when its
+        // own read fails.
+        provider.core.accountResult = CoreGitHubAccount(access: .ok, installations: [], repositories: [repository("o/r")], truncated: false)
+        await model.load(hub: hub, login: "me")
+        model.selectedFullName = "o/r"
+        provider.core.accountResult = .failed(.unavailable)
+        await model.load(hub: hub, login: "other")
+        #expect(model.repositories.isEmpty && model.selected == nil && model.loadedLogin == nil)
+    }
+
+    @Test func aNewTokenInTheCoreIsCounted() async {
+        let (hub, _) = await readyHub()
+        let before = hub.credentialGeneration
+        hub.githubCredentialChanged()
+        #expect(await eventually { hub.credentialGeneration == before + 1 },
+                "the GitHub tab reads again once the Core has a new sign-in's token")
     }
 
     // MARK: One repository
@@ -176,14 +194,19 @@ struct GitHubRepositoriesTests {
         #expect(desktop.workspace(forGitHubRepository: "DIL-EIGHT/runnir")?.id == newer.id, "the most recently opened clone")
         #expect(desktop.workspace(forGitHubRepository: "o/other") == nil)
         #expect(try store.load().workspaces.map(\.githubRepository) == ["Dil-Eight/Runnir", "dil-eight/runnir"])
+
+        // An origin no longer on github.com forgets the name.
+        desktop.noteGitHubRepository(nil, workspaceID: newer.id)
+        #expect(desktop.workspace(forGitHubRepository: "dil-eight/runnir")?.id == older.id)
     }
 
     @Test func aRegistrySavedBeforeGitHubNamesStillLoads() throws {
         let json = #"{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","path":"/a","name":"a","bookmark":"","lastOpenedAt":0}"#
         let record = try JSONDecoder().decode(WorkspaceRecord.self, from: Data(json.utf8))
         #expect(record.githubRepository == nil)
-        var invalid = record
-        invalid.githubRepository = "../x"
-        #expect(throws: (any Error).self) { try DesktopSnapshot(workspaces: [invalid]).validate() }
+        // A name that is not a GitHub name never makes the registry unreadable.
+        var odd = record
+        odd.githubRepository = "../x"
+        #expect(throws: Never.self) { try DesktopSnapshot(workspaces: [odd]).validate() }
     }
 }

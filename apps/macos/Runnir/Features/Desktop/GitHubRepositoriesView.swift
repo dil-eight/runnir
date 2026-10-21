@@ -126,6 +126,8 @@ final class GitHubRepositoriesModel {
     private(set) var repositories: [CoreGitHubAccountRepository] = []
     private(set) var truncated = false
     private(set) var loadedAt: Date?
+    /// The GitHub login the list was read for.
+    private(set) var loadedLogin: String?
     private(set) var isLoading = false
     var search = ""
     /// An installation account, or nil for all of them.
@@ -133,10 +135,20 @@ final class GitHubRepositoriesModel {
     var starredOnly = false
     var selectedFullName: String?
 
-    func load(hub: CoreHub) async {
+    func load(hub: CoreHub, login: String?) async {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
+        // Another account's list, stars aside, is not this one's.
+        if login != loadedLogin {
+            installations = []
+            repositories = []
+            truncated = false
+            loadedAt = nil
+            loadedLogin = nil
+            selectedFullName = nil
+            owner = nil
+        }
         let account = await hub.accountRepositories()
         access = account.access
         guard account.access == .ok else {
@@ -151,14 +163,15 @@ final class GitHubRepositoriesModel {
         repositories = account.repositories
         truncated = account.truncated
         loadedAt = Date()
+        loadedLogin = login
         if let selected = selectedFullName, !repositories.contains(where: { $0.fullName == selected }) { selectedFullName = nil }
         if let owner, !installations.contains(where: { $0.account == owner }) { self.owner = nil }
     }
 
-    /// Opening the tab reads the list again only when it is missing, failed
-    /// or older than five minutes; Refresh always reads it.
-    var needsReload: Bool {
-        guard access == .ok, let loadedAt else { return true }
+    /// Opening the tab reads the list again only when it is missing, failed,
+    /// older than five minutes or another account's; Refresh always reads it.
+    func needsReload(for login: String?) -> Bool {
+        guard access == .ok, let loadedAt, login == loadedLogin else { return true }
         return Date().timeIntervalSince(loadedAt) > 300
     }
 
@@ -251,7 +264,11 @@ struct GitHubRepositoriesView: View {
                     signedOut
                 } else {
                     browser(hub: hub)
-                        .task(id: github.user?.login) { if model.needsReload { await model.load(hub: hub) } }
+                        // Again once the Core has the token of a new sign-in.
+                        .task(id: "\(github.user?.login ?? "")|\(hub.credentialGeneration)") {
+                            let login = github.user?.login
+                            if model.needsReload(for: login) { await model.load(hub: hub, login: login) }
+                        }
                 }
             } else {
                 UnavailableFeature(title: "GitHub is not available", detail: "Runnir Core or the GitHub account is not set up in this build.", symbol: "exclamationmark.triangle")
@@ -295,7 +312,7 @@ struct GitHubRepositoriesView: View {
             HStack(spacing: 8) {
                 TextField("Search repositories", text: $model.search).textFieldStyle(.roundedBorder)
                     .accessibilityIdentifier("repository-search")
-                Button { Task { await model.load(hub: hub) } } label: {
+                Button { Task { await model.load(hub: hub, login: desktop.github?.user?.login) } } label: {
                     Image(systemName: "arrow.clockwise")
                 }.buttonStyle(.borderless).disabled(model.isLoading).help("Read the repositories from GitHub again")
             }.padding(10)

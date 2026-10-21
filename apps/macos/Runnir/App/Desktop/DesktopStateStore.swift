@@ -44,8 +44,7 @@ struct DesktopSnapshot: Codable, Equatable, Sendable {
         guard version == 1, workspaces.count <= Self.maxWorkspaces, windows.count <= Self.maxWindows,
               workspaceIDs.count == workspaces.count,
               Set(windows.map(\.id)).count == windows.count,
-              workspaces.allSatisfy({ $0.path.hasPrefix("/") && !$0.name.isEmpty && $0.bookmark.count <= 65536
-                  && ($0.githubRepository.map(GitHubRepositoryName.isValid) ?? true) }),
+              workspaces.allSatisfy({ $0.path.hasPrefix("/") && !$0.name.isEmpty && $0.bookmark.count <= 65536 }),
               windows.allSatisfy({ workspaceIDs.contains($0.workspaceID) && ($0.frame?.isValid ?? true) }) else {
             throw DesktopStoreError.invalidState
         }

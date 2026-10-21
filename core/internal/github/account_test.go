@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -85,5 +86,36 @@ func TestValidRepositoryNamesOnlyGitHubRepositories(t *testing.T) {
 		if ValidRepository(bad) {
 			t.Errorf("%q accepted", bad)
 		}
+	}
+}
+
+func TestAnInstallationGitHubRefusesDoesNotHideTheOthers(t *testing.T) {
+	client, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/user/installations":
+			_, _ = w.Write([]byte(`{"total_count":2,"installations":[{"id":1,"account":{"login":"suspended","type":"Organization"}},{"id":2,"account":{"login":"o","type":"User"}}]}`))
+		case "/user/installations/1/repositories":
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"This installation has been suspended"}`))
+		case "/user/installations/2/repositories":
+			_, _ = w.Write([]byte(`{"total_count":1,"repositories":[{"full_name":"o/r","name":"r","owner":{"login":"o"}}]}`))
+		}
+	})
+	account, err := client.AccountRepositories(context.Background())
+	if err != nil || len(account.Installations) != 2 || len(account.Repositories) != 1 || account.Repositories[0].FullName != "o/r" {
+		t.Fatalf("account = %+v, %v", account, err)
+	}
+}
+
+func TestAnUnauthorizedTokenFailsTheList(t *testing.T) {
+	client, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/user/installations" {
+			_, _ = w.Write([]byte(`{"total_count":1,"installations":[{"id":1,"account":{"login":"o","type":"User"}}]}`))
+			return
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+	if _, err := client.AccountRepositories(context.Background()); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("err = %v", err)
 	}
 }

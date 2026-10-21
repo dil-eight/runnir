@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -53,7 +54,9 @@ const (
 )
 
 // AccountRepositories lists the repositories a GitHub App user token
-// reaches: those of every installation the user can see, up to 1,000.
+// reaches: those of every installation the user can see, up to 1,000. An
+// installation whose repositories GitHub refuses (suspended, say) is listed
+// without them instead of failing the rest.
 func (c *Client) AccountRepositories(ctx context.Context) (AccountRepositories, error) {
 	var installations struct {
 		TotalCount    int `json:"total_count"`
@@ -78,6 +81,7 @@ func (c *Client) AccountRepositories(ctx context.Context) (AccountRepositories, 
 			ID: installation.ID, Account: installation.Account.Login, AccountType: installation.Account.Type,
 			RepositorySelection: installation.RepositorySelection, HTMLURL: installation.HTMLURL,
 		})
+	installationRepositories:
 		for page := 1; ; page++ {
 			if len(out.Repositories) >= maxAccountRepositories {
 				out.Truncated = true
@@ -106,7 +110,9 @@ func (c *Client) AccountRepositories(ctx context.Context) (AccountRepositories, 
 			}
 			query := url.Values{"per_page": {"100"}, "page": {strconv.Itoa(page)}}
 			path := fmt.Sprintf("/user/installations/%d/repositories", installation.ID)
-			if err := c.get(ctx, path, query, &body); err != nil {
+			if err := c.get(ctx, path, query, &body); errors.Is(err, ErrNotVisible) {
+				break installationRepositories
+			} else if err != nil {
 				return AccountRepositories{}, err
 			}
 			for _, r := range body.Repositories {

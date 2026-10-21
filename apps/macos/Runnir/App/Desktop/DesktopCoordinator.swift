@@ -349,9 +349,12 @@ final class DesktopCoordinator {
     }
 
     /// The registered workspace whose origin is this github.com repository
-    /// (names are not case-sensitive); the most recently opened when several are.
+    /// (names are not case-sensitive); the most recently opened when several
+    /// are. A name that is not a GitHub name matches nothing; it never makes
+    /// the registry unreadable.
     func workspace(forGitHubRepository fullName: String) -> WorkspaceRecord? {
-        snapshot.workspaces
+        guard GitHubRepositoryName.isValid(fullName) else { return nil }
+        return snapshot.workspaces
             .filter { $0.githubRepository?.caseInsensitiveCompare(fullName) == .orderedSame }
             .max { $0.lastOpenedAt < $1.lastOpenedAt }
     }

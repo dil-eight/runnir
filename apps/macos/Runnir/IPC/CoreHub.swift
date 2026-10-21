@@ -207,10 +207,15 @@ final class CoreHub {
         Task { await pushGitHubCredential() }
     }
 
+    /// Counts the tokens handed to the Core, so a view that read GitHub
+    /// before the Core had the new one (just after signing in) reads again.
+    private(set) var credentialGeneration = 0
+
     private func pushGitHubCredential() async {
         guard isReady, let service = try? await provider.service() else { return }
         let token = await githubTokenProvider?()
         try? await service.setGitHubCredential(token)
+        credentialGeneration += 1
         // What the Core may read changed: reload every repository's activity.
         for workspaceID in sessions.keys { await loadGitHubActivity(workspaceID: workspaceID) }
     }

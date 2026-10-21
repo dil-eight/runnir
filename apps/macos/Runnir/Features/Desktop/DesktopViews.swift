@@ -480,8 +480,11 @@ struct DesktopWorkspaceView: View {
         .ignoresSafeArea()
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
-        .onChange(of: session?.githubRepository, initial: true) { _, value in
-            if let value { desktop.noteGitHubRepository(value, workspaceID: workspace.id) }
+        // Once the Core has opened the working tree: its origin's GitHub
+        // name, or none ("") when the origin is not on github.com.
+        .onChange(of: session?.phase == .ready ? (session?.githubRepository ?? "") : nil, initial: true) { _, value in
+            guard let value else { return }
+            desktop.noteGitHubRepository(value.isEmpty ? nil : value, workspaceID: workspace.id)
         }
         .sheet(item: Binding(get: { state.runWorkflowRequest }, set: { state.runWorkflowRequest = $0 })) { request in
             if let session, let hub = desktop.core {
