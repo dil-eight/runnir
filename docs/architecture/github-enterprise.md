@@ -14,13 +14,13 @@ Runnir talks to github.com today. Teams on GitHub Enterprise Server, or on GitHu
 ## Accounts
 
 - github.com is an optional account, as today. Its Keychain item stays `dev.runnir.github` / `oauth-token`, so existing sign-ins keep working.
-- Each Enterprise server is `{id, name, webURL, apiURL}` in `github-servers.json` in the app's support directory, with its token in Keychain as `dev.runnir.github` / `enterprise:<id>`. `id` is a random UUID, never derived from the URL.
+- Each Enterprise server is `{id, name, webURL, apiURL, login}` in `github-servers.json` in the app's support directory, with its token in Keychain as `dev.runnir.github` / `enterprise:<id>`. `id` is a random UUID, never derived from the URL.
 - Removing a server signs it out and deletes its Keychain item. Changing a server's URLs is not offered; remove and add it again, so a token is never sent to a URL it was not checked against.
 - Limits: at most 10 Enterprise servers; names up to 60 characters; the file up to 64 KiB.
 
 ## URL rules
 
-- `https` only; no user name, password, query or fragment; a host is required; a port is allowed.
+- `https` only; no user name, password, query or fragment; a host is required; a port is allowed. `http` is accepted only for a loopback host — by the Core always, by the app only in Debug builds — so tests and local fakes can run.
 - The web URL's host must not be `github.com`, and must differ from every other server's web host.
 - The API URL may be on another host (as on `ghe.com`). The token is sent only to that API URL's origin.
 - Certificates are checked against the macOS trust store, so a company CA installed in Keychain works. There is no option to skip certificate checks.
@@ -37,7 +37,7 @@ Runnir talks to github.com today. Teams on GitHub Enterprise Server, or on GitHu
 - The Core keeps one credential and client per server id. A credential set for one server is never used for another.
 - Every request that names a repository by `github_repository` gains `github_server` (server id; empty is github.com).
 - `GetGitHubOrigins` and the scanner recognize any host the Core holds a server for, and return the server id with "owner/name". A working tree whose origin host matches no server keeps the existing "no origin on GitHub" state, naming the host.
-- Responses that list repositories or pull requests carry the server id. `ListGitHubRepositories` and `ListPullRequests` read every signed-in server and report access per server, so one unreachable server does not hide the others.
+- `ListGitHubRepositories` and `ListPullRequests` take `github_server`; the app asks each signed-in server and merges the answers, so one unreachable server does not hide the others.
 - Errors and access states (`signed out`, `token rejected`, `permission missing`, ...) name the server they came from.
 
 ## Where it shows
@@ -57,7 +57,7 @@ Runnir talks to github.com today. Teams on GitHub Enterprise Server, or on GitHu
 
 - Go: origin parsing for any configured host (scp and URL forms, ports, case); routing of each RPC to the right server with `httptest` servers; no request to one server carries another's token; a redirect to another origin is refused; one failing server still lists the others.
 - Swift: URL validation; the server file (limits, unknown version, damage); Keychain account names through a fake store; the add-server sheet's states; access notices naming the server.
-- Live: github.com plus a local fake Enterprise API, if no real Enterprise server is available. Claims about Enterprise support stay "implemented, not verified against a real server" until one is used.
+- Live: github.com plus a local fake Enterprise API on a loopback http URL in a Debug test copy, if no real Enterprise server is available. Claims about Enterprise support stay "implemented, not verified against a real server" until one is used.
 
 ## Out of scope
 
