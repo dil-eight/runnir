@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -210,5 +211,50 @@ func TestATokenIsCheckedWithoutReplacingTheHeldOne(t *testing.T) {
 	if listed, err := client.ListGitHubRepositories(ctx, &corev1.ListGitHubRepositoriesRequest{}); err != nil ||
 		listed.Status.Access == corev1.GithubAccess_GITHUB_ACCESS_SIGNED_OUT {
 		t.Fatalf("held token lost: %v, %v", listed, err)
+	}
+}
+
+func TestPullRequestsOverGRPC(t *testing.T) {
+	var closedQuery atomic.Value
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/search/issues" && strings.Contains(r.URL.Query().Get("q"), "is:open"):
+			_, _ = w.Write([]byte(`{"items":[{"number":7,"title":"Fix","html_url":"https://github.com/o/r/pull/7","state":"open","repository_url":"https://api.github.com/repos/o/r","pull_request":{}}]}`))
+		case r.URL.Path == "/search/issues":
+			closedQuery.Store(r.URL.Query().Get("q"))
+			_, _ = w.Write([]byte(`{"items":[]}`))
+		case r.URL.Path == "/repos/o/r/pulls/7":
+			_, _ = w.Write([]byte(`{"head":{"sha":"abc","ref":"fix"}}`))
+		case r.URL.Path == "/repos/o/r/actions/runs":
+			_, _ = w.Write([]byte(`{"workflow_runs":[{"id":1,"workflow_id":9,"status":"in_progress","html_url":"https://github.com/o/r/actions/runs/1"}]}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer fake.Close()
+	path := socketPath(t)
+	stop := startWith(t, path, Options{GitHubBaseURL: fake.URL})
+	defer stop()
+	client := connect(t, path)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	signedOut, err := client.ListPullRequests(ctx, &corev1.ListPullRequestsRequest{})
+	if err != nil || signedOut.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_SIGNED_OUT {
+		t.Fatalf("signed out = %v, %v", signedOut, err)
+	}
+	if _, err := client.SetGitHubCredential(ctx, &corev1.SetGitHubCredentialRequest{Token: "ghu_test"}); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := client.ListPullRequests(ctx, &corev1.ListPullRequestsRequest{})
+	if err != nil || listed.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_OK || len(listed.Open) != 1 ||
+		listed.Open[0].Ci != corev1.PullRequestCi_PULL_REQUEST_CI_RUNNING || listed.Open[0].CiRunning != 1 {
+		t.Fatalf("listed = %v, %v", listed, err)
+	}
+	// Closed ones default to the last day.
+	query, _ := closedQuery.Load().(string)
+	since := time.Now().Add(-24 * time.Hour).UTC().Format("2006-01-02")
+	if !strings.Contains(query, "closed:>="+since) {
+		t.Fatalf("closed query = %q", query)
 	}
 }

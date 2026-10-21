@@ -31,6 +31,7 @@ final class DesktopCoordinator {
     private(set) var persistenceBlocked = false
     @ObservationIgnored private var store: (any DesktopStateStoring)?
     @ObservationIgnored private var manager: NSWindow?
+    @ObservationIgnored private var pullRequestsWindow: NSWindow?
     @ObservationIgnored private var splash: NSWindow?
     @ObservationIgnored private var windows: [UUID: any WorkspaceWindowManaging] = [:]
     @ObservationIgnored private let makeGrant: (WorkspaceRecord) throws -> any RepositoryGranting
@@ -56,6 +57,10 @@ final class DesktopCoordinator {
     let repositoryFavorites: RepositoryFavorites
     /// The GitHub tab's list, kept while the Manager is closed.
     let githubRepositories = GitHubRepositoriesModel()
+    /// The user's pull requests, for the menu bar and the Pull Requests window.
+    let pullRequests: PullRequestsModel
+    /// The Pull Requests window's global shortcut.
+    let shortcuts = GlobalShortcutCenter()
 
     init(store: (any DesktopStateStoring)? = nil,
          core: CoreHub? = nil,
@@ -63,6 +68,7 @@ final class DesktopCoordinator {
          presets: DispatchPresetLibrary = DispatchPresetLibrary(store: nil),
          favorites: WorkflowFavorites = WorkflowFavorites(store: nil),
          repositoryFavorites: RepositoryFavorites = RepositoryFavorites(store: nil),
+         pullRequests: PullRequestsModel = PullRequestsModel(store: nil),
          makeGrant: @escaping (WorkspaceRecord) throws -> any RepositoryGranting = { try RepositoryGrant(record: $0) },
          makeWorkspaceWindow: @escaping (WorkspaceWindowRecord, WorkspaceRecord, (any RepositoryGranting)?, DesktopCoordinator) -> any WorkspaceWindowManaging = {
              WorkspaceWindowController(record: $0, workspace: $1, grant: $2, desktop: $3)
@@ -73,6 +79,7 @@ final class DesktopCoordinator {
         self.presets = presets
         self.favorites = favorites
         self.repositoryFavorites = repositoryFavorites
+        self.pullRequests = pullRequests
         self.makeGrant = makeGrant
         self.makeWorkspaceWindow = makeWorkspaceWindow
     }
@@ -137,6 +144,21 @@ final class DesktopCoordinator {
             manager = window
         }
         manager?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// The Pull Requests window: open pull requests with their CI and those
+    /// closed in the last day.
+    func showPullRequests() {
+        if pullRequestsWindow == nil {
+            let window = makeWindow(size: NSSize(width: 560, height: 640), title: "Pull Requests")
+            window.minSize = NSSize(width: 480, height: 360)
+            window.contentViewController = NSHostingController(rootView: PullRequestsWindowView(model: pullRequests, desktop: self))
+            window.setContentSize(NSSize(width: 560, height: 640))
+            window.identifier = NSUserInterfaceItemIdentifier("pull-requests")
+            pullRequestsWindow = window
+        }
+        pullRequestsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -682,7 +704,8 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         desktop = DesktopCoordinator(core: hub, github: github,
                                      presets: DispatchPresetLibrary(store: try? FileDispatchPresetStore.live()),
                                      favorites: WorkflowFavorites(store: try? FileWorkflowFavoritesStore.live()),
-                                     repositoryFavorites: RepositoryFavorites(store: try? FileRepositoryFavoritesStore.live()))
+                                     repositoryFavorites: RepositoryFavorites(store: try? FileRepositoryFavoritesStore.live()),
+                                     pullRequests: PullRequestsModel(store: try? FileDismissedPullRequestsStore.live()))
         super.init()
         // The Core holds the token only while the user is signed in.
         hub.githubTokenProvider = { [github] in await github.currentToken() }
@@ -697,6 +720,9 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         desktop.start()
         coreHub.startMonitoring()
         Task { [github] in await github.restore() }
+        desktop.shortcuts.action = { [desktop] in desktop.showPullRequests() }
+        desktop.shortcuts.applySettings()
+        desktop.pullRequests.startPolling(hub: coreHub, isSignedIn: { [github] in github.user != nil })
         // A failed start shows up as the hub's status, with a restart offer in each window.
         Task { [core] in _ = try? await core.start() }
     }

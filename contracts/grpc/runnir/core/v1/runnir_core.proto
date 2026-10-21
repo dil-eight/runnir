@@ -52,6 +52,11 @@ service RunnirCore {
   // TOKEN_REJECTED in `status`; the held credential is never changed.
   rpc CheckGitHubToken(CheckGitHubTokenRequest) returns (CheckGitHubTokenResponse);
 
+  // The signed-in user's open pull requests, each with the state of the
+  // GitHub Actions runs on its head commit, and those closed since a time,
+  // newest first, at most 50 of each, read through GitHub's search.
+  rpc ListPullRequests(ListPullRequestsRequest) returns (ListPullRequestsResponse);
+
   // The github.com repository each folder's origin points at, read from git's
   // metadata only, without opening the repositories: lets the app match its
   // registered working trees to GitHub repositories. At most 500 paths.
@@ -376,6 +381,52 @@ message ListGitHubWorkflowsRequest {
   // "owner/name" on github.com, used instead of repository_id for a
   // repository without a local clone.
   string github_repository = 2;
+}
+
+message ListPullRequestsRequest {
+  // Closed pull requests from this time on; unset means the last 24 hours,
+  // and it reaches back at most 7 days.
+  google.protobuf.Timestamp closed_since = 1;
+}
+
+message ListPullRequestsResponse {
+  GitHubStatus status = 1;
+  repeated PullRequest open = 2;
+  repeated PullRequest closed = 3;
+  // The head of some open pull request could not be read, because the
+  // token lacks Pull requests read; their CI is UNKNOWN.
+  bool heads_unreadable = 4;
+}
+
+message PullRequest {
+  // "owner/name".
+  string repository = 1;
+  int64 number = 2;
+  string title = 3;
+  string html_url = 4;
+  // "open", "closed" or "merged".
+  string state = 5;
+  bool draft = 6;
+  string head_branch = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  google.protobuf.Timestamp closed_at = 9;
+  PullRequestCi ci = 10;
+  int32 ci_runs = 11;
+  int32 ci_failed = 12;
+  int32 ci_running = 13;
+  // The run to look at: the first failed one, else the first running one.
+  string ci_url = 14;
+}
+
+// The GitHub Actions runs on a pull request's head commit, summed up.
+enum PullRequestCi {
+  PULL_REQUEST_CI_UNSPECIFIED = 0;
+  PULL_REQUEST_CI_NONE = 1;
+  PULL_REQUEST_CI_RUNNING = 2;
+  PULL_REQUEST_CI_PASSED = 3;
+  PULL_REQUEST_CI_FAILED = 4;
+  PULL_REQUEST_CI_CANCELLED = 5;
+  PULL_REQUEST_CI_UNKNOWN = 6;
 }
 
 message GetGitHubOriginsRequest {

@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     var github: GitHubSession?
     var core: CoreHub?
+    var shortcuts: GlobalShortcutCenter?
 
     var body: some View {
         Form {
@@ -15,6 +16,8 @@ struct SettingsView: View {
             }
 
             ManualRunSettingsSection()
+
+            if let shortcuts { PullRequestShortcutSettingsSection(center: shortcuts) }
 
             ToolsSettingsSection(model: ToolsSettingsModel(hub: core))
 

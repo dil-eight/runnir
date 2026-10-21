@@ -445,6 +445,14 @@ final class CoreHub {
         return try? await service.githubOrigins(paths: Array(paths.prefix(500)))
     }
 
+    /// The user's open pull requests with their CI, and those closed since.
+    func pullRequests(closedSince: Date) async -> CorePullRequests {
+        guard isReady, let service = try? await provider.service() else { return .failed(.unavailable) }
+        guard let result = try? await service.listPullRequests(closedSince: closedSince) else { return .failed(.unavailable) }
+        if result.access == .tokenRejected { await onGitHubTokenRejected?() }
+        return result
+    }
+
     /// What a token can do, asked of GitHub through the Core without
     /// changing the token the Core holds.
     func checkGitHubToken(_ token: String) async -> CoreGitHubTokenCheck {
