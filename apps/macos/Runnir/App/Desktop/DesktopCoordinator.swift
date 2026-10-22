@@ -811,7 +811,11 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         }
         runNotifier = notifier
         desktop.pullRequests.onChecksFinished = { [notifier] pr in notifier.notify(.checksFinished(pr)) }
-        coreHub.onLocalRunFinished = { [notifier] run, name in notifier.notify(.localRunFinished(run, workspaceName: name)) }
+        coreHub.onLocalRunFinished = { [notifier, desktop] run, folder in
+            // The workspace's name as Runnir shows it; the folder's when it was closed.
+            let name = desktop.snapshot.workspaces.first { $0.id == run.workspaceID }?.name ?? folder
+            notifier.notify(.localRunFinished(run, workspaceName: name))
+        }
         // Signed in to github.com or to any Enterprise server.
         desktop.pullRequests.startPolling(hub: coreHub, isSignedIn: { [github, coreHub] in github.user != nil || !coreHub.signedInServers.isEmpty })
         // A failed start shows up as the hub's status, with a restart offer in each window.

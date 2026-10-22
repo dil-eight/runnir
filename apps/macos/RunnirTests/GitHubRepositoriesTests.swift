@@ -124,6 +124,21 @@ struct GitHubRepositoriesTests {
         #expect(model.repositories.isEmpty && model.selected == nil && model.loadedLogin == nil)
     }
 
+    @Test func aListReadInFullIsNoLongerShownAsCut() async {
+        let (hub, provider) = await readyHub()
+        provider.core.accountResult = CoreGitHubAccount(access: .ok, installations: [], repositories: [repository("o/r")], truncated: true)
+        let model = GitHubRepositoriesModel()
+        await model.load(hub: hub, login: "me")
+        #expect(model.truncated)
+        // A failed read keeps what the last one said.
+        provider.core.accountResult = .failed(.unavailable)
+        await model.load(hub: hub, login: "me")
+        #expect(model.truncated)
+        provider.core.accountResult = CoreGitHubAccount(access: .ok, installations: [], repositories: [repository("o/r")], truncated: false)
+        await model.load(hub: hub, login: "me")
+        #expect(!model.truncated)
+    }
+
     @Test func aNewTokenInTheCoreIsCounted() async {
         let (hub, _) = await readyHub()
         // A ready Core is handed the token once by itself; count from after that.

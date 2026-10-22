@@ -43,6 +43,11 @@ struct EnterpriseServersTests {
         #expect(EnterpriseServerURL.check("http://127.0.0.1:3000", allowLoopbackHTTP: false) == .failure(.notHTTPS))
         #expect((try? EnterpriseServerURL.check("http://127.0.0.1:3000", allowLoopbackHTTP: true).get()) != nil)
         #expect(EnterpriseServerURL.check("http://github.company.com", allowLoopbackHTTP: true) == .failure(.notHTTPS))
+        // The Core appends paths to the API URL: a trailing slash would give "//repos".
+        #expect(try EnterpriseServerURL.check("https://github.company.com/api/v3/", allowLoopbackHTTP: false).get().absoluteString
+            == "https://github.company.com/api/v3")
+        #expect(try EnterpriseServerURL.check("https://github.company.com//", allowLoopbackHTTP: false).get().absoluteString
+            == "https://github.company.com")
         #expect(EnterpriseServerURL.check("https://me:pw@github.company.com", allowLoopbackHTTP: false) == .failure(.hasCredentials))
         #expect(EnterpriseServerURL.check("https://github.company.com/?a=1", allowLoopbackHTTP: false) == .failure(.hasQuery))
         #expect(EnterpriseServerURL.check("https://github.company.com/#top", allowLoopbackHTTP: false) == .failure(.hasQuery))
@@ -144,6 +149,26 @@ struct EnterpriseHubTests {
         hub.githubCredentialChanged()
         #expect(await eventually { hub.signedInServers.map(\.id) == [""] })
         #expect(provider.core.serverCredentialCalls.contains { $0.server == company.id && $0.token == nil })
+    }
+
+    @Test func aSlowPushCannotBringBackARemovedServer() async {
+        let (hub, provider) = await signedInHub(enterprise: false)
+        let company = company
+        // Reading the servers' tokens waits, as a Keychain prompt would.
+        let keychain = Gate()
+        hub.enterpriseCredentialsProvider = { await keychain.wait(); return [(server: company, token: "ghp_company")] }
+        hub.githubCredentialChanged()
+        try? await Task.sleep(for: .milliseconds(50))
+        // Meanwhile the server is removed.
+        hub.enterpriseCredentialsProvider = { [] }
+        hub.githubCredentialChanged()
+        try? await Task.sleep(for: .milliseconds(50))
+        await keychain.open()
+        // The later push ends up in the Core: the server is cleared, not set again.
+        #expect(await eventually {
+            provider.core.serverCredentialCalls.filter { $0.server == company.id }.map(\.token) == ["ghp_company", nil]
+        })
+        #expect(hub.signedInServers.map(\.id) == [""])
     }
 
     @Test func pullRequestsComeFromEveryServerNewestFirst() async {
@@ -269,5 +294,22 @@ struct SettingsOverlayTests {
         #expect(desktop.settings?.section == .pullRequests)
         desktop.showSettings(in: first, section: .account)
         #expect(desktop.settings?.section == .account)
+    }
+}
+
+/// Holds callers until it is opened.
+actor Gate {
+    private var isOpen = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        if isOpen { return }
+        await withCheckedContinuation { waiting.append($0) }
+    }
+
+    func open() {
+        isOpen = true
+        waiting.forEach { $0.resume() }
+        waiting = []
     }
 }

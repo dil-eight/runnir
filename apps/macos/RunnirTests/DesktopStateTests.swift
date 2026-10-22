@@ -75,6 +75,20 @@ struct ThemeTokenTests {
         }
     }
 
+    @Test func pullRequestColorsReadInLightAndDark() {
+        for dark in [false, true] {
+            func pick(_ pair: (light: UInt32, dark: UInt32)) -> UInt32 { dark ? pair.dark : pair.light }
+            func token(_ token: RunnirColorToken) -> UInt32 { (dark ? token.palette.dark : token.palette.light).rawValue }
+            // Chip text on its tint.
+            #expect(contrast(pick(PullRequestColors.runningValues), pick(PullRequestColors.runningSoftValues)) >= 4.5, "dark: \(dark)")
+            #expect(contrast(token(.success), pick(PullRequestColors.passedSoftValues)) >= 4.5, "dark: \(dark)")
+            #expect(contrast(token(.destructive), pick(PullRequestColors.failedSoftValues)) >= 4.5, "dark: \(dark)")
+            // Icons on the popup's background.
+            #expect(contrast(pick(PullRequestColors.runningValues), token(.background)) >= 3, "dark: \(dark)")
+            #expect(contrast(pick(PullRequestColors.mergedValues), token(.background)) >= 3, "dark: \(dark)")
+        }
+    }
+
     private func blend(_ top: RunnirPalette, over bottom: RunnirPalette, alpha: Double) -> UInt32 {
         [16, 8, 0].reduce(UInt32(0)) { color, shift in
             let a = Double((top.rawValue >> shift) & 255), b = Double((bottom.rawValue >> shift) & 255)

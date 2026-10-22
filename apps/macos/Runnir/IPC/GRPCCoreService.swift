@@ -184,6 +184,14 @@ struct GRPCCoreService: CoreServicing {
         return response.workflowID
     }
 
+    /// A link from GitHub, kept only when it is a web page: the app opens
+    /// these, and a server must not make it open a file or another app.
+    static func webURL(_ string: String) -> URL? {
+        guard let url = URL(string: string), let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              let host = url.host(), !host.isEmpty else { return nil }
+        return url
+    }
+
     static func message(_ server: GitHubServerRef) -> Runnir_Core_V1_GithubServer {
         .with {
             $0.id = server.id
@@ -259,11 +267,11 @@ struct GRPCCoreService: CoreServicing {
             case .cancelled: .cancelled
             default: .unknown
             }
-            return CorePullRequest(repository: pr.repository, number: pr.number, title: pr.title, htmlURL: URL(string: pr.htmlURL),
+            return CorePullRequest(repository: pr.repository, number: pr.number, title: pr.title, htmlURL: Self.webURL(pr.htmlURL),
                                    state: pr.state, draft: pr.draft, headBranch: pr.headBranch,
                                    updatedAt: pr.hasUpdatedAt ? pr.updatedAt.date : nil, closedAt: pr.hasClosedAt ? pr.closedAt.date : nil,
                                    ci: ci, ciRuns: Int(pr.ciRuns), ciFailed: Int(pr.ciFailed), ciRunning: Int(pr.ciRunning),
-                                   ciURL: pr.ciURL.isEmpty ? nil : URL(string: pr.ciURL))
+                                   ciURL: Self.webURL(pr.ciURL))
         }
         return CorePullRequests(access: Self.map(response.status), open: response.open.map(map), closed: response.closed.map(map),
                                 headsUnreadable: response.headsUnreadable)
@@ -287,7 +295,7 @@ struct GRPCCoreService: CoreServicing {
             installations: response.installations.map(Self.map),
             repositories: response.repositories.map {
                 CoreGitHubAccountRepository(fullName: $0.fullName, owner: $0.owner, name: $0.name, description: $0.description_p,
-                                            visibility: $0.visibility, defaultBranch: $0.defaultBranch, htmlURL: URL(string: $0.htmlURL),
+                                            visibility: $0.visibility, defaultBranch: $0.defaultBranch, htmlURL: Self.webURL($0.htmlURL),
                                             pushedAt: $0.hasPushedAt ? $0.pushedAt.date : nil, archived: $0.archived, fork: $0.fork,
                                             canPush: $0.canPush, installationID: $0.installationID)
             },
@@ -307,7 +315,7 @@ struct GRPCCoreService: CoreServicing {
             }, options: Self.options(Self.callTimeout))
         }
         return CoreGitHubResult(access: Self.map(response.status), items: response.workflows.map {
-            CoreGitHubWorkflow(id: $0.id, name: $0.name, path: $0.path, state: $0.state, htmlURL: URL(string: $0.htmlURL))
+            CoreGitHubWorkflow(id: $0.id, name: $0.name, path: $0.path, state: $0.state, htmlURL: Self.webURL($0.htmlURL))
         })
     }
 
@@ -323,13 +331,13 @@ struct GRPCCoreService: CoreServicing {
             }, options: Self.options(Self.callTimeout))
         }
         return CoreGitHubRepository(access: Self.map(response.status), fullName: response.fullName, visibility: response.visibility,
-                                    defaultBranch: response.defaultBranch, htmlURL: URL(string: response.htmlURL),
+                                    defaultBranch: response.defaultBranch, htmlURL: Self.webURL(response.htmlURL),
                                     canPush: response.canPush, installation: response.hasInstallation ? Self.map(response.installation) : nil)
     }
 
     static func map(_ installation: Runnir_Core_V1_GitHubInstallation) -> CoreGitHubInstallation {
         CoreGitHubInstallation(id: installation.id, account: installation.account, accountType: installation.accountType,
-                               repositorySelection: installation.repositorySelection, htmlURL: URL(string: installation.htmlURL),
+                               repositorySelection: installation.repositorySelection, htmlURL: Self.webURL(installation.htmlURL),
                                missingPermissions: installation.missingPermissions, suspended: installation.suspended)
     }
 
@@ -354,7 +362,7 @@ struct GRPCCoreService: CoreServicing {
             id: run.id, workflowID: run.workflowID, name: run.name, displayTitle: run.displayTitle,
             runNumber: run.runNumber, event: run.event, status: run.status,
             conclusion: run.conclusion.isEmpty ? nil : run.conclusion, branch: run.branch, headSHA: run.headSha,
-            actor: run.actor.isEmpty ? nil : run.actor, htmlURL: URL(string: run.htmlURL),
+            actor: run.actor.isEmpty ? nil : run.actor, htmlURL: Self.webURL(run.htmlURL),
             createdAt: run.hasCreatedAt ? run.createdAt.date : nil,
             updatedAt: run.hasUpdatedAt ? run.updatedAt.date : nil,
             runAttempt: max(1, run.runAttempt)
@@ -373,7 +381,7 @@ struct GRPCCoreService: CoreServicing {
                 id: job.id, name: job.name, status: job.status, conclusion: job.conclusion.isEmpty ? nil : job.conclusion,
                 startedAt: job.hasStartedAt ? job.startedAt.date : nil,
                 completedAt: job.hasCompletedAt ? job.completedAt.date : nil,
-                htmlURL: URL(string: job.htmlURL),
+                htmlURL: Self.webURL(job.htmlURL),
                 steps: job.steps.map { step in
                     CoreRunStep(number: step.number, name: step.name, status: step.status,
                                 conclusion: step.conclusion.isEmpty ? nil : step.conclusion,

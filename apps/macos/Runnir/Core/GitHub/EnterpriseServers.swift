@@ -47,8 +47,11 @@ enum EnterpriseServerURL {
     static func check(_ text: String, allowLoopbackHTTP: Bool = allowsLoopbackHTTP) -> Result<URL, Problem> {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .failure(.empty) }
-        guard let components = URLComponents(string: trimmed), let scheme = components.scheme?.lowercased(),
-              let host = components.host, !host.isEmpty, let url = components.url else { return .failure(.notAURL) }
+        guard var components = URLComponents(string: trimmed), let scheme = components.scheme?.lowercased(),
+              let host = components.host, !host.isEmpty else { return .failure(.notAURL) }
+        // The Core appends paths to the API URL: "…/api/v3/" would give "//repos".
+        while components.path.hasSuffix("/") { components.path.removeLast() }
+        guard let url = components.url else { return .failure(.notAURL) }
         guard components.user == nil, components.password == nil else { return .failure(.hasCredentials) }
         guard components.query == nil, components.fragment == nil else { return .failure(.hasQuery) }
         let lowered = host.lowercased()

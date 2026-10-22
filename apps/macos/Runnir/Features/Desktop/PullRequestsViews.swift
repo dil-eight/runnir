@@ -176,13 +176,29 @@ final class PullRequestsModel {
 
 // MARK: Views
 
-/// Colors of S19 that the theme has no token for.
+/// Colors of S19 that the theme has no token for, as sRGB values: S19's
+/// own for dark, and for light deeper strokes and pale tints of the same
+/// hues, so chips and icons read on either background.
 enum PullRequestColors {
-    static let running = Color(red: 0.369, green: 0.918, blue: 0.831)
-    static let runningSoft = Color(red: 0.075, green: 0.161, blue: 0.165)
-    static let failedSoft = Color(red: 0.176, green: 0.106, blue: 0.118)
-    static let passedSoft = Color(red: 0.086, green: 0.149, blue: 0.110)
-    static let merged = Color(red: 0.655, green: 0.545, blue: 0.980)
+    static let runningValues: (light: UInt32, dark: UInt32) = (0x0F766E, 0x5EEAD4)
+    static let runningSoftValues: (light: UInt32, dark: UInt32) = (0xE6FAF7, 0x13292A)
+    static let failedSoftValues: (light: UInt32, dark: UInt32) = (0xFDECEC, 0x2D1B1E)
+    static let passedSoftValues: (light: UInt32, dark: UInt32) = (0xEDFAF2, 0x16261C)
+    static let mergedValues: (light: UInt32, dark: UInt32) = (0x6D28D9, 0xA78BFA)
+
+    static let running = adaptive(runningValues)
+    static let runningSoft = adaptive(runningSoftValues)
+    static let failedSoft = adaptive(failedSoftValues)
+    static let passedSoft = adaptive(passedSoftValues)
+    static let merged = adaptive(mergedValues)
+
+    private static func adaptive(_ values: (light: UInt32, dark: UInt32)) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            let value = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? values.dark : values.light
+            return NSColor(srgbRed: CGFloat((value >> 16) & 255) / 255, green: CGFloat((value >> 8) & 255) / 255,
+                           blue: CGFloat(value & 255) / 255, alpha: 1)
+        })
+    }
 }
 
 /// One pull request: its CI (or how it closed), title, repository and

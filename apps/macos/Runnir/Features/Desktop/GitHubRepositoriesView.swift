@@ -132,7 +132,10 @@ final class GitHubRepositoriesModel {
     /// Every account's repositories, each with its server: github.com's
     /// first, then each Enterprise server's in the order asked.
     private(set) var repositories: [CoreGitHubAccountRepository] = []
-    private(set) var truncated = false
+    /// Some account's list stopped at GitHub's limit of 1,000.
+    var truncated: Bool { !truncatedServers.isEmpty }
+    /// The accounts whose last read stopped at the limit.
+    private var truncatedServers: Set<String> = []
     /// github.com's token kind: a personal token lists what it reaches; it
     /// has no installations.
     private(set) var credentialKind: CoreGitHubCredentialKind = .appUser
@@ -161,7 +164,7 @@ final class GitHubRepositoriesModel {
             installations = []
             repositories.removeAll { $0.server.isEmpty }
             accessByServer[""] = nil
-            truncated = false
+            truncatedServers.remove("")
             loadedAt = nil
             loadedLogin = nil
             owner = nil
@@ -169,6 +172,7 @@ final class GitHubRepositoriesModel {
         // Servers no longer listed are dropped.
         repositories.removeAll { !$0.server.isEmpty && !servers.contains($0.server) }
         accessByServer = accessByServer.filter { $0.key.isEmpty || servers.contains($0.key) }
+        truncatedServers = truncatedServers.filter { $0.isEmpty || servers.contains($0) }
 
         var asked: [String] = login == nil ? [] : [""]
         asked += servers
@@ -185,9 +189,10 @@ final class GitHubRepositoriesModel {
                     credentialKind = account.credentialKind
                     loadedLogin = login
                 }
-                if account.truncated { truncated = true }
+                if account.truncated { truncatedServers.insert(server) } else { truncatedServers.remove(server) }
             case .signedOut, .tokenRejected:
                 replace(server: server, with: [])
+                truncatedServers.remove(server)
                 if server.isEmpty { installations = [] }
             default:
                 break // keep what was read; the access says it may be old
@@ -197,6 +202,7 @@ final class GitHubRepositoriesModel {
         if login == nil {
             installations = []
             accessByServer[""] = nil
+            truncatedServers.remove("")
         }
         loadedServers = servers
         if anyRead { loadedAt = Date() }

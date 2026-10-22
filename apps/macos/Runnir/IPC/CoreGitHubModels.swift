@@ -56,7 +56,6 @@ enum CorePullRequestCI: Equatable, Sendable {
     case unknown
 }
 
-/// One of the signed-in user's pull requests.
 /// A GitHub server as the Core knows it: github.com (empty id) or an
 /// Enterprise server the user added.
 struct GitHubServerRef: Hashable, Sendable, Codable {
@@ -101,6 +100,7 @@ struct GitHubRepositoryRef: Hashable, Sendable, Codable {
     }
 }
 
+/// One of the signed-in user's pull requests.
 struct CorePullRequest: Equatable, Identifiable, Sendable {
     var id: String { htmlURL?.absoluteString ?? "\(repository)#\(number)" }
     let repository: String

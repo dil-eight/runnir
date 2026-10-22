@@ -195,7 +195,7 @@ final class CoreHub {
             ownCloses.removeAll()
             startEvents()
             // A new Core process starts without a token.
-            Task { await pushGitHubCredential() }
+            schedulePush()
             // Not awaited: later states (a lost Core) must not wait for slow scans.
             Task { await openAll() }
         case .lost:
@@ -218,7 +218,17 @@ final class CoreHub {
     /// Call after sign-in, sign-out or a rejected token so the Core holds the
     /// current token, or none.
     func githubCredentialChanged() {
-        Task { await pushGitHubCredential() }
+        schedulePush()
+    }
+
+    /// Pushes run one after another, each reading the token and servers
+    /// when it starts: a slow one (a Keychain prompt) cannot hand the Core
+    /// a server removed while it waited.
+    @ObservationIgnored private var credentialPush: Task<Void, Never>?
+
+    private func schedulePush() {
+        let previous = credentialPush
+        credentialPush = Task { await previous?.value; await pushGitHubCredential() }
     }
 
     /// Counts the tokens handed to the Core, so a view that read GitHub
