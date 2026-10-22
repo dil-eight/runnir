@@ -203,7 +203,7 @@ struct GitHubRepositoriesTests {
         #expect(desktop.workspace(forGitHubRepository: "dil-eight/runnir")?.id == older.id)
     }
 
-    @Test func theListIsReadFromTheChosenAccount() async {
+    @Test func everyAccountIsInOneList() async {
         let (hub, provider) = await readyHub()
         let company = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"
         provider.core.accountsByServer = [
@@ -212,16 +212,39 @@ struct GitHubRepositoriesTests {
                                        credentialKind: .classic),
         ]
         let model = GitHubRepositoriesModel()
-        await model.load(hub: hub, login: "me")
-        #expect(model.repositories.map(\.fullName) == ["o/r"])
-        model.selectedFullName = "o/r"
+        await model.load(hub: hub, login: "me", servers: [company])
+        #expect(model.repositories.map(\.ref.key) == ["o/r", "\(company):o/r", "\(company):org/app"])
+        #expect(Set(model.repositories.map(\.id)).count == 3, "o/r on two servers is two rows")
+        #expect(model.credentialKind == .appUser, "github.com's token kind")
+        #expect(!model.needsReload(for: "me", servers: [company]))
+        #expect(model.needsReload(for: "me", servers: []), "a removed server reads again")
 
-        model.server = company
-        #expect(model.needsReload(for: "me"), "another account's list is read")
-        await model.load(hub: hub, login: "me")
-        #expect(model.repositories.map(\.fullName) == ["o/r", "org/app"] && model.credentialKind == .classic)
-        #expect(model.selectedFullName == nil, "a selection on another account is dropped")
-        #expect(model.ref(model.repositories[0]).key == "\(company):o/r")
+        model.selectedFullName = "\(company):o/r"
+        #expect(model.selected?.server == company)
+        model.owner = "org"
+        #expect(model.visible(favorites: RepositoryFavorites(store: nil)).map(\.ref.key) == ["\(company):org/app"])
+        model.owner = nil
+
+        // One server failing keeps its last list and does not hide the other.
+        provider.core.accountsByServer[company] = .failed(.unavailable)
+        await model.load(hub: hub, login: "me", servers: [company])
+        #expect(model.repositories.count == 3 && model.accessByServer[company] == .unavailable && model.accessByServer[""] == .ok)
+        #expect(model.needsReload(for: "me", servers: [company]))
+
+        // A removed server's repositories go.
+        await model.load(hub: hub, login: "me", servers: [])
+        #expect(model.repositories.map(\.ref.key) == ["o/r"] && model.selected == nil)
+    }
+
+    @Test func enterpriseOnlyListsWithoutAGitHubDotComSignIn() async {
+        let (hub, provider) = await readyHub()
+        let company = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"
+        provider.core.accountsByServer = [company: CoreGitHubAccount(access: .ok, installations: [], repositories: [repository("org/app")],
+                                                                     truncated: false, credentialKind: .classic)]
+        let model = GitHubRepositoriesModel()
+        await model.load(hub: hub, login: nil, servers: [company])
+        #expect(model.repositories.map(\.ref.key) == ["\(company):org/app"] && model.access == .ok)
+        #expect(model.accessByServer[""] == nil, "github.com is not asked")
     }
 
     @Test func starsAndClonesTellServersApart() async throws {

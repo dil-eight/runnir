@@ -197,7 +197,9 @@ struct CoreGitHubInstallation: Equatable, Identifiable, Sendable {
 
 /// A github.com repository the signed-in user's token reaches.
 struct CoreGitHubAccountRepository: Equatable, Identifiable, Sendable {
-    var id: String { fullName }
+    /// Its `GitHubRepositoryRef.key`: "owner/name" on github.com, unique
+    /// across servers.
+    var id: String { ref.key }
     /// "owner/name" as GitHub spells it.
     let fullName: String
     let owner: String
@@ -213,6 +215,10 @@ struct CoreGitHubAccountRepository: Equatable, Identifiable, Sendable {
     /// The user can push, so can start workflows.
     let canPush: Bool
     let installationID: Int64
+    /// The server it is on; empty is github.com. Set by the list's model.
+    var server: String = ""
+
+    var ref: GitHubRepositoryRef { GitHubRepositoryRef(serverID: server, fullName: fullName) }
 }
 
 /// The repositories of the accounts where the app is installed.
