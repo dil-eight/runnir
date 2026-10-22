@@ -1,7 +1,7 @@
 import LocalAuthentication
 import SwiftUI
 
-/// Settings › Manual Runs: confirm starting a workflow by hand with Touch
+/// Settings › Runs: confirm starting a workflow by hand with Touch
 /// ID, or the Mac's password where Touch ID is not set up. Off by default.
 enum ManualRunSettings {
     static let confirmWithTouchIDKey = "manualRuns.confirmWithTouchID"
@@ -370,7 +370,7 @@ final class DispatchFormModel {
             // Back to the review; nothing was sent.
             return
         case .unavailable(let reason):
-            step = .failed("Manual runs are set to be confirmed with Touch ID, but this Mac can't ask: \(reason) Nothing was sent. Turn the setting off in Settings › Manual Runs, or set up Touch ID.")
+            step = .failed("Manual runs are set to be confirmed with Touch ID, but this Mac can't ask: \(reason) Nothing was sent. Turn the setting off in Settings › Runs, or set up Touch ID.")
             return
         }
         guard case .review = step else { return }

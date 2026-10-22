@@ -189,6 +189,10 @@ final class DesktopCoordinator {
             window.contentViewController = NSHostingController(rootView: WorkspaceManagerView(desktop: self))
             window.setContentSize(NSSize(width: 1000, height: 660))
             window.identifier = NSUserInterfaceItemIdentifier("workspace-manager")
+            // Only the close button: the Manager is not minimized or zoomed.
+            window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+            window.standardWindowButton(.zoomButton)?.isHidden = true
+            window.collectionBehavior.insert(.fullScreenNone)
             manager = window
         }
         manager?.makeKeyAndOrderFront(nil)

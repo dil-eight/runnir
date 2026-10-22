@@ -123,7 +123,7 @@ struct GitHubAccessHelp: Equatable, Identifiable {
     static func noRemote(originHost: String?) -> GitHubAccessHelp {
         if let host = originHost, !host.isEmpty, host != "github.com" {
             return GitHubAccessHelp(title: "\(host) is not in Runnir",
-                                    message: "This working tree's origin is on \(host), which is not a GitHub server in Runnir. If it is a GitHub Enterprise server, add it in Settings › GitHub Enterprise.",
+                                    message: "This working tree's origin is on \(host), which is not a GitHub server in Runnir. If it is a GitHub Enterprise server, add it in Settings › Account.",
                                     fix: .openSettings)
         }
         return GitHubAccessHelp(title: "No GitHub remote",
@@ -140,11 +140,11 @@ struct GitHubAccessHelp: Equatable, Identifiable {
         switch access {
         case .signedOut:
             return GitHubAccessHelp(title: "Sign in to \(host)",
-                                    message: "Runnir holds no token for \(host). Add the server with a token in Settings › GitHub Enterprise to \(purpose.phrase) for \(name).",
+                                    message: "Runnir holds no token for \(host). Add the server with a token in Settings › Account to \(purpose.phrase) for \(name).",
                                     fix: .openSettings)
         case .tokenRejected:
             return GitHubAccessHelp(title: "Sign in to \(host) again",
-                                    message: "\(host) no longer accepts the token, for example because it expired or was revoked. Remove the server in Settings › GitHub Enterprise and add it again with a new token.",
+                                    message: "\(host) no longer accepts the token, for example because it expired or was revoked. Remove the server in Settings › Account and add it again with a new token.",
                                     fix: .openSettings)
         case .notVisible, .permissionMissing:
             return forPersonalToken(access, repository: name, purpose: purpose, details: details, credential: credential ?? .classic, webURL: webURL)

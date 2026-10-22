@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Settings › Manual Runs.
+/// Settings › Runs: confirming manual runs.
 struct ManualRunSettingsSection: View {
     @AppStorage(ManualRunSettings.confirmWithTouchIDKey) private var confirmWithTouchID = false
 

@@ -164,7 +164,7 @@ struct DispatchFormModelTests {
         form.confirmOwner = { _ in .unavailable("No password is set.") }
         await form.confirm()
         guard case .failed(let message) = form.step else { Issue.record("step = \(form.step)"); return }
-        #expect(message.contains("Settings › Manual Runs") && provider.core.confirmed.isEmpty)
+        #expect(message.contains("Settings › Runs") && provider.core.confirmed.isEmpty)
 
         // Confirmed: sent once.
         form.backToEditing()

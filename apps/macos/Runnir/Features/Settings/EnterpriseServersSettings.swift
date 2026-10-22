@@ -73,7 +73,7 @@ final class EnterpriseServerForm {
     }
 }
 
-/// Settings › GitHub Enterprise: the servers next to github.com.
+/// Settings › Account › GitHub Enterprise: the servers next to github.com.
 struct EnterpriseServersSection: View {
     let servers: EnterpriseServers
     let hub: CoreHub?

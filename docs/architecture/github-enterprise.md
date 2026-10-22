@@ -1,6 +1,6 @@
 # GitHub Enterprise Servers
 
-Status: implemented; verified with unit tests, not against a real Enterprise server.
+Status: implemented; verified with unit tests and live against a local fake Enterprise API (Debug test copy), not against a real Enterprise server.
 
 Runnir talks to github.com today. Teams on GitHub Enterprise Server, or on GitHub Enterprise Cloud with data residency (`*.ghe.com`), need Runnir to reach their own server too, at the same time as github.com.
 
@@ -25,7 +25,7 @@ Runnir talks to github.com today. Teams on GitHub Enterprise Server, or on GitHu
 - The API URL may be on another host (as on `ghe.com`). The token is sent only to that API URL's origin.
 - Certificates are checked against the macOS trust store, so a company CA installed in Keychain works. There is no option to skip certificate checks.
 
-## Settings › GitHub
+## Settings › Account
 
 - A list of accounts: github.com (connected or "Connect GitHub..."), then each Enterprise server with its name, host, signed-in login and Remove.
 - "Add Enterprise Server..." opens a sheet: name, web URL, API URL, token. Check Token runs the existing token check against that API URL and shows the same verdict (kind, missing permissions, expiry, SSO). Add stores the server and token only after a check that GitHub accepted.
