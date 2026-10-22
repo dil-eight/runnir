@@ -204,7 +204,9 @@ func summarizeCI(pr *PullRequest, runs []Run) {
 	var failedURL, runningURL string
 	for _, run := range ordered {
 		switch {
-		case run.Status != "completed":
+		// A run waiting for a maintainer's approval (a fork's pull request)
+		// has not run yet, so it counts as still going, not as a pass.
+		case run.Status != "completed" || run.Conclusion == "action_required":
 			pr.CIRunning++
 			if runningURL == "" {
 				runningURL = run.HTMLURL

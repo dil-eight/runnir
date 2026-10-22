@@ -24,6 +24,9 @@ func TestCIIsSummedUpPerWorkflow(t *testing.T) {
 		"failed":    {[]Run{run(1, "in_progress", "", t0, "a"), run(2, "completed", "failure", t0, "b")}, CIFailed, "b"},
 		"running":   {[]Run{run(1, "queued", "", t0, "a"), run(2, "completed", "success", t0, "b")}, CIRunning, "a"},
 		"cancelled": {[]Run{run(1, "completed", "cancelled", t0, "a")}, CICancelled, ""},
+		// A run waiting for a maintainer's approval (a fork's pull request)
+		// has not run yet: it is not a pass.
+		"awaiting approval": {[]Run{run(1, "completed", "action_required", t0, "a"), run(2, "completed", "success", t0, "b")}, CIRunning, "a"},
 		// A re-run replaces the failed run of the same workflow.
 		"re-run": {[]Run{run(1, "completed", "failure", t0, "old"), run(1, "completed", "success", t0.Add(time.Minute), "new")}, CIPassed, ""},
 	} {

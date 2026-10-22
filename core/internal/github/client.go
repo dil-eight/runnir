@@ -85,9 +85,10 @@ func NewClient(credential *Credential, baseURL, version string) *Client {
 	}
 	return &Client{
 		credential: credential,
-		baseURL:    baseURL,
-		http:       &http.Client{Timeout: 20 * time.Second, CheckRedirect: sameOriginRedirects},
-		userAgent:  "Runnir-Core/" + version,
+		// Paths are appended to it: "…/api/v3/" must not give "//repos".
+		baseURL:   strings.TrimRight(baseURL, "/"),
+		http:      &http.Client{Timeout: 20 * time.Second, CheckRedirect: sameOriginRedirects},
+		userAgent: "Runnir-Core/" + version,
 	}
 }
 

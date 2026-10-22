@@ -167,3 +167,21 @@ func TestErrorsNeverContainTheToken(t *testing.T) {
 		}
 	}
 }
+
+func TestAnAPIURLEndingInASlashAddsNoEmptySegment(t *testing.T) {
+	var path string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		_, _ = w.Write([]byte(`{"workflows":[]}`))
+	}))
+	t.Cleanup(server.Close)
+	credential := &Credential{}
+	_ = credential.Set("ghp_test")
+	client := NewClient(credential, server.URL+"/api/v3/", "test")
+	if _, err := client.Workflows(context.Background(), "org", "app"); err != nil {
+		t.Fatal(err)
+	}
+	if path != "/api/v3/repos/org/app/actions/workflows" {
+		t.Errorf("path = %q", path)
+	}
+}
