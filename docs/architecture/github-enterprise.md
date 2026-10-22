@@ -42,7 +42,7 @@ Runnir talks to github.com today. Teams on GitHub Enterprise Server, or on GitHu
 
 ## Where it shows
 
-- GitHub tab: repositories grouped by account, with the server name as the group title. A registered clone matches a repository by server id and "owner/name" together, so `org/app` on two servers stays two repositories.
+- GitHub tab: an account picker above the list (GitHub.com, then each Enterprise server) when there is more than one; search, owner filter and stars work within the chosen account, so one failing server does not hide the others. Stars and registered clones match a repository by server id and "owner/name" together, so `org/app` on two servers stays two repositories.
 - Workspaces: workflows, runs, dispatch and logs go to the server of the origin. Access notices name the server ("Sign in to github.company.com").
 - Menu bar and Pull Requests window: pull requests from every account; the server host shows in the subtitle when more than one account is signed in.
 - Local runs: for a working tree on an Enterprise server, act gets `--github-instance <web host>`, so `uses:` actions are fetched from that server. The token is not passed to act.

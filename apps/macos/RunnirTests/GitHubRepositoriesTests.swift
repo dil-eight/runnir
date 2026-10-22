@@ -203,6 +203,49 @@ struct GitHubRepositoriesTests {
         #expect(desktop.workspace(forGitHubRepository: "dil-eight/runnir")?.id == older.id)
     }
 
+    @Test func theListIsReadFromTheChosenAccount() async {
+        let (hub, provider) = await readyHub()
+        let company = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"
+        provider.core.accountsByServer = [
+            "": CoreGitHubAccount(access: .ok, installations: [], repositories: [repository("o/r")], truncated: false),
+            company: CoreGitHubAccount(access: .ok, installations: [], repositories: [repository("o/r"), repository("org/app")], truncated: false,
+                                       credentialKind: .classic),
+        ]
+        let model = GitHubRepositoriesModel()
+        await model.load(hub: hub, login: "me")
+        #expect(model.repositories.map(\.fullName) == ["o/r"])
+        model.selectedFullName = "o/r"
+
+        model.server = company
+        #expect(model.needsReload(for: "me"), "another account's list is read")
+        await model.load(hub: hub, login: "me")
+        #expect(model.repositories.map(\.fullName) == ["o/r", "org/app"] && model.credentialKind == .classic)
+        #expect(model.selectedFullName == nil, "a selection on another account is dropped")
+        #expect(model.ref(model.repositories[0]).key == "\(company):o/r")
+    }
+
+    @Test func starsAndClonesTellServersApart() async throws {
+        let folder = directory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let company = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"
+        let dotcom = GitHubRepositoryRef(serverID: "", fullName: "o/r")
+        let enterprise = GitHubRepositoryRef(serverID: company, fullName: "o/r")
+
+        let favorites = RepositoryFavorites(store: FileRepositoryFavoritesStore(directory: folder))
+        #expect(favorites.toggle(enterprise.key))
+        #expect(favorites.isFavorite(enterprise.key) && !favorites.isFavorite(dotcom.key))
+        #expect(RepositoryFavorites(store: FileRepositoryFavoritesStore(directory: folder)).names == [enterprise.key])
+
+        let store = FileDesktopStateStore(directory: folder)
+        let clone = WorkspaceRecord(id: UUID(), path: "/tmp/app", name: "app", bookmark: Data(), lastOpenedAt: Date())
+        try store.save(DesktopSnapshot(workspaces: [clone]))
+        let desktop = DesktopCoordinator(store: store)
+        await desktop.loadSession()
+        desktop.noteGitHubRepository(enterprise.key, workspaceID: clone.id)
+        #expect(desktop.workspace(for: enterprise)?.id == clone.id)
+        #expect(desktop.workspace(for: dotcom) == nil, "o/r on github.com is another repository")
+    }
+
     @Test func registeredClonesAreFoundWithoutOpeningThem() async throws {
         let folder = directory()
         defer { try? FileManager.default.removeItem(at: folder) }
