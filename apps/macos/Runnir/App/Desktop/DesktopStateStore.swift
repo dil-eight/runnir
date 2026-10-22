@@ -7,8 +7,10 @@ struct WorkspaceRecord: Codable, Identifiable, Equatable, Sendable {
     var name: String
     var bookmark: Data
     var lastOpenedAt: Date
-    /// "owner/name" of the github.com repository the working tree's origin
-    /// pointed at when Runnir Core last opened it; nil until then.
+    /// The GitHub repository the working tree's origin pointed at when Runnir
+    /// Core last opened it, as a `GitHubRepositoryRef.key`: "owner/name" on
+    /// github.com, "<server id>:owner/name" on an Enterprise server; nil
+    /// until then.
     var githubRepository: String? = nil
 }
 

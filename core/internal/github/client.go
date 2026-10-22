@@ -61,6 +61,23 @@ type Client struct {
 	userAgent  string
 }
 
+// errCrossOriginRedirect ends a request GitHub redirected to another origin,
+// which must not get the token.
+var errCrossOriginRedirect = errors.New("redirect to another origin")
+
+// sameOriginRedirects follows a redirect only on the API's own origin (a
+// renamed repository moves within it), so a token never leaves its server.
+func sameOriginRedirects(request *http.Request, via []*http.Request) error {
+	first := via[0].URL
+	if request.URL.Scheme != first.Scheme || !strings.EqualFold(request.URL.Host, first.Host) {
+		return errCrossOriginRedirect
+	}
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	return nil
+}
+
 // NewClient talks to api.github.com; baseURL overrides it for tests.
 func NewClient(credential *Credential, baseURL, version string) *Client {
 	if baseURL == "" {
@@ -68,9 +85,10 @@ func NewClient(credential *Credential, baseURL, version string) *Client {
 	}
 	return &Client{
 		credential: credential,
-		baseURL:    baseURL,
-		http:       &http.Client{Timeout: 20 * time.Second},
-		userAgent:  "Runnir-Core/" + version,
+		// Paths are appended to it: "…/api/v3/" must not give "//repos".
+		baseURL:   strings.TrimRight(baseURL, "/"),
+		http:      &http.Client{Timeout: 20 * time.Second, CheckRedirect: sameOriginRedirects},
+		userAgent: "Runnir-Core/" + version,
 	}
 }
 

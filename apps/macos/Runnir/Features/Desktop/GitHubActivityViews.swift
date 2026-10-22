@@ -66,8 +66,8 @@ struct RecentRunsList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if let access = session.githubAccess,
-               let help = GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails,
-                                                      credential: hub?.credentialKind) {
+               let help = hub?.accessHelp(access, workspaceID: session.workspaceID, purpose: .read, details: session.githubDetails)
+                   ?? GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails) {
                 if showsAccessNotice {
                     GitHubAccessNotice(help: help, style: .note, github: github) {
                         Task { await hub?.loadGitHubActivity(workspaceID: session.workspaceID) }
@@ -121,8 +121,7 @@ struct WorkspaceRunsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
                         if let access = session.githubAccess,
-                           let help = GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails,
-                                                      credential: hub.credentialKind) {
+                           let help = hub.accessHelp(access, workspaceID: session.workspaceID, purpose: .read, details: session.githubDetails) {
                             GitHubAccessNotice(help: help, style: .banner, github: github) {
                                 Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
                             }.padding(8)
@@ -169,8 +168,7 @@ struct WorkspaceWorkflowsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 4) {
                 if let access = session.githubAccess,
-                   let help = GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails,
-                                                      credential: hub.credentialKind) {
+                   let help = hub.accessHelp(access, workspaceID: session.workspaceID, purpose: .read, details: session.githubDetails) {
                     GitHubAccessNotice(help: help, style: .banner, github: github) {
                         Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
                     }.padding(.bottom, 12)

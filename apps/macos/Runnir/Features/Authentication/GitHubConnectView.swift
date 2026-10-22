@@ -105,7 +105,7 @@ struct GitHubConnectView: View {
             }
             if tokenCheck == nil || tokenCheck?.access != .ok {
                 Button(checkingToken ? "Checking..." : "Check Token") { checkToken() }
-                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
                     .disabled(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || checkingToken)
             }
         case .signedOut:
@@ -114,16 +114,16 @@ struct GitHubConnectView: View {
                 Button("Use a Token Instead...") { usingToken = true }
                     .help("Sign in with a personal access token: Runnir checks what it can do first")
             }
-            Button("Connect") { copied = false; session.signIn() }.keyboardShortcut(.defaultAction)
+            Button("Connect") { copied = false; session.signIn() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .waiting:
             Button("Cancel") { session.cancelSignIn() }
-            Button("Open GitHub Again") { session.reopenVerificationPage() }.keyboardShortcut(.defaultAction)
+            Button("Open GitHub Again") { session.reopenVerificationPage() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .signedIn:
             Button("Install on Repositories...") { openURL(installationURL) }
-            Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+            Button("Done") { dismiss() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .offline:
             Button("Close") { dismiss() }
-            Button("Retry") { Task { await session.restore() } }.keyboardShortcut(.defaultAction)
+            Button("Retry") { Task { await session.restore() } }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         }
     }
 }
@@ -259,12 +259,28 @@ struct GitHubTokenCheckView: View {
 struct GitHubTokenAdvice: View {
     /// The token checked does not fit: say so first.
     var emphasized = false
+    /// The server's web URL, for the links; github.com unless an
+    /// Enterprise server is being added.
+    var webURL: URL = GitHubTokenAdvice.dotComWebURL
+    /// An Enterprise server: say which versions have fine-grained tokens.
+    var enterprise = false
     @Environment(\.openURL) private var openURL
 
-    static let newFineGrainedURL = URL(string: "https://github.com/settings/personal-access-tokens/new")!
-    static let newClassicURL = URL(string: "https://github.com/settings/tokens/new?scopes=repo&description=Runnir")!
-    static let fineGrainedSettingsURL = URL(string: "https://github.com/settings/personal-access-tokens")!
-    static let classicSettingsURL = URL(string: "https://github.com/settings/tokens")!
+    nonisolated static let dotComWebURL = URL(string: "https://github.com")!
+
+    nonisolated static func newFineGrainedURL(webURL: URL) -> URL { webURL.appending(path: "settings/personal-access-tokens/new") }
+    nonisolated static func newClassicURL(webURL: URL) -> URL {
+        var components = URLComponents(url: webURL.appending(path: "settings/tokens/new"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "scopes", value: "repo"), URLQueryItem(name: "description", value: "Runnir")]
+        return components?.url ?? webURL
+    }
+    nonisolated static func fineGrainedSettingsURL(webURL: URL) -> URL { webURL.appending(path: "settings/personal-access-tokens") }
+    nonisolated static func classicSettingsURL(webURL: URL) -> URL { webURL.appending(path: "settings/tokens") }
+
+    nonisolated static let newFineGrainedURL = newFineGrainedURL(webURL: dotComWebURL)
+    nonisolated static let newClassicURL = newClassicURL(webURL: dotComWebURL)
+    nonisolated static let fineGrainedSettingsURL = fineGrainedSettingsURL(webURL: dotComWebURL)
+    nonisolated static let classicSettingsURL = classicSettingsURL(webURL: dotComWebURL)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -272,15 +288,16 @@ struct GitHubTokenAdvice: View {
                 .font(.system(size: 12, weight: .semibold))
             VStack(alignment: .leading, spacing: 4) {
                 Text("Fine-grained token (recommended)").font(.system(size: 12, weight: .medium))
-                Text("Resource owner: your account or the organization. Repository access: the repositories you use in Runnir, or all. Repository permissions: Actions — Read and write; Contents — Read-only. GitHub adds Metadata — Read-only.")
+                Text("Resource owner: your account or the organization. Repository access: the repositories you use in Runnir, or all. Repository permissions: Actions — Read and write; Contents — Read-only. GitHub adds Metadata — Read-only."
+                     + (enterprise ? " Fine-grained tokens need GitHub Enterprise Server 3.10 or later; use a classic token on older servers." : ""))
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
-                Button("New Fine-Grained Token...") { openURL(Self.newFineGrainedURL) }.buttonStyle(.link).font(.system(size: 11))
+                Button("New Fine-Grained Token...") { openURL(Self.newFineGrainedURL(webURL: webURL)) }.buttonStyle(.link).font(.system(size: 11))
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text("Classic token").font(.system(size: 12, weight: .medium))
                 Text("Scope: repo. For an organization that uses single sign-on, authorize the token for it afterwards (Configure SSO).")
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
-                Button("New Classic Token...") { openURL(Self.newClassicURL) }.buttonStyle(.link).font(.system(size: 11))
+                Button("New Classic Token...") { openURL(Self.newClassicURL(webURL: webURL)) }.buttonStyle(.link).font(.system(size: 11))
             }
         }
     }
@@ -348,10 +365,14 @@ struct GitHubAccountSettings: View {
                         .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 } else {
                     Text("Signed in as \(user.login)")
-                    HStack {
-                        Button("Sign Out") { Task { await session.signOut() } }
-                        Button("Manage Repository Access...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
-                        Button("Manage Authorization on GitHub...") { openURL(GitHubSession.authorizationsURL) }
+                    // Where the row is too narrow, the three buttons wrap
+                    // rather than cut the last title short.
+                    ViewThatFits(in: .horizontal) {
+                        HStack { signOut; manageAccess; manageAuthorization }
+                        VStack(alignment: .leading) {
+                            HStack { signOut; manageAccess }
+                            manageAuthorization
+                        }
                     }
                     Text("Runnir sees only repositories where the Runnir Desktop app is installed. Manage Repository Access adds or removes them on GitHub.")
                         .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
@@ -361,11 +382,29 @@ struct GitHubAccountSettings: View {
             case .offline:
                 Text("Signed in; GitHub is unreachable right now.")
                 Button("Sign Out") { Task { await session.signOut() } }
+            case .restoring:
+                // The Keychain may be asking whether Runnir can read the sign-in.
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Checking the saved sign-in...").foregroundStyle(RunnirTheme.secondaryForeground)
+                }
             default:
                 Text("Not connected").foregroundStyle(RunnirTheme.secondaryForeground)
                 Button("Connect GitHub...") { showingConnect = true }
             }
         }
         .sheet(isPresented: $showingConnect) { GitHubConnectView(session: session) }
+    }
+
+    private var signOut: some View {
+        Button("Sign Out") { Task { await session.signOut() } }
+    }
+
+    private var manageAccess: some View {
+        Button("Manage Repository Access...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
+    }
+
+    private var manageAuthorization: some View {
+        Button("Manage Authorization on GitHub...") { openURL(GitHubSession.authorizationsURL) }
     }
 }

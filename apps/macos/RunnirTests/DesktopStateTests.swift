@@ -65,14 +65,49 @@ struct ThemeTokenTests {
                 #expect(contrast(value(token), value(.background)) >= 4.5)
             }
             #expect(contrast(value(.primaryForeground), value(.primary)) >= 4.5)
+            // A primary button is the accent at 20% (32% under the pointer)
+            // over the window, as on runnir.com.
+            for alpha in [0.2, 0.32] {
+                let fill = blend(value(.primary), over: value(.background), alpha: alpha)
+                #expect(contrast(value(.primaryButtonText), fill) >= 4.5, "primary button text at \(alpha), dark: \(dark)")
+            }
             #expect(contrast(value(.secondaryContent), value(.secondary)) >= 4.5)
         }
     }
 
+    @Test func pullRequestColorsReadInLightAndDark() {
+        for dark in [false, true] {
+            func pick(_ pair: (light: UInt32, dark: UInt32)) -> UInt32 { dark ? pair.dark : pair.light }
+            func token(_ token: RunnirColorToken) -> UInt32 { (dark ? token.palette.dark : token.palette.light).rawValue }
+            // Chip text on its tint.
+            #expect(contrast(pick(PullRequestColors.runningValues), pick(PullRequestColors.runningSoftValues)) >= 4.5, "dark: \(dark)")
+            #expect(contrast(token(.success), pick(PullRequestColors.passedSoftValues)) >= 4.5, "dark: \(dark)")
+            #expect(contrast(token(.destructive), pick(PullRequestColors.failedSoftValues)) >= 4.5, "dark: \(dark)")
+            // Icons on the popup's background.
+            #expect(contrast(pick(PullRequestColors.runningValues), token(.background)) >= 3, "dark: \(dark)")
+            #expect(contrast(pick(PullRequestColors.mergedValues), token(.background)) >= 3, "dark: \(dark)")
+        }
+    }
+
+    private func blend(_ top: RunnirPalette, over bottom: RunnirPalette, alpha: Double) -> UInt32 {
+        [16, 8, 0].reduce(UInt32(0)) { color, shift in
+            let a = Double((top.rawValue >> shift) & 255), b = Double((bottom.rawValue >> shift) & 255)
+            return color | (UInt32((a * alpha + b * (1 - alpha)).rounded()) << shift)
+        }
+    }
+
+    private func contrast(_ first: RunnirPalette, _ second: UInt32) -> Double {
+        contrast(first.rawValue, second)
+    }
+
     private func contrast(_ first: RunnirPalette, _ second: RunnirPalette) -> Double {
-        func luminance(_ color: RunnirPalette) -> Double {
+        contrast(first.rawValue, second.rawValue)
+    }
+
+    private func contrast(_ first: UInt32, _ second: UInt32) -> Double {
+        func luminance(_ color: UInt32) -> Double {
             let channels = [16, 8, 0].map { shift -> Double in
-                let value = Double((color.rawValue >> shift) & 255) / 255
+                let value = Double((color >> shift) & 255) / 255
                 return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
             }
             return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722

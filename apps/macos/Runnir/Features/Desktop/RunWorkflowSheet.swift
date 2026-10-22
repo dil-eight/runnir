@@ -1,7 +1,7 @@
 import LocalAuthentication
 import SwiftUI
 
-/// Settings › Manual Runs: confirm starting a workflow by hand with Touch
+/// Settings › Runs: confirm starting a workflow by hand with Touch
 /// ID, or the Mac's password where Touch ID is not set up. Off by default.
 enum ManualRunSettings {
     static let confirmWithTouchIDKey = "manualRuns.confirmWithTouchID"
@@ -370,7 +370,7 @@ final class DispatchFormModel {
             // Back to the review; nothing was sent.
             return
         case .unavailable(let reason):
-            step = .failed("Manual runs are set to be confirmed with Touch ID, but this Mac can't ask: \(reason) Nothing was sent. Turn the setting off in Settings › Manual Runs, or set up Touch ID.")
+            step = .failed("Manual runs are set to be confirmed with Touch ID, but this Mac can't ask: \(reason) Nothing was sent. Turn the setting off in Settings › Runs, or set up Touch ID.")
             return
         }
         guard case .review = step else { return }
@@ -402,7 +402,7 @@ final class DispatchFormModel {
     var repositoryName: String? {
         switch target {
         case .workspace(let id): hub.session(for: id)?.githubRepository
-        case .repository(let name): name
+        case .repository(let ref): ref.fullName
         }
     }
 
@@ -412,8 +412,13 @@ final class DispatchFormModel {
     private func explain(_ access: CoreGitHubAccess) async {
         guard GitHubAccessHelp.needsExplaining(access) else { return }
         let details = access == .permissionMissing ? await hub.githubRepository(target: target) : nil
-        accessHelp = GitHubAccessHelp.forAccess(access, repository: repositoryName, purpose: .run, details: details,
-                                                credential: hub.credentialKind)
+        switch target {
+        case .workspace(let id):
+            accessHelp = hub.accessHelp(access, workspaceID: id, purpose: .run, details: details)
+        case .repository(let ref):
+            accessHelp = GitHubAccessHelp.forAccess(access, repository: repositoryName, purpose: .run, details: details,
+                                                    credential: hub.credentialKind(for: ref.serverID), server: hub.serverRef(for: ref.serverID))
+        }
     }
 
     static func describe(_ access: CoreGitHubAccess) -> String {
@@ -672,7 +677,7 @@ struct RunWorkflowSheet: View {
             Button("Close") { dismiss() }
             Button("Show Run") { showRun(run); dismiss() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .notFoundYet:
-            Button("Close") { dismiss() }.keyboardShortcut(.defaultAction)
+            Button("Close") { dismiss() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .failed:
             Button("Close") { dismiss() }
             Button("Back") { model.backToEditing() }

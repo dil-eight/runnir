@@ -207,6 +207,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "ListPullRequests" metadata.
+        internal enum ListPullRequests: Sendable {
+            /// Request type for "ListPullRequests".
+            internal typealias Input = Runnir_Core_V1_ListPullRequestsRequest
+            /// Response type for "ListPullRequests".
+            internal typealias Output = Runnir_Core_V1_ListPullRequestsResponse
+            /// Descriptor for "ListPullRequests".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ListPullRequests",
+                type: .unary
+            )
+        }
         /// Namespace for "GetGitHubOrigins" metadata.
         internal enum GetGitHubOrigins: Sendable {
             /// Request type for "GetGitHubOrigins".
@@ -457,6 +470,7 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             SetGitHubCredential.descriptor,
             ClearGitHubCredential.descriptor,
             CheckGitHubToken.descriptor,
+            ListPullRequests.descriptor,
             GetGitHubOrigins.descriptor,
             ListGitHubRepositories.descriptor,
             ListGitHubWorkflows.descriptor,
@@ -741,6 +755,26 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_CheckGitHubTokenRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_CheckGitHubTokenResponse>
+
+        /// Handle the "ListPullRequests" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The signed-in user's open pull requests, each with the state of the
+        /// > GitHub Actions runs on its head commit, and those closed since a time,
+        /// > newest first, at most 50 of each, read through GitHub's search.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ListPullRequestsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ListPullRequestsResponse` messages.
+        func listPullRequests(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListPullRequestsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListPullRequestsResponse>
 
         /// Handle the "GetGitHubOrigins" method.
         ///
@@ -1316,6 +1350,26 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_CheckGitHubTokenResponse>
 
+        /// Handle the "ListPullRequests" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The signed-in user's open pull requests, each with the state of the
+        /// > GitHub Actions runs on its head commit, and those closed since a time,
+        /// > newest first, at most 50 of each, read through GitHub's search.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListPullRequestsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ListPullRequestsResponse` message.
+        func listPullRequests(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ListPullRequestsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListPullRequestsResponse>
+
         /// Handle the "GetGitHubOrigins" method.
         ///
         /// > Source IDL Documentation:
@@ -1889,6 +1943,26 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_CheckGitHubTokenResponse
 
+        /// Handle the "ListPullRequests" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The signed-in user's open pull requests, each with the state of the
+        /// > GitHub Actions runs on its head commit, and those closed since a time,
+        /// > newest first, at most 50 of each, read through GitHub's search.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ListPullRequestsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ListPullRequestsResponse` to respond with.
+        func listPullRequests(
+            request: Runnir_Core_V1_ListPullRequestsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ListPullRequestsResponse
+
         /// Handle the "GetGitHubOrigins" method.
         ///
         /// > Source IDL Documentation:
@@ -2374,6 +2448,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ListPullRequests.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListPullRequestsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListPullRequestsResponse>(),
+            handler: { request, context in
+                try await self.listPullRequests(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.GetGitHubOrigins.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetGitHubOriginsRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetGitHubOriginsResponse>(),
@@ -2725,6 +2810,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_CheckGitHubTokenResponse> {
         let response = try await self.checkGitHubToken(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func listPullRequests(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListPullRequestsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListPullRequestsResponse> {
+        let response = try await self.listPullRequests(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -3112,6 +3208,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_CheckGitHubTokenResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_CheckGitHubTokenResponse>(
             message: try await self.checkGitHubToken(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func listPullRequests(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ListPullRequestsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListPullRequestsResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ListPullRequestsResponse>(
+            message: try await self.listPullRequests(
                 request: request.message,
                 context: context
             ),
@@ -3672,6 +3781,31 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_CheckGitHubTokenResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_CheckGitHubTokenResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ListPullRequests" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The signed-in user's open pull requests, each with the state of the
+        /// > GitHub Actions runs on its head commit, and those closed since a time,
+        /// > newest first, at most 50 of each, read through GitHub's search.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListPullRequestsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListPullRequestsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListPullRequestsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func listPullRequests<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListPullRequestsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListPullRequestsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListPullRequestsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListPullRequestsResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "GetGitHubOrigins" method.
@@ -4561,6 +4695,42 @@ extension Runnir_Core_V1_RunnirCore {
             try await self.client.unary(
                 request: request,
                 descriptor: Runnir_Core_V1_RunnirCore.Method.CheckGitHubToken.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ListPullRequests" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The signed-in user's open pull requests, each with the state of the
+        /// > GitHub Actions runs on its head commit, and those closed since a time,
+        /// > newest first, at most 50 of each, read through GitHub's search.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListPullRequestsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListPullRequestsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListPullRequestsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func listPullRequests<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListPullRequestsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListPullRequestsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListPullRequestsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListPullRequestsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ListPullRequests.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -5578,6 +5748,37 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "ListPullRequests" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The signed-in user's open pull requests, each with the state of the
+    /// > GitHub Actions runs on its head commit, and those closed since a time,
+    /// > newest first, at most 50 of each, read through GitHub's search.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ListPullRequestsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listPullRequests<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ListPullRequestsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListPullRequestsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.listPullRequests(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListPullRequestsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListPullRequestsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "GetGitHubOrigins" method.
     ///
     /// > Source IDL Documentation:
@@ -6547,6 +6748,41 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.checkGitHubToken(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListPullRequests" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The signed-in user's open pull requests, each with the state of the
+    /// > GitHub Actions runs on its head commit, and those closed since a time,
+    /// > newest first, at most 50 of each, read through GitHub's search.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listPullRequests<Result>(
+        _ message: Runnir_Core_V1_ListPullRequestsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListPullRequestsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ListPullRequestsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.listPullRequests(
             request: request,
             options: options,
             onResponse: handleResponse

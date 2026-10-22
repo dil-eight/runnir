@@ -1,35 +1,6 @@
 import SwiftUI
 
-struct SettingsView: View {
-    var github: GitHubSession?
-    var core: CoreHub?
-
-    var body: some View {
-        Form {
-            Section("GitHub") {
-                if let github {
-                    GitHubAccountSettings(session: github, credentialKind: core?.credentialKind)
-                } else {
-                    Text("GitHub sign-in is not available.").foregroundStyle(RunnirTheme.secondaryForeground)
-                }
-            }
-
-            ManualRunSettingsSection()
-
-            ToolsSettingsSection(model: ToolsSettingsModel(hub: core))
-
-            Section("Privacy") {
-                Text("Runnir does not enable telemetry by default and does not send repository data to a Runnir backend.")
-                    .foregroundStyle(RunnirTheme.secondaryForeground)
-            }
-        }
-        .formStyle(.grouped)
-        .padding()
-        .frame(width: 600)
-    }
-}
-
-/// Settings › Manual Runs.
+/// Settings › Runs: confirming manual runs.
 struct ManualRunSettingsSection: View {
     @AppStorage(ManualRunSettings.confirmWithTouchIDKey) private var confirmWithTouchID = false
 

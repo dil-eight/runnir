@@ -31,6 +31,55 @@ final class DesktopCoordinator {
     private(set) var persistenceBlocked = false
     @ObservationIgnored private var store: (any DesktopStateStoring)?
     @ObservationIgnored private var manager: NSWindow?
+    @ObservationIgnored private var pullRequestsWindow: NSWindow?
+    /// Settings, shown over one window at a time: opening them in another
+    /// window closes them in the first.
+    private(set) var settings: SettingsPresentation?
+    /// The section Settings open at, the one shown last.
+    @ObservationIgnored private var lastSettingsSection: SettingsSection = .account
+    /// The Workspace Manager's id among windows that can show Settings.
+    static let managerWindowID = UUID()
+
+    /// Shows Settings over a window, at a section or the one shown last.
+    func showSettings(in windowID: UUID, section: SettingsSection? = nil) {
+        let section = section ?? settings?.section ?? lastSettingsSection
+        lastSettingsSection = section
+        settings = SettingsPresentation(windowID: windowID, section: section)
+    }
+
+    func showSettingsSection(_ section: SettingsSection) {
+        guard let settings else { return }
+        showSettings(in: settings.windowID, section: section)
+    }
+
+    func closeSettings() { settings = nil }
+
+    /// Settings over the window in front: a workspace window, or the
+    /// Workspace Manager, opened when no Runnir window is in front.
+    func showSettingsInFrontWindow(section: SettingsSection? = nil) {
+        if let key = NSApp.keyWindow ?? NSApp.mainWindow,
+           let id = windows.first(where: { $0.value.window === key })?.key {
+            showSettings(in: id, section: section)
+            return
+        }
+        showManager()
+        showSettings(in: Self.managerWindowID, section: section)
+    }
+
+    /// The Enterprise servers, for their names in lists and notices; set by
+    /// the app delegate.
+    @ObservationIgnored var enterpriseServers: EnterpriseServers?
+
+    /// Enterprise server names by server id.
+    var enterpriseServerNames: [String: String] {
+        Dictionary((enterpriseServers?.servers ?? []).map { ($0.ref.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// An Enterprise server's name; nil for github.com or an unknown id.
+    func serverName(for serverID: String?) -> String? {
+        guard let serverID, !serverID.isEmpty else { return nil }
+        return enterpriseServerNames[serverID]
+    }
     @ObservationIgnored private var splash: NSWindow?
     @ObservationIgnored private var windows: [UUID: any WorkspaceWindowManaging] = [:]
     @ObservationIgnored private let makeGrant: (WorkspaceRecord) throws -> any RepositoryGranting
@@ -56,6 +105,10 @@ final class DesktopCoordinator {
     let repositoryFavorites: RepositoryFavorites
     /// The GitHub tab's list, kept while the Manager is closed.
     let githubRepositories = GitHubRepositoriesModel()
+    /// The user's pull requests, for the menu bar and the Pull Requests window.
+    let pullRequests: PullRequestsModel
+    /// The Pull Requests window's global shortcut.
+    let shortcuts = GlobalShortcutCenter()
 
     init(store: (any DesktopStateStoring)? = nil,
          core: CoreHub? = nil,
@@ -63,6 +116,7 @@ final class DesktopCoordinator {
          presets: DispatchPresetLibrary = DispatchPresetLibrary(store: nil),
          favorites: WorkflowFavorites = WorkflowFavorites(store: nil),
          repositoryFavorites: RepositoryFavorites = RepositoryFavorites(store: nil),
+         pullRequests: PullRequestsModel = PullRequestsModel(store: nil),
          makeGrant: @escaping (WorkspaceRecord) throws -> any RepositoryGranting = { try RepositoryGrant(record: $0) },
          makeWorkspaceWindow: @escaping (WorkspaceWindowRecord, WorkspaceRecord, (any RepositoryGranting)?, DesktopCoordinator) -> any WorkspaceWindowManaging = {
              WorkspaceWindowController(record: $0, workspace: $1, grant: $2, desktop: $3)
@@ -73,6 +127,7 @@ final class DesktopCoordinator {
         self.presets = presets
         self.favorites = favorites
         self.repositoryFavorites = repositoryFavorites
+        self.pullRequests = pullRequests
         self.makeGrant = makeGrant
         self.makeWorkspaceWindow = makeWorkspaceWindow
     }
@@ -134,10 +189,40 @@ final class DesktopCoordinator {
             window.contentViewController = NSHostingController(rootView: WorkspaceManagerView(desktop: self))
             window.setContentSize(NSSize(width: 1000, height: 660))
             window.identifier = NSUserInterfaceItemIdentifier("workspace-manager")
+            // Only the close button: the Manager is not minimized or zoomed.
+            window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+            window.standardWindowButton(.zoomButton)?.isHidden = true
+            window.collectionBehavior.insert(.fullScreenNone)
             manager = window
         }
         manager?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// The Pull Requests window: open pull requests with their CI and those
+    /// closed in the last day.
+    func showPullRequests() {
+        if pullRequestsWindow == nil {
+            let window = makeWindow(size: NSSize(width: 560, height: 640), title: "Pull Requests")
+            window.minSize = NSSize(width: 480, height: 360)
+            window.contentViewController = NSHostingController(rootView: PullRequestsWindowView(model: pullRequests, desktop: self)
+                .environment(\.openRunnirSettings) { [weak self] section in self?.showSettingsInFrontWindow(section: section) })
+            window.setContentSize(NSSize(width: 560, height: 640))
+            window.identifier = NSUserInterfaceItemIdentifier("pull-requests")
+            // The shortcut works from any app: the window comes to the Space
+            // the user is on instead of switching to its own.
+            window.collectionBehavior.insert(.moveToActiveSpace)
+            pullRequestsWindow = window
+        }
+        guard let window = pullRequestsWindow else { return }
+        // Runnir may be hidden or the window minimized when the shortcut is
+        // pressed in another app.
+        if NSApp.isHidden { NSApp.unhide(nil) }
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        // In front even when macOS keeps another app active.
+        window.orderFrontRegardless()
     }
 
     /// "Open Quickly": the switcher in the key workspace window, or the
@@ -348,25 +433,30 @@ final class DesktopCoordinator {
         catch { message = "Registration could not be removed. Repository files were not changed." }
     }
 
-    /// The registered workspace whose origin is this github.com repository
-    /// (names are not case-sensitive); the most recently opened when several
-    /// are. A name that is not a GitHub name matches nothing; it never makes
-    /// the registry unreadable.
-    func workspace(forGitHubRepository fullName: String) -> WorkspaceRecord? {
-        guard GitHubRepositoryName.isValid(fullName) else { return nil }
+    /// The registered workspace whose origin is this repository, by its
+    /// `GitHubRepositoryRef.key` ("owner/name" on github.com, "<server
+    /// id>:owner/name" on an Enterprise server; not case-sensitive); the most
+    /// recently opened when several are. A malformed key matches nothing; it
+    /// never makes the registry unreadable.
+    func workspace(forGitHubRepository key: String) -> WorkspaceRecord? {
+        guard GitHubRepositoryRef(key: key) != nil else { return nil }
         return snapshot.workspaces
-            .filter { $0.githubRepository?.caseInsensitiveCompare(fullName) == .orderedSame }
+            .filter { $0.githubRepository?.caseInsensitiveCompare(key) == .orderedSame }
             .max { $0.lastOpenedAt < $1.lastOpenedAt }
     }
 
-    /// Remembers which GitHub repository a workspace's origin points at, so
-    /// the GitHub tab can open its local clone.
-    func noteGitHubRepository(_ fullName: String?, workspaceID: UUID) {
+    func workspace(for ref: GitHubRepositoryRef) -> WorkspaceRecord? {
+        workspace(forGitHubRepository: ref.key)
+    }
+
+    /// Remembers which GitHub repository a workspace's origin points at, by
+    /// its key, so the GitHub tab can open its local clone.
+    func noteGitHubRepository(_ key: String?, workspaceID: UUID) {
         guard let index = snapshot.workspaces.firstIndex(where: { $0.id == workspaceID }),
-              snapshot.workspaces[index].githubRepository != fullName,
-              fullName.map(GitHubRepositoryName.isValid) ?? true else { return }
+              snapshot.workspaces[index].githubRepository != key,
+              key.map({ GitHubRepositoryRef(key: $0) != nil }) ?? true else { return }
         var candidate = snapshot
-        candidate.workspaces[index].githubRepository = fullName
+        candidate.workspaces[index].githubRepository = key
         try? commit(candidate)
     }
 
@@ -385,8 +475,8 @@ final class DesktopCoordinator {
         var candidate = snapshot
         var changed = false
         for index in candidate.workspaces.indices where candidate.workspaces[index].githubRepository == nil {
-            guard let name = found[candidate.workspaces[index].path], GitHubRepositoryName.isValid(name) else { continue }
-            candidate.workspaces[index].githubRepository = name
+            guard let ref = found[candidate.workspaces[index].path], GitHubRepositoryRef(key: ref.key) != nil else { continue }
+            candidate.workspaces[index].githubRepository = ref.key
             changed = true
         }
         if changed { try? commit(candidate) }
@@ -664,6 +754,10 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
     let core: CoreProcessSupervisor
     let coreHub: CoreHub
     let github: GitHubSession
+    /// Enterprise servers next to github.com, with their Keychain tokens.
+    let enterpriseServers: EnterpriseServers
+    /// Sends run notifications; set once the app has launched.
+    private var runNotifier: RunNotifier?
 
     override init() {
         let supervisor = CoreProcessSupervisor.bundled()
@@ -679,16 +773,27 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
             api: api,
             openURL: { NSWorkspace.shared.open($0) }
         )
+        enterpriseServers = EnterpriseServers.live()
         desktop = DesktopCoordinator(core: hub, github: github,
                                      presets: DispatchPresetLibrary(store: try? FileDispatchPresetStore.live()),
                                      favorites: WorkflowFavorites(store: try? FileWorkflowFavoritesStore.live()),
-                                     repositoryFavorites: RepositoryFavorites(store: try? FileRepositoryFavoritesStore.live()))
+                                     repositoryFavorites: RepositoryFavorites(store: try? FileRepositoryFavoritesStore.live()),
+                                     pullRequests: PullRequestsModel(store: try? FileDismissedPullRequestsStore.live()))
         super.init()
         // The Core holds the token only while the user is signed in.
         hub.githubTokenProvider = { [github] in await github.currentToken() }
         github.onCredentialChange = { [hub] in hub.githubCredentialChanged() }
         github.tokenChecker = { [hub] token in await hub.checkGitHubToken(token) }
         hub.onGitHubTokenRejected = { [github] in await github.tokenWasRejected() }
+        hub.enterpriseCredentialsProvider = { [enterpriseServers] in
+            var out: [(server: GitHubServerRef, token: String)] = []
+            for server in enterpriseServers.servers {
+                if let token = await enterpriseServers.token(for: server.id) { out.append((server.ref, token)) }
+            }
+            return out
+        }
+        enterpriseServers.onChange = { [hub] in hub.githubCredentialChanged() }
+        desktop.enterpriseServers = enterpriseServers
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -697,6 +802,22 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         desktop.start()
         coreHub.startMonitoring()
         Task { [github] in await github.restore() }
+        desktop.shortcuts.action = { [desktop] in desktop.showPullRequests() }
+        desktop.shortcuts.applySettings()
+        // Notifications from this Mac when pull request checks or local runs finish.
+        let notifier = RunNotifier.live()
+        notifier.showWorkspace = { [desktop] id in
+            if let workspace = desktop.snapshot.workspaces.first(where: { $0.id == id }) { desktop.openOrFocus(workspace) }
+        }
+        runNotifier = notifier
+        desktop.pullRequests.onChecksFinished = { [notifier] pr in notifier.notify(.checksFinished(pr)) }
+        coreHub.onLocalRunFinished = { [notifier, desktop] run, folder in
+            // The workspace's name as Runnir shows it; the folder's when it was closed.
+            let name = desktop.snapshot.workspaces.first { $0.id == run.workspaceID }?.name ?? folder
+            notifier.notify(.localRunFinished(run, workspaceName: name))
+        }
+        // Signed in to github.com or to any Enterprise server.
+        desktop.pullRequests.startPolling(hub: coreHub, isSignedIn: { [github, coreHub] in github.user != nil || !coreHub.signedInServers.isEmpty })
         // A failed start shows up as the hub's status, with a restart offer in each window.
         Task { [core] in _ = try? await core.start() }
     }

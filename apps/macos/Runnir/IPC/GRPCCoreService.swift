@@ -184,20 +184,46 @@ struct GRPCCoreService: CoreServicing {
         return response.workflowID
     }
 
+    /// A link from GitHub, kept only when it is a web page: the app opens
+    /// these, and a server must not make it open a file or another app.
+    static func webURL(_ string: String) -> URL? {
+        guard let url = URL(string: string), let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              let host = url.host(), !host.isEmpty else { return nil }
+        return url
+    }
+
+    static func message(_ server: GitHubServerRef) -> Runnir_Core_V1_GithubServer {
+        .with {
+            $0.id = server.id
+            $0.apiURL = server.apiURL?.absoluteString ?? ""
+            $0.webHost = server.webHost
+        }
+    }
+
     @discardableResult
-    func setGitHubCredential(_ token: String?) async throws -> CoreGitHubCredentialKind? {
+    func setGitHubCredential(_ token: String?, server: GitHubServerRef) async throws -> CoreGitHubCredentialKind? {
         if let token {
-            let response = try await call { try await client.setGitHubCredential(.with { $0.token = token }, options: Self.options(Self.callTimeout)) }
+            let response = try await call {
+                try await client.setGitHubCredential(.with {
+                    $0.token = token
+                    if !server.isDotCom { $0.server = Self.message(server) }
+                }, options: Self.options(Self.callTimeout))
+            }
             return Self.map(response.kind)
         } else {
-            _ = try await call { try await client.clearGitHubCredential(.init(), options: Self.options(Self.callTimeout)) }
+            _ = try await call {
+                try await client.clearGitHubCredential(.with { $0.serverID = server.id }, options: Self.options(Self.callTimeout))
+            }
             return nil
         }
     }
 
-    func checkGitHubToken(_ token: String) async throws -> CoreGitHubTokenCheck {
+    func checkGitHubToken(_ token: String, server: GitHubServerRef) async throws -> CoreGitHubTokenCheck {
         let response = try await call {
-            try await client.checkGitHubToken(.with { $0.token = token }, options: Self.options(.seconds(30)))
+            try await client.checkGitHubToken(.with {
+                $0.token = token
+                if !server.isDotCom { $0.server = Self.message(server) }
+            }, options: Self.options(.seconds(30)))
         }
         return CoreGitHubTokenCheck(
             access: Self.map(response.status), kind: Self.map(response.kind), login: response.login, scopes: response.scopes,
@@ -223,24 +249,53 @@ struct GRPCCoreService: CoreServicing {
         }
     }
 
-    func githubOrigins(paths: [String]) async throws -> [String: String] {
+    func listPullRequests(server: String, closedSince: Date) async throws -> CorePullRequests {
+        var options = Self.options(.seconds(60))
+        options.maxResponseMessageBytes = 4 << 20
+        let response = try await call {
+            try await client.listPullRequests(.with {
+                $0.closedSince = .init(date: closedSince)
+                $0.githubServer = server
+            }, options: options)
+        }
+        func map(_ pr: Runnir_Core_V1_PullRequest) -> CorePullRequest {
+            let ci: CorePullRequestCI = switch pr.ci {
+            case .none: .none
+            case .running: .running
+            case .passed: .passed
+            case .failed: .failed
+            case .cancelled: .cancelled
+            default: .unknown
+            }
+            return CorePullRequest(repository: pr.repository, number: pr.number, title: pr.title, htmlURL: Self.webURL(pr.htmlURL),
+                                   state: pr.state, draft: pr.draft, headBranch: pr.headBranch,
+                                   updatedAt: pr.hasUpdatedAt ? pr.updatedAt.date : nil, closedAt: pr.hasClosedAt ? pr.closedAt.date : nil,
+                                   ci: ci, ciRuns: Int(pr.ciRuns), ciFailed: Int(pr.ciFailed), ciRunning: Int(pr.ciRunning),
+                                   ciURL: Self.webURL(pr.ciURL))
+        }
+        return CorePullRequests(access: Self.map(response.status), open: response.open.map(map), closed: response.closed.map(map),
+                                headsUnreadable: response.headsUnreadable)
+    }
+
+    func githubOrigins(paths: [String]) async throws -> [String: GitHubRepositoryRef] {
         let response = try await call {
             try await client.getGitHubOrigins(.with { $0.paths = paths }, options: Self.options(Self.callTimeout))
         }
-        return Dictionary(response.origins.map { ($0.path, $0.githubRepository) }, uniquingKeysWith: { first, _ in first })
+        return Dictionary(response.origins.map { ($0.path, GitHubRepositoryRef(serverID: $0.githubServerID, fullName: $0.githubRepository)) },
+                          uniquingKeysWith: { first, _ in first })
     }
 
-    func listGitHubRepositories() async throws -> CoreGitHubAccount {
+    func listGitHubRepositories(server: String) async throws -> CoreGitHubAccount {
         // Up to 1,000 repositories over several GitHub pages.
         var options = Self.options(.seconds(60))
         options.maxResponseMessageBytes = 8 << 20
-        let response = try await call { try await client.listGitHubRepositories(.init(), options: options) }
+        let response = try await call { try await client.listGitHubRepositories(.with { $0.githubServer = server }, options: options) }
         return CoreGitHubAccount(
             access: Self.map(response.status),
             installations: response.installations.map(Self.map),
             repositories: response.repositories.map {
                 CoreGitHubAccountRepository(fullName: $0.fullName, owner: $0.owner, name: $0.name, description: $0.description_p,
-                                            visibility: $0.visibility, defaultBranch: $0.defaultBranch, htmlURL: URL(string: $0.htmlURL),
+                                            visibility: $0.visibility, defaultBranch: $0.defaultBranch, htmlURL: Self.webURL($0.htmlURL),
                                             pushedAt: $0.hasPushedAt ? $0.pushedAt.date : nil, archived: $0.archived, fork: $0.fork,
                                             canPush: $0.canPush, installationID: $0.installationID)
             },
@@ -253,12 +308,14 @@ struct GRPCCoreService: CoreServicing {
             try await client.listGitHubWorkflows(.with {
                 switch target {
                 case .repository(let id): $0.repositoryID = id
-                case .named(let name): $0.githubRepository = name
+                case .named(let ref):
+                    $0.githubRepository = ref.fullName
+                    $0.githubServer = ref.serverID
                 }
             }, options: Self.options(Self.callTimeout))
         }
         return CoreGitHubResult(access: Self.map(response.status), items: response.workflows.map {
-            CoreGitHubWorkflow(id: $0.id, name: $0.name, path: $0.path, state: $0.state, htmlURL: URL(string: $0.htmlURL))
+            CoreGitHubWorkflow(id: $0.id, name: $0.name, path: $0.path, state: $0.state, htmlURL: Self.webURL($0.htmlURL))
         })
     }
 
@@ -267,18 +324,20 @@ struct GRPCCoreService: CoreServicing {
             try await client.getGitHubRepository(.with {
                 switch target {
                 case .repository(let id): $0.repositoryID = id
-                case .named(let name): $0.githubRepository = name
+                case .named(let ref):
+                    $0.githubRepository = ref.fullName
+                    $0.githubServer = ref.serverID
                 }
             }, options: Self.options(Self.callTimeout))
         }
         return CoreGitHubRepository(access: Self.map(response.status), fullName: response.fullName, visibility: response.visibility,
-                                    defaultBranch: response.defaultBranch, htmlURL: URL(string: response.htmlURL),
+                                    defaultBranch: response.defaultBranch, htmlURL: Self.webURL(response.htmlURL),
                                     canPush: response.canPush, installation: response.hasInstallation ? Self.map(response.installation) : nil)
     }
 
     static func map(_ installation: Runnir_Core_V1_GitHubInstallation) -> CoreGitHubInstallation {
         CoreGitHubInstallation(id: installation.id, account: installation.account, accountType: installation.accountType,
-                               repositorySelection: installation.repositorySelection, htmlURL: URL(string: installation.htmlURL),
+                               repositorySelection: installation.repositorySelection, htmlURL: Self.webURL(installation.htmlURL),
                                missingPermissions: installation.missingPermissions, suspended: installation.suspended)
     }
 
@@ -287,7 +346,9 @@ struct GRPCCoreService: CoreServicing {
             try await client.listWorkflowRuns(.with {
                 switch target {
                 case .repository(let id): $0.repositoryID = id
-                case .named(let name): $0.githubRepository = name
+                case .named(let ref):
+                    $0.githubRepository = ref.fullName
+                    $0.githubServer = ref.serverID
                 }
                 $0.branch = branch ?? ""
                 $0.limit = UInt32(clamping: max(0, min(limit, 100)))
@@ -301,7 +362,7 @@ struct GRPCCoreService: CoreServicing {
             id: run.id, workflowID: run.workflowID, name: run.name, displayTitle: run.displayTitle,
             runNumber: run.runNumber, event: run.event, status: run.status,
             conclusion: run.conclusion.isEmpty ? nil : run.conclusion, branch: run.branch, headSHA: run.headSha,
-            actor: run.actor.isEmpty ? nil : run.actor, htmlURL: URL(string: run.htmlURL),
+            actor: run.actor.isEmpty ? nil : run.actor, htmlURL: Self.webURL(run.htmlURL),
             createdAt: run.hasCreatedAt ? run.createdAt.date : nil,
             updatedAt: run.hasUpdatedAt ? run.updatedAt.date : nil,
             runAttempt: max(1, run.runAttempt)
@@ -320,7 +381,7 @@ struct GRPCCoreService: CoreServicing {
                 id: job.id, name: job.name, status: job.status, conclusion: job.conclusion.isEmpty ? nil : job.conclusion,
                 startedAt: job.hasStartedAt ? job.startedAt.date : nil,
                 completedAt: job.hasCompletedAt ? job.completedAt.date : nil,
-                htmlURL: URL(string: job.htmlURL),
+                htmlURL: Self.webURL(job.htmlURL),
                 steps: job.steps.map { step in
                     CoreRunStep(number: step.number, name: step.name, status: step.status,
                                 conclusion: step.conclusion.isEmpty ? nil : step.conclusion,
@@ -336,7 +397,9 @@ struct GRPCCoreService: CoreServicing {
             try await client.listGitHubRefs(.with {
                 switch target {
                 case .repository(let id): $0.repositoryID = id
-                case .named(let name): $0.githubRepository = name
+                case .named(let ref):
+                    $0.githubRepository = ref.fullName
+                    $0.githubServer = ref.serverID
                 }
             }, options: Self.options(Self.callTimeout))
         }
@@ -349,7 +412,9 @@ struct GRPCCoreService: CoreServicing {
             try await client.describeWorkflowDispatch(.with {
                 switch target {
                 case .repository(let id): $0.repositoryID = id
-                case .named(let name): $0.githubRepository = name
+                case .named(let ref):
+                    $0.githubRepository = ref.fullName
+                    $0.githubServer = ref.serverID
                 }
                 $0.workflowPath = workflowPath
                 $0.ref = ref
@@ -378,7 +443,9 @@ struct GRPCCoreService: CoreServicing {
             try await client.prepareWorkflowDispatch(.with {
                 switch target {
                 case .repository(let id): $0.repositoryID = id
-                case .named(let name): $0.githubRepository = name
+                case .named(let ref):
+                    $0.githubRepository = ref.fullName
+                    $0.githubServer = ref.serverID
                 }
                 $0.workflowID = workflowID
                 $0.ref = ref
@@ -680,7 +747,9 @@ struct GRPCCoreService: CoreServicing {
             branch: repository.branch,
             workflowCount: Int(repository.workflowCount),
             lastRefresh: repository.hasLastRefresh ? repository.lastRefresh.date : nil,
-            githubRepository: repository.githubRepository.isEmpty ? nil : repository.githubRepository
+            githubRepository: repository.githubRepository.isEmpty ? nil : repository.githubRepository,
+            githubServerID: repository.githubRepository.isEmpty ? nil : repository.githubServerID,
+            originHost: repository.originHost.isEmpty ? nil : repository.originHost
         )
     }
 

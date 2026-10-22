@@ -2,8 +2,26 @@ import Foundation
 import Security
 
 actor KeychainCredentialStore: CredentialStoring {
-    private let service = "dev.runnir.github"
-    private let account = "oauth-token"
+    private let service: String
+    private let account: String
+
+    /// github.com's sign-in, as before Enterprise servers.
+    static let defaultAccount = "oauth-token"
+
+    init(service: String = KeychainCredentialStore.defaultService, account: String = KeychainCredentialStore.defaultAccount) {
+        self.service = service
+        self.account = account
+    }
+
+    /// The sign-in's Keychain item, or, for UI tests of a Debug build, an
+    /// item of their own: a test run never reads the user's sign-in, and its
+    /// Sign Out never removes it.
+    static var defaultService: String {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return "dev.runnir.github.ui-testing" }
+        #endif
+        return "dev.runnir.github"
+    }
 
     func token() async throws -> String? {
         var query = baseQuery

@@ -155,6 +155,7 @@ struct WorkspaceManagerView: View {
         .background(RunnirTheme.background)
         .tint(RunnirTheme.primary)
         .ignoresSafeArea()
+        .settingsOverlay(desktop: desktop, windowID: DesktopCoordinator.managerWindowID)
     }
 }
 
@@ -480,11 +481,12 @@ struct DesktopWorkspaceView: View {
         }
         .background(RunnirTheme.background).foregroundStyle(RunnirTheme.foreground).tint(RunnirTheme.primary)
         .ignoresSafeArea()
+        .settingsOverlay(desktop: desktop, windowID: windowID)
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
         // Once the Core has opened the working tree: its origin's GitHub
-        // name, or none ("") when the origin is not on github.com.
-        .onChange(of: session?.phase == .ready ? (session?.githubRepository ?? "") : nil, initial: true) { _, value in
+        // repository key, or none ("") when the origin is on no GitHub server.
+        .onChange(of: session?.phase == .ready ? (session?.githubRef?.key ?? "") : nil, initial: true) { _, value in
             guard let value else { return }
             desktop.noteGitHubRepository(value.isEmpty ? nil : value, workspaceID: workspace.id)
         }
@@ -670,13 +672,16 @@ struct DesktopWorkspaceView: View {
     /// write access.
     private var runBlocker: GitHubAccessHelp? {
         guard let session else { return GitHubAccessHelp.forAccess(.unavailable, repository: nil, purpose: .run) }
-        guard let repository = session.githubRepository else { return GitHubAccessHelp.forAccess(.noRemote, repository: nil, purpose: .run) }
-        guard let github = desktop.github, github.user != nil else {
+        guard let repository = session.githubRepository else { return GitHubAccessHelp.noRemote(originHost: session.originHost) }
+        // An Enterprise server's sign-in is its token; the Core says when
+        // it has none.
+        let enterprise = !(session.githubServerID ?? "").isEmpty
+        if !enterprise, desktop.github?.user == nil {
             return GitHubAccessHelp.forAccess(desktop.github?.signedOutAccess ?? .signedOut, repository: repository, purpose: .run)
         }
         if let access = session.githubAccess, access != .ok {
-            return GitHubAccessHelp.forAccess(access, repository: repository, purpose: .run, details: session.githubDetails,
-                                              credential: desktop.core?.credentialKind)
+            return desktop.core?.accessHelp(access, workspaceID: workspace.id, purpose: .run, details: session.githubDetails)
+                ?? GitHubAccessHelp.forAccess(access, repository: repository, purpose: .run, details: session.githubDetails)
         }
         return GitHubAccessHelp.blocker(for: .run, repository: repository, details: session.githubDetails)
     }
@@ -835,27 +840,16 @@ struct DesktopWorkspaceView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Color.clear.frame(height: 26)
+            // The title bar row: the window's buttons, then the workspace
+            // switcher next to them.
+            HStack(spacing: 0) {
+                Color.clear.frame(width: 64)
+                workspaceSwitcherButton
+                Spacer(minLength: 0)
+            }
+            .frame(height: 28)
+            Color.clear.frame(height: 5)
             BrandLogo(height: 47, width: 128).padding(.leading, 6).padding(.top, 2).padding(.bottom, 14)
-            Button { state.showingSwitcher = true } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "shippingbox").frame(width: 16).foregroundStyle(RunnirTheme.primary)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(workspace.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                        Text("Local working tree").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 10)).foregroundStyle(RunnirTheme.secondaryForeground)
-                }.padding(.horizontal, 10).frame(height: 48)
-                    .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
-            }
-            .buttonStyle(.plain)
-            .help("Switch workspace (Shift-Command-O)")
-            .contextMenu {
-                Button("Open Quickly...") { state.showingSwitcher = true }
-                Button("Workspace Manager...") { desktop.showManager() }
-            }
-            Color.clear.frame(height: 10)
             VStack(spacing: 2) {
                 ForEach(AppSection.sidebarSections) { section in
                     Button { state.selectedSection = section } label: {
@@ -887,12 +881,37 @@ struct DesktopWorkspaceView: View {
                     }
                 }
             }.padding(.horizontal, 10).frame(height: 45)
-            SettingsLink { Label("Settings...", systemImage: "gearshape") }
+            Button { desktop.showSettings(in: windowID) } label: { Label("Settings...", systemImage: "gearshape") }
                 .buttonStyle(.plain).font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
                 .padding(.horizontal, 10).frame(height: 30)
         }
-        .padding(.horizontal, 12).padding(.vertical, 14).frame(width: 220)
+        .padding(.horizontal, 12).padding(.top, 7).padding(.bottom, 14).frame(width: 220)
         .frame(maxHeight: .infinity).background(RunnirTheme.sidebar)
+    }
+
+    /// The workspace's name in the title bar; opens Open Quickly to switch.
+    private var workspaceSwitcherButton: some View {
+        Button { state.showingSwitcher = true } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "shippingbox").font(.system(size: 11)).foregroundStyle(RunnirTheme.primary)
+                Text(workspace.name).font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.middle)
+                Image(systemName: "chevron.up.chevron.down").font(.system(size: 9)).foregroundStyle(RunnirTheme.secondaryForeground)
+            }
+            .padding(.horizontal, 8).frame(height: 24)
+            .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: 132, alignment: .leading)
+        .help("\(workspace.name), a local working tree. Switch workspace (Shift-Command-O)")
+        .accessibilityLabel("Workspace \(workspace.name)")
+        .accessibilityHint("Switches to another workspace")
+        .accessibilityIdentifier("workspace-switcher")
+        .contextMenu {
+            Button("Open Quickly...") { state.showingSwitcher = true }
+            Button("Workspace Manager...") { desktop.showManager() }
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -1166,15 +1185,29 @@ struct DesignDivider: View {
 
 struct DesignButtonStyle: ButtonStyle {
     var primary = false
-    @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.font(.system(size: 13, weight: primary ? .medium : .regular))
-            .padding(.horizontal, 14).frame(height: 30)
-            .foregroundStyle(primary ? RunnirTheme.primaryForeground : RunnirTheme.secondaryContent)
-            .background(primary ? RunnirTheme.primary : RunnirTheme.secondary, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(primary ? .clear : RunnirTheme.border))
+        DesignButtonBody(configuration: configuration, primary: primary)
+    }
+}
+
+/// A button's look. A primary one is runnir.com's call to action: the
+/// accent as a tint (20%, 32% under the pointer) with a 45% accent border.
+private struct DesignButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    let primary: Bool
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var hovering = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: primary ? 10 : 6)
+        configuration.label.font(.system(size: 13, weight: primary ? .semibold : .regular))
+            .padding(.horizontal, primary ? 16 : 14).frame(height: 30)
+            .foregroundStyle(primary ? RunnirTheme.primaryButtonText : RunnirTheme.secondaryContent)
+            .background(primary ? RunnirTheme.primary.opacity(hovering && isEnabled ? 0.32 : 0.2) : RunnirTheme.secondary, in: shape)
+            .overlay(shape.stroke(primary ? RunnirTheme.primary.opacity(0.45) : RunnirTheme.border))
             .opacity(isEnabled ? (configuration.isPressed ? 0.75 : 1) : 0.4)
-            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .contentShape(shape)
+            .onHover { hovering = $0 }
     }
 }
 
@@ -1243,7 +1276,7 @@ struct GitHubLinkCard: View {
                 header(linked.fullName.isEmpty ? (repository ?? "") : linked.fullName, symbol: "checkmark.circle", tint: RunnirTheme.success)
                 Text("\(linked.visibility.capitalized) · default branch \(linked.defaultBranch)")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                if let url = linked.htmlURL ?? URL(string: "https://github.com/\(linked.fullName)") {
+                if let url = linked.htmlURL ?? (isEnterprise ? nil : URL(string: "https://github.com/\(linked.fullName)")) {
                     Button("Open on GitHub") { openURL(url) }.buttonStyle(DesignButtonStyle())
                 }
                 // Reading works; what waits for an owner, or for write access, is said here.
@@ -1271,9 +1304,13 @@ struct GitHubLinkCard: View {
 
     private var checkKey: String { "\(repository ?? "")|\(github?.user?.login ?? "")|\(coreReady)|\(attempt)|\(hub?.credentialGeneration ?? 0)" }
 
+    /// The working tree's origin is on an Enterprise server, whose sign-in
+    /// is its token in Settings, not the github.com sign-in.
+    private var isEnterprise: Bool { !(hub?.session(for: workspaceID)?.githubServerID ?? "").isEmpty }
+
     private func check() async {
         details = nil
-        guard repository != nil, coreReady, github?.user != nil, let hub else { return }
+        guard repository != nil, coreReady, github?.user != nil || isEnterprise, let hub else { return }
         details = await hub.githubRepository(workspaceID: workspaceID)
     }
 
@@ -1281,15 +1318,14 @@ struct GitHubLinkCard: View {
 
     private var display: Display {
         guard let repository else {
-            return coreReady ? .problem(GitHubAccessHelp.forAccess(.noRemote, repository: nil, purpose: .read)!) : .reading
+            return coreReady ? .problem(GitHubAccessHelp.noRemote(originHost: hub?.session(for: workspaceID)?.originHost)) : .reading
         }
-        guard let github, github.user != nil else {
+        if !isEnterprise, github?.user == nil {
             return .problem(GitHubAccessHelp.forAccess(.signedOut, repository: repository, purpose: .read)!)
         }
         guard let details else { return .checking }
         if details.access == .ok { return .linked(details) }
-        return .problem(GitHubAccessHelp.forAccess(details.access, repository: repository, purpose: .read, details: details,
-                                                   credential: hub?.credentialKind)
+        return .problem(hub?.accessHelp(details.access, workspaceID: workspaceID, purpose: .read, details: details)
                         ?? GitHubAccessHelp.forAccess(.unavailable, repository: repository, purpose: .read)!)
     }
 }

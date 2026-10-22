@@ -52,6 +52,11 @@ service RunnirCore {
   // TOKEN_REJECTED in `status`; the held credential is never changed.
   rpc CheckGitHubToken(CheckGitHubTokenRequest) returns (CheckGitHubTokenResponse);
 
+  // The signed-in user's open pull requests, each with the state of the
+  // GitHub Actions runs on its head commit, and those closed since a time,
+  // newest first, at most 50 of each, read through GitHub's search.
+  rpc ListPullRequests(ListPullRequestsRequest) returns (ListPullRequestsResponse);
+
   // The github.com repository each folder's origin points at, read from git's
   // metadata only, without opening the repositories: lets the app match its
   // registered working trees to GitHub repositories. At most 500 paths.
@@ -152,9 +157,15 @@ message Repository {
   string branch = 3;
   uint32 workflow_count = 4;
   google.protobuf.Timestamp last_refresh = 5;
-  // "owner/name" when the "origin" remote points at github.com; empty
-  // otherwise. The raw remote URL is never sent: it can embed credentials.
+  // "owner/name" when the origin's host is github.com or a server the Core
+  // holds; empty otherwise. The raw remote URL is never sent: it can embed
+  // credentials.
   string github_repository = 6;
+  // Server id for github_repository; empty is github.com.
+  string github_server_id = 7;
+  // Host of the origin remote, lowercased, even when no server matches it,
+  // so the app can say which server to add. Empty without an origin.
+  string origin_host = 8;
 }
 
 message ListWorkflowsRequest {
@@ -235,6 +246,19 @@ message CoreEvent {
 
 message SetGitHubCredentialRequest {
   string token = 1;
+  // Which server the token is for; unset is github.com.
+  GithubServer server = 2;
+}
+
+// A GitHub server: github.com when id is empty (api_url and web_host are
+// then ignored), otherwise an Enterprise server the app registered.
+message GithubServer {
+  // Empty for github.com; a lowercase UUID for an Enterprise server.
+  string id = 1;
+  // "https://github.company.com/api/v3"; http only for a loopback host.
+  string api_url = 2;
+  // Host of the web URL, lowercased, without port: "github.company.com".
+  string web_host = 3;
 }
 
 message SetGitHubCredentialResponse {
@@ -256,6 +280,8 @@ enum GithubCredentialKind {
 
 message CheckGitHubTokenRequest {
   string token = 1;
+  // The server to ask; unset is github.com.
+  GithubServer server = 2;
 }
 
 message CheckGitHubTokenResponse {
@@ -287,7 +313,10 @@ enum GithubTokenCheckState {
   GITHUB_TOKEN_CHECK_STATE_UNKNOWN = 3;
 }
 
-message ClearGitHubCredentialRequest {}
+message ClearGitHubCredentialRequest {
+  // Empty clears github.com's token; an Enterprise id forgets that server.
+  string server_id = 1;
+}
 
 message ClearGitHubCredentialResponse {}
 
@@ -352,9 +381,11 @@ message ValidateWorkflowsResponse {
 
 message GetGitHubRepositoryRequest {
   string repository_id = 1;
-  // "owner/name" on github.com, used instead of repository_id for a
-  // repository without a local clone.
+  // "owner/name" on the server github_server names, used instead of
+  // repository_id for a repository without a local clone.
   string github_repository = 2;
+  // Server id for github_repository; empty is github.com.
+  string github_server = 3;
 }
 
 message GetGitHubRepositoryResponse {
@@ -373,9 +404,59 @@ message GetGitHubRepositoryResponse {
 
 message ListGitHubWorkflowsRequest {
   string repository_id = 1;
-  // "owner/name" on github.com, used instead of repository_id for a
-  // repository without a local clone.
+  // "owner/name" on the server github_server names, used instead of
+  // repository_id for a repository without a local clone.
   string github_repository = 2;
+  // Server id for github_repository; empty is github.com.
+  string github_server = 3;
+}
+
+message ListPullRequestsRequest {
+  // Closed pull requests from this time on; unset means the last 24 hours,
+  // and it reaches back at most 7 days.
+  google.protobuf.Timestamp closed_since = 1;
+  // Server id; empty is github.com.
+  string github_server = 2;
+}
+
+message ListPullRequestsResponse {
+  GitHubStatus status = 1;
+  repeated PullRequest open = 2;
+  repeated PullRequest closed = 3;
+  // The head of some open pull request could not be read, because the
+  // token lacks Pull requests read; their CI is UNKNOWN.
+  bool heads_unreadable = 4;
+}
+
+message PullRequest {
+  // "owner/name".
+  string repository = 1;
+  int64 number = 2;
+  string title = 3;
+  string html_url = 4;
+  // "open", "closed" or "merged".
+  string state = 5;
+  bool draft = 6;
+  string head_branch = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  google.protobuf.Timestamp closed_at = 9;
+  PullRequestCi ci = 10;
+  int32 ci_runs = 11;
+  int32 ci_failed = 12;
+  int32 ci_running = 13;
+  // The run to look at: the first failed one, else the first running one.
+  string ci_url = 14;
+}
+
+// The GitHub Actions runs on a pull request's head commit, summed up.
+enum PullRequestCi {
+  PULL_REQUEST_CI_UNSPECIFIED = 0;
+  PULL_REQUEST_CI_NONE = 1;
+  PULL_REQUEST_CI_RUNNING = 2;
+  PULL_REQUEST_CI_PASSED = 3;
+  PULL_REQUEST_CI_FAILED = 4;
+  PULL_REQUEST_CI_CANCELLED = 5;
+  PULL_REQUEST_CI_UNKNOWN = 6;
 }
 
 message GetGitHubOriginsRequest {
@@ -384,8 +465,8 @@ message GetGitHubOriginsRequest {
 }
 
 message GetGitHubOriginsResponse {
-  // One per path that has an origin on github.com; paths without one, or
-  // that cannot be read, are left out.
+  // One per path whose origin host is github.com or a server the Core
+  // holds; paths without one, or that cannot be read, are left out.
   repeated GitHubOrigin origins = 1;
 }
 
@@ -393,9 +474,14 @@ message GitHubOrigin {
   string path = 1;
   // "owner/name".
   string github_repository = 2;
+  // Server id of the origin's host; empty is github.com.
+  string github_server_id = 3;
 }
 
-message ListGitHubRepositoriesRequest {}
+message ListGitHubRepositoriesRequest {
+  // Server id; empty is github.com.
+  string github_server = 1;
+}
 
 message ListGitHubRepositoriesResponse {
   GitHubStatus status = 1;
@@ -466,9 +552,11 @@ message ListWorkflowRunsRequest {
   string branch = 2;
   // 1 to 100; 0 means 100.
   uint32 limit = 3;
-  // "owner/name" on github.com, used instead of repository_id for a
-  // repository without a local clone.
+  // "owner/name" on the server github_server names, used instead of
+  // repository_id for a repository without a local clone.
   string github_repository = 4;
+  // Server id for github_repository; empty is github.com.
+  string github_server = 5;
 }
 
 message ListWorkflowRunsResponse {
@@ -499,9 +587,11 @@ message WorkflowRun {
 message ListRunJobsRequest {
   string repository_id = 1;
   int64 run_id = 2;
-  // "owner/name" on github.com, used instead of repository_id for a
-  // repository without a local clone.
+  // "owner/name" on the server github_server names, used instead of
+  // repository_id for a repository without a local clone.
   string github_repository = 3;
+  // Server id for github_repository; empty is github.com.
+  string github_server = 4;
 }
 
 message ListRunJobsResponse {
@@ -531,9 +621,11 @@ message RunStep {
 
 message ListGitHubRefsRequest {
   string repository_id = 1;
-  // "owner/name" on github.com, used instead of repository_id for a
-  // repository without a local clone.
+  // "owner/name" on the server github_server names, used instead of
+  // repository_id for a repository without a local clone.
   string github_repository = 2;
+  // Server id for github_repository; empty is github.com.
+  string github_server = 3;
 }
 
 message ListGitHubRefsResponse {
@@ -565,9 +657,11 @@ message DescribeWorkflowDispatchRequest {
   string repository_id = 1;
   string workflow_path = 2;
   string ref = 3;
-  // "owner/name" on github.com, used instead of repository_id for a
-  // repository without a local clone.
+  // "owner/name" on the server github_server names, used instead of
+  // repository_id for a repository without a local clone.
   string github_repository = 4;
+  // Server id for github_repository; empty is github.com.
+  string github_server = 5;
 }
 
 message DescribeWorkflowDispatchResponse {
@@ -585,9 +679,11 @@ message PrepareWorkflowDispatchRequest {
   string ref = 3;
   // Only the inputs the user set; GitHub applies the defaults.
   map<string, string> inputs = 4;
-  // "owner/name" on github.com, used instead of repository_id for a
-  // repository without a local clone.
+  // "owner/name" on the server github_server names, used instead of
+  // repository_id for a repository without a local clone.
   string github_repository = 5;
+  // Server id for github_repository; empty is github.com.
+  string github_server = 6;
 }
 
 message PrepareWorkflowDispatchResponse {

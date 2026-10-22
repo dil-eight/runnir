@@ -35,6 +35,14 @@ final class RepositorySession: Identifiable {
     fileprivate(set) var branch = ""
     /// The GitHub repository this working tree pushes to ("owner/name").
     fileprivate(set) var githubRepository: String?
+    /// The server of `githubRepository`; empty is github.com.
+    fileprivate(set) var githubServerID: String?
+    /// The origin's host, even when it is on no server Runnir knows.
+    fileprivate(set) var originHost: String?
+    /// `githubRepository` on its server.
+    var githubRef: GitHubRepositoryRef? {
+        githubRepository.map { GitHubRepositoryRef(serverID: githubServerID ?? "", fullName: $0) }
+    }
     fileprivate(set) var workflows: [CoreWorkflow] = []
     fileprivate(set) var lastRefresh: Date?
     fileprivate(set) var isRefreshing = false
@@ -121,6 +129,8 @@ final class CoreHub {
     @ObservationIgnored var githubTokenProvider: (@MainActor () async -> String?)?
     /// Called when GitHub refused the token, so the account can sign out.
     @ObservationIgnored var onGitHubTokenRejected: (@MainActor () async -> Void)?
+    /// A local run finished, with its workspace's name.
+    @ObservationIgnored var onLocalRunFinished: (@MainActor (LocalRunModel, String) -> Void)?
     /// How often runs are re-read while any of them is queued or running.
     @ObservationIgnored var githubPollInterval: Duration = .seconds(20)
     /// How often runs are re-read otherwise, so new pushes and runs started
@@ -185,7 +195,7 @@ final class CoreHub {
             ownCloses.removeAll()
             startEvents()
             // A new Core process starts without a token.
-            Task { await pushGitHubCredential() }
+            schedulePush()
             // Not awaited: later states (a lost Core) must not wait for slow scans.
             Task { await openAll() }
         case .lost:
@@ -208,23 +218,103 @@ final class CoreHub {
     /// Call after sign-in, sign-out or a rejected token so the Core holds the
     /// current token, or none.
     func githubCredentialChanged() {
-        Task { await pushGitHubCredential() }
+        schedulePush()
+    }
+
+    /// Pushes run one after another, each reading the token and servers
+    /// when it starts: a slow one (a Keychain prompt) cannot hand the Core
+    /// a server removed while it waited.
+    @ObservationIgnored private var credentialPush: Task<Void, Never>?
+
+    private func schedulePush() {
+        let previous = credentialPush
+        credentialPush = Task { await previous?.value; await pushGitHubCredential() }
     }
 
     /// Counts the tokens handed to the Core, so a view that read GitHub
     /// before the Core had the new one (just after signing in) reads again.
     private(set) var credentialGeneration = 0
 
-    /// The kind of the token the Core holds; nil when it holds none.
-    private(set) var credentialKind: CoreGitHubCredentialKind?
+    /// The Enterprise servers to sign in to, with their tokens.
+    @ObservationIgnored var enterpriseCredentialsProvider: (@MainActor () async -> [(server: GitHubServerRef, token: String)])?
+
+    /// Kinds of the tokens the Core holds, by server id ("" is github.com).
+    private(set) var credentialKinds: [String: CoreGitHubCredentialKind] = [:]
+    /// github.com's token kind; nil when signed out of github.com.
+    var credentialKind: CoreGitHubCredentialKind? { credentialKinds[""] }
+    /// Servers the Core holds a token for: github.com first, then Enterprise.
+    private(set) var signedInServers: [GitHubServerRef] = []
+    /// Every Enterprise server handed over, signed in or not, for names.
+    private(set) var enterpriseServers: [GitHubServerRef] = []
+
+    /// An Enterprise server by id; nil for github.com ("" or nil) or one
+    /// the hub was not given.
+    func serverRef(for serverID: String?) -> GitHubServerRef? {
+        guard let serverID, !serverID.isEmpty else { return nil }
+        return enterpriseServers.first { $0.id == serverID }
+    }
+
+    /// The kind of token the Core holds for a server; "" or nil is github.com.
+    func credentialKind(for serverID: String?) -> CoreGitHubCredentialKind? {
+        credentialKinds[serverID ?? ""]
+    }
+
+    /// Help for a workspace's access outcome, with its server and origin.
+    func accessHelp(_ access: CoreGitHubAccess, workspaceID: UUID, purpose: GitHubAccessHelp.Purpose,
+                    details: CoreGitHubRepository? = nil) -> GitHubAccessHelp? {
+        let session = sessions[workspaceID]
+        return GitHubAccessHelp.forAccess(access, repository: session?.githubRepository, purpose: purpose, details: details,
+                                          credential: credentialKind(for: session?.githubServerID),
+                                          server: serverRef(for: session?.githubServerID), originHost: session?.originHost)
+    }
+    @ObservationIgnored private var pushedEnterpriseIDs: Set<String> = []
 
     private func pushGitHubCredential() async {
         guard isReady, let service = try? await provider.service() else { return }
-        let token = await githubTokenProvider?()
-        credentialKind = (try? await service.setGitHubCredential(token)) ?? nil
+        var kinds: [String: CoreGitHubCredentialKind] = [:]
+        var servers: [GitHubServerRef] = []
+        if let kind = (try? await service.setGitHubCredential(await githubTokenProvider?(), server: .dotCom)) ?? nil {
+            kinds[""] = kind
+            servers.append(.dotCom)
+        }
+        let enterprise = await enterpriseCredentialsProvider?() ?? []
+        for (server, token) in enterprise {
+            if let kind = (try? await service.setGitHubCredential(token, server: server)) ?? nil {
+                kinds[server.id] = kind
+                servers.append(server)
+            }
+        }
+        // Forget servers removed since the last push.
+        let current = Set(enterprise.map(\.server.id))
+        for id in pushedEnterpriseIDs.subtracting(current) {
+            _ = try? await service.setGitHubCredential(nil, server: GitHubServerRef(id: id, apiURL: nil, webHost: ""))
+        }
+        // Which GitHub server a working tree is on depends on the servers
+        // the Core holds: when they changed, open repositories are read again.
+        let serversChanged = current != pushedEnterpriseIDs
+        pushedEnterpriseIDs = current
+        enterpriseServers = enterprise.map(\.server)
+        credentialKinds = kinds
+        signedInServers = servers
         credentialGeneration += 1
         // What the Core may read changed: reload every repository's activity.
-        for workspaceID in sessions.keys { await loadGitHubActivity(workspaceID: workspaceID) }
+        for workspaceID in sessions.keys {
+            if serversChanged { await refresh(workspaceID: workspaceID) } else { await loadGitHubActivity(workspaceID: workspaceID) }
+        }
+    }
+
+    /// Whether a call's repository is on github.com, whose rejected sign-in
+    /// GitHubSession forgets. An Enterprise server's rejected token is
+    /// forgotten by the Core alone; its notice asks for a new token.
+    private func isDotCom(_ target: GitHubTarget) -> Bool {
+        switch target {
+        case .workspace(let workspaceID): (sessions[workspaceID]?.githubServerID ?? "").isEmpty
+        case .repository(let ref): ref.serverID.isEmpty
+        }
+    }
+
+    private func tokenRejected(on target: GitHubTarget) async {
+        if isDotCom(target) { await onGitHubTokenRejected?() }
     }
 
     // MARK: GitHub activity
@@ -274,7 +364,7 @@ final class CoreHub {
                 session.runs = []
                 session.remoteWorkflows = []
             }
-            if runs.access == .tokenRejected { await onGitHubTokenRejected?() }
+            if runs.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
             // Whether an owner has to accept permissions, or the user lacks
             // access, decides what the notice asks for.
             if runs.access == .permissionMissing { await githubRepository(workspaceID: workspaceID) }
@@ -310,10 +400,10 @@ final class CoreHub {
     }
 
     /// The repository a GitHub call is about: a workspace's origin, or a
-    /// github.com repository named "owner/name" that has no local clone.
+    /// repository on a server that has no local clone.
     enum GitHubTarget: Hashable, Sendable {
         case workspace(UUID)
-        case repository(String)
+        case repository(GitHubRepositoryRef)
     }
 
     private func serviceAndTarget(_ target: GitHubTarget) async -> (any CoreServicing, CoreGitHubTarget)? {
@@ -321,9 +411,9 @@ final class CoreHub {
         case .workspace(let workspaceID):
             guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return nil }
             return (service, .repository(coreID))
-        case .repository(let name):
+        case .repository(let ref):
             guard isReady, let service = try? await provider.service() else { return nil }
-            return (service, .named(name))
+            return (service, .named(ref))
         }
     }
 
@@ -334,7 +424,7 @@ final class CoreHub {
               let refs = try? await service.listGitHubRefs(target: coreTarget) else {
             return CoreGitHubRefs(access: .unavailable, defaultBranch: "", branches: [], tags: [])
         }
-        if refs.access == .tokenRejected { await onGitHubTokenRejected?() }
+        if refs.access == .tokenRejected { await tokenRejected(on: target) }
         return refs
     }
 
@@ -347,7 +437,7 @@ final class CoreHub {
               let definition = try? await service.describeWorkflowDispatch(target: coreTarget, workflowPath: workflowPath, ref: ref) else {
             return CoreDispatchDefinition(access: .unavailable, dispatchable: false, inputs: [], parseError: nil)
         }
-        if definition.access == .tokenRejected { await onGitHubTokenRejected?() }
+        if definition.access == .tokenRejected { await tokenRejected(on: target) }
         return definition
     }
 
@@ -360,7 +450,7 @@ final class CoreHub {
               let prepared = try? await service.prepareWorkflowDispatch(target: coreTarget, workflowID: workflowID, ref: ref, inputs: inputs) else {
             return CorePreparedDispatch(access: .unavailable, dispatchID: nil, expiresAt: nil, problems: [], workflowPath: "")
         }
-        if prepared.access == .tokenRejected { await onGitHubTokenRejected?() }
+        if prepared.access == .tokenRejected { await tokenRejected(on: target) }
         return prepared
     }
 
@@ -373,7 +463,7 @@ final class CoreHub {
     func confirmDispatch(target: GitHubTarget, dispatchID: String) async -> CoreDispatchResult? {
         guard let (service, _) = await serviceAndTarget(target),
               let result = try? await service.confirmWorkflowDispatch(dispatchID: dispatchID) else { return nil }
-        if result.access == .tokenRejected { await onGitHubTokenRejected?() }
+        if result.access == .tokenRejected { await tokenRejected(on: target) }
         return result
     }
 
@@ -432,7 +522,7 @@ final class CoreHub {
         if case .workspace(let workspaceID) = target { return await githubRepository(workspaceID: workspaceID) }
         guard let (service, coreTarget) = await serviceAndTarget(target),
               let repository = try? await service.gitHubRepository(target: coreTarget) else { return .failed(.unavailable) }
-        if repository.access == .tokenRejected { await onGitHubTokenRejected?() }
+        if repository.access == .tokenRejected { await tokenRejected(on: target) }
         return repository
     }
 
@@ -440,17 +530,52 @@ final class CoreHub {
 
     /// The GitHub repository of each working tree's origin, by path; nil
     /// when the Core is not ready.
-    func githubOrigins(paths: [String]) async -> [String: String]? {
+    func githubOrigins(paths: [String]) async -> [String: GitHubRepositoryRef]? {
         guard isReady, let service = try? await provider.service() else { return nil }
         return try? await service.githubOrigins(paths: Array(paths.prefix(500)))
     }
 
+    /// Pull requests from every signed-in server, merged newest first, each
+    /// with its server. `.ok` when any server answered, else the first
+    /// failure.
+    func pullRequests(closedSince: Date) async -> CorePullRequests {
+        guard isReady, let service = try? await provider.service() else { return .failed(.unavailable) }
+        // Before the first push github.com is asked, and says if it has no token.
+        let servers = signedInServers.isEmpty ? [GitHubServerRef.dotCom] : signedInServers
+        var open: [CorePullRequest] = [], closed: [CorePullRequest] = []
+        var answered = 0, headsUnreadable = false
+        var firstFailure: CoreGitHubAccess?
+        for server in servers {
+            guard let result = try? await service.listPullRequests(server: server.id, closedSince: closedSince) else {
+                firstFailure = firstFailure ?? .unavailable
+                continue
+            }
+            if result.access == .tokenRejected, server.isDotCom { await onGitHubTokenRejected?() }
+            guard result.access == .ok else {
+                firstFailure = firstFailure ?? result.access
+                continue
+            }
+            answered += 1
+            headsUnreadable = headsUnreadable || result.headsUnreadable
+            open += result.open.map { var pr = $0; pr.server = server.id; return pr }
+            closed += result.closed.map { var pr = $0; pr.server = server.id; return pr }
+        }
+        guard answered > 0 else { return .failed(firstFailure ?? .unavailable) }
+        // Each server's list is already newest first; only a merge is sorted.
+        if answered > 1 {
+            let newest: (CorePullRequest, CorePullRequest) -> Bool = { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
+            open.sort(by: newest)
+            closed.sort(by: newest)
+        }
+        return CorePullRequests(access: .ok, open: open, closed: closed, headsUnreadable: headsUnreadable)
+    }
+
     /// What a token can do, asked of GitHub through the Core without
     /// changing the token the Core holds.
-    func checkGitHubToken(_ token: String) async -> CoreGitHubTokenCheck {
+    func checkGitHubToken(_ token: String, server: GitHubServerRef = .dotCom) async -> CoreGitHubTokenCheck {
         guard isReady, let service = try? await provider.service() else { return .failed(.unavailable) }
         do {
-            return try await service.checkGitHubToken(token)
+            return try await service.checkGitHubToken(token, server: server)
         } catch CoreServiceError.invalidArgument {
             return .failed(.tokenRejected)
         } catch {
@@ -458,11 +583,11 @@ final class CoreHub {
         }
     }
 
-    /// The github.com repositories the signed-in user's token reaches.
-    func accountRepositories() async -> CoreGitHubAccount {
+    /// The repositories a server's token reaches; "" is github.com.
+    func accountRepositories(server: String = "") async -> CoreGitHubAccount {
         guard isReady, let service = try? await provider.service() else { return .failed(.unavailable) }
-        guard let account = try? await service.listGitHubRepositories() else { return .failed(.unavailable) }
-        if account.access == .tokenRejected { await onGitHubTokenRejected?() }
+        guard let account = try? await service.listGitHubRepositories(server: server) else { return .failed(.unavailable) }
+        if account.access == .tokenRejected, server.isEmpty { await onGitHubTokenRejected?() }
         return account
     }
 
@@ -472,7 +597,7 @@ final class CoreHub {
               let result = try? await service.listGitHubWorkflows(target: coreTarget) else {
             return CoreGitHubResult(access: .unavailable, items: [])
         }
-        if result.access == .tokenRejected { await onGitHubTokenRejected?() }
+        if result.access == .tokenRejected { await tokenRejected(on: target) }
         return result
     }
 
@@ -482,7 +607,7 @@ final class CoreHub {
               let result = try? await service.listWorkflowRuns(target: coreTarget, branch: nil, limit: limit) else {
             return CoreGitHubResult(access: .unavailable, items: [])
         }
-        if result.access == .tokenRejected { await onGitHubTokenRejected?() }
+        if result.access == .tokenRejected { await tokenRejected(on: target) }
         return result
     }
 
@@ -493,7 +618,7 @@ final class CoreHub {
         guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return .failed(.unavailable) }
         do {
             let repository = try await service.gitHubRepository(repositoryID: coreID)
-            if repository.access == .tokenRejected { await onGitHubTokenRejected?() }
+            if repository.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
             if let session = sessions[workspaceID], session.coreID == coreID { session.githubDetails = repository }
             return repository
         } catch {
@@ -509,7 +634,7 @@ final class CoreHub {
         }
         do {
             let result = try await service.listRunJobs(repositoryID: coreID, runID: runID)
-            if result.access == .tokenRejected { await onGitHubTokenRejected?() }
+            if result.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
             return result
         } catch {
             return CoreGitHubResult(access: .unavailable, items: [])
@@ -662,6 +787,8 @@ final class CoreHub {
             let execution = try await service.confirmLocalRun(confirmationID: confirmationID)
             guard let session = sessions[workspaceID] else { return .failed("The workspace was closed.") }
             let model = LocalRunModel(executionID: execution.id, workspaceID: workspaceID, plan: prepared.plan)
+            let name = (session.path as NSString).lastPathComponent
+            model.onFinish = { [weak self] run in self?.onLocalRunFinished?(run, name) }
             session.localRun?.stopFollowing()
             session.localRun = model
             model.follow(hub: self)
@@ -728,7 +855,7 @@ final class CoreHub {
         guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return .failed(.unavailable) }
         do {
             let log = try await service.jobLog(repositoryID: coreID, jobID: jobID)
-            if log.access == .tokenRejected { await onGitHubTokenRejected?() }
+            if log.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
             return log
         } catch {
             return .failed(.unavailable)
@@ -740,7 +867,7 @@ final class CoreHub {
               let prepared = try? await service.prepareRunAction(repositoryID: coreID, runID: runID, action: action) else {
             return CorePreparedRunAction(access: .unavailable, actionID: nil, expiresAt: nil, problems: [], run: nil)
         }
-        if prepared.access == .tokenRejected { await onGitHubTokenRejected?() }
+        if prepared.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
         return prepared
     }
 
@@ -749,7 +876,7 @@ final class CoreHub {
     func confirmRunAction(workspaceID: UUID, actionID: String) async -> CoreRunActionResult? {
         guard let (service, _) = await serviceAndCoreID(workspaceID),
               let result = try? await service.confirmRunAction(actionID: actionID) else { return nil }
-        if result.access == .tokenRejected { await onGitHubTokenRejected?() }
+        if result.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
         return result
     }
 
@@ -945,6 +1072,8 @@ final class CoreHub {
         session.coreID = repository.id
         session.branch = repository.branch
         session.githubRepository = repository.githubRepository
+        session.githubServerID = repository.githubServerID
+        session.originHost = repository.originHost
         session.lastRefresh = repository.lastRefresh
         session.workflows = workflows
     }

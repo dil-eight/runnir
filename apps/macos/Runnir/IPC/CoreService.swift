@@ -17,8 +17,13 @@ struct CoreRepository: Equatable, Identifiable, Sendable {
     let branch: String
     let workflowCount: Int
     let lastRefresh: Date?
-    /// "owner/name" from the origin remote on github.com, if any.
+    /// "owner/name" from the origin remote, on github.com or an Enterprise
+    /// server the Core holds, if any.
     var githubRepository: String? = nil
+    /// Server id of `githubRepository`; empty is github.com.
+    var githubServerID: String? = nil
+    /// The origin's host, even when no server matches it.
+    var originHost: String? = nil
 }
 
 struct CoreJob: Equatable, Sendable {
@@ -139,18 +144,23 @@ protocol CoreServicing: Sendable {
     func createWorkflowFile(repositoryID: String, fileName: String, content: String) async throws -> String
     /// Renames a workflow file within its folder; returns the new workflow id.
     func renameWorkflowFile(repositoryID: String, workflowID: String, newFileName: String) async throws -> String
-    /// Hands the signed-in user's GitHub token to the Core's memory; nil clears it.
-    /// The kind of the token now held, nil when cleared.
+    /// Hands a server's GitHub token to the Core's memory; nil clears it
+    /// (for an Enterprise server, forgets the server). The kind of the
+    /// token now held, nil when cleared.
     @discardableResult
-    func setGitHubCredential(_ token: String?) async throws -> CoreGitHubCredentialKind?
-    /// What a token can do; the held token is not changed.
-    func checkGitHubToken(_ token: String) async throws -> CoreGitHubTokenCheck
-    /// "owner/name" of the github.com repository each working tree's origin
-    /// points at, by path; read from git's metadata without opening them.
-    func githubOrigins(paths: [String]) async throws -> [String: String]
-    /// The github.com repositories the token reaches, and the accounts where
-    /// the Runnir Desktop app is installed.
-    func listGitHubRepositories() async throws -> CoreGitHubAccount
+    func setGitHubCredential(_ token: String?, server: GitHubServerRef) async throws -> CoreGitHubCredentialKind?
+    /// What a token can do on a server; the held tokens are not changed.
+    func checkGitHubToken(_ token: String, server: GitHubServerRef) async throws -> CoreGitHubTokenCheck
+    /// The user's open pull requests on one server with their CI, and those
+    /// closed since.
+    func listPullRequests(server: String, closedSince: Date) async throws -> CorePullRequests
+    /// The repository each working tree's origin points at, on github.com or
+    /// an Enterprise server the Core holds, by path; read from git's
+    /// metadata without opening them.
+    func githubOrigins(paths: [String]) async throws -> [String: GitHubRepositoryRef]
+    /// The repositories a server's token reaches, and the accounts where the
+    /// Runnir Desktop app is installed (github.com).
+    func listGitHubRepositories(server: String) async throws -> CoreGitHubAccount
     /// GitHub Actions data for a repository's origin on github.com, or for a
     /// repository named directly.
     func listGitHubWorkflows(target: CoreGitHubTarget) async throws -> CoreGitHubResult<CoreGitHubWorkflow>
@@ -193,11 +203,21 @@ protocol CoreServicing: Sendable {
 enum CoreGitHubTarget: Hashable, Sendable {
     /// The origin of a repository open in the Core, by its Core id.
     case repository(String)
-    /// A github.com repository named "owner/name", with no local clone.
-    case named(String)
+    /// A repository with no local clone, on its server.
+    case named(GitHubRepositoryRef)
 }
 
 extension CoreServicing {
+    /// github.com's token.
+    @discardableResult
+    func setGitHubCredential(_ token: String?) async throws -> CoreGitHubCredentialKind? {
+        try await setGitHubCredential(token, server: .dotCom)
+    }
+
+    func checkGitHubToken(_ token: String) async throws -> CoreGitHubTokenCheck {
+        try await checkGitHubToken(token, server: .dotCom)
+    }
+
     func gitHubRepository(repositoryID: String) async throws -> CoreGitHubRepository {
         try await gitHubRepository(target: .repository(repositoryID))
     }

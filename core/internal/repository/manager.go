@@ -36,8 +36,10 @@ type Scanner interface {
 // wholesale and never mutate one after publishing it; callers must not either.
 type Snapshot struct {
 	Branch string
-	// GitHubRepository is "owner/name" from the origin remote, or empty.
-	GitHubRepository string
+	// OriginHost is the origin remote's host, lowercased; OriginRepository
+	// its "owner/name". Both empty without a readable origin.
+	OriginHost       string
+	OriginRepository string
 	Workflows        []Workflow
 }
 
@@ -60,7 +62,8 @@ type Info struct {
 	ID               string
 	Path             string
 	Branch           string
-	GitHubRepository string
+	OriginHost       string
+	OriginRepository string
 	WorkflowCount    int
 	LastRefresh      time.Time
 }
@@ -116,7 +119,7 @@ type entry struct {
 func (e *entry) info() Info {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	return Info{ID: e.id, Path: e.path, Branch: e.snap.Branch, GitHubRepository: e.snap.GitHubRepository,
+	return Info{ID: e.id, Path: e.path, Branch: e.snap.Branch, OriginHost: e.snap.OriginHost, OriginRepository: e.snap.OriginRepository,
 		WorkflowCount: len(e.snap.Workflows), LastRefresh: e.last}
 }
 
@@ -254,7 +257,7 @@ func (m *Manager) Refresh(ctx context.Context, id string) (Info, error) {
 	// Emitted under the entry lock so a concurrent Close, which takes the
 	// same lock first, always reports CLOSED after this REFRESHED.
 	m.emit(Event{Type: RepositoryRefreshed, RepositoryID: e.id})
-	info := Info{ID: e.id, Path: e.path, Branch: e.snap.Branch, GitHubRepository: e.snap.GitHubRepository,
+	info := Info{ID: e.id, Path: e.path, Branch: e.snap.Branch, OriginHost: e.snap.OriginHost, OriginRepository: e.snap.OriginRepository,
 		WorkflowCount: len(e.snap.Workflows), LastRefresh: e.last}
 	e.mu.Unlock()
 	return info, nil

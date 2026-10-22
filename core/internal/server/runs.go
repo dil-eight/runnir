@@ -25,22 +25,24 @@ var jobLogBudget = 2 * time.Minute
 // runAction is exactly what ConfirmRunAction sends to GitHub.
 type runAction struct {
 	RepositoryID string
-	Owner        string
-	Name         string
-	RunID        int64
-	Action       corev1.RunAction
+	// ServerID is the GitHub server the repository is on; "" is github.com.
+	ServerID string
+	Owner    string
+	Name     string
+	RunID    int64
+	Action   corev1.RunAction
 }
 
 func (s *service) GetJobLog(ctx context.Context, request *corev1.GetJobLogRequest) (*corev1.GetJobLogResponse, error) {
 	if request.GetJobId() <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "job_id is required")
 	}
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), "")
+	target, problem, err := s.githubTarget(request.GetRepositoryId(), "", "")
 	if err != nil || problem != nil {
 		return &corev1.GetJobLogResponse{Status: problem}, err
 	}
-	job, fetchErr := s.github.Job(ctx, owner, name, request.GetJobId())
-	result, err := s.githubStatus(fetchErr)
+	job, fetchErr := target.account.Client.Job(ctx, target.owner, target.name, request.GetJobId())
+	result, err := s.githubStatus(target.account, fetchErr)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +57,7 @@ func (s *service) GetJobLog(ctx context.Context, request *corev1.GetJobLogReques
 	// Bound the whole download so the Core answers before the app gives up.
 	logCtx, cancel := context.WithTimeout(ctx, jobLogBudget)
 	defer cancel()
-	log, logErr := s.github.JobLog(logCtx, owner, name, request.GetJobId(), 0)
+	log, logErr := target.account.Client.JobLog(logCtx, target.owner, target.name, request.GetJobId(), 0)
 	if errors.Is(logErr, context.DeadlineExceeded) && ctx.Err() == nil {
 		logErr = github.ErrUnavailable
 	}
@@ -63,7 +65,7 @@ func (s *service) GetJobLog(ctx context.Context, request *corev1.GetJobLogReques
 		out.Availability = missingLogAvailability(job, time.Now())
 		return out, nil
 	}
-	if out.Status, err = s.githubStatus(logErr); err != nil {
+	if out.Status, err = s.githubStatus(target.account, logErr); err != nil {
 		return nil, err
 	}
 	if logErr != nil {
@@ -94,12 +96,12 @@ func (s *service) PrepareRunAction(ctx context.Context, request *corev1.PrepareR
 	if request.GetRunId() <= 0 || action == corev1.RunAction_RUN_ACTION_UNSPECIFIED || corev1.RunAction_name[int32(action)] == "" {
 		return nil, status.Error(codes.InvalidArgument, "run_id and a known action are required")
 	}
-	owner, name, problem, err := s.githubTarget(request.GetRepositoryId(), "")
+	target, problem, err := s.githubTarget(request.GetRepositoryId(), "", "")
 	if err != nil || problem != nil {
 		return &corev1.PrepareRunActionResponse{Status: problem}, err
 	}
-	run, fetchErr := s.github.Run(ctx, owner, name, request.GetRunId())
-	result, err := s.githubStatus(fetchErr)
+	run, fetchErr := target.account.Client.Run(ctx, target.owner, target.name, request.GetRunId())
+	result, err := s.githubStatus(target.account, fetchErr)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +115,8 @@ func (s *service) PrepareRunAction(ctx context.Context, request *corev1.PrepareR
 		return out, nil
 	}
 	pending, err := s.runActions.Prepare(runAction{
-		RepositoryID: request.GetRepositoryId(), Owner: owner, Name: name, RunID: run.ID, Action: action,
+		RepositoryID: request.GetRepositoryId(), ServerID: target.account.Server.ID, Owner: target.owner, Name: target.name,
+		RunID: run.ID, Action: action,
 	})
 	if errors.Is(err, approval.ErrTooMany) {
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
@@ -133,14 +136,19 @@ func (s *service) ConfirmRunAction(ctx context.Context, request *corev1.ConfirmR
 	if _, err := s.repositories.Get(prepared.RepositoryID); err != nil {
 		return nil, rpcError(err)
 	}
+	// The server it was prepared for; one removed since is signed out.
+	account, ok := s.accounts.Get(prepared.ServerID)
+	if !ok {
+		return &corev1.ConfirmRunActionResponse{Status: &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_SIGNED_OUT}}, nil
+	}
 	var sendErr error
 	switch prepared.Action {
 	case corev1.RunAction_RUN_ACTION_CANCEL:
-		sendErr = s.github.CancelRun(ctx, prepared.Owner, prepared.Name, prepared.RunID)
+		sendErr = account.Client.CancelRun(ctx, prepared.Owner, prepared.Name, prepared.RunID)
 	case corev1.RunAction_RUN_ACTION_RERUN:
-		sendErr = s.github.RerunRun(ctx, prepared.Owner, prepared.Name, prepared.RunID, false)
+		sendErr = account.Client.RerunRun(ctx, prepared.Owner, prepared.Name, prepared.RunID, false)
 	case corev1.RunAction_RUN_ACTION_RERUN_FAILED:
-		sendErr = s.github.RerunRun(ctx, prepared.Owner, prepared.Name, prepared.RunID, true)
+		sendErr = account.Client.RerunRun(ctx, prepared.Owner, prepared.Name, prepared.RunID, true)
 	}
 	acceptedAt := time.Now()
 	var rejected *github.RejectedError
@@ -150,7 +158,7 @@ func (s *service) ConfirmRunAction(ctx context.Context, request *corev1.ConfirmR
 			Rejection: rejected.Message,
 		}, nil
 	}
-	result, err := s.githubStatus(sendErr)
+	result, err := s.githubStatus(account, sendErr)
 	if err != nil {
 		return nil, err
 	}

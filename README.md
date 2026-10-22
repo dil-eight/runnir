@@ -10,7 +10,11 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 - GitHub tab in the Workspace Manager: the repositories of every account where the Runnir Desktop app is installed, with search, an owner filter and stars. A repository opens as its registered workspace. One without a local clone shows its workflows with their latest runs and recent runs, and its workflows can be started from there. Runnir never clones a repository.
 - When GitHub refuses something, Runnir says what is missing and offers the one step that fixes it: connect, sign in again, give the app access to a repository, have an owner accept the app's new permissions, or ask for write access. Lists show this as a banner, sections as a note, actions as an alert.
 - Sign in with a personal access token instead of the Runnir Desktop app: Runnir checks what the token can do first and says what to choose for one that fits.
-- Settings › Manual Runs can require Touch ID (or the Mac's password) before Run Workflow sends a run to GitHub. Off by default.
+- GitHub Enterprise servers next to github.com (Settings › Account): each signs in with a personal access token, and working trees, the GitHub tab, Run Workflow and the pull request list use the server the repository is on. Verified with tests and a local fake Enterprise server, not yet against a real one.
+- Menu bar item: your open pull requests with their GitHub Actions CI, and those closed in the last day, which you can remove from the list. Its icon is the Runnir mark, with a red dot when a check failed and a teal one while checks run. ⌥⌘R opens the same list in a window from any app; Settings › Pull Requests turns the shortcut off or changes it and says when another shortcut already uses it.
+- Notifications sent by this Mac only, through macOS's notification center (Settings › Notifications): when the checks of a pull request you opened finish, and when a local run with act finishes or fails. Successes and failures by default, or failures only. Nothing goes through a server. Verified with a local fake Enterprise server: a failed check showed a banner.
+- Settings open over the window you are in, with the window blurred behind them, in sections: Account, Runs, Notifications, Pull Requests, Tools and Privacy. They are open over one window at a time.
+- Settings › Runs can require Touch ID (or the Mac's password) before Run Workflow sends a run to GitHub. Off by default.
 - Local repository import with security-scoped bookmarks (a stale bookmark is refreshed, a moved folder followed), versioned atomic session storage and missing-folder recovery.
 - Workflow editor in the Workspace section with line numbers, YAML colors and lines with diagnostics marked. Saving goes through the Go Core, which writes inside the repository only, replaces the file in one step, and refuses to overwrite a file that changed on disk since it was opened unless you choose Save Anyway. Runnir asks before unsaved edits would be lost, and checks the file again after saving. New workflow files start from a small workflow you can run by hand; renaming a file keeps its unsaved edits and star, and copies its presets to the new name while GitHub still knows the old one. Neither ever replaces another file, and nothing is committed.
 - GitHub sign-in with the Device Flow of the registered Runnir Desktop GitHub App: no client secret in the app, the token only in the Keychain and in the Core's memory, sign-out, and automatic retry after an offline launch. Confirmed with a real sign-in.
@@ -89,6 +93,12 @@ Run unit tests:
 
 ```bash
 xcodebuild -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'platform=macOS' test -only-testing:RunnirTests
+```
+
+A Debug build is signed by the linker with the identifier `Runnir` rather than its bundle identifier, and macOS refuses notifications to it. To try notifications from a Debug build, sign it ad hoc with its bundle identifier first:
+
+```bash
+codesign --force --sign - --identifier com.dileight.runnir path/to/Runnir.app
 ```
 
 Run static analyzer:

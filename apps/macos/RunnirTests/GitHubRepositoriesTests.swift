@@ -124,6 +124,21 @@ struct GitHubRepositoriesTests {
         #expect(model.repositories.isEmpty && model.selected == nil && model.loadedLogin == nil)
     }
 
+    @Test func aListReadInFullIsNoLongerShownAsCut() async {
+        let (hub, provider) = await readyHub()
+        provider.core.accountResult = CoreGitHubAccount(access: .ok, installations: [], repositories: [repository("o/r")], truncated: true)
+        let model = GitHubRepositoriesModel()
+        await model.load(hub: hub, login: "me")
+        #expect(model.truncated)
+        // A failed read keeps what the last one said.
+        provider.core.accountResult = .failed(.unavailable)
+        await model.load(hub: hub, login: "me")
+        #expect(model.truncated)
+        provider.core.accountResult = CoreGitHubAccount(access: .ok, installations: [], repositories: [repository("o/r")], truncated: false)
+        await model.load(hub: hub, login: "me")
+        #expect(!model.truncated)
+    }
+
     @Test func aNewTokenInTheCoreIsCounted() async {
         let (hub, _) = await readyHub()
         // A ready Core is handed the token once by itself; count from after that.
@@ -159,7 +174,7 @@ struct GitHubRepositoriesTests {
         let (hub, provider) = await readyHub()
         let workflow = CoreGitHubWorkflow(id: 1, name: "CI", path: ".github/workflows/ci.yml", state: "active", htmlURL: nil)
         let presets = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: directory()))
-        let form = DispatchFormModel(target: .repository("o/r"), hub: hub, workflows: [workflow], workflowID: 1,
+        let form = DispatchFormModel(target: .repository(GitHubRepositoryRef(serverID: "", fullName: "o/r")), hub: hub, workflows: [workflow], workflowID: 1,
                                      currentBranch: "main", presets: presets)
         #expect(form.presets == nil && form.workspaceID == nil, "presets belong to workspaces")
         await form.load()
@@ -201,6 +216,72 @@ struct GitHubRepositoriesTests {
         // An origin no longer on github.com forgets the name.
         desktop.noteGitHubRepository(nil, workspaceID: newer.id)
         #expect(desktop.workspace(forGitHubRepository: "dil-eight/runnir")?.id == older.id)
+    }
+
+    @Test func everyAccountIsInOneList() async {
+        let (hub, provider) = await readyHub()
+        let company = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"
+        provider.core.accountsByServer = [
+            "": CoreGitHubAccount(access: .ok, installations: [], repositories: [repository("o/r")], truncated: false),
+            company: CoreGitHubAccount(access: .ok, installations: [], repositories: [repository("o/r"), repository("org/app")], truncated: false,
+                                       credentialKind: .classic),
+        ]
+        let model = GitHubRepositoriesModel()
+        await model.load(hub: hub, login: "me", servers: [company])
+        #expect(model.repositories.map(\.ref.key) == ["o/r", "\(company):o/r", "\(company):org/app"])
+        #expect(Set(model.repositories.map(\.id)).count == 3, "o/r on two servers is two rows")
+        #expect(model.credentialKind == .appUser, "github.com's token kind")
+        #expect(!model.needsReload(for: "me", servers: [company]))
+        #expect(model.needsReload(for: "me", servers: []), "a removed server reads again")
+
+        model.selectedFullName = "\(company):o/r"
+        #expect(model.selected?.server == company)
+        model.owner = "org"
+        #expect(model.visible(favorites: RepositoryFavorites(store: nil)).map(\.ref.key) == ["\(company):org/app"])
+        model.owner = nil
+
+        // One server failing keeps its last list and does not hide the other.
+        provider.core.accountsByServer[company] = .failed(.unavailable)
+        await model.load(hub: hub, login: "me", servers: [company])
+        #expect(model.repositories.count == 3 && model.accessByServer[company] == .unavailable && model.accessByServer[""] == .ok)
+        #expect(model.needsReload(for: "me", servers: [company]))
+
+        // A removed server's repositories go.
+        await model.load(hub: hub, login: "me", servers: [])
+        #expect(model.repositories.map(\.ref.key) == ["o/r"] && model.selected == nil)
+    }
+
+    @Test func enterpriseOnlyListsWithoutAGitHubDotComSignIn() async {
+        let (hub, provider) = await readyHub()
+        let company = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"
+        provider.core.accountsByServer = [company: CoreGitHubAccount(access: .ok, installations: [], repositories: [repository("org/app")],
+                                                                     truncated: false, credentialKind: .classic)]
+        let model = GitHubRepositoriesModel()
+        await model.load(hub: hub, login: nil, servers: [company])
+        #expect(model.repositories.map(\.ref.key) == ["\(company):org/app"] && model.access == .ok)
+        #expect(model.accessByServer[""] == nil, "github.com is not asked")
+    }
+
+    @Test func starsAndClonesTellServersApart() async throws {
+        let folder = directory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let company = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"
+        let dotcom = GitHubRepositoryRef(serverID: "", fullName: "o/r")
+        let enterprise = GitHubRepositoryRef(serverID: company, fullName: "o/r")
+
+        let favorites = RepositoryFavorites(store: FileRepositoryFavoritesStore(directory: folder))
+        #expect(favorites.toggle(enterprise.key))
+        #expect(favorites.isFavorite(enterprise.key) && !favorites.isFavorite(dotcom.key))
+        #expect(RepositoryFavorites(store: FileRepositoryFavoritesStore(directory: folder)).names == [enterprise.key])
+
+        let store = FileDesktopStateStore(directory: folder)
+        let clone = WorkspaceRecord(id: UUID(), path: "/tmp/app", name: "app", bookmark: Data(), lastOpenedAt: Date())
+        try store.save(DesktopSnapshot(workspaces: [clone]))
+        let desktop = DesktopCoordinator(store: store)
+        await desktop.loadSession()
+        desktop.noteGitHubRepository(enterprise.key, workspaceID: clone.id)
+        #expect(desktop.workspace(for: enterprise)?.id == clone.id)
+        #expect(desktop.workspace(for: dotcom) == nil, "o/r on github.com is another repository")
     }
 
     @Test func registeredClonesAreFoundWithoutOpeningThem() async throws {

@@ -117,7 +117,7 @@ struct GitHubAccessHelpTests {
         provider.core.repositoryResult = CoreGitHubRepository(access: .ok, fullName: "o/r", visibility: "private", defaultBranch: "main",
                                                               htmlURL: nil, canPush: false)
         let workflow = CoreGitHubWorkflow(id: 1, name: "CI", path: ".github/workflows/ci.yml", state: "active", htmlURL: nil)
-        let form = DispatchFormModel(target: .repository("o/r"), hub: hub, workflows: [workflow], workflowID: 1, currentBranch: "main")
+        let form = DispatchFormModel(target: .repository(GitHubRepositoryRef(serverID: "", fullName: "o/r")), hub: hub, workflows: [workflow], workflowID: 1, currentBranch: "main")
         await form.load()
         await form.review()
         #expect(form.accessHelp?.fix == .askForWriteAccess)
@@ -144,5 +144,39 @@ struct GitHubAccessHelpTests {
         #expect(model.accessHelp?.fix == .askForWriteAccess)
         #expect(model.phase == .idle)
         #expect(provider.core.runActions.isEmpty, "nothing was asked of GitHub")
+    }
+}
+
+struct EnterpriseAccessHelpTests {
+    let company = GitHubServerRef(id: "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed", apiURL: URL(string: "https://github.company.com/api/v3"),
+                                  webHost: "github.company.com", webURL: URL(string: "https://github.company.com"))
+
+    @Test func enterpriseNoticesNameTheServer() {
+        let signedOut = GitHubAccessHelp.forAccess(.signedOut, repository: "org/app", purpose: .read, credential: nil, server: company)
+        #expect(signedOut?.title == "Sign in to github.company.com" && signedOut?.fix == .openSettings)
+        let rejected = GitHubAccessHelp.forAccess(.tokenRejected, repository: "org/app", purpose: .read, credential: .classic, server: company)
+        #expect(rejected?.fix == .openSettings && rejected?.message.contains("github.company.com") == true)
+        let hidden = GitHubAccessHelp.forAccess(.notVisible, repository: "org/app", purpose: .read, credential: .fineGrained, server: company)
+        #expect(hidden?.fix == .editToken(URL(string: "https://github.company.com/settings/personal-access-tokens")!))
+        let down = GitHubAccessHelp.forAccess(.unavailable, repository: "org/app", purpose: .read, credential: .classic, server: company)
+        #expect(down?.title == "github.company.com could not be reached")
+        // github.com keeps its own wording and fixes.
+        #expect(GitHubAccessHelp.forAccess(.signedOut, repository: "o/r", purpose: .read)?.fix == .connect)
+    }
+
+    @Test func anOriginOnAnUnknownHostSuggestsAddingTheServer() {
+        let unknown = GitHubAccessHelp.noRemote(originHost: "ghe.example")
+        #expect(unknown.fix == .openSettings && unknown.message.contains("ghe.example"))
+        #expect(GitHubAccessHelp.forAccess(.noRemote, repository: nil, purpose: .read, originHost: "ghe.example") == unknown)
+        #expect(GitHubAccessHelp.noRemote(originHost: nil).fix == .none)
+        #expect(GitHubAccessHelp.noRemote(originHost: "github.com").fix == .none)
+    }
+
+    @Test func theServerShowsOnAPullRequestWhenGiven() {
+        var pr = CorePullRequest(repository: "org/app", number: 3, title: "T", htmlURL: nil, state: "open", draft: false, headBranch: "b",
+                                 updatedAt: nil, closedAt: nil, ci: .passed, ciRuns: 1, ciFailed: 0, ciRunning: 0, ciURL: nil)
+        pr.server = company.id
+        #expect(PullRequestRow.subtitle(pr, serverHost: "github.company.com") == "github.company.com · org/app #3 · CI passed")
+        #expect(PullRequestRow.subtitle(pr, serverHost: nil) == "org/app #3 · CI passed")
     }
 }

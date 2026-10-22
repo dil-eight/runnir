@@ -3,8 +3,10 @@ import SwiftUI
 // MARK: Favorite repositories
 
 /// favorite-repositories.json in the app's support directory: the GitHub
-/// repositories starred in the Workspace Manager, by "owner/name", in the
-/// order they were starred. Versioned, bounded, written atomically.
+/// repositories starred in the Workspace Manager, by `GitHubRepositoryRef.key`
+/// ("owner/name" on github.com, "<server id>:owner/name" on an Enterprise
+/// server), in the order they were starred. Versioned, bounded, written
+/// atomically.
 struct FileRepositoryFavoritesStore: Sendable {
     let directory: URL
     var fileURL: URL { directory.appendingPathComponent("favorite-repositories.json") }
@@ -23,7 +25,7 @@ struct FileRepositoryFavoritesStore: Sendable {
 
     static func isValid(_ names: [String]) -> Bool {
         names.count <= maxRepositories && Set(names.map { $0.lowercased() }).count == names.count
-            && names.allSatisfy { GitHubRepositoryName.isValid($0) }
+            && names.allSatisfy { GitHubRepositoryRef(key: $0) != nil }
     }
 
     func load() throws -> [String] {
@@ -79,23 +81,23 @@ final class RepositoryFavorites {
 
     var isAvailable: Bool { store != nil && readable }
 
-    /// GitHub names are not case-sensitive.
-    func isFavorite(_ fullName: String) -> Bool {
-        names.contains { $0.caseInsensitiveCompare(fullName) == .orderedSame }
+    /// By repository key; GitHub names are not case-sensitive.
+    func isFavorite(_ key: String) -> Bool {
+        names.contains { $0.caseInsensitiveCompare(key) == .orderedSame }
     }
 
     @discardableResult
-    func toggle(_ fullName: String) -> Bool {
-        guard GitHubRepositoryName.isValid(fullName) else { return false }
+    func toggle(_ key: String) -> Bool {
+        guard GitHubRepositoryRef(key: key) != nil else { return false }
         var candidate = names
-        if let index = candidate.firstIndex(where: { $0.caseInsensitiveCompare(fullName) == .orderedSame }) {
+        if let index = candidate.firstIndex(where: { $0.caseInsensitiveCompare(key) == .orderedSame }) {
             candidate.remove(at: index)
         } else {
             guard candidate.count < FileRepositoryFavoritesStore.maxRepositories else {
                 problem = "At most \(FileRepositoryFavoritesStore.maxRepositories) repositories can be starred."
                 return false
             }
-            candidate.append(fullName)
+            candidate.append(key)
         }
         guard let store, readable else {
             problem = problem ?? "Stars are not available."
@@ -115,85 +117,145 @@ final class RepositoryFavorites {
 
 // MARK: Models
 
-/// The Workspace Manager's GitHub tab: the repositories the token reaches,
-/// with search, an owner filter and stars. The last list read stays shown
-/// when a reload fails.
+/// The Workspace Manager's GitHub tab: the repositories of every signed-in
+/// account — github.com and each Enterprise server — in one list, with
+/// search, an owner filter and stars. Each account's last list stays shown
+/// when its reload fails.
 @MainActor
 @Observable
 final class GitHubRepositoriesModel {
+    /// github.com's outcome, or the only account's; `accessByServer` has
+    /// every account's.
     private(set) var access: CoreGitHubAccess?
+    private(set) var accessByServer: [String: CoreGitHubAccess] = [:]
     private(set) var installations: [CoreGitHubInstallation] = []
+    /// Every account's repositories, each with its server: github.com's
+    /// first, then each Enterprise server's in the order asked.
     private(set) var repositories: [CoreGitHubAccountRepository] = []
-    private(set) var truncated = false
-    /// A personal token lists what it reaches; it has no installations.
+    /// Some account's list stopped at GitHub's limit of 1,000.
+    var truncated: Bool { !truncatedServers.isEmpty }
+    /// The accounts whose last read stopped at the limit.
+    private var truncatedServers: Set<String> = []
+    /// github.com's token kind: a personal token lists what it reaches; it
+    /// has no installations.
     private(set) var credentialKind: CoreGitHubCredentialKind = .appUser
     private(set) var loadedAt: Date?
-    /// The GitHub login the list was read for.
+    /// The github.com login the list was read for.
     private(set) var loadedLogin: String?
+    /// The Enterprise servers the list was read for.
+    private(set) var loadedServers: [String] = []
     private(set) var isLoading = false
     var search = ""
-    /// An installation account, or nil for all of them.
+    /// An owner, or nil for all of them.
     var owner: String?
     var starredOnly = false
+    /// The selected repository's key (`GitHubRepositoryRef.key`), which is
+    /// "owner/name" on github.com.
     var selectedFullName: String?
 
-    func load(hub: CoreHub, login: String?) async {
+    /// Reads github.com's list when `login` is set and each Enterprise
+    /// server's in `servers`, and merges them.
+    func load(hub: CoreHub, login: String?, servers: [String] = []) async {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
         // Another account's list, stars aside, is not this one's.
         if login != loadedLogin {
             installations = []
-            repositories = []
-            truncated = false
+            repositories.removeAll { $0.server.isEmpty }
+            accessByServer[""] = nil
+            truncatedServers.remove("")
             loadedAt = nil
             loadedLogin = nil
-            selectedFullName = nil
             owner = nil
         }
-        let account = await hub.accountRepositories()
-        access = account.access
-        guard account.access == .ok else {
-            if account.access == .signedOut || account.access == .tokenRejected {
-                repositories = []
-                installations = []
-                loadedAt = nil
+        // Servers no longer listed are dropped.
+        repositories.removeAll { !$0.server.isEmpty && !servers.contains($0.server) }
+        accessByServer = accessByServer.filter { $0.key.isEmpty || servers.contains($0.key) }
+        truncatedServers = truncatedServers.filter { $0.isEmpty || servers.contains($0) }
+
+        var asked: [String] = login == nil ? [] : [""]
+        asked += servers
+        var anyRead = false
+        for server in asked {
+            let account = await hub.accountRepositories(server: server)
+            accessByServer[server] = account.access
+            switch account.access {
+            case .ok:
+                anyRead = true
+                replace(server: server, with: account.repositories)
+                if server.isEmpty {
+                    installations = account.installations
+                    credentialKind = account.credentialKind
+                    loadedLogin = login
+                }
+                if account.truncated { truncatedServers.insert(server) } else { truncatedServers.remove(server) }
+            case .signedOut, .tokenRejected:
+                replace(server: server, with: [])
+                truncatedServers.remove(server)
+                if server.isEmpty { installations = [] }
+            default:
+                break // keep what was read; the access says it may be old
             }
-            return
         }
-        installations = account.installations
-        repositories = account.repositories
-        truncated = account.truncated
-        credentialKind = account.credentialKind
-        loadedAt = Date()
-        loadedLogin = login
-        if let selected = selectedFullName, !repositories.contains(where: { $0.fullName == selected }) { selectedFullName = nil }
-        if let owner, !installations.contains(where: { $0.account == owner }) { self.owner = nil }
+        access = accessByServer[""] ?? asked.first.flatMap { accessByServer[$0] }
+        if login == nil {
+            installations = []
+            accessByServer[""] = nil
+            truncatedServers.remove("")
+        }
+        loadedServers = servers
+        if anyRead { loadedAt = Date() }
+        if repositories.isEmpty, accessByServer.values.contains(where: { $0 == .signedOut || $0 == .tokenRejected }) { loadedAt = nil }
+        if let selected = selectedFullName, !repositories.contains(where: { $0.ref.key == selected }) { selectedFullName = nil }
+        if let owner, !owners.contains(owner) { self.owner = nil }
+    }
+
+    private func replace(server: String, with list: [CoreGitHubAccountRepository]) {
+        let tagged = list.map { var repository = $0; repository.server = server; return repository }
+        // github.com first, then servers in the order they were read.
+        if let first = repositories.firstIndex(where: { $0.server == server }) {
+            repositories.removeAll { $0.server == server }
+            repositories.insert(contentsOf: tagged, at: min(first, repositories.count))
+        } else if server.isEmpty {
+            repositories.insert(contentsOf: tagged, at: 0)
+        } else {
+            repositories += tagged
+        }
     }
 
     /// Opening the tab reads the list again only when it is missing, failed,
-    /// older than five minutes or another account's; Refresh always reads it.
-    func needsReload(for login: String?) -> Bool {
-        guard access == .ok, let loadedAt, login == loadedLogin else { return true }
+    /// older than five minutes, or another account's or set of servers';
+    /// Refresh always reads it.
+    func needsReload(for login: String?, servers: [String] = []) -> Bool {
+        guard let loadedAt, login == loadedLogin, servers == loadedServers,
+              accessByServer.values.allSatisfy({ $0 == .ok }) else { return true }
         return Date().timeIntervalSince(loadedAt) > 300
     }
 
     var selected: CoreGitHubAccountRepository? {
-        repositories.first { $0.fullName == selectedFullName }
+        repositories.first { $0.ref.key == selectedFullName }
+    }
+
+    /// Owners to filter by: github.com's installations, then every owner in
+    /// the list.
+    var owners: [String] {
+        var seen = Set<String>()
+        return (installations.map(\.account) + repositories.map(\.owner)).filter { seen.insert($0.lowercased()).inserted }
     }
 
     /// The list as filtered: starred ones first, in the order starred, then
-    /// the rest newest push first.
+    /// the rest as listed (each account's newest push first).
     func visible(favorites: RepositoryFavorites) -> [CoreGitHubAccountRepository] {
         let filtered = repositories.filter { repository in
             (owner == nil || repository.owner.caseInsensitiveCompare(owner!) == .orderedSame)
-                && (!starredOnly || favorites.isFavorite(repository.fullName))
+                && (!starredOnly || favorites.isFavorite(repository.ref.key))
                 && Self.matches(repository, search)
         }
         let rank = Dictionary(favorites.names.enumerated().map { ($1.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
-        let starred = filtered.filter { rank[$0.fullName.lowercased()] != nil }
-            .sorted { rank[$0.fullName.lowercased()]! < rank[$1.fullName.lowercased()]! }
-        return starred + filtered.filter { rank[$0.fullName.lowercased()] == nil }
+        func position(_ repository: CoreGitHubAccountRepository) -> Int? { rank[repository.ref.key.lowercased()] }
+        let starred = filtered.filter { position($0) != nil }.sorted { position($0)! < position($1)! }
+        return starred + filtered.filter { position($0) == nil }
     }
 
     /// Every word of the query is in the name, owner or description.
@@ -211,15 +273,19 @@ final class GitHubRepositoriesModel {
 @Observable
 final class RemoteRepositoryModel {
     let fullName: String
+    /// The server it is on; empty is github.com.
+    let serverID: String
     private(set) var workflows: CoreGitHubResult<CoreGitHubWorkflow>?
     private(set) var runs: CoreGitHubResult<CoreWorkflowRun>?
     private(set) var isLoading = false
 
-    init(fullName: String) {
+    init(fullName: String, serverID: String = "") {
         self.fullName = fullName
+        self.serverID = serverID
     }
 
-    var target: CoreHub.GitHubTarget { .repository(fullName) }
+    var ref: GitHubRepositoryRef { GitHubRepositoryRef(serverID: serverID, fullName: fullName) }
+    var target: CoreHub.GitHubTarget { .repository(ref) }
 
     func load(hub: CoreHub) async {
         guard !isLoading else { return }
@@ -256,6 +322,8 @@ final class RemoteRepositoryModel {
 struct GitHubRepositoriesView: View {
     @Bindable var desktop: DesktopCoordinator
     @State private var showingConnect = false
+    /// Sections per server instead of one list; kept between launches.
+    @AppStorage("githubRepositories.groupByServer") private var groupByServer = false
     @Environment(\.openURL) private var openURL
 
     private var model: GitHubRepositoriesModel { desktop.githubRepositories }
@@ -269,14 +337,14 @@ struct GitHubRepositoriesView: View {
                     HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Checking the saved sign-in...") }
                         .font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if github.user == nil {
+                } else if accounts.isEmpty {
                     signedOut
                 } else {
                     browser(hub: hub)
-                        // Again once the Core has the token of a new sign-in.
-                        .task(id: "\(github.user?.login ?? "")|\(hub.credentialGeneration)") {
-                            let login = github.user?.login
-                            if model.needsReload(for: login) { await model.load(hub: hub, login: login) }
+                        // Again once the Core has the token of a new sign-in,
+                        // or an Enterprise server is added or removed.
+                        .task(id: "\(dotComLogin ?? "")|\(enterpriseIDs)|\(hub.credentialGeneration)") {
+                            if model.needsReload(for: dotComLogin, servers: enterpriseIDs) { await reload(hub) }
                         }
                 }
             } else {
@@ -287,6 +355,34 @@ struct GitHubRepositoriesView: View {
         // Registered clones are matched to GitHub repositories right away,
         // not only once they are opened.
         .task(id: "\(desktop.snapshot.workspaces.map(\.id))|\(coreReady)") { await desktop.findGitHubOrigins() }
+    }
+
+    /// An account the tab can show: github.com when signed in, then each
+    /// Enterprise server.
+    struct Account: Identifiable, Equatable {
+        /// "" is github.com.
+        let id: String
+        let title: String
+        let webURL: URL
+        let login: String
+    }
+
+    private var accounts: [Account] {
+        var out: [Account] = []
+        if let login = desktop.github?.user?.login {
+            out.append(Account(id: "", title: "GitHub.com", webURL: GitHubTokenAdvice.dotComWebURL, login: login))
+        }
+        for server in desktop.enterpriseServers?.servers ?? [] {
+            out.append(Account(id: server.ref.id, title: server.name, webURL: server.webURL, login: server.login))
+        }
+        return out
+    }
+
+    private var dotComLogin: String? { desktop.github?.user?.login }
+    private var enterpriseIDs: [String] { (desktop.enterpriseServers?.servers ?? []).map(\.ref.id) }
+
+    private func reload(_ hub: CoreHub) async {
+        await model.load(hub: hub, login: dotComLogin, servers: enterpriseIDs)
     }
 
     private var coreReady: Bool {
@@ -312,8 +408,8 @@ struct GitHubRepositoriesView: View {
             DesignDivider(vertical: true)
             Group {
                 if let repository = model.selected {
-                    RemoteRepositoryDetail(repository: repository, desktop: desktop, hub: hub)
-                        .id(repository.fullName)
+                    RemoteRepositoryDetail(repository: repository, serverID: repository.server, desktop: desktop, hub: hub)
+                        .id(repository.ref.key)
                 } else {
                     UnavailableFeature(title: "Choose a repository", detail: "Its workflows, their latest runs and recent runs appear here.", symbol: "shippingbox")
                         .padding(24).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -331,32 +427,41 @@ struct GitHubRepositoriesView: View {
             HStack(spacing: 8) {
                 TextField("Search repositories", text: $model.search).textFieldStyle(.roundedBorder)
                     .accessibilityIdentifier("repository-search")
-                Button { Task { await model.load(hub: hub, login: desktop.github?.user?.login) } } label: {
+                Button { Task { await reload(hub) } } label: {
                     Image(systemName: "arrow.clockwise")
                 }.buttonStyle(.borderless).disabled(model.isLoading).help("Read the repositories from GitHub again")
             }.padding(10)
             HStack(spacing: 8) {
                 Picker("Owner", selection: $model.owner) {
                     Text("All owners").tag(String?.none)
-                    ForEach(model.installations) { installation in
-                        Text(installation.account).tag(Optional(installation.account))
+                    ForEach(model.owners, id: \.self) { owner in
+                        Text(owner).tag(Optional(owner))
                     }
                 }.labelsHidden().fixedSize()
                 Toggle("Starred", isOn: $model.starredOnly).toggleStyle(.checkbox).font(.system(size: 12))
+                if accounts.count > 1 {
+                    Toggle("By Server", isOn: $groupByServer).toggleStyle(.checkbox).font(.system(size: 12))
+                        .help("Group the repositories by the GitHub server they are on")
+                        .accessibilityIdentifier("repository-group-by-server")
+                }
                 Spacer()
             }.padding(.horizontal, 10).padding(.bottom, 8)
             DesignDivider()
             listStatus
             ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(visible) { repository in
-                        RepositoryListRow(repository: repository, selected: repository.fullName == model.selectedFullName,
-                                          starred: desktop.repositoryFavorites.isFavorite(repository.fullName),
-                                          hasWorkspace: desktop.workspace(forGitHubRepository: repository.fullName) != nil,
-                                          canStar: desktop.repositoryFavorites.isAvailable,
-                                          select: { model.selectedFullName = repository.fullName },
-                                          toggleStar: { desktop.repositoryFavorites.toggle(repository.fullName) })
-                        DesignDivider()
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    if groupByServer, accounts.count > 1 {
+                        ForEach(accounts) { account in
+                            let rows = visible.filter { $0.server == account.id }
+                            if !rows.isEmpty {
+                                SectionLabel(title: account.title.uppercased())
+                                    .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 4)
+                                DesignDivider()
+                                ForEach(rows) { repository in row(repository, showServer: false) }
+                            }
+                        }
+                    } else {
+                        ForEach(visible) { repository in row(repository, showServer: accounts.count > 1) }
                     }
                 }
             }
@@ -368,19 +473,42 @@ struct GitHubRepositoriesView: View {
         }
     }
 
+    @ViewBuilder private func row(_ repository: CoreGitHubAccountRepository, showServer: Bool) -> some View {
+        let ref = repository.ref
+        RepositoryListRow(repository: repository, selected: ref.key == model.selectedFullName,
+                          starred: desktop.repositoryFavorites.isFavorite(ref.key),
+                          hasWorkspace: desktop.workspace(for: ref) != nil,
+                          canStar: desktop.repositoryFavorites.isAvailable,
+                          serverHost: showServer && !repository.server.isEmpty ? desktop.core?.serverRef(for: repository.server)?.webHost : nil,
+                          select: { model.selectedFullName = ref.key },
+                          toggleStar: { desktop.repositoryFavorites.toggle(ref.key) })
+        DesignDivider()
+    }
+
     @ViewBuilder private var listStatus: some View {
         if model.isLoading && model.repositories.isEmpty {
             HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Reading repositories...") }
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(16)
-        } else if let access = model.access, let help = Self.listHelp(access, credential: desktop.core?.credentialKind) {
+        } else if dotComLogin != nil, let access = model.accessByServer[""],
+                  let help = Self.listHelp(access, credential: desktop.core?.credentialKind ?? model.credentialKind) {
             GitHubAccessNotice(help: help, style: .banner, github: desktop.github) {
-                if let hub = desktop.core { Task { await model.load(hub: hub, login: desktop.github?.user?.login) } }
+                if let hub = desktop.core { Task { await reload(hub) } }
             }.padding(8)
-        } else if model.access == .ok, model.installations.isEmpty, !model.credentialKind.isPersonal {
+        } else if dotComLogin != nil, model.accessByServer[""] == .ok, model.installations.isEmpty, !model.credentialKind.isPersonal {
             GitHubAccessNotice(help: GitHubAccessHelp(title: "Runnir Desktop is not installed yet",
                                                       message: "Install the Runnir Desktop app on your account or an organization, and choose the repositories it may reach.",
                                                       fix: .giveAccess(GitHubAccessHelp.installationURL)),
                                style: .banner, github: desktop.github).padding(8)
+        }
+        // Each Enterprise server that could not be read: its list stays as
+        // read last, the others are not hidden.
+        ForEach(enterpriseIDs, id: \.self) { server in
+            if let access = model.accessByServer[server], let ref = desktop.core?.serverRef(for: server),
+               let help = Self.listHelp(access, credential: desktop.core?.credentialKind(for: server) ?? .classic, server: ref) {
+                GitHubAccessNotice(help: help, style: .banner, github: desktop.github) {
+                    if let hub = desktop.core { Task { await reload(hub) } }
+                }.padding(.horizontal, 8).padding(.bottom, 8)
+            }
         }
         // Installations that wait for an owner: suspended, or new permissions.
         ForEach(model.installations.filter { $0.suspended || !$0.missingPermissions.isEmpty }) { installation in
@@ -401,7 +529,9 @@ struct GitHubRepositoriesView: View {
             HStack {
                 Text(countText).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 Spacer()
-                if model.credentialKind.isPersonal {
+                if dotComLogin == nil {
+                    EmptyView()
+                } else if model.credentialKind.isPersonal {
                     Button("Token Settings...") { openURL(GitHubAccessHelp.tokenSettingsURL(model.credentialKind)) }
                         .buttonStyle(.link).font(.system(size: 11))
                         .help("Signed in with a personal access token: the repositories it reaches are set on GitHub")
@@ -422,20 +552,22 @@ struct GitHubRepositoriesView: View {
 
     /// The list's banner: the account's repositories are not about one
     /// repository, so refusals point at the app's installations.
-    static func listHelp(_ access: CoreGitHubAccess, credential: CoreGitHubCredentialKind? = nil) -> GitHubAccessHelp? {
+    static func listHelp(_ access: CoreGitHubAccess, credential: CoreGitHubCredentialKind? = nil,
+                         server: GitHubServerRef? = nil) -> GitHubAccessHelp? {
         switch access {
         case .ok, .noRemote: return nil
         case .notVisible, .permissionMissing:
             if let credential, credential.isPersonal {
-                return GitHubAccessHelp(title: "GitHub did not let this token list repositories",
-                                        message: "Check the token's repository access and permissions on GitHub. The list shows what was read last.",
-                                        fix: .editToken(GitHubAccessHelp.tokenSettingsURL(credential)))
+                let host = server?.webHost ?? "GitHub"
+                return GitHubAccessHelp(title: "\(host) did not let this token list repositories",
+                                        message: "Check the token's repository access and permissions on \(host). The list shows what was read last.",
+                                        fix: .editToken(GitHubAccessHelp.tokenSettingsURL(credential, webURL: server?.webURL ?? GitHubTokenAdvice.dotComWebURL)))
             }
             return GitHubAccessHelp(title: "GitHub did not let Runnir list repositories",
                                     message: "Check where the Runnir Desktop app is installed and what it may reach. The list shows what was read last.",
                                     fix: .giveAccess(GitHubAccessHelp.installationURL))
         default:
-            return GitHubAccessHelp.forAccess(access, repository: "your account", purpose: .read, credential: credential)
+            return GitHubAccessHelp.forAccess(access, repository: "your account", purpose: .read, credential: credential, server: server)
         }
     }
 }
@@ -446,6 +578,8 @@ private struct RepositoryListRow: View {
     let starred: Bool
     let hasWorkspace: Bool
     let canStar: Bool
+    /// The Enterprise server's host, shown in the one list; nil on github.com.
+    var serverHost: String?
     let select: () -> Void
     let toggleStar: () -> Void
 
@@ -466,6 +600,7 @@ private struct RepositoryListRow: View {
                             Text(repository.name).fontWeight(.medium)
                         }.font(.system(size: 13)).lineLimit(1).truncationMode(.middle)
                         HStack(spacing: 6) {
+                            if let serverHost { badge(serverHost) }
                             if repository.visibility != "public" { badge(repository.visibility.capitalized) }
                             if repository.archived { badge("Archived") }
                             if hasWorkspace { badge("Workspace") }
@@ -494,6 +629,8 @@ private struct RepositoryListRow: View {
 /// workflows with their latest runs, and its newest runs.
 private struct RemoteRepositoryDetail: View {
     let repository: CoreGitHubAccountRepository
+    /// The server it is on; "" is github.com.
+    let serverID: String
     let desktop: DesktopCoordinator
     let hub: CoreHub
     @State private var model: RemoteRepositoryModel
@@ -524,11 +661,12 @@ private struct RemoteRepositoryDetail: View {
         runRequest = RunWorkflowRequest(workflowID: workflow.id)
     }
 
-    init(repository: CoreGitHubAccountRepository, desktop: DesktopCoordinator, hub: CoreHub) {
+    init(repository: CoreGitHubAccountRepository, serverID: String, desktop: DesktopCoordinator, hub: CoreHub) {
         self.repository = repository
+        self.serverID = serverID
         self.desktop = desktop
         self.hub = hub
-        _model = State(initialValue: RemoteRepositoryModel(fullName: repository.fullName))
+        _model = State(initialValue: RemoteRepositoryModel(fullName: repository.fullName, serverID: serverID))
     }
 
     var body: some View {
@@ -574,7 +712,7 @@ private struct RemoteRepositoryDetail: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 8) {
-                if let workspace = desktop.workspace(forGitHubRepository: repository.fullName) {
+                if let workspace = desktop.workspace(for: model.ref) {
                     Button { desktop.openOrFocus(workspace) } label: { Label("Open Workspace", systemImage: "folder") }
                         .buttonStyle(DesignButtonStyle(primary: true))
                         .help("Open \(workspace.name), the local clone registered in Runnir")
@@ -603,7 +741,7 @@ private struct RemoteRepositoryDetail: View {
             DesignDivider()
             if let access = model.access,
                let help = GitHubAccessHelp.forAccess(access, repository: repository.fullName, purpose: .read, details: details,
-                                                     credential: desktop.core?.credentialKind) {
+                                                     credential: hub.credentialKind(for: serverID), server: hub.serverRef(for: serverID)) {
                 GitHubAccessNotice(help: help, style: .note, github: desktop.github) { Task { await model.load(hub: hub) } }
             }
             if let workflows = model.workflows {

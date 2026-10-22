@@ -22,6 +22,7 @@ enum RunnirPalette: UInt32, Sendable {
     case blue100 = 0xE3E9FB
     case blue400 = 0x7C9CFF
     case blue600 = 0x3D63DD
+    case blue800 = 0x1F3A93
     case green400 = 0x4ADE80
     case green700 = 0x15803D
     case amber400 = 0xFBBF24
@@ -39,7 +40,7 @@ enum RunnirPalette: UInt32, Sendable {
 enum RunnirColorToken: String, CaseIterable, Sendable {
     case background, sidebar, surface, selected, editor
     case foreground, secondaryForeground, mutedForeground, border
-    case primary, primaryForeground, secondary, secondaryContent
+    case primary, primaryForeground, primaryButtonText, secondary, secondaryContent
     case success, warning, destructive, info, focusRing
     case syntaxKey, syntaxString, syntaxLiteral
 
@@ -56,6 +57,9 @@ enum RunnirColorToken: String, CaseIterable, Sendable {
         case .border: (.neutral200, .neutral700)
         case .primary, .info, .focusRing, .syntaxKey: (.blue600, .blue400)
         case .primaryForeground: (.white, .neutral950)
+        // runnir.com's call to action: white on the tinted accent; in light
+        // mode a deeper blue, which reads on the pale tint.
+        case .primaryButtonText: (.blue800, .white)
         case .success, .syntaxString: (.green700, .green400)
         case .warning, .syntaxLiteral: (.amber700, .amber400)
         case .destructive: (.red700, .red400)
@@ -90,6 +94,7 @@ enum RunnirTheme {
     static let border = RunnirColorToken.border.color
     static let primary = RunnirColorToken.primary.color
     static let primaryForeground = RunnirColorToken.primaryForeground.color
+    static let primaryButtonText = RunnirColorToken.primaryButtonText.color
     static let secondary = RunnirColorToken.secondary.color
     static let secondaryContent = RunnirColorToken.secondaryContent.color
     static let success = RunnirColorToken.success.color

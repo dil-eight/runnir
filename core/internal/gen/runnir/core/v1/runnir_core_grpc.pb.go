@@ -38,6 +38,7 @@ const (
 	RunnirCore_SetGitHubCredential_FullMethodName      = "/runnir.core.v1.RunnirCore/SetGitHubCredential"
 	RunnirCore_ClearGitHubCredential_FullMethodName    = "/runnir.core.v1.RunnirCore/ClearGitHubCredential"
 	RunnirCore_CheckGitHubToken_FullMethodName         = "/runnir.core.v1.RunnirCore/CheckGitHubToken"
+	RunnirCore_ListPullRequests_FullMethodName         = "/runnir.core.v1.RunnirCore/ListPullRequests"
 	RunnirCore_GetGitHubOrigins_FullMethodName         = "/runnir.core.v1.RunnirCore/GetGitHubOrigins"
 	RunnirCore_ListGitHubRepositories_FullMethodName   = "/runnir.core.v1.RunnirCore/ListGitHubRepositories"
 	RunnirCore_ListGitHubWorkflows_FullMethodName      = "/runnir.core.v1.RunnirCore/ListGitHubWorkflows"
@@ -97,6 +98,10 @@ type RunnirCoreClient interface {
 	// that GitHub does not show without trying a change. A refused token is
 	// TOKEN_REJECTED in `status`; the held credential is never changed.
 	CheckGitHubToken(ctx context.Context, in *CheckGitHubTokenRequest, opts ...grpc.CallOption) (*CheckGitHubTokenResponse, error)
+	// The signed-in user's open pull requests, each with the state of the
+	// GitHub Actions runs on its head commit, and those closed since a time,
+	// newest first, at most 50 of each, read through GitHub's search.
+	ListPullRequests(ctx context.Context, in *ListPullRequestsRequest, opts ...grpc.CallOption) (*ListPullRequestsResponse, error)
 	// The github.com repository each folder's origin points at, read from git's
 	// metadata only, without opening the repositories: lets the app match its
 	// registered working trees to GitHub repositories. At most 500 paths.
@@ -301,6 +306,16 @@ func (c *runnirCoreClient) CheckGitHubToken(ctx context.Context, in *CheckGitHub
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CheckGitHubTokenResponse)
 	err := c.cc.Invoke(ctx, RunnirCore_CheckGitHubToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) ListPullRequests(ctx context.Context, in *ListPullRequestsRequest, opts ...grpc.CallOption) (*ListPullRequestsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPullRequestsResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ListPullRequests_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -526,6 +541,10 @@ type RunnirCoreServer interface {
 	// that GitHub does not show without trying a change. A refused token is
 	// TOKEN_REJECTED in `status`; the held credential is never changed.
 	CheckGitHubToken(context.Context, *CheckGitHubTokenRequest) (*CheckGitHubTokenResponse, error)
+	// The signed-in user's open pull requests, each with the state of the
+	// GitHub Actions runs on its head commit, and those closed since a time,
+	// newest first, at most 50 of each, read through GitHub's search.
+	ListPullRequests(context.Context, *ListPullRequestsRequest) (*ListPullRequestsResponse, error)
 	// The github.com repository each folder's origin points at, read from git's
 	// metadata only, without opening the repositories: lets the app match its
 	// registered working trees to GitHub repositories. At most 500 paths.
@@ -628,6 +647,9 @@ func (UnimplementedRunnirCoreServer) ClearGitHubCredential(context.Context, *Cle
 }
 func (UnimplementedRunnirCoreServer) CheckGitHubToken(context.Context, *CheckGitHubTokenRequest) (*CheckGitHubTokenResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CheckGitHubToken not implemented")
+}
+func (UnimplementedRunnirCoreServer) ListPullRequests(context.Context, *ListPullRequestsRequest) (*ListPullRequestsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPullRequests not implemented")
 }
 func (UnimplementedRunnirCoreServer) GetGitHubOrigins(context.Context, *GetGitHubOriginsRequest) (*GetGitHubOriginsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetGitHubOrigins not implemented")
@@ -945,6 +967,24 @@ func _RunnirCore_CheckGitHubToken_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnirCoreServer).CheckGitHubToken(ctx, req.(*CheckGitHubTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_ListPullRequests_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPullRequestsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ListPullRequests(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ListPullRequests_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ListPullRequests(ctx, req.(*ListPullRequestsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1331,6 +1371,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CheckGitHubToken",
 			Handler:    _RunnirCore_CheckGitHubToken_Handler,
+		},
+		{
+			MethodName: "ListPullRequests",
+			Handler:    _RunnirCore_ListPullRequests_Handler,
 		},
 		{
 			MethodName: "GetGitHubOrigins",

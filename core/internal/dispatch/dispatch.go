@@ -31,6 +31,8 @@ const (
 // Request is exactly what will be sent to GitHub when confirmed.
 type Request struct {
 	RepositoryID string
+	// ServerID is the GitHub server the repository is on; "" is github.com.
+	ServerID     string
 	Owner        string
 	Name         string
 	WorkflowID   int64

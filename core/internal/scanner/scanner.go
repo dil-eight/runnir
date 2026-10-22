@@ -57,20 +57,20 @@ func (Scanner) Scan(ctx context.Context, root string) (repository.Snapshot, erro
 	snapshot := repository.Snapshot{Workflows: workflows}
 	if gitDir, linked, ok := resolveGitDir(root); ok {
 		snapshot.Branch = readBranch(gitDir)
-		snapshot.GitHubRepository = readGitHubRepository(gitDir, linked)
+		snapshot.OriginHost, snapshot.OriginRepository = readOrigin(gitDir, linked)
 	}
 	return snapshot, nil
 }
 
-// GitHubOrigin returns "owner/name" of the github.com repository the working
-// tree at root pushes to (its origin, also through a linked worktree), or ""
-// when it has none or cannot be read. It reads only git's metadata, bounded,
-// and nothing of the working tree.
-func GitHubOrigin(root string) string {
+// Origin returns the host and "owner/name" of the working tree's origin
+// remote (also through a linked worktree), or "", "" when it has none or it
+// cannot be read. It reads only git's metadata, bounded, and nothing of the
+// working tree.
+func Origin(root string) (host, repository string) {
 	if gitDir, linked, ok := resolveGitDir(root); ok {
-		return readGitHubRepository(gitDir, linked)
+		return readOrigin(gitDir, linked)
 	}
-	return ""
+	return "", ""
 }
 
 // absentOrError maps "does not exist" to no error and permission problems to
@@ -163,17 +163,17 @@ func readBranch(gitDir string) string {
 
 const maxConfigBytes = 64 * 1024
 
-// readGitHubRepository returns "owner/name" when the origin remote points at
-// github.com. A linked worktree shares the main repository's config: its
+// readOrigin returns the origin remote's host and "owner/name". A linked
+// worktree shares the main repository's config: its
 // "commondir" file is followed only when it names the git directory that
 // holds the worktree ("<git dir>/worktrees/<name>"), so a repository cannot
 // point the scan at another repository's config.
-func readGitHubRepository(gitDir string, linked bool) string {
+func readOrigin(gitDir string, linked bool) (host, repository string) {
 	commonDir := gitDir
 	if linked {
 		data, err := readBounded(filepath.Join(gitDir, "commondir"), maxHeadBytes)
 		if err != nil {
-			return ""
+			return "", ""
 		}
 		target := strings.TrimSpace(string(data))
 		if !filepath.IsAbs(target) {
@@ -181,15 +181,15 @@ func readGitHubRepository(gitDir string, linked bool) string {
 		}
 		owner := filepath.Dir(filepath.Dir(filepath.Clean(gitDir)))
 		if !samePath(filepath.Clean(target), owner) {
-			return ""
+			return "", ""
 		}
 		commonDir = owner
 	}
 	config, err := readBounded(filepath.Join(commonDir, "config"), maxConfigBytes)
 	if err != nil {
-		return ""
+		return "", ""
 	}
-	return gitHubRepository(originURL(string(config)))
+	return parseOrigin(originURL(string(config)))
 }
 
 // originURL returns the first url of [remote "origin"] in a git config file.
@@ -217,35 +217,37 @@ func originURL(config string) string {
 	return ""
 }
 
-// gitHubRepository turns a github.com remote URL into "owner/name"; any other
-// host, or a malformed path, gives "".
-func gitHubRepository(remote string) string {
+// parseOrigin turns a remote URL into its host (lowercased, without port)
+// and "owner/name"; a path that is not exactly owner/name, a local or
+// unknown scheme, or a malformed URL gives "", "". Which hosts are GitHub
+// servers is the Core's choice, not the scanner's.
+func parseOrigin(remote string) (host, repository string) {
 	var path string
 	if user, rest, ok := strings.Cut(remote, "@"); ok && !strings.Contains(user, "/") && !strings.Contains(remote, "://") {
-		// scp-like: git@github.com:owner/name.git
-		host, p, ok := strings.Cut(rest, ":")
-		if !ok || !strings.EqualFold(host, "github.com") {
-			return ""
+		// scp-like: git@host:owner/name.git
+		h, p, ok := strings.Cut(rest, ":")
+		if !ok || h == "" {
+			return "", ""
 		}
-		path = p
+		host, path = h, p
 	} else {
 		parsed, err := url.Parse(remote)
-		if err != nil || !strings.EqualFold(parsed.Hostname(), "github.com") {
-			return ""
+		if err != nil || parsed.Hostname() == "" {
+			return "", ""
 		}
 		switch parsed.Scheme {
 		case "https", "http", "ssh", "git":
 		default:
-			return ""
+			return "", ""
 		}
-		path = parsed.Path
+		host, path = parsed.Hostname(), parsed.Path
 	}
 	path = strings.TrimSuffix(strings.Trim(path, "/"), ".git")
 	owner, name, ok := strings.Cut(path, "/")
 	if !ok || !validOwner.MatchString(owner) || !validName.MatchString(name) {
-		return ""
+		return "", ""
 	}
-	return owner + "/" + name
+	return strings.ToLower(host), owner + "/" + name
 }
 
 var (

@@ -20,7 +20,7 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     private var refreshError: CoreServiceError?
     private var openIDs: Set<String> = []
     private var continuations: [AsyncThrowingStream<CoreEvent, any Error>.Continuation] = []
-    private var _credentialCalls: [String?] = []
+    private var _serverCredentialCalls: [(token: String?, server: String)] = []
     private var runsResults: [String: CoreGitHubResult<CoreWorkflowRun>] = [:]
     private var _runsCalls: [String] = []
     private var jobsResult = CoreGitHubResult<CoreRunJob>(access: .ok, items: [])
@@ -36,26 +36,42 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     static func key(_ target: CoreGitHubTarget) -> String {
         switch target {
         case .repository(let id): id
-        case .named(let name): "github:" + name
+        case .named(let ref): "github:" + ref.key
         }
     }
-    /// GitHub origins by working tree path.
+    var pullRequestsResult = CorePullRequests.failed(.signedOut)
+    /// Answers by server id; a server without one gets `pullRequestsResult`.
+    var pullRequestsByServer: [String: CorePullRequests] = [:]
+    private var _pullRequestCalls: [Date] = []
+    private var _pullRequestServers: [String] = []
+    var pullRequestCalls: [Date] { lock.withLock { _pullRequestCalls } }
+    var pullRequestServers: [String] { lock.withLock { _pullRequestServers } }
+    func listPullRequests(server: String, closedSince: Date) async throws -> CorePullRequests {
+        lock.withLock {
+            _pullRequestCalls.append(closedSince)
+            _pullRequestServers.append(server)
+            return pullRequestsByServer[server] ?? pullRequestsResult
+        }
+    }
+    /// GitHub origins by working tree path, as repository keys.
     var origins: [String: String] = [:]
     private var _originRequests: [[String]] = []
     var originRequests: [[String]] { lock.withLock { _originRequests } }
-    func githubOrigins(paths: [String]) async throws -> [String: String] {
+    func githubOrigins(paths: [String]) async throws -> [String: GitHubRepositoryRef] {
         lock.withLock {
             _originRequests.append(paths)
-            return origins.filter { paths.contains($0.key) }
+            return origins.filter { paths.contains($0.key) }.compactMapValues { GitHubRepositoryRef(key: $0) }
         }
     }
     var accountResult = CoreGitHubAccount.failed(.signedOut)
+    /// Answers by server id; a server without one gets `accountResult`.
+    var accountsByServer: [String: CoreGitHubAccount] = [:]
     private var _accountCalls = 0
     var accountCalls: Int { lock.withLock { _accountCalls } }
-    func listGitHubRepositories() async throws -> CoreGitHubAccount {
+    func listGitHubRepositories(server: String) async throws -> CoreGitHubAccount {
         lock.withLock {
             _accountCalls += 1
-            return accountResult
+            return accountsByServer[server] ?? accountResult
         }
     }
     private var _workflowTargets: [String] = []
@@ -159,18 +175,24 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
             return CoreRunActionResult(access: .ok, acceptedAt: Date(), rejection: nil)
         }
     }
-    var credentialCalls: [String?] { lock.withLock { _credentialCalls } }
-    func setGitHubCredential(_ token: String?) async throws -> CoreGitHubCredentialKind? {
-        lock.withLock { _credentialCalls.append(token) }
+    /// github.com's tokens, in order.
+    var credentialCalls: [String?] { lock.withLock { _serverCredentialCalls.filter { $0.server.isEmpty }.map(\.token) } }
+    /// Every server's tokens, in order; nil clears.
+    var serverCredentialCalls: [(token: String?, server: String)] { lock.withLock { _serverCredentialCalls } }
+    func setGitHubCredential(_ token: String?, server: GitHubServerRef) async throws -> CoreGitHubCredentialKind? {
+        lock.withLock { _serverCredentialCalls.append((token, server.id)) }
         guard let token else { return nil }
         return token.hasPrefix("ghu_") ? .appUser : token.hasPrefix("github_pat_") ? .fineGrained : .classic
     }
     var tokenCheck = CoreGitHubTokenCheck.failed(.tokenRejected)
     private var _checkedTokens: [String] = []
+    private var _tokenCheckServers: [GitHubServerRef] = []
     var checkedTokens: [String] { lock.withLock { _checkedTokens } }
-    func checkGitHubToken(_ token: String) async throws -> CoreGitHubTokenCheck {
+    var tokenCheckServers: [GitHubServerRef] { lock.withLock { _tokenCheckServers } }
+    func checkGitHubToken(_ token: String, server: GitHubServerRef) async throws -> CoreGitHubTokenCheck {
         lock.withLock {
             _checkedTokens.append(token)
+            _tokenCheckServers.append(server)
             return tokenCheck
         }
     }

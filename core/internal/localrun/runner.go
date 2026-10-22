@@ -44,6 +44,10 @@ type Spec struct {
 	Plan           Plan
 	// CacheDir keeps act's clones of actions between runs.
 	CacheDir string
+	// GitHubInstance is the Enterprise web host the repository is on, so
+	// act fetches `uses:` actions there; empty for github.com. The token is
+	// never given to act.
+	GitHubInstance string
 }
 
 // Runner runs approved plans with act. It implements execution.Runner.
@@ -228,6 +232,9 @@ func Args(spec *Spec, executionID, scratch string) []string {
 	sort.Strings(labels)
 	for _, label := range labels {
 		args = append(args, "--platform="+label+"="+Platforms[label])
+	}
+	if spec.GitHubInstance != "" {
+		args = append(args, "--github-instance="+spec.GitHubInstance)
 	}
 	args = append(args, "--", plan.Event)
 	return args

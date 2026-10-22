@@ -44,6 +44,99 @@ struct CoreGitHubRepository: Equatable, Sendable {
     }
 }
 
+/// The GitHub Actions runs on a pull request's head commit, summed up.
+enum CorePullRequestCI: Equatable, Sendable {
+    /// No workflow ran on the head commit.
+    case none
+    case running
+    case passed
+    case failed
+    case cancelled
+    /// The head could not be read (the token lacks Pull requests read).
+    case unknown
+}
+
+/// A GitHub server as the Core knows it: github.com (empty id) or an
+/// Enterprise server the user added.
+struct GitHubServerRef: Hashable, Sendable, Codable {
+    /// Empty for github.com; a lowercase UUID for an Enterprise server.
+    let id: String
+    /// The REST API root; nil for github.com.
+    let apiURL: URL?
+    /// The web URL's host, lowercased, without port.
+    let webHost: String
+    /// The web URL, for links such as token settings; not sent to the Core.
+    var webURL: URL? = nil
+
+    static let dotCom = GitHubServerRef(id: "", apiURL: nil, webHost: "github.com", webURL: URL(string: "https://github.com"))
+    var isDotCom: Bool { id.isEmpty }
+}
+
+/// A repository on one server.
+struct GitHubRepositoryRef: Hashable, Sendable, Codable {
+    /// Empty for github.com.
+    let serverID: String
+    /// "owner/name".
+    let fullName: String
+
+    /// What lists and files store: "owner/name" on github.com, as before
+    /// Enterprise servers, and "<server id>:owner/name" elsewhere.
+    var key: String { serverID.isEmpty ? fullName : serverID + ":" + fullName }
+
+    init(serverID: String, fullName: String) {
+        self.serverID = serverID
+        self.fullName = fullName
+    }
+
+    /// Reads a `key`; nil when the name or the server id is malformed.
+    init?(key: String) {
+        let parts = key.split(separator: ":", maxSplits: 1).map(String.init)
+        let (server, name) = parts.count == 2 ? (parts[0], parts[1]) : ("", key)
+        if !server.isEmpty {
+            guard let uuid = UUID(uuidString: server), uuid.uuidString.lowercased() == server else { return nil }
+        }
+        guard GitHubRepositoryName.isValid(name) else { return nil }
+        self.init(serverID: server, fullName: name)
+    }
+}
+
+/// One of the signed-in user's pull requests.
+struct CorePullRequest: Equatable, Identifiable, Sendable {
+    /// Its link; without one, its server, repository and number.
+    var id: String { htmlURL?.absoluteString ?? "\(server):\(repository)#\(number)" }
+    let repository: String
+    let number: Int64
+    let title: String
+    let htmlURL: URL?
+    /// "open", "closed" or "merged".
+    let state: String
+    let draft: Bool
+    let headBranch: String
+    let updatedAt: Date?
+    let closedAt: Date?
+    let ci: CorePullRequestCI
+    let ciRuns: Int
+    let ciFailed: Int
+    let ciRunning: Int
+    /// The run to look at: the first failed one, else the first running one.
+    let ciURL: URL?
+    /// The server it is on; empty is github.com. Set by the hub.
+    var server: String = ""
+}
+
+/// The user's open pull requests and those closed recently.
+struct CorePullRequests: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    let open: [CorePullRequest]
+    let closed: [CorePullRequest]
+    /// Some open pull request's head could not be read; its CI is unknown.
+    let headsUnreadable: Bool
+
+    static func failed(_ access: CoreGitHubAccess) -> CorePullRequests {
+        CorePullRequests(access: access, open: [], closed: [], headsUnreadable: false)
+    }
+}
+
 /// What issued the token Runnir uses, as the Core tells it.
 enum CoreGitHubCredentialKind: Equatable, Sendable {
     /// Signing in to the Runnir Desktop app: reaches its installations.
@@ -105,7 +198,9 @@ struct CoreGitHubInstallation: Equatable, Identifiable, Sendable {
 
 /// A github.com repository the signed-in user's token reaches.
 struct CoreGitHubAccountRepository: Equatable, Identifiable, Sendable {
-    var id: String { fullName }
+    /// Its `GitHubRepositoryRef.key`: "owner/name" on github.com, unique
+    /// across servers.
+    var id: String { ref.key }
     /// "owner/name" as GitHub spells it.
     let fullName: String
     let owner: String
@@ -121,6 +216,10 @@ struct CoreGitHubAccountRepository: Equatable, Identifiable, Sendable {
     /// The user can push, so can start workflows.
     let canPush: Bool
     let installationID: Int64
+    /// The server it is on; empty is github.com. Set by the list's model.
+    var server: String = ""
+
+    var ref: GitHubRepositoryRef { GitHubRepositoryRef(serverID: server, fullName: fullName) }
 }
 
 /// The repositories of the accounts where the app is installed.

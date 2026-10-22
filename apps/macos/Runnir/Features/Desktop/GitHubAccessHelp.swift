@@ -40,6 +40,8 @@ struct GitHubAccessHelp: Equatable, Identifiable {
         /// A personal token lacks the repository or a permission: change it,
         /// or create one that has them.
         case editToken(URL)
+        /// An Enterprise server's token is added or replaced in Settings.
+        case openSettings
         /// The user's own rights on the repository; nothing here fixes them.
         case askForWriteAccess
         case retry
@@ -52,6 +54,7 @@ struct GitHubAccessHelp: Equatable, Identifiable {
             case .giveAccess: "Give Runnir Access..."
             case .reviewPermissions: "Review on GitHub..."
             case .editToken: "Edit Token on GitHub..."
+            case .openSettings: "Open Settings..."
             case .retry: "Try Again"
             case .askForWriteAccess, .none: nil
             }
@@ -68,9 +71,18 @@ struct GitHubAccessHelp: Equatable, Identifiable {
     /// Help for an access outcome GitHub reported; nil when it is `.ok`.
     /// `details` (the repository as the Core read it) tells a permission an
     /// owner has not accepted from the user's own missing write access.
+    /// `server` is the Enterprise server the repository is on (nil for
+    /// github.com), and `originHost` the working tree's origin host, to say
+    /// which server a missing one is.
     static func forAccess(_ access: CoreGitHubAccess, repository: String?, purpose: Purpose,
-                          details: CoreGitHubRepository? = nil, credential: CoreGitHubCredentialKind? = nil) -> GitHubAccessHelp? {
+                          details: CoreGitHubRepository? = nil, credential: CoreGitHubCredentialKind? = nil,
+                          server: GitHubServerRef? = nil, originHost: String? = nil) -> GitHubAccessHelp? {
         let name = repository.flatMap { $0.isEmpty ? nil : $0 } ?? "this repository"
+        if access == .noRemote { return noRemote(originHost: originHost) }
+        if let server, !server.isDotCom,
+           let help = forEnterprise(access, server: server, repository: name, purpose: purpose, details: details, credential: credential) {
+            return help
+        }
         if let credential, credential.isPersonal,
            let help = forPersonalToken(access, repository: name, purpose: purpose, details: details, credential: credential) {
             return help
@@ -79,9 +91,7 @@ struct GitHubAccessHelp: Equatable, Identifiable {
         case .ok:
             return nil
         case .noRemote:
-            return GitHubAccessHelp(title: "No GitHub remote",
-                                    message: "This working tree has no origin on github.com, so it has no workflows or runs on GitHub.",
-                                    fix: .none)
+            return noRemote(originHost: originHost)
         case .signedOut:
             return GitHubAccessHelp(title: "Connect GitHub", message: "Connect GitHub to \(purpose.phrase) for \(name).", fix: .connect)
         case .tokenRejected:
@@ -108,11 +118,50 @@ struct GitHubAccessHelp: Equatable, Identifiable {
         }
     }
 
+    /// A working tree with no origin on a GitHub server Runnir knows; one on
+    /// another host may be an Enterprise server to add.
+    static func noRemote(originHost: String?) -> GitHubAccessHelp {
+        if let host = originHost, !host.isEmpty, host != "github.com" {
+            return GitHubAccessHelp(title: "\(host) is not in Runnir",
+                                    message: "This working tree's origin is on \(host), which is not a GitHub server in Runnir. If it is a GitHub Enterprise server, add it in Settings › Account.",
+                                    fix: .openSettings)
+        }
+        return GitHubAccessHelp(title: "No GitHub remote",
+                                message: "This working tree has no origin on GitHub, so it has no workflows or runs on GitHub.",
+                                fix: .none)
+    }
+
+    /// On an Enterprise server the token is the only sign-in, set in
+    /// Settings; its refusals name the server.
+    private static func forEnterprise(_ access: CoreGitHubAccess, server: GitHubServerRef, repository name: String, purpose: Purpose,
+                                      details: CoreGitHubRepository?, credential: CoreGitHubCredentialKind?) -> GitHubAccessHelp? {
+        let host = server.webHost
+        let webURL = server.webURL ?? URL(string: "https://\(host)") ?? GitHubTokenAdvice.dotComWebURL
+        switch access {
+        case .signedOut:
+            return GitHubAccessHelp(title: "Sign in to \(host)",
+                                    message: "Runnir holds no token for \(host). Add the server with a token in Settings › Account to \(purpose.phrase) for \(name).",
+                                    fix: .openSettings)
+        case .tokenRejected:
+            return GitHubAccessHelp(title: "Sign in to \(host) again",
+                                    message: "\(host) no longer accepts the token, for example because it expired or was revoked. Remove the server in Settings › Account and add it again with a new token.",
+                                    fix: .openSettings)
+        case .notVisible, .permissionMissing:
+            return forPersonalToken(access, repository: name, purpose: purpose, details: details, credential: credential ?? .classic, webURL: webURL)
+        case .rateLimited, .unavailable:
+            guard let help = forAccess(access, repository: name, purpose: purpose) else { return nil }
+            return GitHubAccessHelp(title: help.title.replacingOccurrences(of: "GitHub", with: host), message: help.message, fix: help.fix)
+        default:
+            return nil
+        }
+    }
+
     /// With a personal token, GitHub's refusals are about the token: its
     /// repositories, permissions or scopes, changed in its settings.
     private static func forPersonalToken(_ access: CoreGitHubAccess, repository name: String, purpose: Purpose,
-                                         details: CoreGitHubRepository?, credential: CoreGitHubCredentialKind) -> GitHubAccessHelp? {
-        let settings = tokenSettingsURL(credential)
+                                         details: CoreGitHubRepository?, credential: CoreGitHubCredentialKind,
+                                         webURL: URL = GitHubTokenAdvice.dotComWebURL) -> GitHubAccessHelp? {
+        let settings = tokenSettingsURL(credential, webURL: webURL)
         switch access {
         case .tokenRejected:
             return GitHubAccessHelp(title: "Sign in to GitHub again",
@@ -134,8 +183,8 @@ struct GitHubAccessHelp: Equatable, Identifiable {
         }
     }
 
-    static func tokenSettingsURL(_ credential: CoreGitHubCredentialKind) -> URL {
-        credential == .fineGrained ? GitHubTokenAdvice.fineGrainedSettingsURL : GitHubTokenAdvice.classicSettingsURL
+    static func tokenSettingsURL(_ credential: CoreGitHubCredentialKind, webURL: URL = GitHubTokenAdvice.dotComWebURL) -> URL {
+        credential == .fineGrained ? GitHubTokenAdvice.fineGrainedSettingsURL(webURL: webURL) : GitHubTokenAdvice.classicSettingsURL(webURL: webURL)
     }
 
     /// What is known to block an action before trying it: a suspended
@@ -210,6 +259,7 @@ struct GitHubAccessNotice: View {
     let github: GitHubSession?
     var retry: () -> Void = {}
     @Environment(\.openURL) private var openURL
+    @Environment(\.openRunnirSettings) private var openRunnirSettings
     @State private var showingConnect = false
 
     var body: some View {
@@ -271,6 +321,7 @@ struct GitHubAccessNotice: View {
         switch fix {
         case .connect, .signInAgain: showingConnect = true
         case .giveAccess(let url), .reviewPermissions(let url), .editToken(let url): openURL(url)
+        case .openSettings: openRunnirSettings?(.account)
         case .retry: retry()
         case .askForWriteAccess, .none: break
         }
@@ -280,6 +331,7 @@ struct GitHubAccessNotice: View {
         switch help.fix {
         case .connect, .signInAgain: "person.crop.circle.badge.exclamationmark"
         case .giveAccess, .reviewPermissions, .editToken: "key"
+        case .openSettings: "gearshape"
         case .askForWriteAccess: "lock"
         case .retry: "arrow.clockwise.circle"
         case .none: "info.circle"
@@ -300,6 +352,7 @@ struct GitHubAccessAlert: ViewModifier {
     @Binding var help: GitHubAccessHelp?
     let github: GitHubSession?
     @Environment(\.openURL) private var openURL
+    @Environment(\.openRunnirSettings) private var openRunnirSettings
     @State private var showingConnect = false
 
     func body(content: Content) -> some View {
@@ -321,6 +374,7 @@ struct GitHubAccessAlert: ViewModifier {
         switch fix {
         case .connect, .signInAgain: showingConnect = true
         case .giveAccess(let url), .reviewPermissions(let url), .editToken(let url): openURL(url)
+        case .openSettings: openRunnirSettings?(.account)
         case .retry, .askForWriteAccess, .none: break
         }
     }
