@@ -334,6 +334,7 @@ struct PullRequestsList: View {
     let desktop: DesktopCoordinator
     /// Inset of the rows' text from the edges.
     var inset: CGFloat = 16
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -370,7 +371,32 @@ struct PullRequestsList: View {
                 PullRequestRow(pullRequest: pr, serverHost: host(of: pr)) { model.dismiss(pr) }.padding(.horizontal, inset - 8)
             }
         }
+        if model.access == .ok {
+            scope(Self.scopeNote(credential: desktop.core?.credentialKind)).padding(.horizontal, inset).padding(.top, 10)
+        }
         Color.clear.frame(height: 8)
+    }
+
+    /// Search finds pull requests only in repositories the sign-in reaches:
+    /// with Runnir Desktop, those where it is installed. Said under the list,
+    /// so a missing one is not a mystery. `credential` is github.com's; nil
+    /// when only Enterprise servers are signed in.
+    static func scopeNote(credential: CoreGitHubCredentialKind?) -> (text: String, managesAccess: Bool) {
+        credential == .appUser
+            ? ("Only repositories where Runnir Desktop is installed are listed.", true)
+            : ("Only repositories your token reaches are listed.", false)
+    }
+
+    private func scope(_ note: (text: String, managesAccess: Bool)) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(note.text).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
+            if note.managesAccess {
+                Button("Manage Repository Access...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
+                    .buttonStyle(.link)
+                    .help("Install Runnir Desktop on more repositories on GitHub")
+            }
+        }
+        .font(.system(size: 11))
     }
 
     /// Chips counting failing, running and passing open pull requests.
