@@ -232,6 +232,29 @@ final class CoreHub {
     var credentialKind: CoreGitHubCredentialKind? { credentialKinds[""] }
     /// Servers the Core holds a token for: github.com first, then Enterprise.
     private(set) var signedInServers: [GitHubServerRef] = []
+    /// Every Enterprise server handed over, signed in or not, for names.
+    private(set) var enterpriseServers: [GitHubServerRef] = []
+
+    /// An Enterprise server by id; nil for github.com ("" or nil) or one
+    /// the hub was not given.
+    func serverRef(for serverID: String?) -> GitHubServerRef? {
+        guard let serverID, !serverID.isEmpty else { return nil }
+        return enterpriseServers.first { $0.id == serverID }
+    }
+
+    /// The kind of token the Core holds for a server; "" or nil is github.com.
+    func credentialKind(for serverID: String?) -> CoreGitHubCredentialKind? {
+        credentialKinds[serverID ?? ""]
+    }
+
+    /// Help for a workspace's access outcome, with its server and origin.
+    func accessHelp(_ access: CoreGitHubAccess, workspaceID: UUID, purpose: GitHubAccessHelp.Purpose,
+                    details: CoreGitHubRepository? = nil) -> GitHubAccessHelp? {
+        let session = sessions[workspaceID]
+        return GitHubAccessHelp.forAccess(access, repository: session?.githubRepository, purpose: purpose, details: details,
+                                          credential: credentialKind(for: session?.githubServerID),
+                                          server: serverRef(for: session?.githubServerID), originHost: session?.originHost)
+    }
     @ObservationIgnored private var pushedEnterpriseIDs: Set<String> = []
 
     private func pushGitHubCredential() async {
@@ -255,6 +278,7 @@ final class CoreHub {
             _ = try? await service.setGitHubCredential(nil, server: GitHubServerRef(id: id, apiURL: nil, webHost: ""))
         }
         pushedEnterpriseIDs = current
+        enterpriseServers = enterprise.map(\.server)
         credentialKinds = kinds
         signedInServers = servers
         credentialGeneration += 1

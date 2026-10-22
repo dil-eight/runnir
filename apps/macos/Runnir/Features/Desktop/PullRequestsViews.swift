@@ -172,6 +172,8 @@ final class PullRequestsModel {
 /// One pull request: its CI (or how it closed), title, repository and branch.
 struct PullRequestRow: View {
     let pullRequest: CorePullRequest
+    /// The server's host, shown when more than one account is signed in.
+    var serverHost: String? = nil
     var dismiss: (() -> Void)? = nil
     @Environment(\.openURL) private var openURL
 
@@ -207,10 +209,15 @@ struct PullRequestRow: View {
         .padding(.vertical, 4)
     }
 
-    private var subtitle: String {
+    private var subtitle: String { Self.subtitle(pullRequest, serverHost: serverHost) }
+    private var ciText: String { Self.ciText(pullRequest) }
+
+    /// "host · owner/name #n · CI", the host only when given.
+    static func subtitle(_ pullRequest: CorePullRequest, serverHost: String?) -> String {
         var parts = ["\(pullRequest.repository) #\(pullRequest.number)"]
+        if let serverHost { parts.insert(serverHost, at: 0) }
         if pullRequest.state == "open" {
-            parts.append(ciText)
+            parts.append(ciText(pullRequest))
         } else {
             parts.append(pullRequest.state == "merged" ? "Merged" : "Closed")
             if let closed = pullRequest.closedAt { parts.append(closed.formatted(.relative(presentation: .named))) }
@@ -218,7 +225,7 @@ struct PullRequestRow: View {
         return parts.joined(separator: " · ")
     }
 
-    private var ciText: String {
+    static func ciText(_ pullRequest: CorePullRequest) -> String {
         switch pullRequest.ci {
         case .none: "No CI"
         case .running: pullRequest.ciRunning == 1 ? "1 run in progress" : "\(pullRequest.ciRunning) runs in progress"
@@ -266,7 +273,7 @@ struct PullRequestsList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let github = desktop.github, github.user == nil {
+            if let github = desktop.github, github.user == nil, desktop.core?.signedInServers.isEmpty ?? true {
                 if case .restoring = github.connection {
                     HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Checking the saved sign-in...") }
                         .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
@@ -288,15 +295,22 @@ struct PullRequestsList: View {
                         Text(model.isLoading && model.loadedAt == nil ? "Reading pull requests..." : "No open pull requests.")
                             .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                     }
-                    ForEach(model.open) { PullRequestRow(pullRequest: $0) }
+                    ForEach(model.open) { PullRequestRow(pullRequest: $0, serverHost: host(of: $0)) }
                 }
                 if !model.closed.isEmpty {
                     section("CLOSED IN THE LAST DAY") {
-                        ForEach(model.closed) { pr in PullRequestRow(pullRequest: pr) { model.dismiss(pr) } }
+                        ForEach(model.closed) { pr in PullRequestRow(pullRequest: pr, serverHost: host(of: pr)) { model.dismiss(pr) } }
                     }
                 }
             }
         }
+    }
+
+    /// The pull request's server host, when more than one account is
+    /// signed in; nil otherwise.
+    private func host(of pullRequest: CorePullRequest) -> String? {
+        guard let hub = desktop.core, hub.signedInServers.count > 1 else { return nil }
+        return pullRequest.server.isEmpty ? "github.com" : hub.serverRef(for: pullRequest.server)?.webHost
     }
 
     private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {

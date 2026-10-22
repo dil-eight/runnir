@@ -70,8 +70,7 @@ final class RunActionModel {
     private func explain(_ access: CoreGitHubAccess) async {
         guard GitHubAccessHelp.needsExplaining(access) else { return }
         let details = access == .permissionMissing ? await hub.githubRepository(workspaceID: workspaceID) : nil
-        accessHelp = GitHubAccessHelp.forAccess(access, repository: hub.session(for: workspaceID)?.githubRepository,
-                                                purpose: .change, details: details, credential: hub.credentialKind)
+        accessHelp = hub.accessHelp(access, workspaceID: workspaceID, purpose: .change, details: details)
     }
 
     func dismiss() {

@@ -13,7 +13,7 @@ struct EnterpriseServer: Codable, Identifiable, Hashable, Sendable {
     /// The web host, lowercased, without port: how working trees are matched.
     var webHost: String { (webURL.host() ?? "").lowercased() }
 
-    var ref: GitHubServerRef { GitHubServerRef(id: id.uuidString.lowercased(), apiURL: apiURL, webHost: webHost) }
+    var ref: GitHubServerRef { GitHubServerRef(id: id.uuidString.lowercased(), apiURL: apiURL, webHost: webHost, webURL: webURL) }
 
     static let maxNameLength = 60
 }

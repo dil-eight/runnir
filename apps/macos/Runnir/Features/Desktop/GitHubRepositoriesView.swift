@@ -424,7 +424,9 @@ struct GitHubRepositoriesView: View {
         if model.isLoading && model.repositories.isEmpty {
             HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Reading repositories...") }
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(16)
-        } else if let access = model.access, let help = Self.listHelp(access, credential: desktop.core?.credentialKind) {
+        } else if let access = model.access,
+                  let help = Self.listHelp(access, credential: desktop.core?.credentialKind(for: model.server) ?? model.credentialKind,
+                                           server: desktop.core?.serverRef(for: model.server)) {
             GitHubAccessNotice(help: help, style: .banner, github: desktop.github) {
                 if let hub = desktop.core { Task { await model.load(hub: hub, login: accountLogin) } }
             }.padding(8)
@@ -476,20 +478,22 @@ struct GitHubRepositoriesView: View {
 
     /// The list's banner: the account's repositories are not about one
     /// repository, so refusals point at the app's installations.
-    static func listHelp(_ access: CoreGitHubAccess, credential: CoreGitHubCredentialKind? = nil) -> GitHubAccessHelp? {
+    static func listHelp(_ access: CoreGitHubAccess, credential: CoreGitHubCredentialKind? = nil,
+                         server: GitHubServerRef? = nil) -> GitHubAccessHelp? {
         switch access {
         case .ok, .noRemote: return nil
         case .notVisible, .permissionMissing:
             if let credential, credential.isPersonal {
-                return GitHubAccessHelp(title: "GitHub did not let this token list repositories",
-                                        message: "Check the token's repository access and permissions on GitHub. The list shows what was read last.",
-                                        fix: .editToken(GitHubAccessHelp.tokenSettingsURL(credential)))
+                let host = server?.webHost ?? "GitHub"
+                return GitHubAccessHelp(title: "\(host) did not let this token list repositories",
+                                        message: "Check the token's repository access and permissions on \(host). The list shows what was read last.",
+                                        fix: .editToken(GitHubAccessHelp.tokenSettingsURL(credential, webURL: server?.webURL ?? GitHubTokenAdvice.dotComWebURL)))
             }
             return GitHubAccessHelp(title: "GitHub did not let Runnir list repositories",
                                     message: "Check where the Runnir Desktop app is installed and what it may reach. The list shows what was read last.",
                                     fix: .giveAccess(GitHubAccessHelp.installationURL))
         default:
-            return GitHubAccessHelp.forAccess(access, repository: "your account", purpose: .read, credential: credential)
+            return GitHubAccessHelp.forAccess(access, repository: "your account", purpose: .read, credential: credential, server: server)
         }
     }
 }
@@ -660,7 +664,7 @@ private struct RemoteRepositoryDetail: View {
             DesignDivider()
             if let access = model.access,
                let help = GitHubAccessHelp.forAccess(access, repository: repository.fullName, purpose: .read, details: details,
-                                                     credential: desktop.core?.credentialKind) {
+                                                     credential: hub.credentialKind(for: serverID), server: hub.serverRef(for: serverID)) {
                 GitHubAccessNotice(help: help, style: .note, github: desktop.github) { Task { await model.load(hub: hub) } }
             }
             if let workflows = model.workflows {

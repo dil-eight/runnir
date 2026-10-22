@@ -670,13 +670,16 @@ struct DesktopWorkspaceView: View {
     /// write access.
     private var runBlocker: GitHubAccessHelp? {
         guard let session else { return GitHubAccessHelp.forAccess(.unavailable, repository: nil, purpose: .run) }
-        guard let repository = session.githubRepository else { return GitHubAccessHelp.forAccess(.noRemote, repository: nil, purpose: .run) }
-        guard let github = desktop.github, github.user != nil else {
+        guard let repository = session.githubRepository else { return GitHubAccessHelp.noRemote(originHost: session.originHost) }
+        // An Enterprise server's sign-in is its token; the Core says when
+        // it has none.
+        let enterprise = !(session.githubServerID ?? "").isEmpty
+        if !enterprise, desktop.github?.user == nil {
             return GitHubAccessHelp.forAccess(desktop.github?.signedOutAccess ?? .signedOut, repository: repository, purpose: .run)
         }
         if let access = session.githubAccess, access != .ok {
-            return GitHubAccessHelp.forAccess(access, repository: repository, purpose: .run, details: session.githubDetails,
-                                              credential: desktop.core?.credentialKind)
+            return desktop.core?.accessHelp(access, workspaceID: workspace.id, purpose: .run, details: session.githubDetails)
+                ?? GitHubAccessHelp.forAccess(access, repository: repository, purpose: .run, details: session.githubDetails)
         }
         return GitHubAccessHelp.blocker(for: .run, repository: repository, details: session.githubDetails)
     }
@@ -1243,7 +1246,7 @@ struct GitHubLinkCard: View {
                 header(linked.fullName.isEmpty ? (repository ?? "") : linked.fullName, symbol: "checkmark.circle", tint: RunnirTheme.success)
                 Text("\(linked.visibility.capitalized) · default branch \(linked.defaultBranch)")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                if let url = linked.htmlURL ?? URL(string: "https://github.com/\(linked.fullName)") {
+                if let url = linked.htmlURL ?? (isEnterprise ? nil : URL(string: "https://github.com/\(linked.fullName)")) {
                     Button("Open on GitHub") { openURL(url) }.buttonStyle(DesignButtonStyle())
                 }
                 // Reading works; what waits for an owner, or for write access, is said here.
@@ -1271,9 +1274,13 @@ struct GitHubLinkCard: View {
 
     private var checkKey: String { "\(repository ?? "")|\(github?.user?.login ?? "")|\(coreReady)|\(attempt)|\(hub?.credentialGeneration ?? 0)" }
 
+    /// The working tree's origin is on an Enterprise server, whose sign-in
+    /// is its token in Settings, not the github.com sign-in.
+    private var isEnterprise: Bool { !(hub?.session(for: workspaceID)?.githubServerID ?? "").isEmpty }
+
     private func check() async {
         details = nil
-        guard repository != nil, coreReady, github?.user != nil, let hub else { return }
+        guard repository != nil, coreReady, github?.user != nil || isEnterprise, let hub else { return }
         details = await hub.githubRepository(workspaceID: workspaceID)
     }
 
@@ -1281,15 +1288,14 @@ struct GitHubLinkCard: View {
 
     private var display: Display {
         guard let repository else {
-            return coreReady ? .problem(GitHubAccessHelp.forAccess(.noRemote, repository: nil, purpose: .read)!) : .reading
+            return coreReady ? .problem(GitHubAccessHelp.noRemote(originHost: hub?.session(for: workspaceID)?.originHost)) : .reading
         }
-        guard let github, github.user != nil else {
+        if !isEnterprise, github?.user == nil {
             return .problem(GitHubAccessHelp.forAccess(.signedOut, repository: repository, purpose: .read)!)
         }
         guard let details else { return .checking }
         if details.access == .ok { return .linked(details) }
-        return .problem(GitHubAccessHelp.forAccess(details.access, repository: repository, purpose: .read, details: details,
-                                                   credential: hub?.credentialKind)
+        return .problem(hub?.accessHelp(details.access, workspaceID: workspaceID, purpose: .read, details: details)
                         ?? GitHubAccessHelp.forAccess(.unavailable, repository: repository, purpose: .read)!)
     }
 }

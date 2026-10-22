@@ -61,7 +61,8 @@ struct EnterpriseServersTests {
         try await servers.add(company, token: "ghp_company")
         #expect(servers.servers.map(\.webHost) == ["github.company.com"] && changes == 1)
         #expect(await servers.token(for: company.id) == "ghp_company")
-        #expect(company.ref == GitHubServerRef(id: company.id.uuidString.lowercased(), apiURL: company.apiURL, webHost: "github.company.com"))
+        #expect(company.ref == GitHubServerRef(id: company.id.uuidString.lowercased(), apiURL: company.apiURL, webHost: "github.company.com",
+                                               webURL: company.webURL))
 
         // The next launch reads the same list; the file holds no token.
         let data = try Data(contentsOf: directory.appendingPathComponent("github-servers.json"))

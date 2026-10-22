@@ -66,8 +66,10 @@ struct GitHubServerRef: Hashable, Sendable, Codable {
     let apiURL: URL?
     /// The web URL's host, lowercased, without port.
     let webHost: String
+    /// The web URL, for links such as token settings; not sent to the Core.
+    var webURL: URL? = nil
 
-    static let dotCom = GitHubServerRef(id: "", apiURL: nil, webHost: "github.com")
+    static let dotCom = GitHubServerRef(id: "", apiURL: nil, webHost: "github.com", webURL: URL(string: "https://github.com"))
     var isDotCom: Bool { id.isEmpty }
 }
 
