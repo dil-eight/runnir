@@ -32,6 +32,40 @@ final class DesktopCoordinator {
     @ObservationIgnored private var store: (any DesktopStateStoring)?
     @ObservationIgnored private var manager: NSWindow?
     @ObservationIgnored private var pullRequestsWindow: NSWindow?
+    /// Settings, shown over one window at a time: opening them in another
+    /// window closes them in the first.
+    private(set) var settings: SettingsPresentation?
+    /// The section Settings open at, the one shown last.
+    @ObservationIgnored private var lastSettingsSection: SettingsSection = .account
+    /// The Workspace Manager's id among windows that can show Settings.
+    static let managerWindowID = UUID()
+
+    /// Shows Settings over a window, at a section or the one shown last.
+    func showSettings(in windowID: UUID, section: SettingsSection? = nil) {
+        let section = section ?? settings?.section ?? lastSettingsSection
+        lastSettingsSection = section
+        settings = SettingsPresentation(windowID: windowID, section: section)
+    }
+
+    func showSettingsSection(_ section: SettingsSection) {
+        guard let settings else { return }
+        showSettings(in: settings.windowID, section: section)
+    }
+
+    func closeSettings() { settings = nil }
+
+    /// Settings over the window in front: a workspace window, or the
+    /// Workspace Manager, opened when no Runnir window is in front.
+    func showSettingsInFrontWindow(section: SettingsSection? = nil) {
+        if let key = NSApp.keyWindow ?? NSApp.mainWindow,
+           let id = windows.first(where: { $0.value.window === key })?.key {
+            showSettings(in: id, section: section)
+            return
+        }
+        showManager()
+        showSettings(in: Self.managerWindowID, section: section)
+    }
+
     /// The Enterprise servers, for their names in lists and notices; set by
     /// the app delegate.
     @ObservationIgnored var enterpriseServers: EnterpriseServers?
@@ -167,7 +201,8 @@ final class DesktopCoordinator {
         if pullRequestsWindow == nil {
             let window = makeWindow(size: NSSize(width: 560, height: 640), title: "Pull Requests")
             window.minSize = NSSize(width: 480, height: 360)
-            window.contentViewController = NSHostingController(rootView: PullRequestsWindowView(model: pullRequests, desktop: self))
+            window.contentViewController = NSHostingController(rootView: PullRequestsWindowView(model: pullRequests, desktop: self)
+                .environment(\.openRunnirSettings) { [weak self] section in self?.showSettingsInFrontWindow(section: section) })
             window.setContentSize(NSSize(width: 560, height: 640))
             window.identifier = NSUserInterfaceItemIdentifier("pull-requests")
             // The shortcut works from any app: the window comes to the Space

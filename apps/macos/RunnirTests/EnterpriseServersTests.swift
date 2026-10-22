@@ -211,6 +211,13 @@ struct EnterpriseServerFormTests {
         #expect(!form.canAdd, "a changed token is checked again")
     }
 
+    @Test func emptyFieldsAreNotShownAsMistakes() {
+        let form = EnterpriseServerForm(existing: [])
+        #expect(form.shownProblems.isEmpty && !form.problems.isEmpty, "nothing typed yet: Add stays off, no errors shown")
+        form.webURL = "github.company.com"
+        #expect(form.shownProblems == ["Web URL: Enter a full URL, such as https://github.company.com."])
+    }
+
     @Test func aServerAlreadyListedIsRefused() {
         let existing = EnterpriseServer(id: UUID(), name: "Company", webURL: URL(string: "https://github.company.com")!,
                                         apiURL: URL(string: "https://github.company.com/api/v3")!)
@@ -219,5 +226,29 @@ struct EnterpriseServerFormTests {
         form.webURL = "https://GitHub.Company.com"
         form.apiURL = "https://github.company.com/api/v3"
         #expect(form.problems == ["Web URL: github.company.com is already in the list."])
+    }
+}
+
+@MainActor
+@Suite(.timeLimit(.minutes(1)))
+struct SettingsOverlayTests {
+    @Test func settingsShowInOneWindowAtATime() {
+        let desktop = DesktopCoordinator(store: nil)
+        let first = UUID(), second = UUID()
+        desktop.showSettings(in: first)
+        #expect(desktop.settings == SettingsPresentation(windowID: first, section: .account))
+        desktop.showSettingsSection(.pullRequests)
+        // Opening them in another window moves them there, at the same section.
+        desktop.showSettings(in: second)
+        #expect(desktop.settings == SettingsPresentation(windowID: second, section: .pullRequests))
+        desktop.closeSettings()
+        #expect(desktop.settings == nil)
+        desktop.showSettingsSection(.tools)
+        #expect(desktop.settings == nil, "choosing a section does not open closed Settings")
+        // They open again at the section shown last.
+        desktop.showSettings(in: first)
+        #expect(desktop.settings?.section == .pullRequests)
+        desktop.showSettings(in: first, section: .account)
+        #expect(desktop.settings?.section == .account)
     }
 }

@@ -18,20 +18,23 @@ struct RunnirApp: App {
     }
 
     var body: some Scene {
-        Settings {
-            SettingsView(github: delegate.github, core: delegate.desktop.core, shortcuts: delegate.desktop.shortcuts,
-                         enterpriseServers: delegate.enterpriseServers)
-                .environment(delegate.desktop.accountState)
-        }
         // Open pull requests and their CI, from the menu bar.
         MenuBarExtra {
             PullRequestsMenu(model: delegate.desktop.pullRequests, desktop: delegate.desktop,
                              shortcut: shortcutText)
+                .environment(\.openRunnirSettings) { [desktop = delegate.desktop] section in
+                    desktop.showSettingsInFrontWindow(section: section)
+                }
         } label: {
             Image(systemName: menuBarSymbol).accessibilityLabel("Runnir pull requests")
         }
         .menuBarExtraStyle(.window)
         .commands {
+            // Settings open over the window in front, not in a window of their own.
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings...") { delegate.desktop.showSettingsInFrontWindow() }
+                    .keyboardShortcut(",", modifiers: .command)
+            }
             CommandGroup(replacing: .newItem) {
                 Button("Open Workspace...") { delegate.desktop.showManager() }
                     .keyboardShortcut("n", modifiers: .command)

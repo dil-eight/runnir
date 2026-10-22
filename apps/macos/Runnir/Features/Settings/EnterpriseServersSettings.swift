@@ -41,6 +41,21 @@ final class EnterpriseServerForm {
                                 login: check?.login ?? "")
     }
 
+    /// What to show under the form: a field left empty is not a mistake
+    /// yet, so only filled-in fields are judged.
+    var shownProblems: [String] {
+        var out: [String] = []
+        if name.trimmingCharacters(in: .whitespacesAndNewlines).count > EnterpriseServer.maxNameLength {
+            out.append("Name: use 1 to \(EnterpriseServer.maxNameLength) characters.")
+        }
+        if !webURL.isEmpty, case .failure(let problem) = EnterpriseServerURL.check(webURL) { out.append("Web URL: " + problem.message) }
+        if !apiURL.isEmpty, case .failure(let problem) = EnterpriseServerURL.check(apiURL) { out.append("API URL: " + problem.message) }
+        if let draft, existing.contains(where: { $0.webHost == draft.webHost }) {
+            out.append("Web URL: \(draft.webHost) is already in the list.")
+        }
+        return out
+    }
+
     /// The fields are valid and the server accepted this very token.
     var canAdd: Bool {
         problems.isEmpty && check?.access == .ok && !isChecking
@@ -129,7 +144,7 @@ struct AddEnterpriseServerSheet: View {
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    ForEach(form.problems, id: \.self) { problem in
+                    ForEach(form.shownProblems, id: \.self) { problem in
                         Label(problem, systemImage: "exclamationmark.circle").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                     }
                     if let check = form.check {

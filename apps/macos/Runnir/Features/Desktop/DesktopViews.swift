@@ -155,6 +155,7 @@ struct WorkspaceManagerView: View {
         .background(RunnirTheme.background)
         .tint(RunnirTheme.primary)
         .ignoresSafeArea()
+        .settingsOverlay(desktop: desktop, windowID: DesktopCoordinator.managerWindowID)
     }
 }
 
@@ -480,6 +481,7 @@ struct DesktopWorkspaceView: View {
         }
         .background(RunnirTheme.background).foregroundStyle(RunnirTheme.foreground).tint(RunnirTheme.primary)
         .ignoresSafeArea()
+        .settingsOverlay(desktop: desktop, windowID: windowID)
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
         // Once the Core has opened the working tree: its origin's GitHub
@@ -890,7 +892,7 @@ struct DesktopWorkspaceView: View {
                     }
                 }
             }.padding(.horizontal, 10).frame(height: 45)
-            SettingsLink { Label("Settings...", systemImage: "gearshape") }
+            Button { desktop.showSettings(in: windowID) } label: { Label("Settings...", systemImage: "gearshape") }
                 .buttonStyle(.plain).font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
                 .padding(.horizontal, 10).frame(height: 30)
         }

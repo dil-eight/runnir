@@ -259,7 +259,7 @@ struct GitHubAccessNotice: View {
     let github: GitHubSession?
     var retry: () -> Void = {}
     @Environment(\.openURL) private var openURL
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openRunnirSettings) private var openRunnirSettings
     @State private var showingConnect = false
 
     var body: some View {
@@ -321,7 +321,7 @@ struct GitHubAccessNotice: View {
         switch fix {
         case .connect, .signInAgain: showingConnect = true
         case .giveAccess(let url), .reviewPermissions(let url), .editToken(let url): openURL(url)
-        case .openSettings: openSettings()
+        case .openSettings: openRunnirSettings?(.account)
         case .retry: retry()
         case .askForWriteAccess, .none: break
         }
@@ -352,7 +352,7 @@ struct GitHubAccessAlert: ViewModifier {
     @Binding var help: GitHubAccessHelp?
     let github: GitHubSession?
     @Environment(\.openURL) private var openURL
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openRunnirSettings) private var openRunnirSettings
     @State private var showingConnect = false
 
     func body(content: Content) -> some View {
@@ -374,7 +374,7 @@ struct GitHubAccessAlert: ViewModifier {
         switch fix {
         case .connect, .signInAgain: showingConnect = true
         case .giveAccess(let url), .reviewPermissions(let url), .editToken(let url): openURL(url)
-        case .openSettings: openSettings()
+        case .openSettings: openRunnirSettings?(.account)
         case .retry, .askForWriteAccess, .none: break
         }
     }
