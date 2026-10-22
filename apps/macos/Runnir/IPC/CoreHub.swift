@@ -215,10 +215,13 @@ final class CoreHub {
     /// before the Core had the new one (just after signing in) reads again.
     private(set) var credentialGeneration = 0
 
+    /// The kind of the token the Core holds; nil when it holds none.
+    private(set) var credentialKind: CoreGitHubCredentialKind?
+
     private func pushGitHubCredential() async {
         guard isReady, let service = try? await provider.service() else { return }
         let token = await githubTokenProvider?()
-        try? await service.setGitHubCredential(token)
+        credentialKind = (try? await service.setGitHubCredential(token)) ?? nil
         credentialGeneration += 1
         // What the Core may read changed: reload every repository's activity.
         for workspaceID in sessions.keys { await loadGitHubActivity(workspaceID: workspaceID) }
@@ -434,6 +437,26 @@ final class CoreHub {
     }
 
     // MARK: Repositories without a local clone
+
+    /// The GitHub repository of each working tree's origin, by path; nil
+    /// when the Core is not ready.
+    func githubOrigins(paths: [String]) async -> [String: String]? {
+        guard isReady, let service = try? await provider.service() else { return nil }
+        return try? await service.githubOrigins(paths: Array(paths.prefix(500)))
+    }
+
+    /// What a token can do, asked of GitHub through the Core without
+    /// changing the token the Core holds.
+    func checkGitHubToken(_ token: String) async -> CoreGitHubTokenCheck {
+        guard isReady, let service = try? await provider.service() else { return .failed(.unavailable) }
+        do {
+            return try await service.checkGitHubToken(token)
+        } catch CoreServiceError.invalidArgument {
+            return .failed(.tokenRejected)
+        } catch {
+            return .failed(.unavailable)
+        }
+    }
 
     /// The github.com repositories the signed-in user's token reaches.
     func accountRepositories() async -> CoreGitHubAccount {

@@ -184,12 +184,50 @@ struct GRPCCoreService: CoreServicing {
         return response.workflowID
     }
 
-    func setGitHubCredential(_ token: String?) async throws {
+    @discardableResult
+    func setGitHubCredential(_ token: String?) async throws -> CoreGitHubCredentialKind? {
         if let token {
-            _ = try await call { try await client.setGitHubCredential(.with { $0.token = token }, options: Self.options(Self.callTimeout)) }
+            let response = try await call { try await client.setGitHubCredential(.with { $0.token = token }, options: Self.options(Self.callTimeout)) }
+            return Self.map(response.kind)
         } else {
             _ = try await call { try await client.clearGitHubCredential(.init(), options: Self.options(Self.callTimeout)) }
+            return nil
         }
+    }
+
+    func checkGitHubToken(_ token: String) async throws -> CoreGitHubTokenCheck {
+        let response = try await call {
+            try await client.checkGitHubToken(.with { $0.token = token }, options: Self.options(.seconds(30)))
+        }
+        return CoreGitHubTokenCheck(
+            access: Self.map(response.status), kind: Self.map(response.kind), login: response.login, scopes: response.scopes,
+            expiresAt: response.hasExpiresAt ? response.expiresAt.date : nil, repositories: Int(response.repositories),
+            checks: response.checks.map { check in
+                let state: CoreGitHubTokenCheck.State = switch check.state {
+                case .passed: .passed
+                case .missing: .missing
+                default: .unknown
+                }
+                return CoreGitHubTokenCheck.Item(name: check.name, state: state, detail: check.detail)
+            },
+            suitable: response.suitable)
+    }
+
+    static func map(_ kind: Runnir_Core_V1_GithubCredentialKind) -> CoreGitHubCredentialKind {
+        switch kind {
+        case .appUser: .appUser
+        case .classic: .classic
+        case .fineGrained: .fineGrained
+        case .oauth: .oauth
+        default: .other
+        }
+    }
+
+    func githubOrigins(paths: [String]) async throws -> [String: String] {
+        let response = try await call {
+            try await client.getGitHubOrigins(.with { $0.paths = paths }, options: Self.options(Self.callTimeout))
+        }
+        return Dictionary(response.origins.map { ($0.path, $0.githubRepository) }, uniquingKeysWith: { first, _ in first })
     }
 
     func listGitHubRepositories() async throws -> CoreGitHubAccount {
@@ -206,7 +244,8 @@ struct GRPCCoreService: CoreServicing {
                                             pushedAt: $0.hasPushedAt ? $0.pushedAt.date : nil, archived: $0.archived, fork: $0.fork,
                                             canPush: $0.canPush, installationID: $0.installationID)
             },
-            truncated: response.truncated)
+            truncated: response.truncated,
+            credentialKind: Self.map(response.credentialKind))
     }
 
     func listGitHubWorkflows(target: CoreGitHubTarget) async throws -> CoreGitHubResult<CoreGitHubWorkflow> {

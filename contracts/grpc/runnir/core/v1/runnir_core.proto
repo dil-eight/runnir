@@ -46,6 +46,16 @@ service RunnirCore {
   // is never written to disk, logged, sent in events or returned by any call.
   rpc SetGitHubCredential(SetGitHubCredentialRequest) returns (SetGitHubCredentialResponse);
   rpc ClearGitHubCredential(ClearGitHubCredentialRequest) returns (ClearGitHubCredentialResponse);
+  // Asks GitHub what a token can do, without holding it: whether it is
+  // accepted, its kind, and the rights Runnir needs that it has, lacks or
+  // that GitHub does not show without trying a change. A refused token is
+  // TOKEN_REJECTED in `status`; the held credential is never changed.
+  rpc CheckGitHubToken(CheckGitHubTokenRequest) returns (CheckGitHubTokenResponse);
+
+  // The github.com repository each folder's origin points at, read from git's
+  // metadata only, without opening the repositories: lets the app match its
+  // registered working trees to GitHub repositories. At most 500 paths.
+  rpc GetGitHubOrigins(GetGitHubOriginsRequest) returns (GetGitHubOriginsResponse);
 
   // The github.com repositories the signed-in user's token reaches: those of
   // the accounts where the Runnir Desktop app is installed, up to 1,000.
@@ -227,7 +237,55 @@ message SetGitHubCredentialRequest {
   string token = 1;
 }
 
-message SetGitHubCredentialResponse {}
+message SetGitHubCredentialResponse {
+  GithubCredentialKind kind = 1;
+}
+
+// What issued a token, from GitHub's prefixes.
+enum GithubCredentialKind {
+  GITHUB_CREDENTIAL_KIND_UNSPECIFIED = 0;
+  // Signing in to the Runnir Desktop app: reaches its installations.
+  GITHUB_CREDENTIAL_KIND_APP_USER = 1;
+  // Personal access token (classic): scopes.
+  GITHUB_CREDENTIAL_KIND_CLASSIC = 2;
+  // Fine-grained personal access token: chosen repositories and permissions.
+  GITHUB_CREDENTIAL_KIND_FINE_GRAINED = 3;
+  GITHUB_CREDENTIAL_KIND_OAUTH = 4;
+  GITHUB_CREDENTIAL_KIND_OTHER = 5;
+}
+
+message CheckGitHubTokenRequest {
+  string token = 1;
+}
+
+message CheckGitHubTokenResponse {
+  GitHubStatus status = 1;
+  GithubCredentialKind kind = 2;
+  string login = 3;
+  // Scopes of a classic or OAuth token.
+  repeated string scopes = 4;
+  // Unset when the token does not expire or GitHub does not say.
+  google.protobuf.Timestamp expires_at = 5;
+  // Repositories a fine-grained token reaches, counted up to 100.
+  int32 repositories = 6;
+  repeated GitHubTokenCheck checks = 7;
+  // Nothing Runnir needs is missing; unknown checks do not count.
+  bool suitable = 8;
+}
+
+message GitHubTokenCheck {
+  string name = 1;
+  GithubTokenCheckState state = 2;
+  string detail = 3;
+}
+
+enum GithubTokenCheckState {
+  GITHUB_TOKEN_CHECK_STATE_UNSPECIFIED = 0;
+  GITHUB_TOKEN_CHECK_STATE_PASSED = 1;
+  GITHUB_TOKEN_CHECK_STATE_MISSING = 2;
+  // GitHub does not tell without trying a change.
+  GITHUB_TOKEN_CHECK_STATE_UNKNOWN = 3;
+}
 
 message ClearGitHubCredentialRequest {}
 
@@ -320,6 +378,23 @@ message ListGitHubWorkflowsRequest {
   string github_repository = 2;
 }
 
+message GetGitHubOriginsRequest {
+  // Absolute paths of working trees.
+  repeated string paths = 1;
+}
+
+message GetGitHubOriginsResponse {
+  // One per path that has an origin on github.com; paths without one, or
+  // that cannot be read, are left out.
+  repeated GitHubOrigin origins = 1;
+}
+
+message GitHubOrigin {
+  string path = 1;
+  // "owner/name".
+  string github_repository = 2;
+}
+
 message ListGitHubRepositoriesRequest {}
 
 message ListGitHubRepositoriesResponse {
@@ -331,6 +406,8 @@ message ListGitHubRepositoriesResponse {
   repeated GitHubAccountRepository repositories = 3;
   // More repositories exist than were read.
   bool truncated = 4;
+  // A personal token lists what it reaches and has no installations.
+  GithubCredentialKind credential_kind = 5;
 }
 
 message GitHubInstallation {

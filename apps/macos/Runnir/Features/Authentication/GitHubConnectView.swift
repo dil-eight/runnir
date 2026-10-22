@@ -9,6 +9,11 @@ struct GitHubConnectView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @State private var copied = false
+    /// Signing in with a personal access token instead of the Device Flow.
+    @State private var usingToken = false
+    @State private var token = ""
+    @State private var tokenCheck: CoreGitHubTokenCheck?
+    @State private var checkingToken = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -24,7 +29,7 @@ struct GitHubConnectView: View {
             }
         }
         .padding(24)
-        .frame(width: 440)
+        .frame(width: usingToken ? 520 : 440)
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
     }
@@ -36,6 +41,9 @@ struct GitHubConnectView: View {
                 ProgressView().controlSize(.small)
                 Text(session.connection == .restoring ? "Checking the saved sign-in..." : "Requesting a code from GitHub...")
             }
+        case .signedOut where usingToken:
+            GitHubTokenForm(token: $token, check: tokenCheck, checking: checkingToken)
+                .onChange(of: token) { tokenCheck = nil }
         case .signedOut(let problem):
             VStack(alignment: .leading, spacing: 8) {
                 if let problem {
@@ -51,9 +59,12 @@ struct GitHubConnectView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Enter this code on GitHub:").font(.system(size: 13))
                 HStack(spacing: 12) {
+                    // Not selectable: Copy is next to it. A selectable Text is
+                    // an AppKit view, and an accessibility label on it made
+                    // SwiftUI ask itself for the label until the stack ran
+                    // out when an accessibility client read the sheet.
                     Text(authorization.userCode)
                         .font(.system(size: 28, weight: .semibold, design: .monospaced))
-                        .textSelection(.enabled)
                         .accessibilityLabel("Code \(authorization.userCode)")
                     Button(copied ? "Copied" : "Copy") {
                         NSPasteboard.general.clearContents()
@@ -85,8 +96,24 @@ struct GitHubConnectView: View {
         switch session.connection {
         case .restoring, .requestingCode:
             Button("Close") { dismiss() }
+        case .signedOut where usingToken:
+            Button("Back") { usingToken = false; token = ""; tokenCheck = nil }
+            if let tokenCheck, tokenCheck.access == .ok {
+                Button(tokenCheck.suitable ? "Use This Token" : "Use Anyway") { useToken() }
+                    .keyboardShortcut(tokenCheck.suitable ? .defaultAction : nil)
+                    .help(tokenCheck.suitable ? "Sign in with this token" : "Sign in with it; what it lacks shows up where it is needed")
+            }
+            if tokenCheck == nil || tokenCheck?.access != .ok {
+                Button(checkingToken ? "Checking..." : "Check Token") { checkToken() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || checkingToken)
+            }
         case .signedOut:
             Button("Close") { dismiss() }
+            if session.tokenChecker != nil {
+                Button("Use a Token Instead...") { usingToken = true }
+                    .help("Sign in with a personal access token: Runnir checks what it can do first")
+            }
             Button("Connect") { copied = false; session.signIn() }.keyboardShortcut(.defaultAction)
         case .waiting:
             Button("Cancel") { session.cancelSignIn() }
@@ -97,6 +124,164 @@ struct GitHubConnectView: View {
         case .offline:
             Button("Close") { dismiss() }
             Button("Retry") { Task { await session.restore() } }.keyboardShortcut(.defaultAction)
+        }
+    }
+}
+
+extension GitHubConnectView {
+    private func checkToken() {
+        guard let checker = session.tokenChecker else { return }
+        let value = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        checkingToken = true
+        Task {
+            let result = await checker(value)
+            // The field may have changed while GitHub answered.
+            if value == token.trimmingCharacters(in: .whitespacesAndNewlines) { tokenCheck = result }
+            checkingToken = false
+        }
+    }
+
+    private func useToken() {
+        let value = token
+        token = ""
+        tokenCheck = nil
+        usingToken = false
+        Task { await session.useToken(value) }
+    }
+}
+
+/// Pasting a personal access token: what Runnir found it can do, and what to
+/// choose for a new one when it does not fit.
+struct GitHubTokenForm: View {
+    @Binding var token: String
+    let check: CoreGitHubTokenCheck?
+    let checking: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Paste a personal access token. Runnir asks GitHub what it can do before using it, and keeps it only in your Keychain.")
+                .font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
+            SecureField("github_pat_… or ghp_…", text: $token)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("github-token")
+            if checking {
+                HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Asking GitHub what the token can do...") }
+                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+            } else if let check {
+                GitHubTokenCheckView(check: check)
+            }
+            if check.map({ !$0.suitable }) ?? true {
+                GitHubTokenAdvice(emphasized: check != nil && check?.access == .ok)
+            }
+        }
+    }
+}
+
+/// The result of a token check, item by item.
+struct GitHubTokenCheckView: View {
+    let check: CoreGitHubTokenCheck
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if check.access == .ok {
+                Text(summary).font(.system(size: 13, weight: .medium))
+                ForEach(check.checks) { item in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: symbol(item.state)).foregroundStyle(tint(item.state)).padding(.top, 1)
+                            .accessibilityLabel(label(item.state))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.name).font(.system(size: 12, weight: .medium))
+                            Text(item.detail).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+            } else {
+                Label(problem, systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.warning).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var summary: String {
+        var text = Self.kindName(check.kind) + (check.login.isEmpty ? "" : " for \(check.login)")
+        if let expires = check.expiresAt { text += " · expires \(expires.formatted(date: .abbreviated, time: .omitted))" }
+        return text
+    }
+
+    static func kindName(_ kind: CoreGitHubCredentialKind) -> String {
+        switch kind {
+        case .appUser: "Runnir Desktop sign-in"
+        case .classic: "Classic token"
+        case .fineGrained: "Fine-grained token"
+        case .oauth: "OAuth token"
+        case .other: "Token"
+        }
+    }
+
+    private var problem: String {
+        switch check.access {
+        case .tokenRejected, .signedOut: "GitHub does not accept this token: it may be mistyped, expired or revoked."
+        case .rateLimited: "GitHub is limiting requests. Try again in a moment."
+        default: "GitHub or Runnir Core could not be reached. Try again."
+        }
+    }
+
+    private func symbol(_ state: CoreGitHubTokenCheck.State) -> String {
+        switch state {
+        case .passed: "checkmark.circle.fill"
+        case .missing: "xmark.circle.fill"
+        case .unknown: "questionmark.circle"
+        }
+    }
+
+    private func tint(_ state: CoreGitHubTokenCheck.State) -> Color {
+        switch state {
+        case .passed: RunnirTheme.success
+        case .missing: RunnirTheme.destructive
+        case .unknown: RunnirTheme.secondaryForeground
+        }
+    }
+
+    private func label(_ state: CoreGitHubTokenCheck.State) -> String {
+        switch state {
+        case .passed: "Has it"
+        case .missing: "Missing"
+        case .unknown: "Not known yet"
+        }
+    }
+}
+
+/// What to choose for a token Runnir can use.
+struct GitHubTokenAdvice: View {
+    /// The token checked does not fit: say so first.
+    var emphasized = false
+    @Environment(\.openURL) private var openURL
+
+    static let newFineGrainedURL = URL(string: "https://github.com/settings/personal-access-tokens/new")!
+    static let newClassicURL = URL(string: "https://github.com/settings/tokens/new?scopes=repo&description=Runnir")!
+    static let fineGrainedSettingsURL = URL(string: "https://github.com/settings/personal-access-tokens")!
+    static let classicSettingsURL = URL(string: "https://github.com/settings/tokens")!
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(emphasized ? "This token does not have what Runnir needs. Create one that does:" : "A token Runnir can use:")
+                .font(.system(size: 12, weight: .semibold))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Fine-grained token (recommended)").font(.system(size: 12, weight: .medium))
+                Text("Resource owner: your account or the organization. Repository access: the repositories you use in Runnir, or all. Repository permissions: Actions — Read and write; Contents — Read-only. GitHub adds Metadata — Read-only.")
+                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
+                Button("New Fine-Grained Token...") { openURL(Self.newFineGrainedURL) }.buttonStyle(.link).font(.system(size: 11))
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Classic token").font(.system(size: 12, weight: .medium))
+                Text("Scope: repo. For an organization that uses single sign-on, authorize the token for it afterwards (Configure SSO).")
+                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
+                Button("New Classic Token...") { openURL(Self.newClassicURL) }.buttonStyle(.link).font(.system(size: 11))
+            }
         }
     }
 }
@@ -142,6 +327,8 @@ struct GitHubAccountRow: View {
 /// Account section of the Settings window.
 struct GitHubAccountSettings: View {
     let session: GitHubSession
+    /// The kind of token the Core holds, for what to manage where.
+    var credentialKind: CoreGitHubCredentialKind? = nil
     @Environment(\.openURL) private var openURL
     @State private var showingConnect = false
 
@@ -149,16 +336,28 @@ struct GitHubAccountSettings: View {
         VStack(alignment: .leading, spacing: 8) {
             switch session.connection {
             case .signedIn(let user):
-                Text("Signed in as \(user.login)")
-                HStack {
-                    Button("Sign Out") { Task { await session.signOut() } }
-                    Button("Manage Repository Access...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
-                    Button("Manage Authorization on GitHub...") { openURL(GitHubSession.authorizationsURL) }
+                if let credentialKind, credentialKind.isPersonal {
+                    Text("Signed in as \(user.login) with a \(GitHubTokenCheckView.kindName(credentialKind).lowercased())")
+                    HStack {
+                        Button("Sign Out") { Task { await session.signOut() } }
+                        Button("Token Settings on GitHub...") { openURL(GitHubAccessHelp.tokenSettingsURL(credentialKind)) }
+                    }
+                    Text("Runnir sees the repositories this token reaches, with the permissions it has. Change them, or revoke the token, in its settings on GitHub.")
+                        .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                    Text("Sign Out removes the token from this Mac's Keychain; the token itself stays valid on GitHub until it expires or you revoke it.")
+                        .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                } else {
+                    Text("Signed in as \(user.login)")
+                    HStack {
+                        Button("Sign Out") { Task { await session.signOut() } }
+                        Button("Manage Repository Access...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
+                        Button("Manage Authorization on GitHub...") { openURL(GitHubSession.authorizationsURL) }
+                    }
+                    Text("Runnir sees only repositories where the Runnir Desktop app is installed. Manage Repository Access adds or removes them on GitHub.")
+                        .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                    Text("Sign Out removes the authorization from this Mac's Keychain. To revoke Runnir's access entirely, use Manage Authorization on GitHub.")
+                        .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
-                Text("Runnir sees only repositories where the Runnir Desktop app is installed. Manage Repository Access adds or removes them on GitHub.")
-                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
-                Text("Sign Out removes the authorization from this Mac's Keychain. To revoke Runnir's access entirely, use Manage Authorization on GitHub.")
-                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
             case .offline:
                 Text("Signed in; GitHub is unreachable right now.")
                 Button("Sign Out") { Task { await session.signOut() } }

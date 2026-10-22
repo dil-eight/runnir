@@ -675,7 +675,8 @@ struct DesktopWorkspaceView: View {
             return GitHubAccessHelp.forAccess(desktop.github?.signedOutAccess ?? .signedOut, repository: repository, purpose: .run)
         }
         if let access = session.githubAccess, access != .ok {
-            return GitHubAccessHelp.forAccess(access, repository: repository, purpose: .run, details: session.githubDetails)
+            return GitHubAccessHelp.forAccess(access, repository: repository, purpose: .run, details: session.githubDetails,
+                                              credential: desktop.core?.credentialKind)
         }
         return GitHubAccessHelp.blocker(for: .run, repository: repository, details: session.githubDetails)
     }
@@ -1287,7 +1288,8 @@ struct GitHubLinkCard: View {
         }
         guard let details else { return .checking }
         if details.access == .ok { return .linked(details) }
-        return .problem(GitHubAccessHelp.forAccess(details.access, repository: repository, purpose: .read, details: details)
+        return .problem(GitHubAccessHelp.forAccess(details.access, repository: repository, purpose: .read, details: details,
+                                                   credential: hub?.credentialKind)
                         ?? GitHubAccessHelp.forAccess(.unavailable, repository: repository, purpose: .read)!)
     }
 }

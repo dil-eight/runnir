@@ -44,6 +44,48 @@ struct CoreGitHubRepository: Equatable, Sendable {
     }
 }
 
+/// What issued the token Runnir uses, as the Core tells it.
+enum CoreGitHubCredentialKind: Equatable, Sendable {
+    /// Signing in to the Runnir Desktop app: reaches its installations.
+    case appUser
+    /// Personal access token (classic): scopes.
+    case classic
+    /// Fine-grained personal access token: chosen repositories and permissions.
+    case fineGrained
+    case oauth
+    case other
+
+    /// A personal token (or another that is not the app's): its rights are
+    /// set on the token, not by installing the app.
+    var isPersonal: Bool { self != .appUser }
+}
+
+/// What a token can do, before Runnir uses it.
+struct CoreGitHubTokenCheck: Equatable, Sendable {
+    enum State: Equatable, Sendable { case passed, missing, unknown }
+
+    struct Item: Equatable, Sendable, Identifiable {
+        var id: String { name }
+        let name: String
+        let state: State
+        let detail: String
+    }
+
+    let access: CoreGitHubAccess
+    let kind: CoreGitHubCredentialKind
+    let login: String
+    let scopes: [String]
+    let expiresAt: Date?
+    let repositories: Int
+    let checks: [Item]
+    /// Nothing Runnir needs is missing; unknown checks do not count.
+    let suitable: Bool
+
+    static func failed(_ access: CoreGitHubAccess, kind: CoreGitHubCredentialKind = .other) -> CoreGitHubTokenCheck {
+        CoreGitHubTokenCheck(access: access, kind: kind, login: "", scopes: [], expiresAt: nil, repositories: 0, checks: [], suitable: false)
+    }
+}
+
 /// An account where the Runnir Desktop app is installed.
 struct CoreGitHubInstallation: Equatable, Identifiable, Sendable {
     let id: Int64
@@ -89,6 +131,8 @@ struct CoreGitHubAccount: Equatable, Sendable {
     let repositories: [CoreGitHubAccountRepository]
     /// More repositories exist than the Core read.
     let truncated: Bool
+    /// A personal token lists what it reaches and has no installations.
+    var credentialKind: CoreGitHubCredentialKind = .appUser
 
     static func failed(_ access: CoreGitHubAccess) -> CoreGitHubAccount {
         CoreGitHubAccount(access: access, installations: [], repositories: [], truncated: false)
@@ -101,6 +145,11 @@ struct CoreGitHubWorkflow: Equatable, Identifiable, Sendable {
     let path: String
     let state: String
     let htmlURL: URL?
+
+    /// A workflow file that can be started by hand when it has a
+    /// workflow_dispatch trigger. Workflows GitHub runs itself (Dependabot,
+    /// code scanning: "dynamic/...") cannot be.
+    var canBeStartedByHand: Bool { state == "active" && path.hasPrefix(".github/workflows/") }
 }
 
 /// GitHub's run status and conclusion, kept as strings from the API and

@@ -370,6 +370,28 @@ final class DesktopCoordinator {
         try? commit(candidate)
     }
 
+    /// Registered working trees whose origin Runnir asked about this launch.
+    @ObservationIgnored private var originsAsked: Set<UUID> = []
+
+    /// Finds the GitHub repository of registered working trees that Runnir
+    /// has not opened since it began to remember it, so the GitHub tab can
+    /// open their clones at once. Each is asked once per launch, through
+    /// the Core, without opening it.
+    func findGitHubOrigins() async {
+        guard let core, !isLoading, !persistenceBlocked else { return }
+        let pending = snapshot.workspaces.filter { $0.githubRepository == nil && !originsAsked.contains($0.id) }
+        guard !pending.isEmpty, let found = await core.githubOrigins(paths: pending.map(\.path)) else { return }
+        originsAsked.formUnion(pending.map(\.id))
+        var candidate = snapshot
+        var changed = false
+        for index in candidate.workspaces.indices where candidate.workspaces[index].githubRepository == nil {
+            guard let name = found[candidate.workspaces[index].path], GitHubRepositoryName.isValid(name) else { continue }
+            candidate.workspaces[index].githubRepository = name
+            changed = true
+        }
+        if changed { try? commit(candidate) }
+    }
+
     func openOrFocus(_ workspace: WorkspaceRecord) {
         if openCount(workspace.id) > 0 { focus(workspace.id) } else { openRegistered(workspace) }
     }
@@ -665,6 +687,7 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         // The Core holds the token only while the user is signed in.
         hub.githubTokenProvider = { [github] in await github.currentToken() }
         github.onCredentialChange = { [hub] in hub.githubCredentialChanged() }
+        github.tokenChecker = { [hub] token in await hub.checkGitHubToken(token) }
         hub.onGitHubTokenRejected = { [github] in await github.tokenWasRejected() }
     }
 

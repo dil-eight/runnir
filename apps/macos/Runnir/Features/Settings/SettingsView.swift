@@ -8,7 +8,7 @@ struct SettingsView: View {
         Form {
             Section("GitHub") {
                 if let github {
-                    GitHubAccountSettings(session: github)
+                    GitHubAccountSettings(session: github, credentialKind: core?.credentialKind)
                 } else {
                     Text("GitHub sign-in is not available.").foregroundStyle(RunnirTheme.secondaryForeground)
                 }

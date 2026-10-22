@@ -39,6 +39,16 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         case .named(let name): "github:" + name
         }
     }
+    /// GitHub origins by working tree path.
+    var origins: [String: String] = [:]
+    private var _originRequests: [[String]] = []
+    var originRequests: [[String]] { lock.withLock { _originRequests } }
+    func githubOrigins(paths: [String]) async throws -> [String: String] {
+        lock.withLock {
+            _originRequests.append(paths)
+            return origins.filter { paths.contains($0.key) }
+        }
+    }
     var accountResult = CoreGitHubAccount.failed(.signedOut)
     private var _accountCalls = 0
     var accountCalls: Int { lock.withLock { _accountCalls } }
@@ -150,7 +160,20 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         }
     }
     var credentialCalls: [String?] { lock.withLock { _credentialCalls } }
-    func setGitHubCredential(_ token: String?) async throws { lock.withLock { _credentialCalls.append(token) } }
+    func setGitHubCredential(_ token: String?) async throws -> CoreGitHubCredentialKind? {
+        lock.withLock { _credentialCalls.append(token) }
+        guard let token else { return nil }
+        return token.hasPrefix("ghu_") ? .appUser : token.hasPrefix("github_pat_") ? .fineGrained : .classic
+    }
+    var tokenCheck = CoreGitHubTokenCheck.failed(.tokenRejected)
+    private var _checkedTokens: [String] = []
+    var checkedTokens: [String] { lock.withLock { _checkedTokens } }
+    func checkGitHubToken(_ token: String) async throws -> CoreGitHubTokenCheck {
+        lock.withLock {
+            _checkedTokens.append(token)
+            return tokenCheck
+        }
+    }
 
     var openCalls: [String] { lock.withLock { _openCalls } }
     var closeCalls: [String] { lock.withLock { _closeCalls } }

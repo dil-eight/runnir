@@ -96,6 +96,24 @@ struct GitHubSessionTests {
     }
 
     @Test
+    func aPastedTokenIsSavedOnlyToTheCredentialStoreAndConfirmed() async throws {
+        let rig = Rig()
+        await rig.session.useToken("  github_pat_secret\n")
+        #expect(rig.session.user?.login == "octocat")
+        #expect(try await rig.credentials.token() == "github_pat_secret")
+        #expect(!String(describing: rig.session.connection).contains("github_pat_secret"))
+    }
+
+    @Test
+    func aPastedTokenGitHubRefusesIsForgotten() async throws {
+        let rig = Rig()
+        await rig.api.set(.failure(.authenticationFailed))
+        await rig.session.useToken("ghp_revoked")
+        #expect(rig.session.connection == .signedOut(.unexpected))
+        #expect(try await rig.credentials.token() == nil)
+    }
+
+    @Test
     func showsTheCodeWhileWaiting() async throws {
         let rig = Rig()
         await rig.flow.set(answers: Array(repeating: .success(.pending), count: 50))

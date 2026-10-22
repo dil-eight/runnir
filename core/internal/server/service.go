@@ -73,7 +73,7 @@ func (s *service) SetGitHubCredential(_ context.Context, request *corev1.SetGitH
 	if err := s.credential.Set(request.GetToken()); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "not a valid GitHub token")
 	}
-	return &corev1.SetGitHubCredentialResponse{}, nil
+	return &corev1.SetGitHubCredentialResponse{Kind: credentialKind(s.credential.Kind())}, nil
 }
 
 func (s *service) ClearGitHubCredential(context.Context, *corev1.ClearGitHubCredentialRequest) (*corev1.ClearGitHubCredentialResponse, error) {

@@ -66,7 +66,8 @@ struct RecentRunsList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if let access = session.githubAccess,
-               let help = GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails) {
+               let help = GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails,
+                                                      credential: hub?.credentialKind) {
                 if showsAccessNotice {
                     GitHubAccessNotice(help: help, style: .note, github: github) {
                         Task { await hub?.loadGitHubActivity(workspaceID: session.workspaceID) }
@@ -120,7 +121,8 @@ struct WorkspaceRunsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
                         if let access = session.githubAccess,
-                           let help = GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails) {
+                           let help = GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails,
+                                                      credential: hub.credentialKind) {
                             GitHubAccessNotice(help: help, style: .banner, github: github) {
                                 Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
                             }.padding(8)
@@ -167,7 +169,8 @@ struct WorkspaceWorkflowsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 4) {
                 if let access = session.githubAccess,
-                   let help = GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails) {
+                   let help = GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails,
+                                                      credential: hub.credentialKind) {
                     GitHubAccessNotice(help: help, style: .banner, github: github) {
                         Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
                     }.padding(.bottom, 12)
@@ -204,7 +207,7 @@ struct WorkspaceWorkflowsView: View {
                         if let latest {
                             Button("Last run") { showRun(latest) }.buttonStyle(.link).font(.system(size: 12))
                         }
-                        if workflow.state == "active" {
+                        if workflow.canBeStartedByHand {
                             Button("Run...") { runWorkflow(workflow) }.buttonStyle(.link).font(.system(size: 12))
                                 .help("Start this workflow by hand if it has a workflow_dispatch trigger")
                         }

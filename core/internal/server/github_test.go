@@ -142,3 +142,73 @@ func TestGitHubCallsReportMissingRemoteAndBadInput(t *testing.T) {
 		t.Fatalf("unreachable = %v, %v", runs, err)
 	}
 }
+
+func TestGitHubOriginsAreReadWithoutOpening(t *testing.T) {
+	path := socketPath(t)
+	stop := start(t, path)
+	defer stop()
+	client := connect(t, path)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	github := linkedRepository(t, "git@github.com:Dil-Eight/runnir.git")
+	elsewhere := linkedRepository(t, "https://gitlab.com/o/r.git")
+	plain := t.TempDir()
+	response, err := client.GetGitHubOrigins(ctx, &corev1.GetGitHubOriginsRequest{
+		Paths: []string{github, elsewhere, plain, "relative/path", filepath.Join(plain, "missing")},
+	})
+	if err != nil || len(response.Origins) != 1 || response.Origins[0].Path != github ||
+		response.Origins[0].GithubRepository != "Dil-Eight/runnir" {
+		t.Fatalf("origins = %v, %v", response, err)
+	}
+	many := make([]string, 501)
+	for i := range many {
+		many[i] = github
+	}
+	if _, err := client.GetGitHubOrigins(ctx, &corev1.GetGitHubOriginsRequest{Paths: many}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("501 paths = %v", err)
+	}
+}
+
+func TestATokenIsCheckedWithoutReplacingTheHeldOne(t *testing.T) {
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Header.Get("Authorization") {
+		case "Bearer ghp_good":
+			w.Header().Set("X-OAuth-Scopes", "repo")
+			_, _ = w.Write([]byte(`{"login":"octocat"}`))
+		case "Bearer ghu_held":
+			_, _ = w.Write([]byte(`{"login":"held"}`))
+		default:
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	defer fake.Close()
+	path := socketPath(t)
+	stop := startWith(t, path, Options{GitHubBaseURL: fake.URL})
+	defer stop()
+	client := connect(t, path)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	set, err := client.SetGitHubCredential(ctx, &corev1.SetGitHubCredentialRequest{Token: "ghu_held"})
+	if err != nil || set.Kind != corev1.GithubCredentialKind_GITHUB_CREDENTIAL_KIND_APP_USER {
+		t.Fatalf("set = %v, %v", set, err)
+	}
+	good, err := client.CheckGitHubToken(ctx, &corev1.CheckGitHubTokenRequest{Token: "ghp_good"})
+	if err != nil || good.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_OK || !good.Suitable || good.Login != "octocat" ||
+		good.Kind != corev1.GithubCredentialKind_GITHUB_CREDENTIAL_KIND_CLASSIC || len(good.Checks) != 2 {
+		t.Fatalf("good = %v, %v", good, err)
+	}
+	bad, err := client.CheckGitHubToken(ctx, &corev1.CheckGitHubTokenRequest{Token: "ghp_revoked"})
+	if err != nil || bad.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_TOKEN_REJECTED {
+		t.Fatalf("bad = %v, %v", bad, err)
+	}
+	if _, err := client.CheckGitHubToken(ctx, &corev1.CheckGitHubTokenRequest{Token: "has space"}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("invalid = %v", err)
+	}
+	// A refused check does not sign the held token out.
+	if listed, err := client.ListGitHubRepositories(ctx, &corev1.ListGitHubRepositoriesRequest{}); err != nil ||
+		listed.Status.Access == corev1.GithubAccess_GITHUB_ACCESS_SIGNED_OUT {
+		t.Fatalf("held token lost: %v, %v", listed, err)
+	}
+}

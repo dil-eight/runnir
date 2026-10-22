@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 
 	"google.golang.org/grpc/codes"
@@ -11,6 +12,7 @@ import (
 
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
+	"runnir/core/internal/scanner"
 )
 
 // githubTarget resolves a request's repository to its github.com owner and
@@ -69,7 +71,8 @@ func (s *service) ListGitHubRepositories(ctx context.Context, _ *corev1.ListGitH
 	if err != nil {
 		return nil, err
 	}
-	out := &corev1.ListGitHubRepositoriesResponse{Status: result, Truncated: account.Truncated}
+	out := &corev1.ListGitHubRepositoriesResponse{Status: result, Truncated: account.Truncated,
+		CredentialKind: credentialKind(s.credential.Kind())}
 	for _, i := range account.Installations {
 		out.Installations = append(out.Installations, installationMessage(i))
 	}
@@ -175,4 +178,82 @@ func (s *service) ListRunJobs(ctx context.Context, request *corev1.ListRunJobsRe
 		out.Jobs = append(out.Jobs, job)
 	}
 	return out, nil
+}
+
+const maxOriginPaths = 500
+
+// GetGitHubOrigins reads the github.com origin of each working tree without
+// opening it.
+func (s *service) GetGitHubOrigins(ctx context.Context, request *corev1.GetGitHubOriginsRequest) (*corev1.GetGitHubOriginsResponse, error) {
+	if len(request.GetPaths()) > maxOriginPaths {
+		return nil, status.Errorf(codes.InvalidArgument, "at most %d paths", maxOriginPaths)
+	}
+	out := &corev1.GetGitHubOriginsResponse{}
+	for _, path := range request.GetPaths() {
+		if err := ctx.Err(); err != nil {
+			return nil, status.FromContextError(err).Err()
+		}
+		if !filepath.IsAbs(path) {
+			continue
+		}
+		if name := scanner.GitHubOrigin(filepath.Clean(path)); name != "" {
+			out.Origins = append(out.Origins, &corev1.GitHubOrigin{Path: path, GithubRepository: name})
+		}
+	}
+	return out, nil
+}
+
+// CheckGitHubToken reports what a token can do without holding it; the
+// token the Core holds is left as it is, even when GitHub refuses this one.
+func (s *service) CheckGitHubToken(ctx context.Context, request *corev1.CheckGitHubTokenRequest) (*corev1.CheckGitHubTokenResponse, error) {
+	check, err := s.github.CheckToken(ctx, request.GetToken())
+	var rateLimit *github.RateLimitError
+	switch {
+	case errors.Is(err, github.ErrInvalidToken):
+		return nil, status.Error(codes.InvalidArgument, "not a valid GitHub token")
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return nil, status.FromContextError(err).Err()
+	case errors.Is(err, github.ErrUnauthorized):
+		return &corev1.CheckGitHubTokenResponse{Status: &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_TOKEN_REJECTED},
+			Kind: credentialKind(github.KindOf(request.GetToken()))}, nil
+	case errors.As(err, &rateLimit):
+		return &corev1.CheckGitHubTokenResponse{Status: &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_RATE_LIMITED,
+			RetryAfter: timestamppb.New(rateLimit.Reset)}}, nil
+	case err != nil:
+		return &corev1.CheckGitHubTokenResponse{Status: &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_UNAVAILABLE}}, nil
+	}
+	out := &corev1.CheckGitHubTokenResponse{
+		Status: &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_OK},
+		Kind:   credentialKind(check.Kind), Login: check.Login, Scopes: check.Scopes,
+		Repositories: int32(check.Repositories), Suitable: check.Suitable,
+	}
+	if !check.ExpiresAt.IsZero() {
+		out.ExpiresAt = timestamppb.New(check.ExpiresAt)
+	}
+	for _, item := range check.Checks {
+		state := corev1.GithubTokenCheckState_GITHUB_TOKEN_CHECK_STATE_PASSED
+		switch item.State {
+		case github.CheckMissing:
+			state = corev1.GithubTokenCheckState_GITHUB_TOKEN_CHECK_STATE_MISSING
+		case github.CheckUnknown:
+			state = corev1.GithubTokenCheckState_GITHUB_TOKEN_CHECK_STATE_UNKNOWN
+		}
+		out.Checks = append(out.Checks, &corev1.GitHubTokenCheck{Name: item.Name, State: state, Detail: item.Detail})
+	}
+	return out, nil
+}
+
+func credentialKind(kind github.TokenKind) corev1.GithubCredentialKind {
+	switch kind {
+	case github.TokenAppUser:
+		return corev1.GithubCredentialKind_GITHUB_CREDENTIAL_KIND_APP_USER
+	case github.TokenClassic:
+		return corev1.GithubCredentialKind_GITHUB_CREDENTIAL_KIND_CLASSIC
+	case github.TokenFineGrained:
+		return corev1.GithubCredentialKind_GITHUB_CREDENTIAL_KIND_FINE_GRAINED
+	case github.TokenOAuth:
+		return corev1.GithubCredentialKind_GITHUB_CREDENTIAL_KIND_OAUTH
+	default:
+		return corev1.GithubCredentialKind_GITHUB_CREDENTIAL_KIND_OTHER
+	}
 }
