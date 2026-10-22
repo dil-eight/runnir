@@ -166,6 +166,7 @@ struct AddEnterpriseServerSheet: View {
                 Button(form.isChecking ? "Checking..." : "Check Token") { Task { await form.runCheck(hub: hub) } }
                     .disabled(!form.problems.isEmpty || form.token.isEmpty || form.isChecking)
                 Button("Add") { Task { await add() } }
+                    .buttonStyle(DesignButtonStyle(primary: true))
                     .keyboardShortcut(.defaultAction)
                     .disabled(!form.canAdd)
             }

@@ -105,7 +105,7 @@ struct GitHubConnectView: View {
             }
             if tokenCheck == nil || tokenCheck?.access != .ok {
                 Button(checkingToken ? "Checking..." : "Check Token") { checkToken() }
-                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
                     .disabled(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || checkingToken)
             }
         case .signedOut:
@@ -114,16 +114,16 @@ struct GitHubConnectView: View {
                 Button("Use a Token Instead...") { usingToken = true }
                     .help("Sign in with a personal access token: Runnir checks what it can do first")
             }
-            Button("Connect") { copied = false; session.signIn() }.keyboardShortcut(.defaultAction)
+            Button("Connect") { copied = false; session.signIn() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .waiting:
             Button("Cancel") { session.cancelSignIn() }
-            Button("Open GitHub Again") { session.reopenVerificationPage() }.keyboardShortcut(.defaultAction)
+            Button("Open GitHub Again") { session.reopenVerificationPage() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .signedIn:
             Button("Install on Repositories...") { openURL(installationURL) }
-            Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+            Button("Done") { dismiss() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .offline:
             Button("Close") { dismiss() }
-            Button("Retry") { Task { await session.restore() } }.keyboardShortcut(.defaultAction)
+            Button("Retry") { Task { await session.restore() } }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         }
     }
 }

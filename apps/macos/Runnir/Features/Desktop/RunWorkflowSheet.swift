@@ -677,7 +677,7 @@ struct RunWorkflowSheet: View {
             Button("Close") { dismiss() }
             Button("Show Run") { showRun(run); dismiss() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .notFoundYet:
-            Button("Close") { dismiss() }.keyboardShortcut(.defaultAction)
+            Button("Close") { dismiss() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .failed:
             Button("Close") { dismiss() }
             Button("Back") { model.backToEditing() }

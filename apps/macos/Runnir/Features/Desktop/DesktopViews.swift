@@ -1185,15 +1185,29 @@ struct DesignDivider: View {
 
 struct DesignButtonStyle: ButtonStyle {
     var primary = false
-    @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.font(.system(size: 13, weight: primary ? .medium : .regular))
-            .padding(.horizontal, 14).frame(height: 30)
-            .foregroundStyle(primary ? RunnirTheme.primaryForeground : RunnirTheme.secondaryContent)
-            .background(primary ? RunnirTheme.primary : RunnirTheme.secondary, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(primary ? .clear : RunnirTheme.border))
+        DesignButtonBody(configuration: configuration, primary: primary)
+    }
+}
+
+/// A button's look. A primary one is runnir.com's call to action: the
+/// accent as a tint (20%, 32% under the pointer) with a 45% accent border.
+private struct DesignButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    let primary: Bool
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var hovering = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: primary ? 10 : 6)
+        configuration.label.font(.system(size: 13, weight: primary ? .semibold : .regular))
+            .padding(.horizontal, primary ? 16 : 14).frame(height: 30)
+            .foregroundStyle(primary ? RunnirTheme.primaryButtonText : RunnirTheme.secondaryContent)
+            .background(primary ? RunnirTheme.primary.opacity(hovering && isEnabled ? 0.32 : 0.2) : RunnirTheme.secondary, in: shape)
+            .overlay(shape.stroke(primary ? RunnirTheme.primary.opacity(0.45) : RunnirTheme.border))
             .opacity(isEnabled ? (configuration.isPressed ? 0.75 : 1) : 0.4)
-            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .contentShape(shape)
+            .onHover { hovering = $0 }
     }
 }
 
