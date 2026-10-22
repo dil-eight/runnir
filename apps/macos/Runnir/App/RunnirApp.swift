@@ -19,7 +19,8 @@ struct RunnirApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView(github: delegate.github, core: delegate.desktop.core, shortcuts: delegate.desktop.shortcuts)
+            SettingsView(github: delegate.github, core: delegate.desktop.core, shortcuts: delegate.desktop.shortcuts,
+                         enterpriseServers: delegate.enterpriseServers)
                 .environment(delegate.desktop.accountState)
         }
         // Open pull requests and their CI, from the menu bar.

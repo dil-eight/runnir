@@ -134,8 +134,8 @@ struct GitHubAccessHelp: Equatable, Identifiable {
         }
     }
 
-    static func tokenSettingsURL(_ credential: CoreGitHubCredentialKind) -> URL {
-        credential == .fineGrained ? GitHubTokenAdvice.fineGrainedSettingsURL : GitHubTokenAdvice.classicSettingsURL
+    static func tokenSettingsURL(_ credential: CoreGitHubCredentialKind, webURL: URL = GitHubTokenAdvice.dotComWebURL) -> URL {
+        credential == .fineGrained ? GitHubTokenAdvice.fineGrainedSettingsURL(webURL: webURL) : GitHubTokenAdvice.classicSettingsURL(webURL: webURL)
     }
 
     /// What is known to block an action before trying it: a suspended

@@ -4,6 +4,7 @@ struct SettingsView: View {
     var github: GitHubSession?
     var core: CoreHub?
     var shortcuts: GlobalShortcutCenter?
+    var enterpriseServers: EnterpriseServers?
 
     var body: some View {
         Form {
@@ -14,6 +15,8 @@ struct SettingsView: View {
                     Text("GitHub sign-in is not available.").foregroundStyle(RunnirTheme.secondaryForeground)
                 }
             }
+
+            if let enterpriseServers { EnterpriseServersSection(servers: enterpriseServers, hub: core) }
 
             ManualRunSettingsSection()
 

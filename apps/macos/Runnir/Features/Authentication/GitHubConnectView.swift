@@ -259,12 +259,28 @@ struct GitHubTokenCheckView: View {
 struct GitHubTokenAdvice: View {
     /// The token checked does not fit: say so first.
     var emphasized = false
+    /// The server's web URL, for the links; github.com unless an
+    /// Enterprise server is being added.
+    var webURL: URL = GitHubTokenAdvice.dotComWebURL
+    /// An Enterprise server: say which versions have fine-grained tokens.
+    var enterprise = false
     @Environment(\.openURL) private var openURL
 
-    static let newFineGrainedURL = URL(string: "https://github.com/settings/personal-access-tokens/new")!
-    static let newClassicURL = URL(string: "https://github.com/settings/tokens/new?scopes=repo&description=Runnir")!
-    static let fineGrainedSettingsURL = URL(string: "https://github.com/settings/personal-access-tokens")!
-    static let classicSettingsURL = URL(string: "https://github.com/settings/tokens")!
+    nonisolated static let dotComWebURL = URL(string: "https://github.com")!
+
+    nonisolated static func newFineGrainedURL(webURL: URL) -> URL { webURL.appending(path: "settings/personal-access-tokens/new") }
+    nonisolated static func newClassicURL(webURL: URL) -> URL {
+        var components = URLComponents(url: webURL.appending(path: "settings/tokens/new"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "scopes", value: "repo"), URLQueryItem(name: "description", value: "Runnir")]
+        return components?.url ?? webURL
+    }
+    nonisolated static func fineGrainedSettingsURL(webURL: URL) -> URL { webURL.appending(path: "settings/personal-access-tokens") }
+    nonisolated static func classicSettingsURL(webURL: URL) -> URL { webURL.appending(path: "settings/tokens") }
+
+    nonisolated static let newFineGrainedURL = newFineGrainedURL(webURL: dotComWebURL)
+    nonisolated static let newClassicURL = newClassicURL(webURL: dotComWebURL)
+    nonisolated static let fineGrainedSettingsURL = fineGrainedSettingsURL(webURL: dotComWebURL)
+    nonisolated static let classicSettingsURL = classicSettingsURL(webURL: dotComWebURL)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -272,15 +288,16 @@ struct GitHubTokenAdvice: View {
                 .font(.system(size: 12, weight: .semibold))
             VStack(alignment: .leading, spacing: 4) {
                 Text("Fine-grained token (recommended)").font(.system(size: 12, weight: .medium))
-                Text("Resource owner: your account or the organization. Repository access: the repositories you use in Runnir, or all. Repository permissions: Actions — Read and write; Contents — Read-only. GitHub adds Metadata — Read-only.")
+                Text("Resource owner: your account or the organization. Repository access: the repositories you use in Runnir, or all. Repository permissions: Actions — Read and write; Contents — Read-only. GitHub adds Metadata — Read-only."
+                     + (enterprise ? " Fine-grained tokens need GitHub Enterprise Server 3.10 or later; use a classic token on older servers." : ""))
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
-                Button("New Fine-Grained Token...") { openURL(Self.newFineGrainedURL) }.buttonStyle(.link).font(.system(size: 11))
+                Button("New Fine-Grained Token...") { openURL(Self.newFineGrainedURL(webURL: webURL)) }.buttonStyle(.link).font(.system(size: 11))
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text("Classic token").font(.system(size: 12, weight: .medium))
                 Text("Scope: repo. For an organization that uses single sign-on, authorize the token for it afterwards (Configure SSO).")
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
-                Button("New Classic Token...") { openURL(Self.newClassicURL) }.buttonStyle(.link).font(.system(size: 11))
+                Button("New Classic Token...") { openURL(Self.newClassicURL(webURL: webURL)) }.buttonStyle(.link).font(.system(size: 11))
             }
         }
     }

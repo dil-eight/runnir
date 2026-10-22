@@ -174,3 +174,49 @@ struct EnterpriseHubTests {
         #expect(rejections == 1)
     }
 }
+
+@MainActor
+@Suite(.timeLimit(.minutes(1)))
+struct EnterpriseServerFormTests {
+    @Test func tokenLinksUseTheServersWebURL() {
+        let web = URL(string: "https://github.company.com")!
+        #expect(GitHubTokenAdvice.newClassicURL(webURL: web).absoluteString == "https://github.company.com/settings/tokens/new?scopes=repo&description=Runnir")
+        #expect(GitHubTokenAdvice.newFineGrainedURL(webURL: web).absoluteString == "https://github.company.com/settings/personal-access-tokens/new")
+        #expect(GitHubTokenAdvice.newClassicURL.absoluteString == "https://github.com/settings/tokens/new?scopes=repo&description=Runnir")
+        #expect(GitHubAccessHelp.tokenSettingsURL(.fineGrained, webURL: web).absoluteString == "https://github.company.com/settings/personal-access-tokens")
+    }
+
+    @Test func theFormNeedsValidURLsAndAnAcceptedToken() async {
+        let (hub, provider) = await makeReadyHub()
+        let form = EnterpriseServerForm(existing: [])
+        form.name = "Company"
+        form.webURL = "http://github.company.com"
+        form.apiURL = "https://github.company.com/api/v3"
+        form.token = "ghp_company"
+        #expect(form.problems == ["Web URL: Use an https:// URL."])
+        #expect(!form.canAdd)
+        await form.runCheck(hub: hub)
+        #expect(provider.core.checkedTokens.isEmpty, "invalid fields are not checked")
+
+        form.webURL = "https://github.company.com"
+        provider.core.tokenCheck = CoreGitHubTokenCheck(access: .ok, kind: .classic, login: "me", scopes: ["repo"], expiresAt: nil,
+                                                        repositories: 3, checks: [], suitable: true)
+        await form.runCheck(hub: hub)
+        #expect(form.canAdd && form.draft?.webHost == "github.company.com" && form.draft?.login == "me")
+        #expect(provider.core.tokenCheckServers.last?.webHost == "github.company.com")
+        #expect(provider.core.tokenCheckServers.last?.id == form.draft?.ref.id)
+
+        form.token = "ghp_other"
+        #expect(!form.canAdd, "a changed token is checked again")
+    }
+
+    @Test func aServerAlreadyListedIsRefused() {
+        let existing = EnterpriseServer(id: UUID(), name: "Company", webURL: URL(string: "https://github.company.com")!,
+                                        apiURL: URL(string: "https://github.company.com/api/v3")!)
+        let form = EnterpriseServerForm(existing: [existing])
+        form.name = "Again"
+        form.webURL = "https://GitHub.Company.com"
+        form.apiURL = "https://github.company.com/api/v3"
+        #expect(form.problems == ["Web URL: github.company.com is already in the list."])
+    }
+}
