@@ -105,3 +105,72 @@ struct EnterpriseServersTests {
         #expect(KeychainCredentialStore.defaultAccount == "oauth-token")
     }
 }
+
+private func pullRequest(_ number: Int64, updated: TimeInterval) -> CorePullRequest {
+    CorePullRequest(repository: "o/r", number: number, title: "PR", htmlURL: URL(string: "https://example.com/\(number)"), state: "open",
+                    draft: false, headBranch: "b", updatedAt: Date(timeIntervalSinceReferenceDate: updated), closedAt: nil, ci: .passed,
+                    ciRuns: 1, ciFailed: 0, ciRunning: 0, ciURL: nil)
+}
+
+@MainActor
+@Suite(.timeLimit(.minutes(1)))
+struct EnterpriseHubTests {
+    let company = GitHubServerRef(id: "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed", apiURL: URL(string: "https://github.company.com/api/v3"),
+                                  webHost: "github.company.com")
+
+    private func signedInHub(enterprise: Bool = true) async -> (CoreHub, FakeProvider) {
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        let company = company
+        hub.githubTokenProvider = { "ghu_dotcom" }
+        hub.enterpriseCredentialsProvider = { enterprise ? [(server: company, token: "ghp_company")] : [] }
+        hub.startMonitoring()
+        provider.ready()
+        _ = await eventually { hub.signedInServers.count == (enterprise ? 2 : 1) }
+        return (hub, provider)
+    }
+
+    @Test func everySignedInServerIsHandedToTheCore() async {
+        let (hub, provider) = await signedInHub()
+        #expect(hub.signedInServers.map(\.id) == ["", company.id])
+        #expect(hub.credentialKinds == ["": .appUser, company.id: .classic])
+        let calls = provider.core.serverCredentialCalls
+        #expect(calls.contains { $0.server == "" && $0.token == "ghu_dotcom" })
+        #expect(calls.contains { $0.server == company.id && $0.token == "ghp_company" })
+
+        // A removed server is cleared in the Core.
+        hub.enterpriseCredentialsProvider = { [] }
+        hub.githubCredentialChanged()
+        #expect(await eventually { hub.signedInServers.map(\.id) == [""] })
+        #expect(provider.core.serverCredentialCalls.contains { $0.server == company.id && $0.token == nil })
+    }
+
+    @Test func pullRequestsComeFromEveryServerNewestFirst() async {
+        let (hub, provider) = await signedInHub()
+        provider.core.pullRequestsByServer = [
+            "": CorePullRequests(access: .ok, open: [pullRequest(1, updated: 10)], closed: [], headsUnreadable: false),
+            company.id: CorePullRequests(access: .ok, open: [pullRequest(2, updated: 20)], closed: [], headsUnreadable: true),
+        ]
+        let merged = await hub.pullRequests(closedSince: Date())
+        #expect(merged.access == .ok && merged.headsUnreadable)
+        #expect(merged.open.map(\.number) == [2, 1] && merged.open.map(\.server) == [company.id, ""])
+
+        // One server failing does not hide the other.
+        provider.core.pullRequestsByServer[company.id] = .failed(.unavailable)
+        let partial = await hub.pullRequests(closedSince: Date())
+        #expect(partial.access == .ok && partial.open.map(\.number) == [1])
+    }
+
+    @Test func anEnterpriseRejectionKeepsTheGitHubDotComSignIn() async {
+        let (hub, provider) = await signedInHub()
+        var rejections = 0
+        hub.onGitHubTokenRejected = { rejections += 1 }
+        let enterpriseRepo = GitHubRepositoryRef(serverID: company.id, fullName: "o/r")
+        provider.core.setRuns(CoreGitHubResult(access: .tokenRejected, items: []), forRepository: enterpriseRepo.key)
+        _ = await hub.runs(of: .repository(enterpriseRepo), limit: 10)
+        #expect(rejections == 0)
+        provider.core.setRuns(CoreGitHubResult(access: .tokenRejected, items: []), forRepository: "o/r")
+        _ = await hub.runs(of: .repository(GitHubRepositoryRef(serverID: "", fullName: "o/r")), limit: 10)
+        #expect(rejections == 1)
+    }
+}

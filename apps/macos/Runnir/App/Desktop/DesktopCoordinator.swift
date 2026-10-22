@@ -32,6 +32,20 @@ final class DesktopCoordinator {
     @ObservationIgnored private var store: (any DesktopStateStoring)?
     @ObservationIgnored private var manager: NSWindow?
     @ObservationIgnored private var pullRequestsWindow: NSWindow?
+    /// The Enterprise servers, for their names in lists and notices; set by
+    /// the app delegate.
+    @ObservationIgnored var enterpriseServers: EnterpriseServers?
+
+    /// Enterprise server names by server id.
+    var enterpriseServerNames: [String: String] {
+        Dictionary((enterpriseServers?.servers ?? []).map { ($0.ref.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// An Enterprise server's name; nil for github.com or an unknown id.
+    func serverName(for serverID: String?) -> String? {
+        guard let serverID, !serverID.isEmpty else { return nil }
+        return enterpriseServerNames[serverID]
+    }
     @ObservationIgnored private var splash: NSWindow?
     @ObservationIgnored private var windows: [UUID: any WorkspaceWindowManaging] = [:]
     @ObservationIgnored private let makeGrant: (WorkspaceRecord) throws -> any RepositoryGranting
@@ -701,6 +715,8 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
     let core: CoreProcessSupervisor
     let coreHub: CoreHub
     let github: GitHubSession
+    /// Enterprise servers next to github.com, with their Keychain tokens.
+    let enterpriseServers: EnterpriseServers
 
     override init() {
         let supervisor = CoreProcessSupervisor.bundled()
@@ -716,6 +732,7 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
             api: api,
             openURL: { NSWorkspace.shared.open($0) }
         )
+        enterpriseServers = EnterpriseServers.live()
         desktop = DesktopCoordinator(core: hub, github: github,
                                      presets: DispatchPresetLibrary(store: try? FileDispatchPresetStore.live()),
                                      favorites: WorkflowFavorites(store: try? FileWorkflowFavoritesStore.live()),
@@ -727,6 +744,15 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         github.onCredentialChange = { [hub] in hub.githubCredentialChanged() }
         github.tokenChecker = { [hub] token in await hub.checkGitHubToken(token) }
         hub.onGitHubTokenRejected = { [github] in await github.tokenWasRejected() }
+        hub.enterpriseCredentialsProvider = { [enterpriseServers] in
+            var out: [(server: GitHubServerRef, token: String)] = []
+            for server in enterpriseServers.servers {
+                if let token = await enterpriseServers.token(for: server.id) { out.append((server.ref, token)) }
+            }
+            return out
+        }
+        enterpriseServers.onChange = { [hub] in hub.githubCredentialChanged() }
+        desktop.enterpriseServers = enterpriseServers
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -737,7 +763,8 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         Task { [github] in await github.restore() }
         desktop.shortcuts.action = { [desktop] in desktop.showPullRequests() }
         desktop.shortcuts.applySettings()
-        desktop.pullRequests.startPolling(hub: coreHub, isSignedIn: { [github] in github.user != nil })
+        // Signed in to github.com or to any Enterprise server.
+        desktop.pullRequests.startPolling(hub: coreHub, isSignedIn: { [github, coreHub] in github.user != nil || !coreHub.signedInServers.isEmpty })
         // A failed start shows up as the hub's status, with a restart offer in each window.
         Task { [core] in _ = try? await core.start() }
     }
