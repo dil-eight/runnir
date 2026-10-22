@@ -840,27 +840,16 @@ struct DesktopWorkspaceView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Color.clear.frame(height: 26)
+            // The title bar row: the window's buttons, then the workspace
+            // switcher next to them.
+            HStack(spacing: 0) {
+                Color.clear.frame(width: 64)
+                workspaceSwitcherButton
+                Spacer(minLength: 0)
+            }
+            .frame(height: 28)
+            Color.clear.frame(height: 5)
             BrandLogo(height: 47, width: 128).padding(.leading, 6).padding(.top, 2).padding(.bottom, 14)
-            Button { state.showingSwitcher = true } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "shippingbox").frame(width: 16).foregroundStyle(RunnirTheme.primary)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(workspace.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                        Text("Local working tree").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 10)).foregroundStyle(RunnirTheme.secondaryForeground)
-                }.padding(.horizontal, 10).frame(height: 48)
-                    .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
-            }
-            .buttonStyle(.plain)
-            .help("Switch workspace (Shift-Command-O)")
-            .contextMenu {
-                Button("Open Quickly...") { state.showingSwitcher = true }
-                Button("Workspace Manager...") { desktop.showManager() }
-            }
-            Color.clear.frame(height: 10)
             VStack(spacing: 2) {
                 ForEach(AppSection.sidebarSections) { section in
                     Button { state.selectedSection = section } label: {
@@ -896,8 +885,33 @@ struct DesktopWorkspaceView: View {
                 .buttonStyle(.plain).font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
                 .padding(.horizontal, 10).frame(height: 30)
         }
-        .padding(.horizontal, 12).padding(.vertical, 14).frame(width: 220)
+        .padding(.horizontal, 12).padding(.top, 7).padding(.bottom, 14).frame(width: 220)
         .frame(maxHeight: .infinity).background(RunnirTheme.sidebar)
+    }
+
+    /// The workspace's name in the title bar; opens Open Quickly to switch.
+    private var workspaceSwitcherButton: some View {
+        Button { state.showingSwitcher = true } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "shippingbox").font(.system(size: 11)).foregroundStyle(RunnirTheme.primary)
+                Text(workspace.name).font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.middle)
+                Image(systemName: "chevron.up.chevron.down").font(.system(size: 9)).foregroundStyle(RunnirTheme.secondaryForeground)
+            }
+            .padding(.horizontal, 8).frame(height: 24)
+            .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: 132, alignment: .leading)
+        .help("\(workspace.name), a local working tree. Switch workspace (Shift-Command-O)")
+        .accessibilityLabel("Workspace \(workspace.name)")
+        .accessibilityHint("Switches to another workspace")
+        .accessibilityIdentifier("workspace-switcher")
+        .contextMenu {
+            Button("Open Quickly...") { state.showingSwitcher = true }
+            Button("Workspace Manager...") { desktop.showManager() }
+        }
     }
 
     @ViewBuilder private var content: some View {
