@@ -233,3 +233,37 @@ struct RunNotificationTests {
         #expect(sent.count == 2)
     }
 }
+
+@MainActor
+@Suite(.timeLimit(.minutes(1)))
+struct MenuBarIconTests {
+    /// Which pixels of the image are drawn, row 0 at the top.
+    private func mask(_ image: NSImage, size: NSSize) throws -> [[Bool]] {
+        let rep = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width), pixelsHigh: Int(size.height),
+                                                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        image.draw(in: NSRect(origin: .zero, size: image.size))
+        NSGraphicsContext.restoreGraphicsState()
+        return (0..<rep.pixelsHigh).map { y in (0..<rep.pixelsWide).map { x in (rep.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.4 } }
+    }
+
+    @Test func theGlyphWithADotIsTheRightWayUp() throws {
+        let glyph = MenuBarIcon.glyph
+        let badged = MenuBarIcon.image(badge: .failed, dimmed: false)
+        let plain = try mask(glyph, size: badged.size)
+        let drawn = try mask(badged, size: badged.size)
+        // The dot and its clear ring sit in the bottom right corner.
+        func outsideDot(_ x: Int, _ y: Int) -> Bool { !(x >= Int(badged.size.width) - 10 && y >= Int(badged.size.height) - 10) }
+        var differ = 0, asymmetric = 0
+        for y in plain.indices {
+            for x in plain[y].indices {
+                if plain[y][x] != plain[plain.count - 1 - y][x] { asymmetric += 1 }
+                if outsideDot(x, y), plain[y][x] != drawn[y][x] { differ += 1 }
+            }
+        }
+        #expect(asymmetric > 20, "the glyph is not symmetric, so a flip would show")
+        #expect(differ <= 4, "the badged glyph matches the plain one, not its mirror image")
+    }
+}

@@ -483,6 +483,9 @@ struct PullRequestsMenu: View {
             footer
         }
         .frame(width: 384)
+        // Solid, as in the design: the menu bar window's own material lets
+        // the wallpaper through and the list becomes hard to read.
+        .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
         .task { if let hub = desktop.core { await model.refreshIfStale(hub: hub) } }
     }

@@ -46,7 +46,9 @@ enum MenuBarIcon {
             // appearance each time the item is drawn.
             let glyphRect = NSRect(origin: .zero, size: base.size)
             NSGraphicsContext.saveGraphicsState()
-            base.draw(in: glyphRect, from: .zero, operation: .sourceOver, fraction: dimmed ? 0.45 : 1)
+            // The drawing is flipped; without respectFlipped the glyph comes out upside down.
+            base.draw(in: glyphRect, from: .zero, operation: .sourceOver, fraction: dimmed ? 0.45 : 1,
+                      respectFlipped: true, hints: nil)
             NSColor.labelColor.set()
             glyphRect.fill(using: .sourceAtop)
             NSGraphicsContext.restoreGraphicsState()
