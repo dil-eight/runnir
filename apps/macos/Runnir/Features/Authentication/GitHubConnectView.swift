@@ -365,7 +365,7 @@ struct GitHubAccountSettings: View {
                         .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 } else {
                     Text("Signed in as \(user.login)")
-                    // Settings is 600 points wide: the three buttons wrap
+                    // Where the row is too narrow, the three buttons wrap
                     // rather than cut the last title short.
                     ViewThatFits(in: .horizontal) {
                         HStack { signOut; manageAccess; manageAuthorization }

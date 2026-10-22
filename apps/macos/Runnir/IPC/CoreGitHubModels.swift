@@ -102,7 +102,8 @@ struct GitHubRepositoryRef: Hashable, Sendable, Codable {
 
 /// One of the signed-in user's pull requests.
 struct CorePullRequest: Equatable, Identifiable, Sendable {
-    var id: String { htmlURL?.absoluteString ?? "\(repository)#\(number)" }
+    /// Its link; without one, its server, repository and number.
+    var id: String { htmlURL?.absoluteString ?? "\(server):\(repository)#\(number)" }
     let repository: String
     let number: Int64
     let title: String

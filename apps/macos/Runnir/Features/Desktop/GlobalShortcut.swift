@@ -146,8 +146,10 @@ enum ShortcutConflicts {
         guard let menu else { return nil }
         let relevant: NSEvent.ModifierFlags = [.command, .option, .control, .shift]
         for item in menu.items {
-            if !item.keyEquivalent.isEmpty, item.keyEquivalent.uppercased() == shortcut.key,
-               item.keyEquivalentModifierMask.intersection(relevant) == shortcut.eventModifiers {
+            var modifiers = item.keyEquivalentModifierMask.intersection(relevant)
+            // AppKit reads an uppercase key equivalent as Shift with the key.
+            if item.keyEquivalent != item.keyEquivalent.lowercased() { modifiers.insert(.shift) }
+            if !item.keyEquivalent.isEmpty, item.keyEquivalent.uppercased() == shortcut.key, modifiers == shortcut.eventModifiers {
                 return "“\(item.title)”"
             }
             if let found = menuItem(for: shortcut, in: item.submenu) { return found }

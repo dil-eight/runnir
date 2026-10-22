@@ -20,17 +20,30 @@ final class EnterpriseServerForm {
 
     /// What keeps the fields from being a server, in the order of the form.
     var problems: [String] {
+        (nameProblem.map { [$0] } ?? []) + urlProblems
+    }
+
+    private var nameProblem: String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty || trimmed.count > EnterpriseServer.maxNameLength else { return nil }
+        return "Name: use 1 to \(EnterpriseServer.maxNameLength) characters."
+    }
+
+    /// What keeps the URLs from being a server the token can be checked on;
+    /// the name matters only for Add.
+    private var urlProblems: [String] {
         var out: [String] = []
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedName.isEmpty || trimmedName.count > EnterpriseServer.maxNameLength {
-            out.append("Name: use 1 to \(EnterpriseServer.maxNameLength) characters.")
-        }
         if case .failure(let problem) = EnterpriseServerURL.check(webURL) { out.append("Web URL: " + problem.message) }
         if case .failure(let problem) = EnterpriseServerURL.check(apiURL) { out.append("API URL: " + problem.message) }
         if let draft, existing.contains(where: { $0.webHost == draft.webHost }) {
             out.append("Web URL: \(draft.webHost) is already in the list.")
         }
         return out
+    }
+
+    /// The URLs are a server and a token is typed.
+    var canCheck: Bool {
+        urlProblems.isEmpty && !token.isEmpty && !isChecking
     }
 
     /// The server the fields describe, when both URLs pass.
@@ -45,8 +58,9 @@ final class EnterpriseServerForm {
     /// yet, so only filled-in fields are judged.
     var shownProblems: [String] {
         var out: [String] = []
-        if name.trimmingCharacters(in: .whitespacesAndNewlines).count > EnterpriseServer.maxNameLength {
-            out.append("Name: use 1 to \(EnterpriseServer.maxNameLength) characters.")
+        // An empty name is said once the token passed and Add waits for it.
+        if let nameProblem, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || check?.access == .ok {
+            out.append(nameProblem)
         }
         if !webURL.isEmpty, case .failure(let problem) = EnterpriseServerURL.check(webURL) { out.append("Web URL: " + problem.message) }
         if !apiURL.isEmpty, case .failure(let problem) = EnterpriseServerURL.check(apiURL) { out.append("API URL: " + problem.message) }
@@ -62,7 +76,7 @@ final class EnterpriseServerForm {
     }
 
     func runCheck(hub: CoreHub) async {
-        guard let draft, problems.isEmpty, !token.isEmpty, !isChecking else { return }
+        guard let draft, canCheck else { return }
         isChecking = true
         defer { isChecking = false }
         let asked = (token, webURL, apiURL)
@@ -164,7 +178,7 @@ struct AddEnterpriseServerSheet: View {
                 Spacer()
                 Button("Cancel") { dismiss() }
                 Button(form.isChecking ? "Checking..." : "Check Token") { Task { await form.runCheck(hub: hub) } }
-                    .disabled(!form.problems.isEmpty || form.token.isEmpty || form.isChecking)
+                    .disabled(!form.canCheck)
                 Button("Add") { Task { await add() } }
                     .buttonStyle(DesignButtonStyle(primary: true))
                     .keyboardShortcut(.defaultAction)

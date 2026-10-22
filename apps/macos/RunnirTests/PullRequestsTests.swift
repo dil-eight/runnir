@@ -124,6 +124,23 @@ struct PullRequestsTests {
         #expect(ShortcutConflicts.find(spotlight, system: system, menu: menu).first?.hasPrefix("macOS uses ⌘Space") == true)
 
         #expect(ShortcutConflicts.find(.pullRequestsDefault, system: system, menu: menu).isEmpty)
+
+        // AppKit reads an uppercase key equivalent as Shift with the key.
+        file.submenu?.addItem(NSMenuItem(title: "Reveal...", action: nil, keyEquivalent: "R"))
+        let revealKeys = KeyShortcut(keyCode: UInt32(kVK_ANSI_R), modifiers: UInt32(cmdKey | shiftKey), key: "R")
+        #expect(ShortcutConflicts.find(revealKeys, system: [], menu: menu) == ["Runnir's “Reveal...” menu command uses ⇧⌘R."])
+        let withoutShift = KeyShortcut(keyCode: UInt32(kVK_ANSI_R), modifiers: UInt32(cmdKey), key: "R")
+        #expect(ShortcutConflicts.find(withoutShift, system: [], menu: menu).isEmpty)
+    }
+
+    @Test func pullRequestsWithoutALinkStayApartAcrossServers() {
+        func pr(server: String) -> CorePullRequest {
+            var pr = CorePullRequest(repository: "org/app", number: 3, title: "t", htmlURL: nil, state: "open", draft: false, headBranch: "b",
+                                     updatedAt: nil, closedAt: nil, ci: .none, ciRuns: 0, ciFailed: 0, ciRunning: 0, ciURL: nil)
+            pr.server = server
+            return pr
+        }
+        #expect(pr(server: "").id != pr(server: "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed").id)
     }
 
     @Test func aShortcutAlreadyRegisteredIsRefusedWithAReason() {

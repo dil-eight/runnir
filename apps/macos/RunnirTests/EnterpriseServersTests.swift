@@ -255,6 +255,23 @@ struct EnterpriseServerFormTests {
         #expect(!form.canAdd, "a changed token is checked again")
     }
 
+    @Test func theTokenCanBeCheckedBeforeTheServerIsNamed() async {
+        let (hub, provider) = await makeReadyHub()
+        let form = EnterpriseServerForm(existing: [])
+        form.webURL = "https://github.company.com"
+        form.apiURL = "https://github.company.com/api/v3"
+        form.token = "ghp_company"
+        #expect(form.canCheck && form.shownProblems.isEmpty)
+        provider.core.tokenCheck = CoreGitHubTokenCheck(access: .ok, kind: .classic, login: "me", scopes: ["repo"], expiresAt: nil,
+                                                        repositories: 3, checks: [], suitable: true)
+        await form.runCheck(hub: hub)
+        #expect(provider.core.checkedTokens == ["ghp_company"])
+        // Add waits for the name, and now says so.
+        #expect(!form.canAdd && form.shownProblems == ["Name: use 1 to 60 characters."])
+        form.name = "Company"
+        #expect(form.canAdd && form.shownProblems.isEmpty)
+    }
+
     @Test func emptyFieldsAreNotShownAsMistakes() {
         let form = EnterpriseServerForm(existing: [])
         #expect(form.shownProblems.isEmpty && !form.problems.isEmpty, "nothing typed yet: Add stays off, no errors shown")
