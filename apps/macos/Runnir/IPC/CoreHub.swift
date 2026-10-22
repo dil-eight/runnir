@@ -277,13 +277,18 @@ final class CoreHub {
         for id in pushedEnterpriseIDs.subtracting(current) {
             _ = try? await service.setGitHubCredential(nil, server: GitHubServerRef(id: id, apiURL: nil, webHost: ""))
         }
+        // Which GitHub server a working tree is on depends on the servers
+        // the Core holds: when they changed, open repositories are read again.
+        let serversChanged = current != pushedEnterpriseIDs
         pushedEnterpriseIDs = current
         enterpriseServers = enterprise.map(\.server)
         credentialKinds = kinds
         signedInServers = servers
         credentialGeneration += 1
         // What the Core may read changed: reload every repository's activity.
-        for workspaceID in sessions.keys { await loadGitHubActivity(workspaceID: workspaceID) }
+        for workspaceID in sessions.keys {
+            if serversChanged { await refresh(workspaceID: workspaceID) } else { await loadGitHubActivity(workspaceID: workspaceID) }
+        }
     }
 
     /// Whether a call's repository is on github.com, whose rejected sign-in

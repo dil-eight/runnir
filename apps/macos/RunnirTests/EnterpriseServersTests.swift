@@ -162,6 +162,25 @@ struct EnterpriseHubTests {
         #expect(partial.access == .ok && partial.open.map(\.number) == [1])
     }
 
+    @Test func openRepositoriesAreReadAgainWhenServersChange() async {
+        let (hub, provider) = await signedInHub(enterprise: false)
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/ghe")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+        let before = provider.core.refreshCalls.count
+
+        // The same servers again: only activity is read.
+        hub.githubCredentialChanged()
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(provider.core.refreshCalls.count == before)
+
+        // A new server can be the one the working tree's origin is on.
+        let company = company
+        hub.enterpriseCredentialsProvider = { [(server: company, token: "ghp_company")] }
+        hub.githubCredentialChanged()
+        #expect(await eventually { provider.core.refreshCalls.count == before + 1 })
+    }
+
     @Test func anEnterpriseRejectionKeepsTheGitHubDotComSignIn() async {
         let (hub, provider) = await signedInHub()
         var rejections = 0
