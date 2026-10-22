@@ -133,6 +133,15 @@ struct PullRequestsTests {
         #expect(ShortcutConflicts.find(withoutShift, system: [], menu: menu).isEmpty)
     }
 
+    @Test func theListSaysWhichRepositoriesItCovers() {
+        let app = PullRequestsList.scopeNote(credential: .appUser)
+        #expect(app.text == "Only repositories where Runnir Desktop is installed are listed." && app.managesAccess)
+        let token = PullRequestsList.scopeNote(credential: .fineGrained)
+        #expect(token.text == "Only repositories your token reaches are listed." && !token.managesAccess)
+        // Signed in to Enterprise servers only: their tokens decide.
+        #expect(PullRequestsList.scopeNote(credential: nil).text == "Only repositories your token reaches are listed.")
+    }
+
     @Test func pullRequestsWithoutALinkStayApartAcrossServers() {
         func pr(server: String) -> CorePullRequest {
             var pr = CorePullRequest(repository: "org/app", number: 3, title: "t", htmlURL: nil, state: "open", draft: false, headBranch: "b",
