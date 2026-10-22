@@ -4,11 +4,18 @@ import SwiftUI
 struct RunnirApp: App {
     @NSApplicationDelegateAdaptor(DesktopAppDelegate.self) private var delegate
 
-    private var menuBarSymbol: String {
+    /// The logo glyph, with a dot when a check failed or runs, dimmed
+    /// while no account is signed in.
+    private var menuBarImage: NSImage {
+        let signedIn = delegate.github.user != nil || !delegate.coreHub.signedInServers.isEmpty
+        return MenuBarIcon.image(badge: MenuBarIcon.badge(for: delegate.desktop.pullRequests.worstCI), dimmed: !signedIn)
+    }
+
+    private var menuBarLabel: String {
         switch delegate.desktop.pullRequests.worstCI {
-        case .failed: "exclamationmark.triangle"
-        case .running: "arrow.triangle.2.circlepath"
-        default: "arrow.triangle.pull"
+        case .failed: "Runnir pull requests, a check failed"
+        case .running: "Runnir pull requests, checks running"
+        default: "Runnir pull requests"
         }
     }
 
@@ -26,7 +33,7 @@ struct RunnirApp: App {
                     desktop.showSettingsInFrontWindow(section: section)
                 }
         } label: {
-            Image(systemName: menuBarSymbol).accessibilityLabel("Runnir pull requests")
+            Image(nsImage: menuBarImage).accessibilityLabel(menuBarLabel)
         }
         .menuBarExtraStyle(.window)
         .commands {

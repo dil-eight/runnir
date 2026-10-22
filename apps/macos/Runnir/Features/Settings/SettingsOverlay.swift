@@ -2,7 +2,7 @@ import SwiftUI
 
 /// A part of Settings, listed in the overlay's sidebar.
 enum SettingsSection: String, CaseIterable, Identifiable, Sendable {
-    case account, runs, pullRequests, tools, privacy
+    case account, runs, notifications, pullRequests, tools, privacy
 
     var id: Self { self }
 
@@ -10,6 +10,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .account: "Account"
         case .runs: "Runs"
+        case .notifications: "Notifications"
         case .pullRequests: "Pull Requests"
         case .tools: "Tools"
         case .privacy: "Privacy"
@@ -20,6 +21,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .account: "person.crop.circle"
         case .runs: "play.circle"
+        case .notifications: "bell"
         case .pullRequests: "arrow.triangle.pull"
         case .tools: "wrench.and.screwdriver"
         case .privacy: "hand.raised"
@@ -137,6 +139,8 @@ struct SettingsOverlay: View {
                 if let servers = desktop.enterpriseServers { EnterpriseServersSection(servers: servers, hub: desktop.core) }
             case .runs:
                 ManualRunSettingsSection()
+            case .notifications:
+                NotificationSettingsSection()
             case .pullRequests:
                 PullRequestShortcutSettingsSection(center: desktop.shortcuts)
             case .tools:

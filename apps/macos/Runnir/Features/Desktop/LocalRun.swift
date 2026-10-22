@@ -114,6 +114,9 @@ final class LocalRunModel {
 
     @ObservationIgnored private var lastSequence: UInt64 = 0
     @ObservationIgnored private var followTask: Task<Void, Never>?
+    /// Called once when the Core reports the run finished.
+    @ObservationIgnored var onFinish: (@MainActor (LocalRunModel) -> Void)?
+    @ObservationIgnored private var reportedFinish = false
     @ObservationIgnored var pollInterval: Duration = .milliseconds(500)
 
     init(executionID: String, workspaceID: UUID, plan: CoreLocalRunPlan) {
@@ -154,6 +157,10 @@ final class LocalRunModel {
         cleanupProblem = output.cleanupProblem
         startedAt = output.startedAt ?? startedAt
         finishedAt = output.finishedAt
+        if phase == .finished, !reportedFinish {
+            reportedFinish = true
+            onFinish?(self)
+        }
         if selectedJobID == nil || job(selectedJobID ?? "") == nil {
             selectedJobID = jobs.first { $0.state == .running }?.id ?? jobs.first { $0.state != .unsupported }?.id
         }

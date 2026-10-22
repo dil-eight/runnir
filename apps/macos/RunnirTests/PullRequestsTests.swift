@@ -150,3 +150,86 @@ struct PullRequestsTests {
         #expect(PullRequestShortcutSettings.shortcut(in: defaults) == custom)
     }
 }
+
+@MainActor
+@Suite(.timeLimit(.minutes(1)))
+struct RunNotificationTests {
+    private func pr(_ number: Int64, ci: CorePullRequestCI, runs: Int = 3, failed: Int = 0) -> CorePullRequest {
+        CorePullRequest(repository: "o/r", number: number, title: "Fix it", htmlURL: URL(string: "https://github.com/o/r/pull/\(number)"),
+                        state: "open", draft: false, headBranch: "b", updatedAt: Date(), closedAt: nil, ci: ci,
+                        ciRuns: runs, ciFailed: failed, ciRunning: ci == .running ? 1 : 0, ciURL: URL(string: "https://github.com/o/r/actions/runs/9"))
+    }
+
+    @Test func onlyChecksThatWereRunningAndFinishedAreReported() async {
+        let (hub, provider) = await makeReadyHub()
+        let model = PullRequestsModel(store: nil)
+        var finished: [Int64] = []
+        model.onChecksFinished = { finished.append($0.number) }
+        // The first read reports nothing, whatever the checks say.
+        provider.core.pullRequestsResult = CorePullRequests(access: .ok, open: [pr(1, ci: .running), pr(2, ci: .passed), pr(3, ci: .running)],
+                                                            closed: [], headsUnreadable: false)
+        await model.refresh(hub: hub)
+        #expect(finished.isEmpty)
+        // 1 failed, 2 stays passed, 3 still runs.
+        provider.core.pullRequestsResult = CorePullRequests(access: .ok, open: [pr(1, ci: .failed, failed: 1), pr(2, ci: .passed), pr(3, ci: .running)],
+                                                            closed: [], headsUnreadable: false)
+        await model.refresh(hub: hub)
+        #expect(finished == [1])
+        // 3 passes; 1 is not reported again.
+        provider.core.pullRequestsResult = CorePullRequests(access: .ok, open: [pr(1, ci: .failed, failed: 1), pr(2, ci: .passed), pr(3, ci: .passed)],
+                                                            closed: [], headsUnreadable: false)
+        await model.refresh(hub: hub)
+        #expect(finished == [1, 3])
+    }
+
+    @Test func notificationsSayWhatFinished() throws {
+        let failed = try #require(RunNotification.checksFinished(pr(34, ci: .failed, runs: 3, failed: 1)))
+        #expect(failed.title == "Checks failed · o/r #34" && failed.body == "Fix it — 1 of 3 checks failed." && !failed.succeeded)
+        #expect(failed.url?.absoluteString == "https://github.com/o/r/actions/runs/9", "a failure opens the failed run")
+        let passed = try #require(RunNotification.checksFinished(pr(31, ci: .passed, runs: 4)))
+        #expect(passed.title == "Checks passed · o/r #31" && passed.body == "Fix it — all 4 checks passed." && passed.succeeded)
+        #expect(RunNotification.checksFinished(pr(1, ci: .running)) == nil)
+        #expect(RunNotification.duration(48) == "48 s" && RunNotification.duration(72) == "1 min 12 s" && RunNotification.duration(120) == "2 min")
+    }
+
+    @Test func aLocalRunReportsOnceWhenItFinishes() throws {
+        let plan = CoreLocalRunPlan(workflowID: ".github/workflows/ci.yml", workflowName: "CI", jobID: "test",
+                                    jobs: [CoreLocalRunJob(id: "test", name: "test", support: .supported)])
+        let run = LocalRunModel(executionID: "e1", workspaceID: UUID(), plan: plan)
+        var reports = 0
+        run.onFinish = { _ in reports += 1 }
+        let start = Date(timeIntervalSince1970: 1000)
+        func output(_ phase: CoreLocalRunPhase, _ state: CoreExecutionState, exit: Int?) -> CoreLocalRunOutput {
+            CoreLocalRunOutput(executionID: "e1", repositoryID: "r", state: state, phase: phase, lines: [], discarded: false, lastSequence: 0,
+                               jobs: [], plan: plan, startedAt: start, finishedAt: phase == .finished ? start.addingTimeInterval(48) : nil,
+                               exitCode: exit, message: nil, cleanupProblem: nil)
+        }
+        run.apply(output(.running, .running, exit: nil))
+        #expect(reports == 0)
+        run.apply(output(.finished, .failed, exit: 1))
+        run.apply(output(.finished, .failed, exit: 1))
+        #expect(reports == 1)
+        let note = try #require(RunNotification.localRunFinished(run, workspaceName: "runnir"))
+        #expect(note.title == "Local run failed · runnir" && note.body == "CI › test stopped after 48 s: the job exited with code 1.")
+        #expect(note.workspaceID == run.workspaceID)
+    }
+
+    @Test func settingsChooseWhatIsSent() throws {
+        let suite = "notify-" + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var sent: [String] = []
+        let notifier = RunNotifier(defaults: defaults) { sent.append($0.id) }
+        let failed = RunNotification.checksFinished(pr(1, ci: .failed, failed: 1))
+        let passed = RunNotification.checksFinished(pr(2, ci: .passed))
+        notifier.notify(failed)
+        notifier.notify(passed)
+        #expect(sent.count == 2, "both kinds, successes and failures, by default")
+        defaults.set(true, forKey: NotificationSettings.failuresOnlyKey)
+        notifier.notify(passed)
+        #expect(sent.count == 2)
+        defaults.set(false, forKey: NotificationSettings.pullRequestChecksKey)
+        notifier.notify(failed)
+        #expect(sent.count == 2)
+    }
+}

@@ -756,6 +756,8 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
     let github: GitHubSession
     /// Enterprise servers next to github.com, with their Keychain tokens.
     let enterpriseServers: EnterpriseServers
+    /// Sends run notifications; set once the app has launched.
+    private var runNotifier: RunNotifier?
 
     override init() {
         let supervisor = CoreProcessSupervisor.bundled()
@@ -802,6 +804,14 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         Task { [github] in await github.restore() }
         desktop.shortcuts.action = { [desktop] in desktop.showPullRequests() }
         desktop.shortcuts.applySettings()
+        // Notifications from this Mac when pull request checks or local runs finish.
+        let notifier = RunNotifier.live()
+        notifier.showWorkspace = { [desktop] id in
+            if let workspace = desktop.snapshot.workspaces.first(where: { $0.id == id }) { desktop.openOrFocus(workspace) }
+        }
+        runNotifier = notifier
+        desktop.pullRequests.onChecksFinished = { [notifier] pr in notifier.notify(.checksFinished(pr)) }
+        coreHub.onLocalRunFinished = { [notifier] run, name in notifier.notify(.localRunFinished(run, workspaceName: name)) }
         // Signed in to github.com or to any Enterprise server.
         desktop.pullRequests.startPolling(hub: coreHub, isSignedIn: { [github, coreHub] in github.user != nil || !coreHub.signedInServers.isEmpty })
         // A failed start shows up as the hub's status, with a restart offer in each window.

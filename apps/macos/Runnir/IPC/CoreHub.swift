@@ -129,6 +129,8 @@ final class CoreHub {
     @ObservationIgnored var githubTokenProvider: (@MainActor () async -> String?)?
     /// Called when GitHub refused the token, so the account can sign out.
     @ObservationIgnored var onGitHubTokenRejected: (@MainActor () async -> Void)?
+    /// A local run finished, with its workspace's name.
+    @ObservationIgnored var onLocalRunFinished: (@MainActor (LocalRunModel, String) -> Void)?
     /// How often runs are re-read while any of them is queued or running.
     @ObservationIgnored var githubPollInterval: Duration = .seconds(20)
     /// How often runs are re-read otherwise, so new pushes and runs started
@@ -775,6 +777,8 @@ final class CoreHub {
             let execution = try await service.confirmLocalRun(confirmationID: confirmationID)
             guard let session = sessions[workspaceID] else { return .failed("The workspace was closed.") }
             let model = LocalRunModel(executionID: execution.id, workspaceID: workspaceID, plan: prepared.plan)
+            let name = (session.path as NSString).lastPathComponent
+            model.onFinish = { [weak self] run in self?.onLocalRunFinished?(run, name) }
             session.localRun?.stopFollowing()
             session.localRun = model
             model.follow(hub: self)

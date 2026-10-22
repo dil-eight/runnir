@@ -58,6 +58,8 @@ final class PullRequestsModel {
     @ObservationIgnored private let store: FileDismissedPullRequestsStore?
     @ObservationIgnored private var poll: Task<Void, Never>?
     @ObservationIgnored var now: () -> Date = Date.init
+    /// An open pull request's checks finished since the last read.
+    @ObservationIgnored var onChecksFinished: (@MainActor (CorePullRequest) -> Void)?
 
     static let closedWindow: TimeInterval = 24 * 3600
     static let pollInterval: Duration = .seconds(180)
@@ -89,6 +91,11 @@ final class PullRequestsModel {
         access = result.access
         switch result.access {
         case .ok:
+            // Checks that were running at the last read and have finished.
+            let running = Set(open.filter { $0.ci == .running }.map(\.id))
+            for pr in result.open where running.contains(pr.id) && (pr.ci == .passed || pr.ci == .failed) {
+                onChecksFinished?(pr)
+            }
             open = result.open
             recentlyClosed = result.closed
             headsUnreadable = result.headsUnreadable
@@ -169,44 +176,69 @@ final class PullRequestsModel {
 
 // MARK: Views
 
-/// One pull request: its CI (or how it closed), title, repository and branch.
+/// Colors of S19 that the theme has no token for.
+enum PullRequestColors {
+    static let running = Color(red: 0.369, green: 0.918, blue: 0.831)
+    static let runningSoft = Color(red: 0.075, green: 0.161, blue: 0.165)
+    static let failedSoft = Color(red: 0.176, green: 0.106, blue: 0.118)
+    static let passedSoft = Color(red: 0.086, green: 0.149, blue: 0.110)
+    static let merged = Color(red: 0.655, green: 0.545, blue: 0.980)
+}
+
+/// One pull request: its CI (or how it closed), title, repository and
+/// server. Hovering highlights it and shows what a click does; a closed one
+/// can be removed from the list.
 struct PullRequestRow: View {
     let pullRequest: CorePullRequest
     /// The server's host, shown when more than one account is signed in.
     var serverHost: String? = nil
     var dismiss: (() -> Void)? = nil
     @Environment(\.openURL) private var openURL
+    @State private var hovering = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: 10) {
             statusIcon.frame(width: 16).padding(.top, 1)
-            Button {
-                if let url = pullRequest.htmlURL { openURL(url) }
-            } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(pullRequest.title).font(.system(size: 12, weight: .medium)).lineLimit(2)
-                        if pullRequest.draft {
-                            Text("Draft").font(.system(size: 10)).foregroundStyle(RunnirTheme.secondaryForeground)
-                                .padding(.horizontal, 5).padding(.vertical, 1)
-                                .overlay(RoundedRectangle(cornerRadius: 4).stroke(RunnirTheme.border))
-                        }
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(pullRequest.title).font(.system(size: 13, weight: .medium)).lineLimit(2)
+                        .foregroundStyle(pullRequest.state == "open" ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if pullRequest.draft {
+                        Text("Draft").font(.system(size: 10)).foregroundStyle(RunnirTheme.secondaryForeground)
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(RunnirTheme.border))
                     }
-                    Text(subtitle).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+                Text(subtitle).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
             }
-            .buttonStyle(.plain)
-            .help("Open \(pullRequest.repository)#\(pullRequest.number) on GitHub")
-            if let dismiss {
-                Button(action: dismiss) { Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)) }
-                    .buttonStyle(.borderless).foregroundStyle(RunnirTheme.secondaryForeground)
-                    .help("Remove from this list")
-                    .accessibilityLabel("Remove \(pullRequest.title) from this list")
-            }
+            trailing.frame(width: 14).padding(.top, 2)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 7).padding(.horizontal, 8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(hovering ? RunnirTheme.selected : .clear))
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .onTapGesture { if let url = pullRequest.htmlURL { openURL(url) } }
+        .help("Open \(pullRequest.repository) #\(pullRequest.number) on GitHub")
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { if let url = pullRequest.htmlURL { openURL(url) } }
+        .accessibilityAction(named: "Remove from this list") { dismiss?() }
+    }
+
+    @ViewBuilder private var trailing: some View {
+        if let dismiss {
+            Button(action: dismiss) { Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)) }
+                .buttonStyle(.plain).foregroundStyle(RunnirTheme.secondaryForeground)
+                .opacity(hovering ? 1 : 0)
+                .help("Remove from this list")
+                .accessibilityLabel("Remove \(pullRequest.title) from this list")
+        } else {
+            Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(RunnirTheme.secondaryForeground)
+                .opacity(hovering ? 1 : 0)
+                .accessibilityHidden(true)
+        }
     }
 
     private var subtitle: String { Self.subtitle(pullRequest, serverHost: serverHost) }
@@ -219,8 +251,8 @@ struct PullRequestRow: View {
         if pullRequest.state == "open" {
             parts.append(ciText(pullRequest))
         } else {
-            parts.append(pullRequest.state == "merged" ? "Merged" : "Closed")
-            if let closed = pullRequest.closedAt { parts.append(closed.formatted(.relative(presentation: .named))) }
+            let closed = pullRequest.closedAt.map { " " + $0.formatted(.relative(presentation: .named)) } ?? ""
+            parts.append((pullRequest.state == "merged" ? "Merged" : "Closed") + closed)
         }
         return parts.joined(separator: " · ")
     }
@@ -247,9 +279,9 @@ struct PullRequestRow: View {
                 Image(systemName: icon.symbol).foregroundStyle(icon.tint).accessibilityLabel(ciText)
             }
         } else if pullRequest.state == "merged" {
-            Image(systemName: "arrow.triangle.merge").foregroundStyle(Color.purple).accessibilityLabel("Merged")
+            Image(systemName: "arrow.triangle.merge").foregroundStyle(PullRequestColors.merged).accessibilityLabel("Merged")
         } else {
-            Image(systemName: "xmark.circle").foregroundStyle(RunnirTheme.secondaryForeground).accessibilityLabel("Closed")
+            Image(systemName: "minus.circle").foregroundStyle(RunnirTheme.mutedForeground).accessibilityLabel("Closed")
         }
     }
 
@@ -257,7 +289,7 @@ struct PullRequestRow: View {
         switch ci {
         case .passed: ("checkmark.circle.fill", RunnirTheme.success)
         case .failed: ("xmark.circle.fill", RunnirTheme.destructive)
-        case .running: ("clock.fill", RunnirTheme.warning)
+        case .running: ("arrow.triangle.2.circlepath.circle.fill", PullRequestColors.running)
         case .cancelled: ("slash.circle", RunnirTheme.secondaryForeground)
         case .none: ("circle", RunnirTheme.mutedForeground)
         case .unknown: ("questionmark.circle", RunnirTheme.mutedForeground)
@@ -265,44 +297,115 @@ struct PullRequestRow: View {
     }
 }
 
-/// The list the menu bar and the window share: open pull requests with
-/// their CI, then those closed in the last day, each removable.
+/// What the list shows: signed out, checking the saved sign-in, or lists.
+enum PullRequestsListState: Equatable {
+    case restoring, signedOut, lists
+
+    @MainActor
+    static func of(_ desktop: DesktopCoordinator) -> PullRequestsListState {
+        let enterprise = !(desktop.core?.signedInServers.isEmpty ?? true)
+        guard let github = desktop.github, github.user == nil, !enterprise else { return .lists }
+        if case .restoring = github.connection { return .restoring }
+        return .signedOut
+    }
+}
+
+/// The list the menu bar and the window share (S19): a summary of the open
+/// pull requests' CI, the open ones, then those closed today, each
+/// removable.
 struct PullRequestsList: View {
     let model: PullRequestsModel
     let desktop: DesktopCoordinator
+    /// Inset of the rows' text from the edges.
+    var inset: CGFloat = 16
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if let github = desktop.github, github.user == nil, desktop.core?.signedInServers.isEmpty ?? true {
-                if case .restoring = github.connection {
-                    HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Checking the saved sign-in...") }
-                        .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Connect GitHub to see your pull requests.").font(.system(size: 12))
-                        Button("Open Runnir...") { desktop.showManager() }
-                    }
-                }
-            } else {
-                if let access = model.access, let help = notice(access) {
-                    GitHubAccessNotice(help: help, style: .note, github: desktop.github) {
-                        if let hub = desktop.core { Task { await model.refresh(hub: hub) } }
-                    }
-                }
-                if model.headsUnreadable { headsNote }
-                section("OPEN") {
-                    if model.open.isEmpty {
-                        Text(model.isLoading && model.loadedAt == nil ? "Reading pull requests..." : "No open pull requests.")
-                            .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                    }
-                    ForEach(model.open) { PullRequestRow(pullRequest: $0, serverHost: host(of: $0)) }
-                }
-                if !model.closed.isEmpty {
-                    section("CLOSED IN THE LAST DAY") {
-                        ForEach(model.closed) { pr in PullRequestRow(pullRequest: pr, serverHost: host(of: pr)) { model.dismiss(pr) } }
-                    }
-                }
+        VStack(alignment: .leading, spacing: 0) {
+            switch PullRequestsListState.of(desktop) {
+            case .restoring:
+                HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Checking the saved sign-in...") }
+                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                    .padding(.horizontal, inset).padding(.vertical, 16)
+            case .signedOut:
+                PullRequestsSignedOut(desktop: desktop)
+            case .lists:
+                lists
             }
+        }
+    }
+
+    @ViewBuilder private var lists: some View {
+        if let access = model.access, let help = notice(access) {
+            GitHubAccessNotice(help: help, style: .note, github: desktop.github) {
+                if let hub = desktop.core { Task { await model.refresh(hub: hub) } }
+            }.padding(.horizontal, inset).padding(.bottom, 10)
+        }
+        if model.headsUnreadable { headsNote.padding(.horizontal, inset).padding(.bottom, 10) }
+        summary
+        DesignDivider()
+        sectionHeader("OPEN", count: model.open.count)
+        if model.open.isEmpty {
+            nothingOpen
+        }
+        ForEach(model.open) { PullRequestRow(pullRequest: $0, serverHost: host(of: $0)).padding(.horizontal, inset - 8) }
+        if !model.closed.isEmpty {
+            sectionHeader("CLOSED TODAY", count: model.closed.count)
+            ForEach(model.closed) { pr in
+                PullRequestRow(pullRequest: pr, serverHost: host(of: pr)) { model.dismiss(pr) }.padding(.horizontal, inset - 8)
+            }
+        }
+        Color.clear.frame(height: 8)
+    }
+
+    /// Chips counting failing, running and passing open pull requests.
+    @ViewBuilder private var summary: some View {
+        let failing = model.open.count { $0.ci == .failed }
+        let running = model.open.count { $0.ci == .running }
+        let passed = model.open.count { $0.ci == .passed }
+        if failing + running + passed > 0 {
+            HStack(spacing: 6) {
+                if failing > 0 { chip("xmark.circle.fill", "\(failing) failing", RunnirTheme.destructive, PullRequestColors.failedSoft) }
+                if running > 0 { chip("arrow.triangle.2.circlepath", "\(running) running", PullRequestColors.running, PullRequestColors.runningSoft) }
+                if passed > 0 { chip("checkmark.circle.fill", "\(passed) passed", RunnirTheme.success, PullRequestColors.passedSoft) }
+            }
+            .padding(.horizontal, inset).padding(.bottom, 12)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private func chip(_ symbol: String, _ label: String, _ tint: Color, _ background: Color) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol).font(.system(size: 10))
+            Text(label).font(.system(size: 11, weight: .medium))
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 8).padding(.vertical, 3)
+        .background(Capsule().fill(background))
+    }
+
+    private func sectionHeader(_ title: String, count: Int) -> some View {
+        HStack(spacing: 6) {
+            Text(title).font(.system(size: 10, weight: .semibold)).tracking(0.8).foregroundStyle(RunnirTheme.secondaryForeground)
+            Text("\(count)").font(.system(size: 10, weight: .semibold)).foregroundStyle(RunnirTheme.mutedForeground)
+        }
+        .padding(.horizontal, inset).padding(.top, 10).padding(.bottom, 4)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    @ViewBuilder private var nothingOpen: some View {
+        if model.isLoading && model.loadedAt == nil {
+            HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Reading pull requests...") }
+                .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                .padding(.horizontal, inset).padding(.vertical, 12)
+        } else {
+            VStack(spacing: 6) {
+                Image(systemName: "checkmark.circle").font(.system(size: 20)).foregroundStyle(RunnirTheme.success)
+                Text("No open pull requests").font(.system(size: 13, weight: .medium))
+                Text("New ones you open on GitHub show up here with their CI.")
+                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, inset).padding(.top, 14).padding(.bottom, 16)
         }
     }
 
@@ -311,14 +414,6 @@ struct PullRequestsList: View {
     private func host(of pullRequest: CorePullRequest) -> String? {
         guard let hub = desktop.core, hub.signedInServers.count > 1 else { return nil }
         return pullRequest.server.isEmpty ? "github.com" : hub.serverRef(for: pullRequest.server)?.webHost
-    }
-
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            SectionLabel(title: title)
-            DesignDivider()
-            content()
-        }
     }
 
     private func notice(_ access: CoreGitHubAccess) -> GitHubAccessHelp? {
@@ -339,7 +434,31 @@ struct PullRequestsList: View {
     }
 }
 
-/// The menu bar item's window.
+/// No account signed in: the logo, what the list is for, and where to sign
+/// in. Both ways in live in Settings › Account.
+struct PullRequestsSignedOut: View {
+    let desktop: DesktopCoordinator
+
+    var body: some View {
+        VStack(spacing: 10) {
+            BrandLogo(markOnly: true, height: 54, width: 56)
+            Text("Your pull requests, with their CI").font(.system(size: 14, weight: .semibold))
+            Text("Connect GitHub, or add an Enterprise server in Settings. Runnir lists the pull requests you opened and shows whether their checks pass.")
+                .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                .multilineTextAlignment(.center).frame(maxWidth: 300).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Button("Connect GitHub…") { desktop.showSettingsInFrontWindow(section: .account) }
+                    .buttonStyle(DesignButtonStyle(primary: true))
+                Button("Add Enterprise Server…") { desktop.showSettingsInFrontWindow(section: .account) }
+                    .buttonStyle(DesignButtonStyle())
+            }.padding(.top, 6)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 28).padding(.top, 14).padding(.bottom, 22)
+    }
+}
+
+/// The menu bar item's window (S19).
 struct PullRequestsMenu: View {
     let model: PullRequestsModel
     let desktop: DesktopCoordinator
@@ -350,35 +469,82 @@ struct PullRequestsMenu: View {
 
     static let maxListHeight: CGFloat = 460
 
+    private var signedOut: Bool { PullRequestsListState.of(desktop) != .lists }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Pull Requests").font(.system(size: 13, weight: .semibold))
-                Spacer()
-                if let hub = desktop.core {
-                    Button { Task { await model.refresh(hub: hub) } } label: { Image(systemName: "arrow.clockwise") }
-                        .buttonStyle(.borderless).disabled(model.isLoading).help("Read pull requests again")
-                }
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            header
             ScrollView {
                 PullRequestsList(model: model, desktop: desktop).frame(maxWidth: .infinity, alignment: .leading)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
             }
             .frame(height: min(max(listHeight, 16), Self.maxListHeight))
             DesignDivider()
-            HStack {
-                Button("Show Pull Requests Window") { desktop.showPullRequests() }.buttonStyle(.link)
-                if let shortcut { Text(shortcut).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground) }
+            footer
+        }
+        .frame(width: 384)
+        .foregroundStyle(RunnirTheme.foreground)
+        .task { if let hub = desktop.core { await model.refreshIfStale(hub: hub) } }
+    }
+
+    private var header: some View {
+        HStack(spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Pull Requests").font(.system(size: 13, weight: .semibold))
+                TimelineView(.periodic(from: .now, by: 15)) { _ in
+                    Text(updatedText).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                }
+            }
+            Spacer()
+            if !signedOut, let hub = desktop.core {
+                iconButton("arrow.clockwise", help: "Read pull requests again") { Task { await model.refresh(hub: hub) } }
+                    .disabled(model.isLoading)
+                iconButton("macwindow", help: "Open the Pull Requests window") { desktop.showPullRequests() }
+            }
+        }
+        .padding(.top, 14).padding(.bottom, 10).padding(.leading, 16).padding(.trailing, 12)
+    }
+
+    private var updatedText: String {
+        if signedOut { return "Not connected" }
+        guard let loaded = model.loadedAt else { return model.isLoading ? "Reading..." : "Not read yet" }
+        if Date().timeIntervalSince(loaded) < 30 { return "Updated just now" }
+        return "Updated " + loaded.formatted(.relative(presentation: .named))
+    }
+
+    private func iconButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
+                .frame(width: 26, height: 26).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).help(help).accessibilityLabel(help)
+    }
+
+    private var footer: some View {
+        HStack(spacing: 8) {
+            if signedOut {
+                Button("Open Runnir") { desktop.showManager() }.buttonStyle(.link)
+                Spacer()
+                Button("Settings…") { desktop.showSettingsInFrontWindow() }.buttonStyle(.plain)
+                    .foregroundStyle(RunnirTheme.secondaryForeground)
+            } else {
+                Button("Open Pull Requests Window") { desktop.showPullRequests() }.buttonStyle(.link).fontWeight(.medium)
+                if let shortcut {
+                    Text(shortcut).font(.system(size: 10)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(RunnirTheme.border))
+                        .accessibilityLabel("Shortcut \(shortcut)")
+                }
                 Spacer()
                 if !model.dismissed.isEmpty {
-                    Button("Show Removed") { model.restoreDismissed() }.buttonStyle(.link)
+                    Button("Show Removed (\(model.dismissed.count))") { model.restoreDismissed() }.buttonStyle(.plain)
+                        .foregroundStyle(RunnirTheme.secondaryForeground)
                         .help("Bring back the closed pull requests removed from this list")
                 }
-            }.font(.system(size: 12))
+            }
         }
-        .padding(14)
-        .frame(width: 400)
-        .task { if let hub = desktop.core { await model.refreshIfStale(hub: hub) } }
+        .font(.system(size: 12))
+        .padding(.horizontal, 16).padding(.vertical, 10)
     }
 }
 
@@ -407,7 +573,8 @@ struct PullRequestsWindowView: View {
             .padding(.horizontal, 20).padding(.top, 34).padding(.bottom, 12)
             DesignDivider()
             ScrollView {
-                PullRequestsList(model: model, desktop: desktop).padding(20).frame(maxWidth: .infinity, alignment: .leading)
+                PullRequestsList(model: model, desktop: desktop, inset: 20).padding(.top, 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .frame(minWidth: 480, minHeight: 360)
