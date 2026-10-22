@@ -1,6 +1,6 @@
 # GitHub Enterprise Servers
 
-Status: design approved 2026-10-21; not implemented.
+Status: implemented; verified with unit tests, not against a real Enterprise server.
 
 Runnir talks to github.com today. Teams on GitHub Enterprise Server, or on GitHub Enterprise Cloud with data residency (`*.ghe.com`), need Runnir to reach their own server too, at the same time as github.com.
 
