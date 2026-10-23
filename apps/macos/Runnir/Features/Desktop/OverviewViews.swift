@@ -329,6 +329,8 @@ struct WorkspaceOverview: View {
         let rows: [(DispatchPreset, CoreGitHubWorkflow)] = (session?.remoteWorkflows ?? []).flatMap { workflow in
             presets.presets(workspaceID: workspaceID, workflowPath: workflow.path).map { ($0, workflow) }
         }
+        let shared = RepositoryPresetRow.rows(presets: session?.launchPresets ?? [], remoteWorkflows: session?.remoteWorkflows ?? [],
+                                              readError: session?.launchPresetsError)
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 SectionLabel(title: "RUN MANUALLY")
@@ -342,6 +344,14 @@ struct WorkspaceOverview: View {
                let blocker = GitHubAccessHelp.blocker(for: .run, repository: repository, details: session?.githubDetails) {
                 GitHubAccessNotice(help: blocker, style: .note, github: github).padding(.vertical, 6)
             }
+            if !shared.isEmpty {
+                presetGroup("IN THIS REPOSITORY", symbol: "folder.badge.gearshape", source: ".runnir/launches")
+                ForEach(shared) { row in
+                    sharedRow(row, available: available)
+                    DesignDivider()
+                }
+                presetGroup("ON THIS MAC", symbol: "laptopcomputer", source: nil)
+            }
             if rows.isEmpty {
                 Text(available ? "Presets you save in Run Workflow appear here." : "Running workflows needs access to the repository on GitHub.")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(.vertical, 6)
@@ -350,7 +360,8 @@ struct WorkspaceOverview: View {
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(preset.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                        Text(presetDetail(preset, workflow: workflow)).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
+                        Text(DispatchPreset.detail(workflow: workflow.name, ref: preset.ref, inputs: preset.inputs))
+                            .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
                     }
                     Spacer(minLength: 8)
                     Button("Run") { runWorkflow(workflow.id, preset.id) }
@@ -359,12 +370,63 @@ struct WorkspaceOverview: View {
                 }.padding(.vertical, 4)
                 DesignDivider()
             }
+            if !shared.isEmpty {
+                Label("Repository presets are shared through Git. Runnir reads them and never changes them.", systemImage: "info.circle")
+                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground).padding(.top, 4)
+            }
         }
     }
 
-    private func presetDetail(_ preset: DispatchPreset, workflow: CoreGitHubWorkflow) -> String {
-        let inputs = preset.inputs.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }
-        return ([workflow.name, preset.ref] + inputs).joined(separator: " · ")
+    private func presetGroup(_ title: String, symbol: String, source: String?) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+            Text(title).fontWeight(.semibold).tracking(0.6)
+            Spacer(minLength: 8)
+            if let source { Text(source).font(.system(size: 11, design: .monospaced)) }
+        }
+        .font(.system(size: 10)).foregroundStyle(RunnirTheme.mutedForeground).padding(.top, 8)
+    }
+
+    @ViewBuilder private func sharedRow(_ row: RepositoryPresetRow, available: Bool) -> some View {
+        switch row {
+        case .preset(let preset, let workflow):
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(preset.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                    Text(sharedDetail(preset, workflow: workflow, available: available))
+                        .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Button("Run") {
+                    if let workflow { runWorkflow(workflow.id, CoreLaunchPreset.presetID(workspaceID: workspaceID, path: preset.path)) }
+                }
+                .buttonStyle(DesignButtonStyle()).disabled(!available || workflow?.state != "active")
+                .help(workflow.map { "Review and start \($0.name) with this preset" } ?? "This workflow is not on GitHub yet")
+            }.padding(.vertical, 4)
+        case .problem(let preset):
+            problemRow(title: preset.fileName, detail: preset.problem ?? "")
+        case .unreadable(let reason):
+            problemRow(title: ".runnir/launches", detail: "Repository presets could not be read. \(reason)")
+        }
+    }
+
+    private func sharedDetail(_ preset: CoreLaunchPreset, workflow: CoreGitHubWorkflow?, available: Bool) -> String {
+        let name = workflow?.name ?? (preset.workflowPath as NSString).lastPathComponent
+        let detail = DispatchPreset.detail(workflow: name, ref: preset.ref ?? "", inputs: preset.inputs)
+        // GitHub's list is known only with access; without it every Run is off anyway.
+        return workflow == nil && available ? detail + " · not on GitHub yet" : detail
+    }
+
+    private func problemRow(title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle").foregroundStyle(RunnirTheme.warning)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 12, weight: .medium, design: .monospaced)).lineLimit(1)
+                Text(detail).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }.padding(.vertical, 6)
     }
 
     private func staleBanner(_ session: RepositorySession) -> some View {

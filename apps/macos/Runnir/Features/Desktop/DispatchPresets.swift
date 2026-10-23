@@ -270,3 +270,45 @@ extension CoreLaunchPreset {
         return UUID(uuid: (b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]))
     }
 }
+
+extension DispatchPreset {
+    /// "Deploy · main · environment=staging": the workflow, the branch when
+    /// set, then the values by name, with values of inputs that look secret
+    /// hidden.
+    static func detail(workflow: String, ref: String, inputs: [String: String]) -> String {
+        let values = inputs.sorted { $0.key < $1.key }.map { name, value in
+            let hidden = looksSecret(CoreDispatchInput(name: name, description: "", kind: .string, required: false, defaultValue: "", options: []))
+            return "\(name)=\(hidden ? "•••" : value)"
+        }
+        return ([workflow] + (ref.isEmpty ? [] : [ref]) + values).joined(separator: " · ")
+    }
+}
+
+/// One row of Overview › Run manually's repository group.
+enum RepositoryPresetRow: Equatable, Identifiable {
+    /// A usable preset; `workflow` is GitHub's workflow for its file, nil
+    /// when GitHub's list does not have it.
+    case preset(CoreLaunchPreset, workflow: CoreGitHubWorkflow?)
+    /// A file or folder that cannot be used.
+    case problem(CoreLaunchPreset)
+    /// The presets could not be read; the reason.
+    case unreadable(String)
+
+    var id: String {
+        switch self {
+        case .preset(let preset, _): "preset:" + preset.path
+        case .problem(let preset): "problem:" + preset.path
+        case .unreadable: "unreadable"
+        }
+    }
+
+    /// The Core's order (usable presets by name, then problems), then a row
+    /// for a failed read.
+    static func rows(presets: [CoreLaunchPreset], remoteWorkflows: [CoreGitHubWorkflow], readError: String?) -> [RepositoryPresetRow] {
+        var rows = presets.map { preset -> RepositoryPresetRow in
+            preset.isUsable ? .preset(preset, workflow: remoteWorkflows.first { $0.path == preset.workflowPath }) : .problem(preset)
+        }
+        if let readError { rows.append(.unreadable(readError)) }
+        return rows
+    }
+}

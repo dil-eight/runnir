@@ -373,3 +373,30 @@ struct RepositoryPresetFormTests {
         #expect(form.appliedPresetID == CoreLaunchPreset.presetID(workspaceID: workspace, path: production.path))
     }
 }
+
+@Suite
+struct RepositoryPresetRowTests {
+    private let deploy = CoreGitHubWorkflow(id: 1, name: "Deploy", path: ".github/workflows/deploy.yml", state: "active", htmlURL: nil)
+
+    @Test
+    func rowsFollowTheCoreAndFindTheirWorkflows() {
+        let staging = CoreLaunchPreset(path: ".runnir/launches/staging.yaml", name: "Staging", workflowPath: ".github/workflows/deploy.yml",
+                                       ref: "main", inputs: [:], problem: nil)
+        let preview = CoreLaunchPreset(path: ".runnir/launches/preview.yaml", name: "Preview", workflowPath: ".github/workflows/preview.yml",
+                                       ref: nil, inputs: [:], problem: nil)
+        let broken = CoreLaunchPreset(path: ".runnir/launches/broken.yaml", name: "", workflowPath: "", ref: nil, inputs: [:],
+                                      problem: "name is missing")
+        let rows = RepositoryPresetRow.rows(presets: [staging, preview, broken], remoteWorkflows: [deploy], readError: "The Core is not available.")
+        #expect(rows == [.preset(staging, workflow: deploy), .preset(preview, workflow: nil), .problem(broken), .unreadable("The Core is not available.")])
+        #expect(Set(rows.map(\.id)).count == rows.count)
+        #expect(broken.fileName == "broken.yaml")
+        #expect(RepositoryPresetRow.rows(presets: [], remoteWorkflows: [deploy], readError: nil).isEmpty)
+    }
+
+    @Test
+    func detailLinesHideValuesThatLookSecret() {
+        #expect(DispatchPreset.detail(workflow: "Deploy", ref: "main", inputs: ["environment": "staging", "deploy_token": "ghp_x"])
+                == "Deploy · main · deploy_token=••• · environment=staging")
+        #expect(DispatchPreset.detail(workflow: "Deploy", ref: "", inputs: [:]) == "Deploy")
+    }
+}
