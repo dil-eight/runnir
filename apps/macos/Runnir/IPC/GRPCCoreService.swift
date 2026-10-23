@@ -200,6 +200,15 @@ struct GRPCCoreService: CoreServicing {
         }
     }
 
+    func listLaunchPresets(repositoryID: String) async throws -> [CoreLaunchPreset] {
+        let response = try await call { try await client.listLaunchPresets(.with { $0.repositoryID = repositoryID }, options: Self.options(Self.callTimeout)) }
+        return response.presets.map { preset in
+            CoreLaunchPreset(path: preset.path, name: preset.name, workflowPath: preset.workflowPath,
+                             ref: preset.ref.isEmpty ? nil : preset.ref, inputs: preset.inputs,
+                             problem: preset.problem.isEmpty ? nil : preset.problem)
+        }
+    }
+
     func validateWorkflows(repositoryID: String, workflowID: String?) async throws -> CoreValidationReport {
         let response = try await call {
             try await client.validateWorkflows(.with {

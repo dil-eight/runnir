@@ -40,6 +40,23 @@ struct CoreWorkflow: Equatable, Identifiable, Sendable {
     let parseError: String?
 }
 
+/// A Run Workflow preset the repository shares in .runnir/launches, or, with
+/// `problem` set, a file or folder there that cannot be used.
+struct CoreLaunchPreset: Equatable, Identifiable, Sendable {
+    /// ".runnir/launches/<file>", or ".runnir" / ".runnir/launches" for an
+    /// entry about that folder.
+    let path: String
+    let name: String
+    /// ".github/workflows/<file>"; empty with a problem.
+    let workflowPath: String
+    /// nil keeps the form's branch.
+    let ref: String?
+    let inputs: [String: String]
+    let problem: String?
+
+    var id: String { path }
+}
+
 /// One actionlint finding. Line and column are 1-based, 0 when unknown.
 struct CoreWorkflowDiagnostic: Equatable, Sendable {
     let line: Int
@@ -148,6 +165,9 @@ protocol CoreServicing: Sendable {
     func refreshRepository(id: String) async throws -> CoreRepository
     func closeRepository(id: String) async throws
     func listWorkflows(repositoryID: String) async throws -> [CoreWorkflow]
+    /// The repository's presets in .runnir/launches from the Core's latest
+    /// scan, with entries for files it cannot use.
+    func listLaunchPresets(repositoryID: String) async throws -> [CoreLaunchPreset]
     /// Checks the workflow files on disk with the Core's built-in actionlint;
     /// nil `workflowID` checks all of them.
     func validateWorkflows(repositoryID: String, workflowID: String?) async throws -> CoreValidationReport
