@@ -87,3 +87,19 @@ func TestMyPullRequestsCarryTheirCI(t *testing.T) {
 		t.Fatalf("closed = %+v", pulls.Closed[0])
 	}
 }
+
+func TestSummarizeRunsCountsEveryRunItIsGiven(t *testing.T) {
+	t0 := time.Date(2026, 10, 21, 10, 0, 0, 0, time.UTC)
+	// A push run and a pull_request run of the same workflow both count:
+	// the caller already chose the runs that matter.
+	s := SummarizeRuns([]Run{
+		{WorkflowID: 1, Event: "push", Status: "completed", Conclusion: "success", CreatedAt: t0},
+		{WorkflowID: 1, Event: "pull_request", Status: "completed", Conclusion: "failure", CreatedAt: t0, HTMLURL: "f"},
+	})
+	if s.State != CIFailed || s.Runs != 2 || s.Failed != 1 || s.URL != "f" {
+		t.Fatalf("summary = %+v", s)
+	}
+	if SummarizeRuns(nil).State != CINone {
+		t.Fatal("no runs is not CINone")
+	}
+}
