@@ -3281,9 +3281,10 @@ func TestPullRequestsAreReadNextToRuns(t *testing.T) {
 	if snap.PullRequestsAccess != corev1.GithubAccess_GITHUB_ACCESS_OK {
 		t.Fatalf("pull requests access = %v", snap.PullRequestsAccess)
 	}
-	// The default branch is read once; the list each pass (the second one 304).
-	if fake.count("/repos/o/r") != 1 || fake.count(pullsPath) != 2 {
-		t.Fatalf("repository reads %d, pull request reads %d", fake.count("/repos/o/r"), fake.count(pullsPath))
+	// The default branch is read once; the list on every pass, like the
+	// runs (the opening pass may come before or after the first refresh).
+	if passes := fake.count(runsPath); fake.count("/repos/o/r") != 1 || fake.count(pullsPath) != passes || passes < 2 {
+		t.Fatalf("repository reads %d, pull request reads %d, passes %d", fake.count("/repos/o/r"), fake.count(pullsPath), passes)
 	}
 }
 
