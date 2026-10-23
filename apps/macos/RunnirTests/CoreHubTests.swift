@@ -233,13 +233,20 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     }
 
     private var _openWorkspaceIDs: [UUID] = []
+    /// Paths of repositories opened for a workspace, like the Core's runtimes.
+    private var workspacePaths: [UUID: String] = [:]
+    var closeDelay: Duration?
+    var storagePreferencesError: CoreServiceError?
     /// The workspace ids repositories were opened with, in order.
     var openWorkspaceIDs: [UUID] { lock.withLock { _openWorkspaceIDs } }
 
     func openRepository(path: String, workspaceID: UUID?) async throws -> CoreRepository {
         try lock.withLock {
             _openCalls.append(path)
-            if let workspaceID { _openWorkspaceIDs.append(workspaceID) }
+            if let workspaceID {
+                _openWorkspaceIDs.append(workspaceID)
+                workspacePaths[workspaceID] = path
+            }
             if let error = failingPaths[path] { throw error }
         }
         if let delay = lock.withLock({ openDelays[path] }) { try? await Task.sleep(for: delay) }
@@ -257,6 +264,7 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     }
 
     func closeRepository(id: String) async throws {
+        if let delay = lock.withLock({ closeDelay }) { try? await Task.sleep(for: delay) }
         try lock.withLock {
             _closeCalls.append(id)
             if let closeError { throw closeError }
@@ -320,9 +328,20 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     func clearWorkspaceCache(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] {
         lock.withLock { _clearedCaches.append(workspaceIDs); return storage.workspaces }
     }
-    func deleteWorkspaceData(workspaceID: UUID) async throws { lock.withLock { _deletedData.append(workspaceID) } }
+    func deleteWorkspaceData(workspaceID: UUID) async throws {
+        try lock.withLock {
+            // Like the Core: an open workspace's data is not deleted.
+            if let path = workspacePaths[workspaceID], openIDs.contains(Self.id(for: path)) {
+                throw CoreServiceError.failedPrecondition("close the workspace's windows first")
+            }
+            _deletedData.append(workspaceID)
+        }
+    }
     func setStoragePreferences(keepJobLogs: Bool, deleteKeptLogs: Bool) async throws {
-        lock.withLock { _storagePreferences.append((keepJobLogs, deleteKeptLogs)) }
+        try lock.withLock {
+            _storagePreferences.append((keepJobLogs, deleteKeptLogs))
+            if let storagePreferencesError { throw storagePreferencesError }
+        }
     }
 
     // MARK: Saving files
@@ -1017,7 +1036,7 @@ struct CoreHubTests {
         #expect(hub.session(for: workspace)?.runs.count == 1)
 
         provider.core.setActivity(CoreWorkspaceActivity(runs: saved, workflows: [],
-                                                        freshness: CoreActivityFreshness(source: .live, access: .tokenRejected)), for: path)
+                                                        freshness: CoreActivityFreshness(source: .live, access: .tokenRejected, checkedAt: Date())), for: path)
         await hub.loadGitHubActivity(workspaceID: workspace)
         #expect(rejected == 1)
         // The same outcome read again (another window, another event) does

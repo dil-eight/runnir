@@ -12,12 +12,19 @@ import Testing
     }
 }
 
+/// A throwaway UserDefaults suite; call `remove` when the test ends.
+struct TestDefaults {
+    let name = "runnir-tests-\(UUID().uuidString)"
+    var defaults: UserDefaults { UserDefaults(suiteName: name)! }
+    func remove() { UserDefaults().removePersistentDomain(forName: name) }
+}
+
 @MainActor
 @Suite struct CacheFirstHubTests {
-    private func readyHub(keepJobLogs: Bool = false) async -> (CoreHub, FakeProvider) {
+    private func readyHub(defaults: UserDefaults? = nil) async -> (CoreHub, FakeProvider) {
         let provider = FakeProvider()
         let hub = CoreHub(provider: provider)
-        hub.keepJobLogs = { keepJobLogs }
+        if let defaults { hub.storageDefaults = defaults }
         hub.startMonitoring()
         provider.ready()
         _ = await eventually { hub.status == .ready(version: "fake") }
@@ -90,9 +97,73 @@ import Testing
     }
 
     @Test func theLogsPreferenceIsSentWhenTheCoreStarts() async {
-        let (_, provider) = await readyHub(keepJobLogs: true)
+        let suite = TestDefaults()
+        defer { suite.remove() }
+        suite.defaults.set(true, forKey: StorageSettings.keepJobLogsKey)
+        let (_, provider) = await readyHub(defaults: suite.defaults)
         #expect(await eventually { provider.core.storagePreferences.first?.keep == true })
         #expect(provider.core.storagePreferences.first?.delete == false)
+    }
+
+    @Test func aLogDeletionTheCoreMissedIsSentAtItsNextStart() async {
+        let suite = TestDefaults()
+        defer { suite.remove() }
+        let (hub, provider) = await readyHub(defaults: suite.defaults)
+        #expect(await eventually { provider.core.storagePreferences.count == 1 })
+        provider.core.storagePreferencesError = .unavailable
+        let model = StorageSettingsModel(hub: hub, workspaces: { [] }, defaults: suite.defaults)
+        await model.setKeepJobLogs(false)
+        #expect(provider.core.storagePreferences.last?.delete == true)
+        #expect(suite.defaults.bool(forKey: StorageSettings.logDeletionPendingKey), "still pending after the failed call")
+
+        provider.core.storagePreferencesError = nil
+        provider.ready() // a new Core
+        #expect(await eventually { !suite.defaults.bool(forKey: StorageSettings.logDeletionPendingKey) })
+        #expect(provider.core.storagePreferences.last.map { !$0.keep && $0.delete } == true)
+    }
+
+    @Test func deletingDataWaitsForTheLastWindowsClose() async {
+        let (hub, provider) = await readyHub()
+        provider.core.closeDelay = .milliseconds(200)
+        let workspace = UUID(), window = UUID()
+        hub.attach(windowID: window, workspaceID: workspace, path: "/repo/linked")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready })
+        hub.detach(windowID: window)
+        // Removing the registration right away: the Core is still closing.
+        #expect(await hub.deleteWorkspaceData(workspace))
+        #expect(provider.core.deletedData == [workspace])
+    }
+
+    @Test func aCacheReadEndingDoesNotEndAReload() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        #expect(await eventually { hub.session(for: workspace)?.phase == .ready && provider.core.activityReads.count == 1 })
+        provider.core.refreshDelayActivity = .milliseconds(400)
+        let reload = Task { await hub.loadGitHubActivity(workspaceID: workspace) }
+        #expect(await eventually { provider.core.activityRefreshes.count == 1 })
+        provider.core.push(coreEvent(.activityChanged, repository: FakeCore.id(for: "/repo/linked"), sequence: 60))
+        #expect(await eventually { provider.core.activityReads.count == 2 })
+        try? await Task.sleep(for: .milliseconds(30))
+        #expect(hub.session(for: workspace)?.isLoadingGitHub == true, "the Reload is still waiting")
+        await reload.value
+        #expect(hub.session(for: workspace)?.isLoadingGitHub == false)
+    }
+
+    @Test func aRejectionOlderThanTheTokenHeldDoesNotSignOut() async {
+        let (hub, provider) = await readyHub()
+        var rejected = 0
+        hub.onGitHubTokenRejected = { rejected += 1 }
+        #expect(await eventually { !provider.core.serverCredentialCalls.isEmpty })
+        try? await Task.sleep(for: .milliseconds(20))
+        // Saved before the token now held was handed over.
+        provider.core.setActivity(CoreWorkspaceActivity(runs: [run(7)], workflows: [],
+            freshness: CoreActivityFreshness(source: .live, access: .tokenRejected, checkedAt: Date(timeIntervalSinceNow: -3600))), for: "/repo/linked")
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        #expect(await eventually { hub.session(for: workspace)?.githubAccess == .tokenRejected })
+        try? await Task.sleep(for: .milliseconds(30))
+        #expect(rejected == 0)
     }
 }
 
@@ -174,9 +245,12 @@ import Testing
     }
 
     @Test func registeredAndRemovedWorkspacesAreListedAndCleared() async {
+        let suite = TestDefaults()
+        defer { suite.remove() }
+        let defaults = suite.defaults
         let provider = FakeProvider()
         let hub = CoreHub(provider: provider)
-        hub.keepJobLogs = { false }
+        hub.storageDefaults = defaults
         hub.startMonitoring()
         provider.ready()
         _ = await eventually { hub.status == .ready(version: "fake") }
@@ -184,7 +258,6 @@ import Testing
         let kept = workspace("kept"), empty = workspace("empty")
         let removed = UUID()
         provider.core.storage = CoreStorageUsage(workspaces: [storage(kept.id), storage(removed)], keepJobLogs: false)
-        let defaults = UserDefaults(suiteName: "storage-\(UUID())")!
         let model = StorageSettingsModel(hub: hub, workspaces: { [kept, empty] }, defaults: defaults)
         await model.load()
         #expect(model.rows.map(\.name) == ["empty", "kept", "Removed workspace"])
@@ -207,5 +280,6 @@ import Testing
         #expect(provider.core.storagePreferences.dropFirst().map(\.keep) == [true, false])
         #expect(provider.core.storagePreferences.last?.delete == true, "turning it off deletes kept logs")
         #expect(!defaults.bool(forKey: StorageSettings.keepJobLogsKey))
+        #expect(!defaults.bool(forKey: StorageSettings.logDeletionPendingKey), "the Core confirmed the deletion")
     }
 }

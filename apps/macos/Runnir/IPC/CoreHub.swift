@@ -56,10 +56,13 @@ final class RepositorySession: Identifiable {
     /// The last sync pass's outcome, or why there is none; nil before the first.
     var githubAccess: CoreGitHubAccess? { freshness.access }
     var activitySource: CoreActivitySource { freshness.source }
-    var isLoadingGitHub: Bool { freshness.syncing || isReadingActivity }
+    var isLoadingGitHub: Bool { freshness.syncing || isReadingActivity || isRefreshingActivity }
     /// When GitHub last answered.
     var githubLoadedAt: Date? { freshness.syncedAt }
     fileprivate(set) var isReadingActivity = false
+    /// A Reload is waiting for the Core's pass; apart from cache reads, so
+    /// one ending never clears the other.
+    fileprivate(set) var isRefreshingActivity = false
     /// The GitHub repository as the Core last read it: whether the user can
     /// push, and the owner's installation with permissions waiting for an
     /// owner. Read on demand (`githubRepository(workspaceID:)`), not polled.
@@ -135,6 +138,9 @@ final class CoreHub {
     /// Ids this hub closed itself; their REPOSITORY_CLOSED events are not
     /// "someone else closed it" and must not trigger a reopen.
     @ObservationIgnored private var ownCloses: Set<String> = []
+    /// Closes in flight for workspaces whose last window went away, so
+    /// deleting their data waits until the Core let go of them.
+    @ObservationIgnored private var closing: [UUID: Task<Void, Never>] = [:]
     /// Returns the GitHub token to hand to the Core, or nil when signed out.
     @ObservationIgnored var githubTokenProvider: (@MainActor () async -> String?)?
     /// Called when GitHub refused the token, so the account can sign out.
@@ -240,6 +246,8 @@ final class CoreHub {
     /// Counts the tokens handed to the Core, so a view that read GitHub
     /// before the Core had the new one (just after signing in) reads again.
     private(set) var credentialGeneration = 0
+    /// When tokens were last handed to the Core.
+    @ObservationIgnored private var credentialPushedAt: Date?
 
     /// The Enterprise servers to sign in to, with their tokens.
     @ObservationIgnored var enterpriseCredentialsProvider: (@MainActor () async -> [(server: GitHubServerRef, token: String)])?
@@ -303,6 +311,7 @@ final class CoreHub {
         credentialKinds = kinds
         signedInServers = servers
         credentialGeneration += 1
+        credentialPushedAt = Date()
         // The Core syncs again on its own when a token changes. Which server
         // a working tree is on depends on the servers it holds: when they
         // changed, open repositories are read again.
@@ -339,8 +348,8 @@ final class CoreHub {
     func loadGitHubActivity(workspaceID: UUID) async {
         guard let session = sessions[workspaceID], let coreID = session.coreID, isReady,
               let service = try? await provider.service() else { return }
-        session.isReadingActivity = true
-        defer { session.isReadingActivity = false }
+        session.isRefreshingActivity = true
+        defer { session.isRefreshingActivity = false }
         guard let activity = try? await service.refreshWorkspaceActivity(repositoryID: coreID, wait: true, limit: Self.activityLimit),
               sessions[workspaceID] === session, session.coreID == coreID else { return }
         await apply(activity, to: session)
@@ -371,7 +380,11 @@ final class CoreHub {
         session.freshness = activity.freshness
         let access = activity.freshness.access
         guard access != previous else { return }
-        if access == .tokenRejected { await tokenRejected(on: .workspace(session.workspaceID)) }
+        // Only a rejection of the token the Core holds now signs out: one
+        // checked before the last hand-over was about an earlier token.
+        if access == .tokenRejected, (activity.freshness.checkedAt ?? .distantPast) >= (credentialPushedAt ?? .distantPast) {
+            await tokenRejected(on: .workspace(session.workspaceID))
+        }
         // Whether an owner has to accept permissions, or the user lacks
         // access, decides what the notice asks for.
         if access == .permissionMissing { await githubRepository(workspaceID: session.workspaceID) }
@@ -632,18 +645,22 @@ final class CoreHub {
 
     // MARK: Storage
 
-    /// Whether to keep finished jobs' logs, sent to every new Core.
-    @ObservationIgnored var keepJobLogs: @MainActor () -> Bool = { UserDefaults.standard.bool(forKey: StorageSettings.keepJobLogsKey) }
+    /// Where Settings › Storage keeps its choices (`StorageSettings`).
+    @ObservationIgnored var storageDefaults: UserDefaults = .standard
 
-    private func pushStoragePreferences() async {
+    /// Hands the logs choice to the Core, at its start and when it changes.
+    /// A deletion asked for when the choice was turned off stays pending
+    /// until a Core confirms it, so a Core that was away still deletes.
+    func pushStoragePreferences() async {
+        let keep = storageDefaults.bool(forKey: StorageSettings.keepJobLogsKey)
+        let deleteKept = !keep && storageDefaults.bool(forKey: StorageSettings.logDeletionPendingKey)
         guard isReady, let service = try? await provider.service() else { return }
-        try? await service.setStoragePreferences(keepJobLogs: keepJobLogs(), deleteKeptLogs: false)
-    }
-
-    /// Turns keeping job logs on or off; off with `deleteKept` deletes kept logs.
-    func setKeepJobLogs(_ keep: Bool, deleteKept: Bool) async {
-        guard isReady, let service = try? await provider.service() else { return }
-        try? await service.setStoragePreferences(keepJobLogs: keep, deleteKeptLogs: deleteKept)
+        do {
+            try await service.setStoragePreferences(keepJobLogs: keep, deleteKeptLogs: deleteKept)
+            if deleteKept { storageDefaults.set(false, forKey: StorageSettings.logDeletionPendingKey) }
+        } catch {
+            // Still pending: the next Core start sends it again.
+        }
     }
 
     /// What workspaces keep on this Mac; nil when the Core cannot say.
@@ -659,9 +676,11 @@ final class CoreHub {
         return (try? await service.clearWorkspaceCache(workspaceIDs: workspaceIDs)) != nil
     }
 
-    /// Deletes a closed workspace's data on this Mac.
+    /// Deletes a closed workspace's data on this Mac, once the Core has
+    /// closed the repository its last window released.
     @discardableResult
     func deleteWorkspaceData(_ workspaceID: UUID) async -> Bool {
+        if let close = closing.removeValue(forKey: workspaceID) { await close.value }
         guard isReady, let service = try? await provider.service() else { return false }
         do {
             try await service.deleteWorkspaceData(workspaceID: workspaceID)
@@ -991,7 +1010,7 @@ final class CoreHub {
         guard session.windowIDs.isEmpty else { afterRelease?(); return }
         sessions[workspaceID] = nil
         if let coreID = session.coreID {
-            closeInCore(coreID, path: session.path, then: afterRelease)
+            closing[workspaceID] = closeInCore(coreID, path: session.path, then: afterRelease)
         } else {
             afterRelease?()
         }
@@ -1002,7 +1021,8 @@ final class CoreHub {
     /// Closes a repository in the Core unless a window shows its path again.
     /// Core contexts are shared by path and closing is global, so a close that
     /// raced with a reopen of the same path is followed by a fresh open.
-    private func closeInCore(_ repositoryID: String, path: String, then afterClose: (@MainActor () -> Void)? = nil) {
+    @discardableResult
+    private func closeInCore(_ repositoryID: String, path: String, then afterClose: (@MainActor () -> Void)? = nil) -> Task<Void, Never> {
         Task {
             var finished = afterClose
             defer { finished?() }

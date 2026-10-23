@@ -432,7 +432,13 @@ final class DesktopCoordinator {
             // Its saved activity and local run history go too. A Core that is
             // not running leaves them; Settings › Storage then lists them as
             // a removed workspace to delete.
-            if let core { Task { await core.deleteWorkspaceData(workspace.id) } }
+            if let core {
+                Task { [weak self] in
+                    if await !core.deleteWorkspaceData(workspace.id) {
+                        self?.message = "\(workspace.name) was removed, but its saved data could not be deleted now. Settings › Storage lists it as a removed workspace."
+                    }
+                }
+            }
         }
         catch { message = "Registration could not be removed. Repository files were not changed." }
     }

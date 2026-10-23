@@ -5,7 +5,7 @@ import SwiftUI
 /// .github/ISSUE_TEMPLATE/bug_report.md with the environment filled in.
 /// Nothing from the user's repositories, paths or accounts goes in it.
 struct BugReportDraft: Equatable {
-    static let newIssue = URL(string: "https://github.com/dil-eight/runnir/issues/new")!
+    static let newIssue = ProjectLink.url.appending(path: "issues/new")
 
     let appVersion: String
     let coreVersion: String?
@@ -82,7 +82,7 @@ struct BugReportSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Report a Bug").font(.system(size: 15, weight: .semibold))
-            Text("Runnir opens a new issue in its public GitHub repository in your browser, with these details filled in. Nothing is sent before you open it; once you submit it, the issue and your GitHub name are public.")
+            Text("Runnir opens a new issue in its public GitHub repository in your browser, with these details filled in. They travel in the page's address, so GitHub receives them when the page opens and your browser history keeps them, even if you never submit. Once you submit, the issue and your GitHub name are public.")
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(draft.environment, id: \.self) { line in

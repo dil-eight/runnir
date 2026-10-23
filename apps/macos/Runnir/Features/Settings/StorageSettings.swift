@@ -4,6 +4,9 @@ import SwiftUI
 enum StorageSettings {
     /// Whether finished jobs' logs are kept on this Mac; off by default.
     static let keepJobLogsKey = "storage.keepJobLogs"
+    /// Keeping logs was turned off and no Core has confirmed deleting the
+    /// kept ones yet.
+    static let logDeletionPendingKey = "storage.logDeletionPending"
 }
 
 /// One workspace in Settings › Storage.
@@ -63,7 +66,8 @@ final class StorageSettingsModel {
     func setKeepJobLogs(_ keep: Bool) async {
         keepJobLogs = keep
         defaults.set(keep, forKey: StorageSettings.keepJobLogsKey)
-        await hub?.setKeepJobLogs(keep, deleteKept: !keep)
+        defaults.set(!keep, forKey: StorageSettings.logDeletionPendingKey)
+        await hub?.pushStoragePreferences()
         await load()
     }
 

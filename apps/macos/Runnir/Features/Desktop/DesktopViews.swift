@@ -61,7 +61,7 @@ struct StartupSplashView: View {
 /// Runnir's public repository, as an icon button with the GitHub mark
 /// (Primer Octicons, MIT).
 struct ProjectLink: View {
-    static let url = URL(string: "https://github.com/dil-eight/runnir")!
+    nonisolated static let url = URL(string: "https://github.com/dil-eight/runnir")!
     @Environment(\.openURL) private var openURL
     @State private var hovering = false
 
@@ -87,15 +87,15 @@ struct WorkspaceBadge: View {
     let id: UUID
     var size: CGFloat = 18
 
-    static let palette: [Color] = [RunnirTheme.primary, RunnirTheme.info, RunnirTheme.success, RunnirTheme.destructive, RunnirTheme.syntaxKey]
+    nonisolated static let palette: [Color] = [RunnirTheme.primary, RunnirTheme.info, RunnirTheme.success, RunnirTheme.destructive, RunnirTheme.syntaxKey]
 
     nonisolated static func initial(_ name: String) -> String {
         guard let first = name.first else { return "?" }
         return String(first).uppercased()
     }
 
-    /// An index into `palette` (five colors) from the id's first byte.
-    nonisolated static func colorIndex(_ id: UUID) -> Int { Int(id.uuid.0) % 5 }
+    /// An index into `palette` from the id's first byte.
+    nonisolated static func colorIndex(_ id: UUID) -> Int { Int(id.uuid.0) % palette.count }
 
     var body: some View {
         Text(Self.initial(name))
