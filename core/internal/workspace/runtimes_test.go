@@ -159,3 +159,56 @@ func TestWithoutADataDirNothingIsWritten(t *testing.T) {
 		t.Fatalf("report = %+v, %v", r.Store().Report(), err)
 	}
 }
+
+func TestConcurrentOpensOfOneWorkspaceShareItsDatabase(t *testing.T) {
+	_, accounts := newFake(t)
+	m := newRuntimes(t, t.TempDir())
+	resolve := fixedResolver(accounts, "o", "r")
+	results := make(chan *Runtime, 8)
+	for i := 0; i < 8; i++ {
+		go func() {
+			rt, err := m.Attach(wsA, "repo_1", resolve)
+			if err != nil {
+				t.Error(err)
+			}
+			results <- rt
+		}()
+	}
+	first := <-results
+	for i := 1; i < 8; i++ {
+		if rt := <-results; rt != first {
+			t.Fatal("two runtimes for one workspace")
+		}
+	}
+	if r := first.Store().Report(); r.State != store.Persistent {
+		t.Fatalf("store = %+v", r)
+	}
+}
+
+func TestStorageReadsNeverPushAnOpenIntoMemory(t *testing.T) {
+	_, accounts := newFake(t)
+	data := t.TempDir()
+	m := newRuntimes(t, data)
+	closed, _ := store.Open(store.WorkspaceDir(data, "5ce88ff0-5c16-43b3-8f20-8e33e852b019"), store.Options{})
+	_ = closed.Close()
+	stop := make(chan struct{})
+	reading := make(chan struct{})
+	go func() {
+		defer close(reading)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				_, _ = m.Usage(context.Background(), []string{wsA})
+			}
+		}
+	}()
+	time.Sleep(20 * time.Millisecond)
+	rt, err := m.Attach(wsA, "repo_1", fixedResolver(accounts, "o", "r"))
+	close(stop)
+	<-reading
+	if err != nil || rt.Store().Report().State != store.Persistent {
+		t.Fatalf("report = %+v, %v", rt.Store().Report(), err)
+	}
+}

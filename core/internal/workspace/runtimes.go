@@ -47,6 +47,9 @@ type Runtimes struct {
 	mu           sync.Mutex
 	byWorkspace  map[string]*Runtime
 	byRepository map[string]string
+	// opening holds workspaces whose store is being opened; a second
+	// Attach waits for it instead of opening the same database again.
+	opening map[string]chan struct{}
 	// local maps execution ids recorded as local runs to their repository.
 	local map[string]string
 }
@@ -60,7 +63,8 @@ func New(opts Options) *Runtimes {
 		now = time.Now
 	}
 	return &Runtimes{opts: opts, now: now, recorder: newRecorder(),
-		byWorkspace: map[string]*Runtime{}, byRepository: map[string]string{}, local: map[string]string{}}
+		byWorkspace: map[string]*Runtime{}, byRepository: map[string]string{}, local: map[string]string{},
+		opening: map[string]chan struct{}{}}
 }
 
 // Attach binds an open repository context to its workspace, starting the
@@ -88,18 +92,25 @@ func (m *Runtimes) Attach(workspaceID, repositoryID string, resolve Resolver) (*
 			m.mu.Unlock()
 			return rt, nil
 		}
+		if wait, busy := m.opening[id]; busy {
+			m.mu.Unlock()
+			<-wait
+			continue
+		}
+		done := make(chan struct{})
+		m.opening[id] = done
 		m.mu.Unlock()
 
-		// Opening may migrate or recover; other workspaces are not held up.
+		// Opening may migrate or recover; other workspaces are not held up,
+		// and another open of this one waits instead of taking the lock
+		// file and falling back to memory.
 		st, err := store.Open(m.dir(id), store.Options{Now: m.now})
-		if err != nil {
-			return nil, err
-		}
 		m.mu.Lock()
-		if _, raced := m.byWorkspace[id]; raced {
+		delete(m.opening, id)
+		close(done)
+		if err != nil {
 			m.mu.Unlock()
-			_ = st.Close()
-			continue
+			return nil, err
 		}
 		rt := newRuntime(id, repositoryID, resolve, config{store: st, publish: m.opts.Publish, now: m.now,
 			intervals: m.opts.Intervals, keepLogs: m.keepLogs.Load})
@@ -153,10 +164,32 @@ func (m *Runtimes) all() []*Runtime {
 	return out
 }
 
-func (m *Runtimes) open(id string) *Runtime {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.byWorkspace[id]
+// claim returns the workspace's runtime when it is open. Otherwise it marks
+// the workspace busy, as an open in progress does, so an Attach meanwhile
+// waits instead of finding the lock file taken and falling back to memory;
+// release ends that.
+func (m *Runtimes) claim(id string) (*Runtime, func()) {
+	for {
+		m.mu.Lock()
+		if rt := m.byWorkspace[id]; rt != nil {
+			m.mu.Unlock()
+			return rt, func() {}
+		}
+		if wait, busy := m.opening[id]; busy {
+			m.mu.Unlock()
+			<-wait
+			continue
+		}
+		done := make(chan struct{})
+		m.opening[id] = done
+		m.mu.Unlock()
+		return nil, func() {
+			m.mu.Lock()
+			delete(m.opening, id)
+			close(done)
+			m.mu.Unlock()
+		}
+	}
 }
 
 // CredentialChanged lets the runtimes that use the server sync again.
@@ -185,8 +218,14 @@ func (m *Runtimes) SetKeepLogs(keep, deleteKept bool) error {
 		ids, err := store.Workspaces(m.opts.DataDir)
 		errs = append(errs, err)
 		for _, id := range ids {
-			if !open[id] {
+			if open[id] {
+				continue
+			}
+			if rt, release := m.claim(id); rt != nil {
+				errs = append(errs, rt.cfg.store.DeleteLogs(context.Background()))
+			} else {
 				errs = append(errs, store.DeleteKeptLogs(m.opts.DataDir, id))
+				release()
 			}
 		}
 	}
@@ -244,7 +283,9 @@ func (m *Runtimes) Usage(ctx context.Context, requested []string) ([]Usage, erro
 }
 
 func (m *Runtimes) usage(ctx context.Context, id string) (Usage, error) {
-	if rt := m.open(id); rt != nil {
+	rt, release := m.claim(id)
+	defer release()
+	if rt != nil {
 		su, err := rt.cfg.store.Usage(ctx)
 		report := rt.cfg.store.Report()
 		return Usage{WorkspaceID: id, State: report.State, Note: report.Note, Open: true, Usage: su}, err
@@ -280,25 +321,26 @@ func (m *Runtimes) ClearCache(ctx context.Context, requested []string) ([]Usage,
 		return nil, err
 	}
 	for _, id := range ids {
-		if rt := m.open(id); rt != nil {
-			if err := rt.ClearCache(ctx); err != nil {
-				return nil, err
-			}
-			continue
-		}
-		st, ok, err := m.openClosed(id)
-		if err != nil {
+		if err := m.clearCache(ctx, id); err != nil {
 			return nil, err
-		}
-		if ok {
-			clearErr := st.ClearCache(ctx)
-			_ = st.Close()
-			if clearErr != nil {
-				return nil, clearErr
-			}
 		}
 	}
 	return m.Usage(ctx, ids)
+}
+
+func (m *Runtimes) clearCache(ctx context.Context, id string) error {
+	rt, release := m.claim(id)
+	defer release()
+	if rt != nil {
+		return rt.ClearCache(ctx)
+	}
+	st, ok, err := m.openClosed(id)
+	if err != nil || !ok {
+		return err
+	}
+	clearErr := st.ClearCache(ctx)
+	_ = st.Close()
+	return clearErr
 }
 
 // Delete removes a workspace's whole directory; refused while it is open.
@@ -307,7 +349,9 @@ func (m *Runtimes) Delete(raw string) error {
 	if !ok {
 		return store.ErrInvalidWorkspace
 	}
-	if m.open(id) != nil {
+	rt, release := m.claim(id)
+	defer release()
+	if rt != nil {
 		return ErrOpen
 	}
 	if m.opts.DataDir == "" {
