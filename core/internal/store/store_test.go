@@ -1,3 +1,7 @@
+//go:build !windows
+
+// Workspace databases on disk are a macOS feature (see lock_windows.go):
+// on Windows every store is in memory, so these tests run elsewhere.
 package store
 
 import (

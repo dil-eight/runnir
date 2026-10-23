@@ -1,6 +1,6 @@
 # Repository Configuration, SQLite And Synchronization
 
-Status: target design, updated 2026-10-15. Swift now persists the local registry and window session together in Application Support/Runnir/desktop-state.json; the layout below remains a future subsystem plan. No .runnir loader, SQLite, sync or environment subsystem exists in Core. See [ADR 0003](../decisions/0003-workspaces-sessions-offline-storage.md).
+Status: in part implemented, updated 2026-10-22. Swift persists the local registry and window session together in Application Support/Runnir/desktop-state.json. The Go Core keeps one SQLite database per workspace with its GitHub activity and local run history, and runs one sync per workspace ([ADR 0007](../decisions/0007-workspace-sqlite.md), [implemented behavior](#implemented-2026-10-22)). No .runnir loader, local file index or environment subsystem exists yet. See [ADR 0003](../decisions/0003-workspaces-sessions-offline-storage.md).
 
 ## Storage Ownership
 
@@ -13,10 +13,13 @@ Status: target design, updated 2026-10-15. Swift now persists the local registry
 <ApplicationSupport>/Runnir/settings.json
 <ApplicationSupport>/Runnir/session.json
 <ApplicationSupport>/Runnir/repositories.json
-<ApplicationSupport>/Runnir/repositories/<workspaceId>/state.sqlite
-<ApplicationSupport>/Runnir/repositories/<workspaceId>/snapshots/
-<ApplicationSupport>/Runnir/repositories/<workspaceId>/artifacts/
-<ApplicationSupport>/Runnir/repositories/<workspaceId>/runtime/
+<ApplicationSupport>/Runnir/repositories/<workspaceId>/state.sqlite     # implemented
+<ApplicationSupport>/Runnir/repositories/<workspaceId>/lock             # implemented: one writing process
+<ApplicationSupport>/Runnir/repositories/<workspaceId>/blobs/           # implemented: kept job logs
+<ApplicationSupport>/Runnir/repositories/<workspaceId>/backups/         # implemented: local data, pre-migration copies
+<ApplicationSupport>/Runnir/repositories/<workspaceId>/recovery/        # implemented: damaged files kept as evidence
+<ApplicationSupport>/Runnir/repositories/<workspaceId>/snapshots/       # planned
+<ApplicationSupport>/Runnir/repositories/<workspaceId>/runtime/         # planned
 ```
 
 ApplicationSupport is resolved by native platform APIs, not a hardcoded home path. Persistent DB/registry/session never live in the repo, /tmp or disposable Caches. Disposable derived data may use Caches separately. No .runnir file is generated just by opening a repository. Users decide whether portable files are Git-tracked; no auto commit/push/clone.
@@ -114,6 +117,22 @@ Precedence for permitted non-secret values, highest first: explicit per-launch U
 
 Malformed/missing/unsupported config yields filename/diagnostic and a usable workspace in degraded/default mode. Normal open remains read-only. Valid optional config may be edited/generated only through explicit reviewed user action, with unsaved/external-change handling like workflow files. Local-only presets remain supported as machine-private overrides; portable presets are a separate user-chosen storage mode.
 
+## Implemented (2026-10-22)
+
+What exists in the Core and the app; the design sections below remain the target for the rest.
+
+- Location: the app starts the Core with `--data-dir` (its support folder, or the UI-test state folder for `--ui-testing`). Without it, every workspace database is in memory and nothing is written. `OpenRepository` takes the registry's `workspace_id`, so the database follows the workspace across a relink.
+- Driver and ownership: modernc.org/sqlite v1.60.1 with `CGO_ENABLED=0`; one connection per database, so the Core is the single serialized writer; a `flock` keeps another process (another copy of Runnir) out, which then runs that workspace in memory and says so. WAL with `synchronous=FULL`; `wal_checkpoint(TRUNCATE)` when the last window closes.
+- Schema v1: `cache_source`, `sync_state`, `remote_workflows`, `runs`, `run_jobs`, `run_steps`, `blobs` (cache: downloadable again) and `local_runs` (only on this Mac: one summary per local act run, no output). Migrations use `user_version`; a `VACUUM INTO` copy precedes each one; a failed one rolls back and the workspace runs in memory; a newer schema is left untouched.
+- Budgets per workspace: 200 runs (jobs and steps go with them), 200 local run records, 100 MiB of kept logs (least recently used first), at most 3 MiB per log.
+- Recovery: `local_runs` is copied to `backups/local-data.sqlite` after every change (temporary file, fsync, rename, folder fsync). A damaged database (SQLite corrupt or not-a-database, or a failed `quick_check`) moves to `recovery/<time>/` and is never deleted by the Core; local runs are restored from it and from the backup. A missing database is rebuilt from the backup. Runs recorded as queued or running when a database opens become `interrupted`.
+- Sync: one loop per workspace id, however many windows show it. A pass reads the newest 50 runs and the workflows with `If-None-Match`; a 304 is "checked, no changes". Runs missing from the page but newer than its oldest run were deleted on GitHub and leave the cache. A change of origin never shows the previous repository's data. Schedule: 20 s while a run is queued or in progress, 5 min otherwise; 30 s, 1, 2, 5 min backoff when GitHub is unreachable; `retry_after` (30 s to 1 h) when rate limited; no timer after signed out, token rejected, not visible or permission missing, until the token changes or the user refreshes. Cached data stays and is shown when access is lost.
+- Jobs and logs: a finished run's jobs read after its last update are served from the cache without a request; concurrent reads of one run, and of one job log, share one request. Job logs are kept only when Settings › Storage › "Keep job logs on this Mac" is on (off by default); turning it off deletes them.
+- Freshness: `GetWorkspaceActivity` never waits for GitHub and reports the source (none, saved on this Mac, confirmed in this session), whether a pass is running, the last outcome, and the last check, success and change times. The app shows it as one line ("Showing saved activity · synced 2 hours ago", "Up to date · checked 1 minute ago") and refreshes on `ACTIVITY_CHANGED`.
+- Clear Cache: Settings › Storage (per workspace, all, and data of removed workspaces) and the workspace window's toolbar menu. It deletes the cache tables and kept logs only. Removing a registration in the Manager deletes the workspace's folder.
+
+Not verified: a Developer ID signed build with the database; real power loss or a crash during a write (tests cover damaged and missing files and the write order); real GitHub through the sync (tests use a fake GitHub; the live check of a test copy had no token); two windows on one workspace in the running app (covered by Core gRPC tests and app unit tests).
+
 ## SQLite Design
 
 One logical workspace database service/single serialized writer, shared by all windows through Core. Driver selection remains open; prefer pure Go/CGO disabled and review license/maintenance before adoption. Typed models, foreign keys, migrations and indexed queries; transactions reconcile related snapshots atomically. Choose WAL/process ownership and shutdown/checkpoint strategy explicitly; no assumption of uncoordinated safe writers.
@@ -145,5 +164,7 @@ Local files are authoritative for their local index; GitHub is authoritative for
 | W07 | Local changes, remote YAML and live run updates are distinguishable; auth/rate-limit/backoff/cancel handled |
 | W08 | Clear Cache/retention/path extraction limits do not delete config/overrides/grants/credentials; blob traversal denied |
 | W09 | Interrupted execution history is unknown/interrupted, never automatically resumed/successful |
+
+State on 2026-10-22: W05 is covered by Core tests (migrations, single writer, damaged and missing databases keeping local runs) but not by a signed build or crash injection; W06 by Core gRPC tests (two opens of one workspace make one sync; activity survives a Core restart with GitHub unreachable; check, success and change times apart) and app unit tests, not by a live two-window run against GitHub; W08 by tests of Clear Cache keeping local runs and of blob path, symlink and size checks; W09 in part: local run records left queued or running become interrupted when the database opens, and nothing is resumed. W01–W04 and W07 are unchanged.
 
 Unit tests cover schemas/precedence/IDs/migrations/sync reconciliation/redaction. Real integration tests cover signed scope grants, concurrent windows, file changes, offline networks, partial writes and corruption recovery. Configuration parsing alone is not a completed local executor.

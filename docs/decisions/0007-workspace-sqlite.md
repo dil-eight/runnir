@@ -40,11 +40,22 @@ New modules in `core/go.mod`, read from each module's license file:
 
 ## Consequences
 
-- The Core binary grows; the measured size is in the [verification](#verification) section.
+- The Core binary grows by about 6.6 MB per architecture (see [verification](#verification)).
 - Only the Core touches workspace databases. The app reads activity and storage usage through gRPC.
 - A damaged database is moved to `recovery/<time>/` and kept; local run records are restored from it or from the backup. A database from a newer Runnir is left untouched and the workspace runs in memory.
 - Not verified by this decision: a Developer ID signed and notarized build with the database, and behavior on real power loss or a crash during a write (tests cover damaged and missing files and the write order only).
 
 ## Verification
 
-Measured in the change that introduced the store; see the end of this file once filled in by that change.
+Core binary built the way the app builds it (`CGO_ENABLED=0 go build -trimpath`, no stripping), 2026-10-22:
+
+| Architecture | Before | With the store | Difference |
+| --- | ---: | ---: | ---: |
+| darwin/arm64 | 21.7 MB | 28.3 MB | +6.6 MB |
+| darwin/amd64 | 23.0 MB | 29.7 MB | +6.6 MB |
+
+The universal helper in the app grows by about 13 MB.
+
+Tests (`go test -race ./...`): migrations, a newer schema left untouched, the lock against a second opener, damaged and missing databases with local runs restored, rollback of a failed migration, Clear Cache keeping local runs, budgets, blob checks, and folders with spaces in their names.
+
+Live check in a Debug test copy (`com.dileight.runnir.alertcheck`, `--ui-testing`, its own state folder): the app passed `--data-dir`, the Core created `repositories/<workspaceId>/state.sqlite` with `lock` and `backups/local-data.sqlite`, and quitting left no `-wal` file behind (checkpointed on close).
