@@ -35,6 +35,10 @@ func (c *countingGitHub) server(t *testing.T) *httptest.Server {
 			}
 			w.Header().Set("ETag", `"v1"`)
 			_, _ = w.Write([]byte(`{"workflow_runs":[{"id":7,"workflow_id":3,"name":"CI","run_number":12,"run_attempt":1,"event":"push","status":"completed","conclusion":"success","head_branch":"main","created_at":"2026-10-18T10:00:00Z","updated_at":"2026-10-18T10:04:00Z"}]}`))
+		case "/repos/o/r":
+			_, _ = w.Write([]byte(`{"full_name":"o/r","default_branch":"main"}`))
+		case "/repos/o/r/pulls":
+			_, _ = w.Write([]byte(`[]`))
 		case "/repos/o/r/actions/workflows":
 			_, _ = w.Write([]byte(`{"total_count":1,"workflows":[{"id":3,"name":"CI","path":".github/workflows/ci.yml","state":"active"}]}`))
 		case "/repos/o/r/actions/runs/7/jobs":

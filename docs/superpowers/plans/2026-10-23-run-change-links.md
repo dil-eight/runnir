@@ -3089,7 +3089,7 @@ git commit -m "Group runs into changes, list missing pull requests, suggest conc
 **Files:**
 - Modify: `core/internal/workspace/runtime.go` (Snapshot, Runtime fields, Refresh, pass, read, Snapshot(), credentialChanged)
 - Create: `core/internal/workspace/links.go` (input, gap filling, lookups), `core/internal/workspace/older.go`
-- Test: `core/internal/workspace/helpers_test.go` (fake GitHub), create `core/internal/workspace/links_test.go`
+- Test: `core/internal/workspace/helpers_test.go` (fake GitHub), create `core/internal/workspace/links_test.go`, `core/internal/server/workspace_test.go` (`countingGitHub` answers the new reads)
 
 **Interfaces:**
 - Consumes: Tasks 2–7.
@@ -3207,6 +3207,15 @@ func (f *fakeGitHub) serve(w http.ResponseWriter, r *http.Request) {
 ```
 
 Add `"strings"` to the imports of `helpers_test.go`.
+
+In `core/internal/server/workspace_test.go`, make `countingGitHub` answer the new reads (the server's workspace tests sync through the same runtime): add to its switch
+
+```go
+		case "/repos/o/r":
+			_, _ = w.Write([]byte(`{"full_name":"o/r","default_branch":"main"}`))
+		case "/repos/o/r/pulls":
+			_, _ = w.Write([]byte(`[]`))
+```
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -3859,13 +3868,13 @@ func (r *Runtime) loadOlder() (OlderRuns, error) {
 
 - [ ] **Step 5: Run the tests**
 
-Run: `go test ./internal/workspace/ ./internal/store/ ./internal/changes/ && go vet ./internal/workspace/`
-Expected: PASS (the existing runtime tests too: the first pass now also reads `/repos/o/r` and `/repos/o/r/pulls`, which the fake answers).
+Run: `go test ./... && go vet ./internal/workspace/` (from `core/`; also `go test -race ./internal/workspace/`)
+Expected: PASS (the existing runtime and server tests too: the first pass now also reads `/repos/o/r` and `/repos/o/r/pulls`, which the fakes answer).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add core/internal/workspace
+git add core/internal/workspace core/internal/server/workspace_test.go
 git commit -m "Sync pull requests, fill gaps, look up missing pull requests and load older runs"
 ```
 
@@ -4364,16 +4373,7 @@ Expected: `buf lint` passes; Go and Swift files under `core/internal/gen` and `a
 
 - [ ] **Step 3: Write the failing tests**
 
-In `core/internal/server/workspace_test.go`, make `countingGitHub` answer the new reads: add to its switch
-
-```go
-		case "/repos/o/r":
-			_, _ = w.Write([]byte(`{"full_name":"o/r","default_branch":"main"}`))
-		case "/repos/o/r/pulls":
-			_, _ = w.Write([]byte(`[]`))
-```
-
-In `TestWorkspaceIDsAreValidated` (the test that ends with `Limit: 201`), change the limit to `Limit: 5001`.
+In the server test that ends with `Limit: 201`, change the limit to `Limit: 5001`.
 
 Append:
 
