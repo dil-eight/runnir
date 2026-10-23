@@ -24,6 +24,14 @@ func pass(at int, runs []github.Run, complete bool) Pass {
 		Workflows: &WorkflowsUpdate{Workflows: []github.Workflow{{ID: 3, Name: "CI", Path: ".github/workflows/ci.yml", State: "active"}}, ETag: `"w"`}}
 }
 
+// lowerBudget makes the run budget n for one test.
+func lowerBudget(t *testing.T, n int) {
+	t.Helper()
+	old := MaxRuns
+	MaxRuns = n
+	t.Cleanup(func() { MaxRuns = old })
+}
+
 func TestAPassIsStoredAndReadBackNewestFirst(t *testing.T) {
 	s := openTest(t, t.TempDir())
 	ctx := context.Background()
@@ -103,7 +111,8 @@ func TestRunsDeletedOnGitHubLeaveTheCache(t *testing.T) {
 	}
 }
 
-func TestOnlyTheNewest200RunsAreKept(t *testing.T) {
+func TestOnlyTheNewestRunsAreKept(t *testing.T) {
+	lowerBudget(t, 200)
 	s := openTest(t, t.TempDir())
 	ctx := context.Background()
 	for batch := 0; batch < 5; batch++ {
@@ -115,8 +124,8 @@ func TestOnlyTheNewest200RunsAreKept(t *testing.T) {
 		_, _ = s.ApplySync(ctx, pass(batch, page, false))
 	}
 	a, _ := s.Activity(ctx, 1000)
-	if len(a.Runs) != maxRuns || a.Runs[0].ID != 250 || a.Runs[maxRuns-1].ID != 51 {
-		t.Fatalf("kept %d, newest %d, oldest %d", len(a.Runs), a.Runs[0].ID, a.Runs[len(a.Runs)-1].ID)
+	if len(a.Runs) != 200 || a.CachedRuns != 200 || a.Runs[0].ID != 250 || a.Runs[199].ID != 51 || a.HistoryComplete {
+		t.Fatalf("kept %d (%d), newest %d, oldest %d, complete %v", len(a.Runs), a.CachedRuns, a.Runs[0].ID, a.Runs[len(a.Runs)-1].ID, a.HistoryComplete)
 	}
 }
 
@@ -136,5 +145,59 @@ func TestAnotherRepositoryReplacesTheCache(t *testing.T) {
 	a, _ := s.Activity(ctx, 50)
 	if a.Source != other || len(a.Runs) != 1 || a.Runs[0].ID != 9 {
 		t.Fatalf("after switch = %+v", a)
+	}
+}
+
+func TestRunsKeepTheirCommitAndPullRequestLinks(t *testing.T) {
+	s := openTest(t, t.TempDir())
+	ctx := context.Background()
+	linked := run(1, 1, "completed")
+	linked.HeadRepository, linked.CommitTitle, linked.PullRequests = "o/r", "Add retry", []int64{142}
+	if changed, err := s.ApplySync(ctx, pass(0, []github.Run{linked}, true)); err != nil || !changed {
+		t.Fatalf("apply = %v, %v", changed, err)
+	}
+	// GitHub may later list no pull request on the run: the link stays.
+	linked.PullRequests = nil
+	if changed, _ := s.ApplySync(ctx, pass(1, []github.Run{linked}, true)); changed {
+		t.Fatal("an empty pull request list counted as a change")
+	}
+	a, _ := s.Activity(ctx, 50)
+	got := a.Runs[0]
+	if got.HeadRepository != "o/r" || got.CommitTitle != "Add retry" || len(got.PullRequests) != 1 || got.PullRequests[0] != 142 {
+		t.Fatalf("run = %+v", got)
+	}
+	linked.PullRequests = []int64{150}
+	if changed, _ := s.ApplySync(ctx, pass(2, []github.Run{linked}, true)); !changed {
+		t.Fatal("a new link is a change")
+	}
+	if a, _ := s.Activity(ctx, 50); len(a.Runs[0].PullRequests) != 2 {
+		t.Fatalf("links = %v", a.Runs[0].PullRequests)
+	}
+}
+
+func TestTheDefaultBranchAndTheHistoryAreKept(t *testing.T) {
+	s := openTest(t, t.TempDir())
+	ctx := context.Background()
+	p := pass(0, []github.Run{run(2, 2, "completed"), run(1, 1, "completed")}, true)
+	p.DefaultBranch = "main"
+	_, _ = s.ApplySync(ctx, p)
+	a, _ := s.Activity(ctx, 1)
+	if a.DefaultBranch != "main" || !a.HistoryComplete || a.CachedRuns != 2 || len(a.Runs) != 1 {
+		t.Fatalf("activity = %+v", a)
+	}
+	if newest, ok, _ := s.Newest(ctx, source); !ok || !newest.Equal(fixedNow().Add(2*time.Minute)) {
+		t.Fatalf("newest = %v %v", newest, ok)
+	}
+	if _, ok, _ := s.Newest(ctx, Source{Repository: "o/other"}); ok {
+		t.Fatal("newest of another repository")
+	}
+	// A page that never reached the cache: older runs go and the history
+	// is no longer complete; the default branch stays.
+	restart := pass(1, []github.Run{run(9, 9, "completed"), run(8, 8, "completed")}, false)
+	restart.Runs.Restart = true
+	_, _ = s.ApplySync(ctx, restart)
+	a, _ = s.Activity(ctx, 50)
+	if a.CachedRuns != 2 || a.Runs[1].ID != 8 || a.HistoryComplete || a.DefaultBranch != "main" {
+		t.Fatalf("after restart = %+v", a)
 	}
 }
