@@ -85,6 +85,12 @@ func (m *Runtimes) Attach(workspaceID, repositoryID string, resolve Resolver) (*
 			if previous := rt.RepositoryID(); previous != repositoryID {
 				delete(m.byRepository, previous)
 				m.byRepository[repositoryID] = id
+				// Local runs going on keep their history.
+				for executionID, repository := range m.local {
+					if repository == previous {
+						m.local[executionID] = repositoryID
+					}
+				}
 				m.mu.Unlock()
 				rt.rebind(repositoryID, resolve)
 				return rt, nil
@@ -148,6 +154,11 @@ func (m *Runtimes) Detach(repositoryID string) {
 	rt := m.byWorkspace[id]
 	delete(m.byRepository, repositoryID)
 	delete(m.byWorkspace, id)
+	for executionID, repository := range m.local {
+		if repository == repositoryID {
+			delete(m.local, executionID)
+		}
+	}
 	m.mu.Unlock()
 	m.recorder.flush()
 	rt.Close()
@@ -290,14 +301,14 @@ func (m *Runtimes) usage(ctx context.Context, id string) (Usage, error) {
 		report := rt.cfg.store.Report()
 		return Usage{WorkspaceID: id, State: report.State, Note: report.Note, Open: true, Usage: su}, err
 	}
-	st, ok, err := m.openClosed(id)
-	if err != nil || !ok {
-		return Usage{WorkspaceID: id}, err
+	if m.opts.DataDir == "" {
+		return Usage{WorkspaceID: id}, nil
 	}
-	defer st.Close()
-	su, err := st.Usage(ctx)
-	report := st.Report()
-	return Usage{WorkspaceID: id, State: report.State, Note: report.Note, Usage: su}, err
+	su, report, ok := store.Peek(m.dir(id))
+	if !ok {
+		return Usage{WorkspaceID: id}, nil
+	}
+	return Usage{WorkspaceID: id, State: report.State, Note: report.Note, Usage: su}, nil
 }
 
 // openClosed opens the store of a workspace that is not open, if it has a

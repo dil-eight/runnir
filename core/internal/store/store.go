@@ -8,6 +8,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"net/url"
@@ -87,17 +88,45 @@ func Open(dir string, options Options) (*Store, error) {
 }
 
 func openMemory(now func() time.Time, report Report) (*Store, error) {
-	db, err := openDSN("file::memory:?_busy_timeout=5000&_foreign_keys=1")
+	inner, err := sqlite.NewConnector("file::memory:?_busy_timeout=5000&_foreign_keys=1")
 	if err != nil {
 		return nil, err
 	}
-	s := &Store{db: db, now: now, report: report}
-	if err := s.migrate(context.Background(), 0); err != nil {
+	db := sql.OpenDB(memoryConnector{inner: inner})
+	configurePool(db)
+	if err := db.Ping(); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
-	return s, nil
+	return &Store{db: db, now: now, report: report}, nil
 }
+
+// memoryConnector gives every new connection of a memory store the schema.
+// A memory database lives and dies with its connection, so a connection the
+// pool replaces would otherwise start without tables.
+type memoryConnector struct{ inner driver.Connector }
+
+func (c memoryConnector) Connect(ctx context.Context) (driver.Conn, error) {
+	conn, err := c.inner.Connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	execer, ok := conn.(driver.ExecerContext)
+	if !ok {
+		_ = conn.Close()
+		return nil, errors.New("sqlite connection cannot execute statements")
+	}
+	statements := append(append([]string(nil), migrations...), fmt.Sprintf("PRAGMA user_version = %d", len(migrations)))
+	for _, statement := range statements {
+		if _, err := execer.ExecContext(ctx, statement, nil); err != nil {
+			_ = conn.Close()
+			return nil, err
+		}
+	}
+	return conn, nil
+}
+
+func (c memoryConnector) Driver() driver.Driver { return c.inner.Driver() }
 
 func openDisk(dir string, now func() time.Time) (*Store, string) {
 	if err := makePrivateDir(dir); err != nil {
@@ -178,6 +207,10 @@ func (s *Store) openDatabase(ctx context.Context) (string, bool) {
 	if err != nil {
 		return "The workspace database could not be read.", false
 	}
+	// A file without Runnir's schema (left empty by a crash or a full disk)
+	// gets its local runs back from the backup, like a missing one;
+	// otherwise the backup would be replaced by an empty copy below.
+	empty := !fresh && version == 0
 	if version > len(migrations) {
 		return fmt.Sprintf("Made by a newer version of Runnir (schema %d).", version), false
 	}
@@ -189,7 +222,7 @@ func (s *Store) openDatabase(ctx context.Context) (string, bool) {
 	if err := s.migrate(ctx, version); err != nil {
 		return "The workspace database could not be upgraded.", false
 	}
-	if fresh {
+	if fresh || empty {
 		restored, err := s.restoreLocal(ctx, salvaged)
 		if err != nil {
 			return "Local run records could not be restored.", false
@@ -199,6 +232,8 @@ func (s *Store) openDatabase(ctx context.Context) (string, bool) {
 			notes = append(notes, fmt.Sprintf("Restored %d local run records.", restored))
 		case missing && restored > 0:
 			notes = append(notes, fmt.Sprintf("The database was missing. Restored %d local run records from the backup.", restored))
+		case empty && restored > 0:
+			notes = append(notes, fmt.Sprintf("The database was empty. Restored %d local run records from the backup.", restored))
 		}
 	}
 	if err := s.markInterrupted(ctx); err != nil {
@@ -251,15 +286,19 @@ func openDSN(dsn string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(0)
-	db.SetConnMaxIdleTime(0)
+	configurePool(db)
 	if err := db.Ping(); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
 	return db, nil
+}
+
+func configurePool(db *sql.DB) {
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(0)
+	db.SetConnMaxIdleTime(0)
 }
 
 var errDamaged = errors.New("database is damaged")

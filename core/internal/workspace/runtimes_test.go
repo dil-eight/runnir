@@ -212,3 +212,35 @@ func TestStorageReadsNeverPushAnOpenIntoMemory(t *testing.T) {
 		t.Fatalf("report = %+v, %v", rt.Store().Report(), err)
 	}
 }
+
+func TestARelinkDuringALocalRunKeepsItsHistory(t *testing.T) {
+	_, accounts := newFake(t)
+	m := newRuntimes(t, t.TempDir())
+	r, _ := m.Attach(wsA, "repo_1", fixedResolver(accounts, "o", "r"))
+	m.RecordLocalRun("repo_1", store.LocalRun{ExecutionID: "exec_1", StartedAt: time.Now(), State: store.LocalQueued})
+	// The folder is relinked while the run goes on.
+	if _, err := m.Attach(wsA, "repo_9", fixedResolver(accounts, "o", "r")); err != nil {
+		t.Fatal(err)
+	}
+	m.Detach("repo_1")
+	m.ObserveExecution(events.Event{ExecutionID: "exec_1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_SUCCEEDED, At: time.Now()})
+	m.recorder.flush()
+	runs, _ := r.Store().LocalRuns(context.Background(), 10)
+	if len(runs) != 1 || runs[0].State != store.LocalSucceeded {
+		t.Fatalf("runs = %+v", runs)
+	}
+}
+
+func TestDetachForgetsItsLocalRuns(t *testing.T) {
+	_, accounts := newFake(t)
+	m := newRuntimes(t, t.TempDir())
+	_, _ = m.Attach(wsA, "repo_1", fixedResolver(accounts, "o", "r"))
+	m.RecordLocalRun("repo_1", store.LocalRun{ExecutionID: "exec_1", StartedAt: time.Now(), State: store.LocalRunning})
+	m.Detach("repo_1")
+	m.mu.Lock()
+	left := len(m.local)
+	m.mu.Unlock()
+	if left != 0 {
+		t.Fatalf("%d local runs still tracked", left)
+	}
+}

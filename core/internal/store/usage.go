@@ -62,3 +62,45 @@ func (s *Store) ClearCache(ctx context.Context) error {
 	}
 	return s.DeleteLogs(ctx)
 }
+
+// Peek reports what a workspace that is not open keeps, without opening it
+// for writing: no lock, no migration, no recovery, no backup. It reads the
+// database as it is on disk (closed stores are checkpointed). ok is false
+// when nothing is on disk; a database it cannot read reports its sizes
+// with a note.
+func Peek(dir string) (u Usage, report Report, ok bool) {
+	if info, err := os.Lstat(dir); err != nil || !info.IsDir() {
+		return Usage{}, Report{}, false
+	}
+	path := filepath.Join(dir, databaseName)
+	info, statErr := os.Lstat(path)
+	regular := statErr == nil && info.Mode().IsRegular()
+	report = Report{State: Persistent}
+	for _, name := range []string{databaseName, databaseName + "-wal"} {
+		if info, err := os.Lstat(filepath.Join(dir, name)); err == nil && info.Mode().IsRegular() {
+			u.DatabaseBytes += uint64(info.Size())
+		}
+	}
+	if entries, err := os.ReadDir(filepath.Join(dir, recoveryDir)); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				u.RecoveryCopies++
+			}
+		}
+	}
+	if !regular {
+		return u, report, true // no database yet, or not a file Runnir made
+	}
+	db, err := openDSN(fileURI(path, "mode=ro&immutable=1"))
+	if err == nil {
+		defer db.Close()
+		var logBytes int64
+		err = db.QueryRow(`SELECT (SELECT COUNT(*) FROM runs), (SELECT COUNT(*) FROM local_runs),
+	(SELECT COALESCE(SUM(size), 0) FROM blobs)`).Scan(&u.CachedRuns, &u.LocalRuns, &logBytes)
+		u.LogBytes = uint64(logBytes)
+	}
+	if err != nil {
+		report.Note = "Its database could not be read now; it is checked when the workspace opens."
+	}
+	return u, report, true
+}

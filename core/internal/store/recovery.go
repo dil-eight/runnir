@@ -28,12 +28,14 @@ func (s *Store) writeLocalBackup(ctx context.Context) error {
 		return err
 	}
 	temporary := filepath.Join(dir, localBackupName+".tmp")
-	_ = os.Remove(temporary)
+	// Holding the store's only connection serializes backups: the shared
+	// temporary file is removed and rewritten by one of them at a time.
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
+	_ = os.Remove(temporary)
 	if _, err := conn.ExecContext(ctx, "ATTACH DATABASE ? AS backup", temporary); err != nil {
 		return err
 	}
@@ -98,9 +100,21 @@ func scanLocalRuns(db *sql.DB, query string) ([]LocalRun, error) {
 // them, and salvages local runs from a copy so the evidence stays as found.
 func (s *Store) quarantine() (string, []LocalRun, error) {
 	stamp := s.now().UTC().Format("20060102T150405.000000000Z")
-	target := filepath.Join(s.dir, recoveryDir, stamp)
-	if err := os.MkdirAll(target, 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Join(s.dir, recoveryDir), 0o700); err != nil {
 		return "", nil, err
+	}
+	// A new folder every time: earlier evidence is never replaced, even
+	// when two damages get the same stamp.
+	target := filepath.Join(s.dir, recoveryDir, stamp)
+	for n := 2; ; n++ {
+		err := os.Mkdir(target, 0o700)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, os.ErrExist) || n > 1000 {
+			return "", nil, err
+		}
+		target = filepath.Join(s.dir, recoveryDir, fmt.Sprintf("%s-%d", stamp, n))
 	}
 	moved := false
 	for _, name := range []string{databaseName, databaseName + "-wal", databaseName + "-shm"} {

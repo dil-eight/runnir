@@ -294,13 +294,18 @@ func (r *Runtime) publish() {
 // another repository than the origin's current one is never returned.
 func (r *Runtime) Snapshot(ctx context.Context, limit int) (Snapshot, error) {
 	r.mu.Lock()
-	resolve, syncing, live := r.resolve, r.syncing, r.live
+	resolve, syncing, live, passed := r.resolve, r.syncing, r.live, r.finished > 0
 	r.mu.Unlock()
 	a, err := r.cfg.store.Activity(ctx, limit)
 	if err != nil {
 		return Snapshot{}, err
 	}
-	snap := Snapshot{Syncing: syncing, Access: corev1.GithubAccess(a.Access), RetryAfter: a.RetryAfter, CheckedAt: a.CheckedAt}
+	snap := Snapshot{Syncing: syncing, CheckedAt: a.CheckedAt}
+	// The saved outcome may be from a session long ago (a token since
+	// replaced): it is reported only once a pass ran in this process.
+	if passed {
+		snap.Access, snap.RetryAfter = corev1.GithubAccess(a.Access), a.RetryAfter
+	}
 	target, problem := resolve()
 	if problem != corev1.GithubAccess_GITHUB_ACCESS_OK {
 		snap.Access = problem

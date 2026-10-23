@@ -202,3 +202,26 @@ func TestClearCacheEmptiesAndSyncsAgain(t *testing.T) {
 	}
 	_ = store.Source{}
 }
+
+func TestASavedStatusIsNotReportedBeforeAPass(t *testing.T) {
+	dir := t.TempDir()
+	saved, _ := store.Open(dir, store.Options{})
+	_, _ = saved.ApplySync(context.Background(), store.Pass{Source: store.Source{Repository: "o/r"}, At: time.Now().Add(-time.Hour), OK: true,
+		Access: int32(corev1.GithubAccess_GITHUB_ACCESS_OK),
+		Runs:   &store.RunsUpdate{Runs: []github.Run{{ID: 7, Status: "completed", CreatedAt: time.Now().Add(-2 * time.Hour)}}, Complete: true}})
+	// The last pass of an earlier session: the token was rejected then.
+	_, _ = saved.ApplySync(context.Background(), store.Pass{Source: store.Source{Repository: "o/r"}, At: time.Now().Add(-time.Minute),
+		Access: int32(corev1.GithubAccess_GITHUB_ACCESS_TOKEN_REJECTED)})
+	_ = saved.Close()
+
+	fake, accounts := newFake(t)
+	gate := make(chan struct{})
+	t.Cleanup(func() { close(gate) })
+	fake.set(func(f *fakeGitHub) { f.gate = gate }) // no pass finishes during the check
+	r := startRuntime(t, dir, fixedResolver(accounts, "o", "r"), nil)
+	snap, err := r.Snapshot(context.Background(), 50)
+	if err != nil || snap.Access != corev1.GithubAccess_GITHUB_ACCESS_UNSPECIFIED || !snap.RetryAfter.IsZero() ||
+		len(snap.Runs) != 1 || snap.Provenance != Cached {
+		t.Fatalf("snapshot = %+v, %v", snap, err)
+	}
+}

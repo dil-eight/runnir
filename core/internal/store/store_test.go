@@ -5,10 +5,14 @@
 package store
 
 import (
+	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"modernc.org/sqlite"
 )
 
 func fixedNow() time.Time { return time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC) }
@@ -96,5 +100,29 @@ func TestASymlinkedDatabaseIsRefused(t *testing.T) {
 	s := openTest(t, dir)
 	if r := s.Report(); r.State != MemoryOnly || r.Note != "The workspace database is not a regular file." {
 		t.Fatalf("report = %+v", r)
+	}
+}
+
+func TestEveryMemoryConnectionHasTheSchema(t *testing.T) {
+	inner, err := sqlite.NewConnector("file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := sql.OpenDB(memoryConnector{inner: inner})
+	defer db.Close()
+	db.SetMaxOpenConns(2)
+	ctx := context.Background()
+	first, _ := db.Conn(ctx)
+	second, _ := db.Conn(ctx) // a second, separate memory database
+	defer first.Close()
+	defer second.Close()
+	for _, conn := range []*sql.Conn{first, second} {
+		var version, tables int
+		if err := conn.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != len(migrations) {
+			t.Fatalf("version = %d, %v", version, err)
+		}
+		if err := conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM local_runs").Scan(&tables); err != nil {
+			t.Fatalf("no schema: %v", err)
+		}
 	}
 }

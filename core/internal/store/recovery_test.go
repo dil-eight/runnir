@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -150,5 +151,76 @@ func TestFoldersWithSpacesWork(t *testing.T) {
 	again := openTest(t, dir)
 	if r := again.Report(); r.State != Persistent || !strings.Contains(r.Note, "Restored 1 local run records") {
 		t.Fatalf("report = %+v", r)
+	}
+}
+
+func TestAnEmptyDatabaseFileIsRebuiltFromTheBackup(t *testing.T) {
+	dir := t.TempDir()
+	s := openTest(t, dir)
+	record(t, s, "exec_1", LocalSucceeded)
+	_ = s.Close()
+	// A crash or a full disk can leave the file empty.
+	if err := os.WriteFile(filepath.Join(dir, "state.sqlite"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	again := openTest(t, dir)
+	if r := again.Report(); r.State != Persistent || r.Note != "The database was empty. Restored 1 local run records from the backup." {
+		t.Fatalf("report = %+v", r)
+	}
+	if runs, _ := again.LocalRuns(context.Background(), 10); len(runs) != 1 {
+		t.Fatalf("runs = %v", runs)
+	}
+	if backup, _ := readLocalBackup(filepath.Join(dir, "backups", "local-data.sqlite")); len(backup) != 1 {
+		t.Fatalf("backup replaced: %v", backup)
+	}
+}
+
+func TestBackupsWrittenAtOnceAllSucceed(t *testing.T) {
+	dir := t.TempDir()
+	s := openTest(t, dir)
+	record(t, s, "exec_1", LocalSucceeded)
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() { defer wg.Done(); errs <- s.writeLocalBackup(context.Background()) }()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if backup, err := readLocalBackup(filepath.Join(dir, "backups", "local-data.sqlite")); err != nil || len(backup) != 1 {
+		t.Fatalf("backup = %v, %v", backup, err)
+	}
+}
+
+func TestEveryDamageKeepsItsOwnEvidence(t *testing.T) {
+	dir := t.TempDir()
+	damage := func() {
+		t.Helper()
+		path := filepath.Join(dir, "state.sqlite")
+		data, _ := os.ReadFile(path)
+		copy(data[:16], "garbage garbage!")
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s := openTest(t, dir) // the fixed clock gives both quarantines one stamp
+	_ = s.Close()
+	damage()
+	_ = openTest(t, dir).Close()
+	damage()
+	_ = openTest(t, dir).Close()
+	evidence := recoveryDirs(t, dir)
+	if len(evidence) != 2 {
+		t.Fatalf("recovery = %v", evidence)
+	}
+	for _, name := range evidence {
+		if _, err := os.Stat(filepath.Join(dir, "recovery", name, "state.sqlite")); err != nil {
+			t.Fatalf("%s lost its database: %v", name, err)
+		}
 	}
 }
