@@ -155,6 +155,21 @@ func (s *service) ListWorkflows(_ context.Context, request *corev1.ListWorkflows
 	return out, nil
 }
 
+// ListLaunchPresets returns the .runnir/launches presets of the latest scan.
+func (s *service) ListLaunchPresets(_ context.Context, request *corev1.ListLaunchPresetsRequest) (*corev1.ListLaunchPresetsResponse, error) {
+	presets, err := s.repositories.LaunchPresets(request.GetRepositoryId())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	out := &corev1.ListLaunchPresetsResponse{Presets: make([]*corev1.LaunchPreset, 0, len(presets))}
+	for _, p := range presets {
+		out.Presets = append(out.Presets, &corev1.LaunchPreset{
+			Path: p.Path, Name: p.Name, WorkflowPath: p.WorkflowPath, Ref: p.Ref, Inputs: p.Inputs, Problem: p.Problem,
+		})
+	}
+	return out, nil
+}
+
 // ValidateWorkflows checks workflow files with the built-in actionlint.
 func (s *service) ValidateWorkflows(ctx context.Context, request *corev1.ValidateWorkflowsRequest) (*corev1.ValidateWorkflowsResponse, error) {
 	info, err := s.repositories.Get(request.GetRepositoryId())
