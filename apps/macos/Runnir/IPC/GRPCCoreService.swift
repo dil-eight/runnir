@@ -83,9 +83,99 @@ struct GRPCCoreService: CoreServicing {
         )
     }
 
-    func openRepository(path: String) async throws -> CoreRepository {
-        let response = try await call { try await client.openRepository(.with { $0.path = path }, options: Self.options(Self.callTimeout)) }
+    func openRepository(path: String, workspaceID: UUID?) async throws -> CoreRepository {
+        let response = try await call {
+            try await client.openRepository(.with {
+                $0.path = path
+                $0.workspaceID = workspaceID?.uuidString.lowercased() ?? ""
+            }, options: Self.options(Self.callTimeout))
+        }
         return Self.map(response.repository)
+    }
+
+    func workspaceActivity(repositoryID: String, limit: Int) async throws -> CoreWorkspaceActivity {
+        let response = try await call {
+            try await client.getWorkspaceActivity(.with {
+                $0.repositoryID = repositoryID
+                $0.limit = UInt32(clamping: limit)
+            }, options: Self.options(Self.callTimeout))
+        }
+        return Self.map(response)
+    }
+
+    func refreshWorkspaceActivity(repositoryID: String, wait: Bool, limit: Int) async throws -> CoreWorkspaceActivity {
+        // A pass reads two GitHub lists with a 20-second timeout each.
+        let response = try await call {
+            try await client.refreshWorkspaceActivity(.with {
+                $0.repositoryID = repositoryID
+                $0.wait = wait
+                $0.limit = UInt32(clamping: limit)
+            }, options: Self.options(.seconds(90)))
+        }
+        return Self.map(response)
+    }
+
+    func storageUsage(workspaceIDs: [UUID]) async throws -> CoreStorageUsage {
+        let response = try await call {
+            try await client.getStorageUsage(.with { $0.workspaceIds = workspaceIDs.map { $0.uuidString.lowercased() } },
+                                             options: Self.options(Self.callTimeout))
+        }
+        return CoreStorageUsage(workspaces: response.workspaces.compactMap(Self.map), keepJobLogs: response.keepJobLogs)
+    }
+
+    func clearWorkspaceCache(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] {
+        let response = try await call {
+            try await client.clearWorkspaceCache(.with { $0.workspaceIds = workspaceIDs.map { $0.uuidString.lowercased() } },
+                                                 options: Self.options(Self.callTimeout))
+        }
+        return response.workspaces.compactMap(Self.map)
+    }
+
+    func deleteWorkspaceData(workspaceID: UUID) async throws {
+        _ = try await call {
+            try await client.deleteWorkspaceData(.with { $0.workspaceID = workspaceID.uuidString.lowercased() },
+                                                 options: Self.options(Self.callTimeout))
+        }
+    }
+
+    func setStoragePreferences(keepJobLogs: Bool, deleteKeptLogs: Bool) async throws {
+        _ = try await call {
+            try await client.setStoragePreferences(.with {
+                $0.keepJobLogs = keepJobLogs
+                $0.deleteKeptLogs = deleteKeptLogs
+            }, options: Self.options(Self.callTimeout))
+        }
+    }
+
+    static func map(_ workflow: Runnir_Core_V1_GitHubWorkflow) -> CoreGitHubWorkflow {
+        CoreGitHubWorkflow(id: workflow.id, name: workflow.name, path: workflow.path, state: workflow.state, htmlURL: webURL(workflow.htmlURL))
+    }
+
+    static func map(_ activity: Runnir_Core_V1_WorkspaceActivity) -> CoreWorkspaceActivity {
+        let f = activity.freshness
+        let source: CoreActivitySource = switch f.source {
+        case .cache: .cache
+        case .live: .live
+        default: .none
+        }
+        return CoreWorkspaceActivity(
+            runs: activity.runs.map(map), workflows: activity.workflows.map(map),
+            freshness: CoreActivityFreshness(
+                source: source, syncing: f.syncing, access: f.hasStatus ? map(f.status) : nil,
+                checkedAt: f.hasCheckedAt ? f.checkedAt.date : nil, syncedAt: f.hasSyncedAt ? f.syncedAt.date : nil,
+                changedAt: f.hasChangedAt ? f.changedAt.date : nil))
+    }
+
+    static func map(_ storage: Runnir_Core_V1_WorkspaceStorage) -> CoreWorkspaceStorage? {
+        guard let id = UUID(uuidString: storage.workspaceID) else { return nil }
+        let state: CoreStorageState = switch storage.state {
+        case .persistent: .persistent
+        case .memoryOnly: .memoryOnly
+        default: .absent
+        }
+        return CoreWorkspaceStorage(workspaceID: id, state: state, note: storage.note.isEmpty ? nil : storage.note, isOpen: storage.open,
+                                    databaseBytes: storage.databaseBytes, logBytes: storage.logBytes, cachedRuns: Int(storage.cachedRuns),
+                                    localRuns: Int(storage.localRuns), recoveryCopies: Int(storage.recoveryCopies))
     }
 
     func refreshRepository(id: String) async throws -> CoreRepository {
@@ -314,9 +404,7 @@ struct GRPCCoreService: CoreServicing {
                 }
             }, options: Self.options(Self.callTimeout))
         }
-        return CoreGitHubResult(access: Self.map(response.status), items: response.workflows.map {
-            CoreGitHubWorkflow(id: $0.id, name: $0.name, path: $0.path, state: $0.state, htmlURL: Self.webURL($0.htmlURL))
-        })
+        return CoreGitHubResult(access: Self.map(response.status), items: response.workflows.map(Self.map))
     }
 
     func gitHubRepository(target: CoreGitHubTarget) async throws -> CoreGitHubRepository {
@@ -775,6 +863,7 @@ struct GRPCCoreService: CoreServicing {
         case .workflowCompleted: .workflowCompleted
         case .workflowFailed: .workflowFailed
         case .coreError: .coreError
+        case .activityChanged: .activityChanged
         default: .unknown
         }
         return CoreEvent(

@@ -232,9 +232,14 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         CoreHealth(coreVersion: "fake", protocolVersion: 1, openRepositoryCount: 0, residentMemoryBytes: 0)
     }
 
-    func openRepository(path: String) async throws -> CoreRepository {
+    private var _openWorkspaceIDs: [UUID] = []
+    /// The workspace ids repositories were opened with, in order.
+    var openWorkspaceIDs: [UUID] { lock.withLock { _openWorkspaceIDs } }
+
+    func openRepository(path: String, workspaceID: UUID?) async throws -> CoreRepository {
         try lock.withLock {
             _openCalls.append(path)
+            if let workspaceID { _openWorkspaceIDs.append(workspaceID) }
             if let error = failingPaths[path] { throw error }
         }
         if let delay = lock.withLock({ openDelays[path] }) { try? await Task.sleep(for: delay) }
@@ -265,6 +270,55 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
 
     func startWorkflow(repositoryID: String, workflowID: String, ref: String?) async throws -> CoreExecution {
         throw CoreServiceError.unavailable
+    }
+
+    // MARK: Workspace activity
+
+    private var activities: [String: CoreWorkspaceActivity] = [:]
+    private var _activityReads: [String] = []
+    private var _activityRefreshes: [(id: String, wait: Bool)] = []
+    var activityReads: [String] { lock.withLock { _activityReads } }
+    var activityRefreshes: [(id: String, wait: Bool)] { lock.withLock { _activityRefreshes } }
+    func setActivity(_ activity: CoreWorkspaceActivity, for path: String) { lock.withLock { activities[Self.id(for: path)] = activity } }
+    /// What the Core holds for a repository: the activity set, otherwise
+    /// one built from the runs set with `setRuns`, as a live pass.
+    private func activity(for id: String) -> CoreWorkspaceActivity {
+        if let activity = activities[id] { return activity }
+        let runs = runsResults[id] ?? CoreGitHubResult(access: .ok, items: [])
+        let workflows = runs.access == .ok ? [CoreGitHubWorkflow(id: 1, name: "CI", path: ".github/workflows/ci.yml", state: "active", htmlURL: nil)] : []
+        return CoreWorkspaceActivity(runs: runs.items, workflows: workflows,
+                                     freshness: CoreActivityFreshness(source: .live, access: runs.access, checkedAt: Date(), syncedAt: Date()))
+    }
+    func workspaceActivity(repositoryID: String, limit: Int) async throws -> CoreWorkspaceActivity {
+        lock.withLock {
+            _activityReads.append(repositoryID)
+            return activity(for: repositoryID)
+        }
+    }
+    var refreshDelayActivity: Duration?
+    func refreshWorkspaceActivity(repositoryID: String, wait: Bool, limit: Int) async throws -> CoreWorkspaceActivity {
+        let delay = lock.withLock { () -> Duration? in
+            _activityRefreshes.append((repositoryID, wait))
+            _runsCalls.append(repositoryID)
+            return refreshDelayActivity ?? runsDelay
+        }
+        if let delay { try? await Task.sleep(for: delay) }
+        return lock.withLock { activity(for: repositoryID) }
+    }
+    var storage = CoreStorageUsage(workspaces: [], keepJobLogs: false)
+    private var _clearedCaches: [[UUID]] = []
+    private var _deletedData: [UUID] = []
+    private var _storagePreferences: [(keep: Bool, delete: Bool)] = []
+    var clearedCaches: [[UUID]] { lock.withLock { _clearedCaches } }
+    var deletedData: [UUID] { lock.withLock { _deletedData } }
+    var storagePreferences: [(keep: Bool, delete: Bool)] { lock.withLock { _storagePreferences } }
+    func storageUsage(workspaceIDs: [UUID]) async throws -> CoreStorageUsage { lock.withLock { storage } }
+    func clearWorkspaceCache(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] {
+        lock.withLock { _clearedCaches.append(workspaceIDs); return storage.workspaces }
+    }
+    func deleteWorkspaceData(workspaceID: UUID) async throws { lock.withLock { _deletedData.append(workspaceID) } }
+    func setStoragePreferences(keepJobLogs: Bool, deleteKeptLogs: Bool) async throws {
+        lock.withLock { _storagePreferences.append((keepJobLogs, deleteKeptLogs)) }
     }
 
     // MARK: Saving files

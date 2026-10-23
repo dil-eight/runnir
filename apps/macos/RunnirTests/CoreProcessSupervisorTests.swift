@@ -35,7 +35,13 @@ private struct FakeService: CoreServicing {
         }
         return try await health.next()
     }
-    func openRepository(path: String) async throws -> CoreRepository { throw CoreServiceError.unavailable }
+    func openRepository(path: String, workspaceID: UUID?) async throws -> CoreRepository { throw CoreServiceError.unavailable }
+    func workspaceActivity(repositoryID: String, limit: Int) async throws -> CoreWorkspaceActivity { throw CoreServiceError.unavailable }
+    func refreshWorkspaceActivity(repositoryID: String, wait: Bool, limit: Int) async throws -> CoreWorkspaceActivity { throw CoreServiceError.unavailable }
+    func storageUsage(workspaceIDs: [UUID]) async throws -> CoreStorageUsage { throw CoreServiceError.unavailable }
+    func clearWorkspaceCache(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] { throw CoreServiceError.unavailable }
+    func deleteWorkspaceData(workspaceID: UUID) async throws { throw CoreServiceError.unavailable }
+    func setStoragePreferences(keepJobLogs: Bool, deleteKeptLogs: Bool) async throws { throw CoreServiceError.unavailable }
     func refreshRepository(id: String) async throws -> CoreRepository { throw CoreServiceError.unavailable }
     func closeRepository(id: String) async throws { throw CoreServiceError.unavailable }
     func listWorkflows(repositoryID: String) async throws -> [CoreWorkflow] { throw CoreServiceError.unavailable }
