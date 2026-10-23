@@ -1,6 +1,6 @@
 # Runs Linked To Commits And Pull Requests (B30)
 
-Status: design approved on 2026-10-23; not implemented. Backlog: B30 (new) in the [MVP checklist](../../product/mvp-implementation-checklist.md). Builds on the workspace cache and sync of [B26 and B27](2026-10-22-workspace-cache-design.md) and changes two of their decisions: the run budget (200 → 5000) and the GitHub App permissions. Context: [gRPC API](../../architecture/grpc-api.md), [GitHub authentication](../../security/github-authentication.md), roadmap v0.4 (duplicate execution, CI minutes).
+Status: design approved and implemented on 2026-10-23 ([plan](../plans/2026-10-23-run-change-links.md)). Changes made while planning and building: "Don't suggest" choices are kept in UserDefaults; `SummarizeRuns` is shared with the menu bar, whose counts do not change; a row's detail puts the pull request right after the run number, because the 300-point list cuts the end of the line; `Workflow.concurrency` is field 7 (B25 took 6); `head_repository` and `commit_title` are set in every run reply. Backlog: B30 (new) in the [MVP checklist](../../product/mvp-implementation-checklist.md). Builds on the workspace cache and sync of [B26 and B27](2026-10-22-workspace-cache-design.md) and changes two of their decisions: the run budget (200 → 5000) and the GitHub App permissions. Context: [gRPC API](../../architecture/grpc-api.md), [GitHub authentication](../../security/github-authentication.md), roadmap v0.4 (duplicate execution, CI minutes).
 
 ## Goal
 
