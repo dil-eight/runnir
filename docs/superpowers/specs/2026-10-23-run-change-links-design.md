@@ -263,8 +263,8 @@ message InsertWorkflowConcurrencyResponse {
 }
 
 message Workflow {
-  // fields 1–5 unchanged
-  bool concurrency = 6;                      // a concurrency key at the top level or in a job
+  // fields 1–6 unchanged
+  bool concurrency = 7;                      // a concurrency key at the top level or in a job
 }
 ```
 

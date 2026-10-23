@@ -25,46 +25,48 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	RunnirCore_HealthCheck_FullMethodName              = "/runnir.core.v1.RunnirCore/HealthCheck"
-	RunnirCore_OpenRepository_FullMethodName           = "/runnir.core.v1.RunnirCore/OpenRepository"
-	RunnirCore_CloseRepository_FullMethodName          = "/runnir.core.v1.RunnirCore/CloseRepository"
-	RunnirCore_RefreshRepository_FullMethodName        = "/runnir.core.v1.RunnirCore/RefreshRepository"
-	RunnirCore_GetWorkspaceActivity_FullMethodName     = "/runnir.core.v1.RunnirCore/GetWorkspaceActivity"
-	RunnirCore_RefreshWorkspaceActivity_FullMethodName = "/runnir.core.v1.RunnirCore/RefreshWorkspaceActivity"
-	RunnirCore_GetStorageUsage_FullMethodName          = "/runnir.core.v1.RunnirCore/GetStorageUsage"
-	RunnirCore_ClearWorkspaceCache_FullMethodName      = "/runnir.core.v1.RunnirCore/ClearWorkspaceCache"
-	RunnirCore_DeleteWorkspaceData_FullMethodName      = "/runnir.core.v1.RunnirCore/DeleteWorkspaceData"
-	RunnirCore_SetStoragePreferences_FullMethodName    = "/runnir.core.v1.RunnirCore/SetStoragePreferences"
-	RunnirCore_ListWorkflows_FullMethodName            = "/runnir.core.v1.RunnirCore/ListWorkflows"
-	RunnirCore_ListLaunchPresets_FullMethodName        = "/runnir.core.v1.RunnirCore/ListLaunchPresets"
-	RunnirCore_ValidateWorkflows_FullMethodName        = "/runnir.core.v1.RunnirCore/ValidateWorkflows"
-	RunnirCore_SaveWorkflowFile_FullMethodName         = "/runnir.core.v1.RunnirCore/SaveWorkflowFile"
-	RunnirCore_CreateWorkflowFile_FullMethodName       = "/runnir.core.v1.RunnirCore/CreateWorkflowFile"
-	RunnirCore_RenameWorkflowFile_FullMethodName       = "/runnir.core.v1.RunnirCore/RenameWorkflowFile"
-	RunnirCore_StartWorkflow_FullMethodName            = "/runnir.core.v1.RunnirCore/StartWorkflow"
-	RunnirCore_SubscribeEvents_FullMethodName          = "/runnir.core.v1.RunnirCore/SubscribeEvents"
-	RunnirCore_SetGitHubCredential_FullMethodName      = "/runnir.core.v1.RunnirCore/SetGitHubCredential"
-	RunnirCore_ClearGitHubCredential_FullMethodName    = "/runnir.core.v1.RunnirCore/ClearGitHubCredential"
-	RunnirCore_CheckGitHubToken_FullMethodName         = "/runnir.core.v1.RunnirCore/CheckGitHubToken"
-	RunnirCore_ListPullRequests_FullMethodName         = "/runnir.core.v1.RunnirCore/ListPullRequests"
-	RunnirCore_GetGitHubOrigins_FullMethodName         = "/runnir.core.v1.RunnirCore/GetGitHubOrigins"
-	RunnirCore_ListGitHubRepositories_FullMethodName   = "/runnir.core.v1.RunnirCore/ListGitHubRepositories"
-	RunnirCore_ListGitHubWorkflows_FullMethodName      = "/runnir.core.v1.RunnirCore/ListGitHubWorkflows"
-	RunnirCore_GetGitHubRepository_FullMethodName      = "/runnir.core.v1.RunnirCore/GetGitHubRepository"
-	RunnirCore_ListWorkflowRuns_FullMethodName         = "/runnir.core.v1.RunnirCore/ListWorkflowRuns"
-	RunnirCore_ListRunJobs_FullMethodName              = "/runnir.core.v1.RunnirCore/ListRunJobs"
-	RunnirCore_ListGitHubRefs_FullMethodName           = "/runnir.core.v1.RunnirCore/ListGitHubRefs"
-	RunnirCore_DescribeWorkflowDispatch_FullMethodName = "/runnir.core.v1.RunnirCore/DescribeWorkflowDispatch"
-	RunnirCore_PrepareWorkflowDispatch_FullMethodName  = "/runnir.core.v1.RunnirCore/PrepareWorkflowDispatch"
-	RunnirCore_ConfirmWorkflowDispatch_FullMethodName  = "/runnir.core.v1.RunnirCore/ConfirmWorkflowDispatch"
-	RunnirCore_GetJobLog_FullMethodName                = "/runnir.core.v1.RunnirCore/GetJobLog"
-	RunnirCore_PrepareRunAction_FullMethodName         = "/runnir.core.v1.RunnirCore/PrepareRunAction"
-	RunnirCore_ConfirmRunAction_FullMethodName         = "/runnir.core.v1.RunnirCore/ConfirmRunAction"
-	RunnirCore_GetToolReadiness_FullMethodName         = "/runnir.core.v1.RunnirCore/GetToolReadiness"
-	RunnirCore_PrepareLocalRun_FullMethodName          = "/runnir.core.v1.RunnirCore/PrepareLocalRun"
-	RunnirCore_ConfirmLocalRun_FullMethodName          = "/runnir.core.v1.RunnirCore/ConfirmLocalRun"
-	RunnirCore_GetLocalRunOutput_FullMethodName        = "/runnir.core.v1.RunnirCore/GetLocalRunOutput"
-	RunnirCore_CancelExecution_FullMethodName          = "/runnir.core.v1.RunnirCore/CancelExecution"
+	RunnirCore_HealthCheck_FullMethodName               = "/runnir.core.v1.RunnirCore/HealthCheck"
+	RunnirCore_OpenRepository_FullMethodName            = "/runnir.core.v1.RunnirCore/OpenRepository"
+	RunnirCore_CloseRepository_FullMethodName           = "/runnir.core.v1.RunnirCore/CloseRepository"
+	RunnirCore_RefreshRepository_FullMethodName         = "/runnir.core.v1.RunnirCore/RefreshRepository"
+	RunnirCore_GetWorkspaceActivity_FullMethodName      = "/runnir.core.v1.RunnirCore/GetWorkspaceActivity"
+	RunnirCore_RefreshWorkspaceActivity_FullMethodName  = "/runnir.core.v1.RunnirCore/RefreshWorkspaceActivity"
+	RunnirCore_LoadOlderRuns_FullMethodName             = "/runnir.core.v1.RunnirCore/LoadOlderRuns"
+	RunnirCore_GetStorageUsage_FullMethodName           = "/runnir.core.v1.RunnirCore/GetStorageUsage"
+	RunnirCore_ClearWorkspaceCache_FullMethodName       = "/runnir.core.v1.RunnirCore/ClearWorkspaceCache"
+	RunnirCore_DeleteWorkspaceData_FullMethodName       = "/runnir.core.v1.RunnirCore/DeleteWorkspaceData"
+	RunnirCore_SetStoragePreferences_FullMethodName     = "/runnir.core.v1.RunnirCore/SetStoragePreferences"
+	RunnirCore_ListWorkflows_FullMethodName             = "/runnir.core.v1.RunnirCore/ListWorkflows"
+	RunnirCore_ListLaunchPresets_FullMethodName         = "/runnir.core.v1.RunnirCore/ListLaunchPresets"
+	RunnirCore_ValidateWorkflows_FullMethodName         = "/runnir.core.v1.RunnirCore/ValidateWorkflows"
+	RunnirCore_SaveWorkflowFile_FullMethodName          = "/runnir.core.v1.RunnirCore/SaveWorkflowFile"
+	RunnirCore_CreateWorkflowFile_FullMethodName        = "/runnir.core.v1.RunnirCore/CreateWorkflowFile"
+	RunnirCore_RenameWorkflowFile_FullMethodName        = "/runnir.core.v1.RunnirCore/RenameWorkflowFile"
+	RunnirCore_InsertWorkflowConcurrency_FullMethodName = "/runnir.core.v1.RunnirCore/InsertWorkflowConcurrency"
+	RunnirCore_StartWorkflow_FullMethodName             = "/runnir.core.v1.RunnirCore/StartWorkflow"
+	RunnirCore_SubscribeEvents_FullMethodName           = "/runnir.core.v1.RunnirCore/SubscribeEvents"
+	RunnirCore_SetGitHubCredential_FullMethodName       = "/runnir.core.v1.RunnirCore/SetGitHubCredential"
+	RunnirCore_ClearGitHubCredential_FullMethodName     = "/runnir.core.v1.RunnirCore/ClearGitHubCredential"
+	RunnirCore_CheckGitHubToken_FullMethodName          = "/runnir.core.v1.RunnirCore/CheckGitHubToken"
+	RunnirCore_ListPullRequests_FullMethodName          = "/runnir.core.v1.RunnirCore/ListPullRequests"
+	RunnirCore_GetGitHubOrigins_FullMethodName          = "/runnir.core.v1.RunnirCore/GetGitHubOrigins"
+	RunnirCore_ListGitHubRepositories_FullMethodName    = "/runnir.core.v1.RunnirCore/ListGitHubRepositories"
+	RunnirCore_ListGitHubWorkflows_FullMethodName       = "/runnir.core.v1.RunnirCore/ListGitHubWorkflows"
+	RunnirCore_GetGitHubRepository_FullMethodName       = "/runnir.core.v1.RunnirCore/GetGitHubRepository"
+	RunnirCore_ListWorkflowRuns_FullMethodName          = "/runnir.core.v1.RunnirCore/ListWorkflowRuns"
+	RunnirCore_ListRunJobs_FullMethodName               = "/runnir.core.v1.RunnirCore/ListRunJobs"
+	RunnirCore_ListGitHubRefs_FullMethodName            = "/runnir.core.v1.RunnirCore/ListGitHubRefs"
+	RunnirCore_DescribeWorkflowDispatch_FullMethodName  = "/runnir.core.v1.RunnirCore/DescribeWorkflowDispatch"
+	RunnirCore_PrepareWorkflowDispatch_FullMethodName   = "/runnir.core.v1.RunnirCore/PrepareWorkflowDispatch"
+	RunnirCore_ConfirmWorkflowDispatch_FullMethodName   = "/runnir.core.v1.RunnirCore/ConfirmWorkflowDispatch"
+	RunnirCore_GetJobLog_FullMethodName                 = "/runnir.core.v1.RunnirCore/GetJobLog"
+	RunnirCore_PrepareRunAction_FullMethodName          = "/runnir.core.v1.RunnirCore/PrepareRunAction"
+	RunnirCore_ConfirmRunAction_FullMethodName          = "/runnir.core.v1.RunnirCore/ConfirmRunAction"
+	RunnirCore_GetToolReadiness_FullMethodName          = "/runnir.core.v1.RunnirCore/GetToolReadiness"
+	RunnirCore_PrepareLocalRun_FullMethodName           = "/runnir.core.v1.RunnirCore/PrepareLocalRun"
+	RunnirCore_ConfirmLocalRun_FullMethodName           = "/runnir.core.v1.RunnirCore/ConfirmLocalRun"
+	RunnirCore_GetLocalRunOutput_FullMethodName         = "/runnir.core.v1.RunnirCore/GetLocalRunOutput"
+	RunnirCore_CancelExecution_FullMethodName           = "/runnir.core.v1.RunnirCore/CancelExecution"
 )
 
 // RunnirCoreClient is the client API for RunnirCore service.
@@ -84,6 +86,10 @@ type RunnirCoreClient interface {
 	// into one more. With wait, answers after a pass that started after the
 	// request ended.
 	RefreshWorkspaceActivity(ctx context.Context, in *RefreshWorkspaceActivityRequest, opts ...grpc.CallOption) (*WorkspaceActivity, error)
+	// Reads one page of runs older than the oldest cached one from GitHub and
+	// stores it; nothing is read when the cache holds 5000 runs or the whole
+	// history. Concurrent calls for one workspace share one request.
+	LoadOlderRuns(ctx context.Context, in *LoadOlderRunsRequest, opts ...grpc.CallOption) (*LoadOlderRunsResponse, error)
 	// What workspaces keep on this Mac, by id; empty ids: every workspace with
 	// data and every open one.
 	GetStorageUsage(ctx context.Context, in *GetStorageUsageRequest, opts ...grpc.CallOption) (*GetStorageUsageResponse, error)
@@ -114,6 +120,9 @@ type RunnirCoreClient interface {
 	// Renames a workflow file within .github/workflows and scans the
 	// repository again. A name another file has is refused (ALREADY_EXISTS).
 	RenameWorkflowFile(ctx context.Context, in *RenameWorkflowFileRequest, opts ...grpc.CallOption) (*RenameWorkflowFileResponse, error)
+	// The editor's text with the suggested concurrency block before the
+	// top-level jobs key, or why it was not added. Writes nothing.
+	InsertWorkflowConcurrency(ctx context.Context, in *InsertWorkflowConcurrencyRequest, opts ...grpc.CallOption) (*InsertWorkflowConcurrencyResponse, error)
 	// Starts an execution without a reviewed plan. Local runs need one, so
 	// executions started this way fail; use PrepareLocalRun.
 	StartWorkflow(ctx context.Context, in *StartWorkflowRequest, opts ...grpc.CallOption) (*ExecutionResponse, error)
@@ -252,6 +261,16 @@ func (c *runnirCoreClient) RefreshWorkspaceActivity(ctx context.Context, in *Ref
 	return out, nil
 }
 
+func (c *runnirCoreClient) LoadOlderRuns(ctx context.Context, in *LoadOlderRunsRequest, opts ...grpc.CallOption) (*LoadOlderRunsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LoadOlderRunsResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_LoadOlderRuns_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnirCoreClient) GetStorageUsage(ctx context.Context, in *GetStorageUsageRequest, opts ...grpc.CallOption) (*GetStorageUsageResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetStorageUsageResponse)
@@ -346,6 +365,16 @@ func (c *runnirCoreClient) RenameWorkflowFile(ctx context.Context, in *RenameWor
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RenameWorkflowFileResponse)
 	err := c.cc.Invoke(ctx, RunnirCore_RenameWorkflowFile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) InsertWorkflowConcurrency(ctx context.Context, in *InsertWorkflowConcurrencyRequest, opts ...grpc.CallOption) (*InsertWorkflowConcurrencyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InsertWorkflowConcurrencyResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_InsertWorkflowConcurrency_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -618,6 +647,10 @@ type RunnirCoreServer interface {
 	// into one more. With wait, answers after a pass that started after the
 	// request ended.
 	RefreshWorkspaceActivity(context.Context, *RefreshWorkspaceActivityRequest) (*WorkspaceActivity, error)
+	// Reads one page of runs older than the oldest cached one from GitHub and
+	// stores it; nothing is read when the cache holds 5000 runs or the whole
+	// history. Concurrent calls for one workspace share one request.
+	LoadOlderRuns(context.Context, *LoadOlderRunsRequest) (*LoadOlderRunsResponse, error)
 	// What workspaces keep on this Mac, by id; empty ids: every workspace with
 	// data and every open one.
 	GetStorageUsage(context.Context, *GetStorageUsageRequest) (*GetStorageUsageResponse, error)
@@ -648,6 +681,9 @@ type RunnirCoreServer interface {
 	// Renames a workflow file within .github/workflows and scans the
 	// repository again. A name another file has is refused (ALREADY_EXISTS).
 	RenameWorkflowFile(context.Context, *RenameWorkflowFileRequest) (*RenameWorkflowFileResponse, error)
+	// The editor's text with the suggested concurrency block before the
+	// top-level jobs key, or why it was not added. Writes nothing.
+	InsertWorkflowConcurrency(context.Context, *InsertWorkflowConcurrencyRequest) (*InsertWorkflowConcurrencyResponse, error)
 	// Starts an execution without a reviewed plan. Local runs need one, so
 	// executions started this way fail; use PrepareLocalRun.
 	StartWorkflow(context.Context, *StartWorkflowRequest) (*ExecutionResponse, error)
@@ -744,6 +780,9 @@ func (UnimplementedRunnirCoreServer) GetWorkspaceActivity(context.Context, *GetW
 func (UnimplementedRunnirCoreServer) RefreshWorkspaceActivity(context.Context, *RefreshWorkspaceActivityRequest) (*WorkspaceActivity, error) {
 	return nil, status.Error(codes.Unimplemented, "method RefreshWorkspaceActivity not implemented")
 }
+func (UnimplementedRunnirCoreServer) LoadOlderRuns(context.Context, *LoadOlderRunsRequest) (*LoadOlderRunsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method LoadOlderRuns not implemented")
+}
 func (UnimplementedRunnirCoreServer) GetStorageUsage(context.Context, *GetStorageUsageRequest) (*GetStorageUsageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetStorageUsage not implemented")
 }
@@ -773,6 +812,9 @@ func (UnimplementedRunnirCoreServer) CreateWorkflowFile(context.Context, *Create
 }
 func (UnimplementedRunnirCoreServer) RenameWorkflowFile(context.Context, *RenameWorkflowFileRequest) (*RenameWorkflowFileResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RenameWorkflowFile not implemented")
+}
+func (UnimplementedRunnirCoreServer) InsertWorkflowConcurrency(context.Context, *InsertWorkflowConcurrencyRequest) (*InsertWorkflowConcurrencyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method InsertWorkflowConcurrency not implemented")
 }
 func (UnimplementedRunnirCoreServer) StartWorkflow(context.Context, *StartWorkflowRequest) (*ExecutionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method StartWorkflow not implemented")
@@ -975,6 +1017,24 @@ func _RunnirCore_RefreshWorkspaceActivity_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_LoadOlderRuns_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LoadOlderRunsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).LoadOlderRuns(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_LoadOlderRuns_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).LoadOlderRuns(ctx, req.(*LoadOlderRunsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnirCore_GetStorageUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetStorageUsageRequest)
 	if err := dec(in); err != nil {
@@ -1151,6 +1211,24 @@ func _RunnirCore_RenameWorkflowFile_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnirCoreServer).RenameWorkflowFile(ctx, req.(*RenameWorkflowFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_InsertWorkflowConcurrency_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InsertWorkflowConcurrencyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).InsertWorkflowConcurrency(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_InsertWorkflowConcurrency_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).InsertWorkflowConcurrency(ctx, req.(*InsertWorkflowConcurrencyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1612,6 +1690,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _RunnirCore_RefreshWorkspaceActivity_Handler,
 		},
 		{
+			MethodName: "LoadOlderRuns",
+			Handler:    _RunnirCore_LoadOlderRuns_Handler,
+		},
+		{
 			MethodName: "GetStorageUsage",
 			Handler:    _RunnirCore_GetStorageUsage_Handler,
 		},
@@ -1650,6 +1732,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RenameWorkflowFile",
 			Handler:    _RunnirCore_RenameWorkflowFile_Handler,
+		},
+		{
+			MethodName: "InsertWorkflowConcurrency",
+			Handler:    _RunnirCore_InsertWorkflowConcurrency_Handler,
 		},
 		{
 			MethodName: "StartWorkflow",

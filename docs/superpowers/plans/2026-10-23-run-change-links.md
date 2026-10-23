@@ -4178,7 +4178,7 @@ git commit -m "Detect concurrency in workflow files and insert the suggested blo
 **Files:**
 - Modify: `contracts/grpc/runnir/core/v1/runnir_core.proto`
 - Regenerate: `core/internal/gen/runnir/core/v1/*`, `apps/macos/Runnir/IPC/Generated/runnir/core/v1/*`
-- Modify: `core/internal/server/workspace.go`, `core/internal/server/service.go:142-156` (`ListWorkflows`)
+- Modify: `core/internal/server/workspace.go`, `core/internal/server/runs.go` (`runMessage`), `core/internal/server/service.go:142-156` (`ListWorkflows`)
 - Create: `core/internal/server/changes.go`
 - Test: `core/internal/server/workspace_test.go`
 
@@ -4205,11 +4205,11 @@ after `rpc RenameWorkflowFile(…)`:
   rpc InsertWorkflowConcurrency(InsertWorkflowConcurrencyRequest) returns (InsertWorkflowConcurrencyResponse);
 ```
 
-In `message Workflow`, after `parse_error = 5`:
+In `message Workflow`, after `dispatch_inputs = 6` (B25):
 
 ```proto
   // The file sets concurrency at the top level or in a job.
-  bool concurrency = 6;
+  bool concurrency = 7;
 ```
 
 In `message WorkflowRun`, after `run_attempt = 15`:
@@ -4674,6 +4674,8 @@ func concurrencyRefusal(refusal scanner.ConcurrencyRefusal) corev1.ConcurrencyRe
 	}
 }
 ```
+
+In `core/internal/server/runs.go` `runMessage`, also set `HeadRepository: r.HeadRepository, CommitTitle: r.CommitTitle` (fields 16 and 17 carry what the run says in every reply, not only in workspace activity).
 
 In `core/internal/server/service.go` `ListWorkflows`, set the new field:
 

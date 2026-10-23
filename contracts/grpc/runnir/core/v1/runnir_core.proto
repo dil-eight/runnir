@@ -27,6 +27,10 @@ service RunnirCore {
   // into one more. With wait, answers after a pass that started after the
   // request ended.
   rpc RefreshWorkspaceActivity(RefreshWorkspaceActivityRequest) returns (WorkspaceActivity);
+  // Reads one page of runs older than the oldest cached one from GitHub and
+  // stores it; nothing is read when the cache holds 5000 runs or the whole
+  // history. Concurrent calls for one workspace share one request.
+  rpc LoadOlderRuns(LoadOlderRunsRequest) returns (LoadOlderRunsResponse);
   // What workspaces keep on this Mac, by id; empty ids: every workspace with
   // data and every open one.
   rpc GetStorageUsage(GetStorageUsageRequest) returns (GetStorageUsageResponse);
@@ -58,6 +62,9 @@ service RunnirCore {
   // Renames a workflow file within .github/workflows and scans the
   // repository again. A name another file has is refused (ALREADY_EXISTS).
   rpc RenameWorkflowFile(RenameWorkflowFileRequest) returns (RenameWorkflowFileResponse);
+  // The editor's text with the suggested concurrency block before the
+  // top-level jobs key, or why it was not added. Writes nothing.
+  rpc InsertWorkflowConcurrency(InsertWorkflowConcurrencyRequest) returns (InsertWorkflowConcurrencyResponse);
 
   // Starts an execution without a reviewed plan. Local runs need one, so
   // executions started this way fail; use PrepareLocalRun.
@@ -212,6 +219,8 @@ message Workflow {
   string parse_error = 5;
   // The workflow_dispatch inputs the local file declares.
   repeated DispatchInput dispatch_inputs = 6;
+  // The file sets concurrency at the top level or in a job.
+  bool concurrency = 7;
 }
 
 message Job {
@@ -634,6 +643,15 @@ message WorkflowRun {
   google.protobuf.Timestamp updated_at = 14;
   // 1 for the first attempt; each re-run adds one.
   int64 run_attempt = 15;
+  // "owner/name" the head commit came from; a fork's differs.
+  string head_repository = 16;
+  // The first line of the head commit's message.
+  string commit_title = 17;
+  // Set in workspace activity only.
+  RunLink link = 18;
+  // The newest run of the same workflow and event on a newer commit of the
+  // same pull request; 0 when not superseded. Workspace activity only.
+  int64 superseded_by = 19;
 }
 
 message ListRunJobsRequest {
@@ -1116,7 +1134,7 @@ message RenameWorkflowFileResponse {
 
 message GetWorkspaceActivityRequest {
   string repository_id = 1;
-  // Runs to return, newest first: 1 to 200; 0 means 50.
+  // Runs to return, newest first: 1 to 5000; 0 means 200.
   uint32 limit = 2;
 }
 
@@ -1130,6 +1148,13 @@ message WorkspaceActivity {
   repeated WorkflowRun runs = 1;
   repeated GitHubWorkflow workflows = 2;
   ActivityFreshness freshness = 3;
+  // The changes of runs above, newest first.
+  repeated RunChange changes = 4;
+  repeated ConcurrencyHint concurrency_hints = 5;
+  // Every run in the cache.
+  uint32 cached_runs = 6;
+  // GitHub has no run older than the oldest cached one.
+  bool history_complete = 7;
 }
 
 enum ActivitySource {
@@ -1153,6 +1178,121 @@ message ActivityFreshness {
   google.protobuf.Timestamp synced_at = 5;
   // When the cached data last changed.
   google.protobuf.Timestamp changed_at = 6;
+  // Reading pull requests: UNSPECIFIED before a read, else OK,
+  // PERMISSION_MISSING or NOT_VISIBLE.
+  GithubAccess pull_requests_access = 7;
+}
+
+enum RunLinkKind {
+  RUN_LINK_KIND_UNSPECIFIED = 0;
+  RUN_LINK_KIND_NONE = 1;
+  // Ran on a commit of the pull request, before its merge.
+  RUN_LINK_KIND_PULL_REQUEST = 2;
+  // Ran on the commit the pull request's merge created.
+  RUN_LINK_KIND_AFTER_MERGE = 3;
+}
+
+message RunLink {
+  RunLinkKind kind = 1;
+  int64 pull_request = 2;
+}
+
+// A pull request with every run linked to it, or a commit with the runs
+// that have no link.
+message RunChange {
+  // "pr:142" or "commit:<sha>".
+  string id = 1;
+  // Set for a pull request.
+  ChangePullRequest pull_request = 2;
+  // Of the first section with runs.
+  PullRequestCi status = 3;
+  google.protobuf.Timestamp latest_at = 4;
+  // After merge, then the latest commit; a commit has one section.
+  repeated RunChangeSection sections = 5;
+  // Runs on older commits of the pull request, newest first.
+  repeated int64 older_run_ids = 6;
+  uint32 older_commits = 7;
+}
+
+message ChangePullRequest {
+  int64 number = 1;
+  string title = 2;
+  // "open", "closed" or "merged"; empty when not read yet.
+  string state = 3;
+  bool draft = 4;
+  string author = 5;
+  string html_url = 6;
+  string head_branch = 7;
+  string base_branch = 8;
+  google.protobuf.Timestamp merged_at = 9;
+}
+
+enum RunChangeSectionKind {
+  RUN_CHANGE_SECTION_KIND_UNSPECIFIED = 0;
+  RUN_CHANGE_SECTION_KIND_AFTER_MERGE = 1;
+  RUN_CHANGE_SECTION_KIND_LATEST_COMMIT = 2;
+  RUN_CHANGE_SECTION_KIND_COMMIT = 3;
+}
+
+message RunChangeSection {
+  RunChangeSectionKind kind = 1;
+  string head_sha = 2;
+  string branch = 3;
+  string commit_title = 4;
+  // The newest run of each workflow and event, newest first.
+  repeated int64 run_ids = 5;
+  // The other runs of those workflows and events on this commit.
+  repeated int64 repeat_run_ids = 6;
+}
+
+// A concurrency block would have stopped superseded runs of this workflow.
+message ConcurrencyHint {
+  int64 workflow_id = 1;
+  string path = 2;
+  // Superseded runs that kept going after a newer push.
+  uint32 runs = 3;
+  // How long they kept going, wall-clock, rounded up.
+  uint32 overlap_minutes = 4;
+  // May include runs outside WorkspaceActivity.runs.
+  repeated int64 run_ids = 5;
+  repeated int64 pull_requests = 6;
+}
+
+message LoadOlderRunsRequest {
+  string repository_id = 1;
+}
+
+message LoadOlderRunsResponse {
+  GitHubStatus status = 1;
+  uint32 added = 2;
+  bool history_complete = 3;
+  // The cache holds 5000 runs; older ones stay on GitHub.
+  bool budget_reached = 4;
+}
+
+message InsertWorkflowConcurrencyRequest {
+  string repository_id = 1;
+  // The editor's text, UTF-8, at most 1 MiB.
+  string content = 2;
+}
+
+enum ConcurrencyRefusal {
+  CONCURRENCY_REFUSAL_UNSPECIFIED = 0;
+  CONCURRENCY_REFUSAL_NONE = 1;
+  CONCURRENCY_REFUSAL_ALREADY_PRESENT = 2;
+  CONCURRENCY_REFUSAL_NO_JOBS = 3;
+  CONCURRENCY_REFUSAL_NOT_BLOCK_MAPPING = 4;
+  CONCURRENCY_REFUSAL_PARSE_ERROR = 5;
+  CONCURRENCY_REFUSAL_TOO_LARGE = 6;
+}
+
+message InsertWorkflowConcurrencyResponse {
+  // The text with the block; empty when refused.
+  string content = 1;
+  // The block's first and last line, 1-based.
+  uint32 first_line = 2;
+  uint32 last_line = 3;
+  ConcurrencyRefusal refusal = 4;
 }
 
 enum StorageState {
