@@ -246,6 +246,11 @@ struct RunInspectorView: View {
     let hub: CoreHub
     /// For the sign-in sheet an access alert may offer.
     var github: GitHubSession? = nil
+    /// Its pull request, the run that superseded it and a suggestion.
+    let context: RunInspectorContext
+    let select: (Int64) -> Void
+    let addConcurrency: (String) -> Void
+    let dismissHint: (String) -> Void
     @State private var actions: RunActionModel
     @State private var jobs: CoreGitHubResult<CoreRunJob>?
     @State private var jobsStale = false
@@ -253,11 +258,17 @@ struct RunInspectorView: View {
     @State private var selectedStep: Int64?
     @Environment(\.openURL) private var openURL
 
-    init(run: CoreWorkflowRun, workspaceID: UUID, hub: CoreHub, github: GitHubSession? = nil) {
+    init(run: CoreWorkflowRun, workspaceID: UUID, hub: CoreHub, github: GitHubSession? = nil,
+         context: RunInspectorContext = RunInspectorContext(), select: @escaping (Int64) -> Void = { _ in },
+         addConcurrency: @escaping (String) -> Void = { _ in }, dismissHint: @escaping (String) -> Void = { _ in }) {
         self.run = run
         self.workspaceID = workspaceID
         self.hub = hub
         self.github = github
+        self.context = context
+        self.select = select
+        self.addConcurrency = addConcurrency
+        self.dismissHint = dismissHint
         _actions = State(initialValue: RunActionModel(hub: hub, workspaceID: workspaceID))
     }
 
@@ -268,6 +279,7 @@ struct RunInspectorView: View {
             toolbar
             DesignDivider()
             summary
+            links
             if let text = actions.statusText { actionStatus(text) }
             DesignDivider()
             HStack(spacing: 0) {
@@ -385,6 +397,35 @@ struct RunInspectorView: View {
         }
         .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
         .padding(.horizontal, 20).frame(height: 40)
+    }
+
+    // MARK: Pull request and commit
+
+    private var links: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let pullRequest = context.pullRequest {
+                Button {
+                    if let url = pullRequest.htmlURL { openURL(url) }
+                } label: {
+                    Label(RunPresentation.pullRequestLine(pullRequest), systemImage: "arrow.triangle.pull").lineLimit(1)
+                }
+                .buttonStyle(.link).disabled(pullRequest.htmlURL == nil).help("Open the pull request on GitHub")
+            }
+            Label(RunPresentation.commitLine(run), systemImage: "smallcircle.filled.circle")
+                .foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
+            if let newer = context.supersededBy {
+                Button("Superseded by \(newer.name) #\(newer.runNumber) on a newer commit") { select(newer.id) }
+                    .buttonStyle(.link).help("Show the run that replaced this one")
+            }
+            if run.isSuperseded, let hint = context.hint {
+                ConcurrencyHintBanner(hint: hint, workflowName: context.workflowName,
+                                      add: { addConcurrency(hint.path) }, dismiss: { dismissHint(hint.path) })
+                    .padding(.top, 4)
+            }
+        }
+        .font(.system(size: 12))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20).padding(.bottom, 8)
     }
 
     private var eventLabel: String {

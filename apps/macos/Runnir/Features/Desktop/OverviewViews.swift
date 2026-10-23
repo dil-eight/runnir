@@ -192,7 +192,7 @@ struct WorkspaceOverview: View {
                 HStack(spacing: 6) {
                     RunOutcomeIcon(outcome: run.outcome, size: 12)
                     Text(run.outcome.label).foregroundStyle(color(run.outcome))
-                    Text("run #\(run.runNumber) · \(String(run.headSHA.prefix(7)))").font(.system(size: 12, design: .monospaced))
+                    Text(RunPresentation.summary(run)).font(.system(size: 12, design: .monospaced))
                         .foregroundStyle(RunnirTheme.secondaryForeground)
                     if let created = run.createdAt {
                         Text(created, format: .relative(presentation: .named)).foregroundStyle(RunnirTheme.secondaryForeground)

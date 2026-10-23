@@ -568,6 +568,7 @@ struct DesktopWorkspaceView: View {
         }
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
+        .onChange(of: state.runsMode) { _, value in desktop.selectRunsMode(value, windowID: windowID) }
         // Once the Core has opened the working tree: its origin's GitHub
         // repository key, or none ("") when the origin is on no GitHub server.
         .onChange(of: session?.phase == .ready ? (session?.githubRef?.key ?? "") : nil, initial: true) { _, value in
@@ -1065,7 +1066,10 @@ struct DesktopWorkspaceView: View {
         case .runs:
             if let session, let hub = desktop.core {
                 WorkspaceRunsView(session: session, hub: hub, github: desktop.github,
-                                  selectedRunID: Binding(get: { state.selectedRunID }, set: { state.selectedRunID = $0 }))
+                                  selectedRunID: Binding(get: { state.selectedRunID }, set: { state.selectedRunID = $0 }),
+                                  mode: Binding(get: { state.runsMode }, set: { state.runsMode = $0 }),
+                                  dismissals: desktop.hintDismissals,
+                                  addConcurrency: { path in addConcurrency(path: path) })
             } else {
                 coreUnavailable
             }

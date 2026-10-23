@@ -517,6 +517,14 @@ final class DesktopCoordinator {
         catch { message = "Window navigation could not be saved." }
     }
 
+    func selectRunsMode(_ mode: RunsMode, windowID: UUID) {
+        guard let index = snapshot.windows.firstIndex(where: { $0.id == windowID }) else { return }
+        var candidate = snapshot
+        candidate.windows[index].runsMode = mode
+        do { try commit(candidate); windows[windowID]?.record.runsMode = mode }
+        catch { message = "Window navigation could not be saved." }
+    }
+
     func shouldClose(_ id: UUID) -> Bool {
         if terminationInProgress { return true }
         if let controller = windows[id], let name = controller.unsavedWorkflowName {
@@ -731,6 +739,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
         let state = files.map { AppState(files: $0) } ?? AppState()
         self.state = state
         state.selectedSection = record.section.restored
+        state.runsMode = record.runsMode ?? .list
         window?.title = workspace.name + " - Runnir"
         window?.contentViewController = NSHostingController(rootView:
             DesktopWorkspaceView(desktop: desktop, workspace: workspace, windowID: record.id, reader: grant?.reader)
