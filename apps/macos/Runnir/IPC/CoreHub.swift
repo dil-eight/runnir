@@ -12,6 +12,16 @@ protocol CoreProviding: Sendable {
 
 extension CoreProcessSupervisor: CoreProviding {}
 
+/// Loading runs older than the cached ones, as the run list's end shows it.
+enum OlderRunsState: Equatable {
+    case idle
+    case loading
+    /// GitHub did not answer; Retry asks again.
+    case failed(CoreGitHubAccess)
+    /// The Core keeps 5000 runs; older ones are on GitHub.
+    case budgetReached
+}
+
 /// The Core's view of one workspace's repository. Each workspace has its own
 /// observable session, so a change to one repository only invalidates the
 /// windows showing it.
@@ -60,6 +70,16 @@ final class RepositorySession: Identifiable {
     fileprivate(set) var remoteWorkflows: [CoreGitHubWorkflow] = []
     /// How fresh `runs` and `remoteWorkflows` are, as the Core says.
     fileprivate(set) var freshness = CoreActivityFreshness()
+    /// The changes of `runs` and the concurrency suggestions, as the Core
+    /// grouped them.
+    fileprivate(set) var changes: [CoreRunChange] = []
+    fileprivate(set) var concurrencyHints: [CoreConcurrencyHint] = []
+    /// Every run the Core keeps, and whether GitHub has none older.
+    fileprivate(set) var cachedRuns = 0
+    fileprivate(set) var historyComplete = false
+    /// How many of the newest runs the session reads; grows as lists scroll.
+    fileprivate(set) var activityLimit = CoreHub.activityPage
+    fileprivate(set) var olderRuns: OlderRunsState = .idle
     /// The last sync pass's outcome, or why there is none; nil before the first.
     var githubAccess: CoreGitHubAccess? { freshness.access }
     var activitySource: CoreActivitySource { freshness.source }
@@ -343,8 +363,11 @@ final class CoreHub {
 
     // MARK: GitHub activity
 
-    /// How many of the newest runs a session shows.
-    static let activityLimit = 50
+    /// How many runs a session reads at first, and how many more each time
+    /// a list reaches its end.
+    static let activityPage = 200
+    /// The Core keeps at most this many runs per workspace.
+    static let maxActivityLimit = 5000
     /// How often the Core's sync reads a workspace with an active run
     /// (`workspace.DefaultIntervals` in the Core).
     static let activeSyncInterval: Duration = .seconds(20)
@@ -357,7 +380,7 @@ final class CoreHub {
               let service = try? await provider.service() else { return }
         session.isRefreshingActivity = true
         defer { session.isRefreshingActivity = false }
-        guard let activity = try? await service.refreshWorkspaceActivity(repositoryID: coreID, wait: true, limit: Self.activityLimit),
+        guard let activity = try? await service.refreshWorkspaceActivity(repositoryID: coreID, wait: true, limit: session.activityLimit),
               sessions[workspaceID] === session, session.coreID == coreID else { return }
         await apply(activity, to: session)
     }
@@ -374,7 +397,7 @@ final class CoreHub {
         repeat {
             session.activityReadPending = false
             guard let coreID = session.coreID, isReady, let service = try? await provider.service(),
-                  let activity = try? await service.workspaceActivity(repositoryID: coreID, limit: Self.activityLimit),
+                  let activity = try? await service.workspaceActivity(repositoryID: coreID, limit: session.activityLimit),
                   sessions[session.workspaceID] === session, session.coreID == coreID else { return }
             await apply(activity, to: session)
         } while session.activityReadPending && sessions[session.workspaceID] === session
@@ -382,9 +405,19 @@ final class CoreHub {
 
     private func apply(_ activity: CoreWorkspaceActivity, to session: RepositorySession) async {
         let previous = session.freshness.access
+        let previousPullRequests = session.freshness.pullRequestsAccess
         session.runs = activity.runs
         session.remoteWorkflows = activity.workflows
         session.freshness = activity.freshness
+        session.changes = activity.changes
+        session.concurrencyHints = activity.concurrencyHints
+        session.cachedRuns = activity.cachedRuns
+        session.historyComplete = activity.historyComplete
+        // Whether an owner has to accept the pull request permission decides
+        // what the note asks for.
+        if activity.freshness.pullRequestsAccess == .permissionMissing, previousPullRequests != .permissionMissing {
+            await githubRepository(workspaceID: session.workspaceID)
+        }
         let access = activity.freshness.access
         guard access != previous else { return }
         // Only a rejection of the token the Core holds now signs out: one
@@ -395,6 +428,51 @@ final class CoreHub {
         // Whether an owner has to accept permissions, or the user lacks
         // access, decides what the notice asks for.
         if access == .permissionMissing { await githubRepository(workspaceID: session.workspaceID) }
+    }
+
+    /// Shows more runs when a list reaches its end: 200 more from the cache,
+    /// or, once every cached run is shown, one page of older runs from GitHub.
+    func showMoreRuns(workspaceID: UUID) async {
+        guard let session = sessions[workspaceID], session.olderRuns != .loading else { return }
+        if session.cachedRuns > session.runs.count {
+            session.activityLimit = min(Self.maxActivityLimit, session.activityLimit + Self.activityPage)
+            await readActivity(of: session)
+            return
+        }
+        guard !session.historyComplete, session.olderRuns != .budgetReached, session.githubAccess == .ok,
+              let coreID = session.coreID, isReady, let service = try? await provider.service() else { return }
+        session.olderRuns = .loading
+        let result = try? await service.loadOlderRuns(repositoryID: coreID)
+        guard sessions[workspaceID] === session else { return }
+        switch result {
+        case nil:
+            session.olderRuns = .failed(.unavailable)
+        case let result? where result.budgetReached && result.added == 0:
+            session.olderRuns = .budgetReached
+        case let result? where result.access != .ok:
+            session.olderRuns = .failed(result.access)
+        case let result?:
+            session.olderRuns = result.budgetReached ? .budgetReached : .idle
+            session.activityLimit = min(Self.maxActivityLimit, max(session.activityLimit, session.runs.count + result.added))
+            await readActivity(of: session)
+        }
+    }
+
+    /// The editor's text with the suggested concurrency block from the Core;
+    /// nil when the Core is not ready or did not answer.
+    func insertWorkflowConcurrency(workspaceID: UUID, content: String) async -> CoreConcurrencyInsertion? {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return nil }
+        return try? await service.insertWorkflowConcurrency(repositoryID: coreID, content: content)
+    }
+
+    /// What keeps the Core from reading the workspace's pull requests, and
+    /// the fix; nil when it reads them.
+    func pullRequestsHelp(workspaceID: UUID) -> GitHubAccessHelp? {
+        guard let session = sessions[workspaceID], let access = session.freshness.pullRequestsAccess,
+              access == .permissionMissing || access == .notVisible else { return nil }
+        return GitHubAccessHelp.pullRequestsUnreadable(repository: session.githubRepository, details: session.githubDetails,
+                                                       credential: credentialKind(for: session.githubServerID),
+                                                       server: serverRef(for: session.githubServerID))
     }
 
     // MARK: Dispatch

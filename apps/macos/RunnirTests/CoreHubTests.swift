@@ -329,9 +329,33 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     func workspaceActivity(repositoryID: String, limit: Int) async throws -> CoreWorkspaceActivity {
         lock.withLock {
             _activityReads.append(repositoryID)
+            _activityLimits.append(limit)
             return activity(for: repositoryID)
         }
     }
+    // MARK: Older runs and concurrency
+
+    private var _activityLimits: [Int] = []
+    var activityLimits: [Int] { lock.withLock { _activityLimits } }
+    var olderRunsResult = CoreOlderRuns(access: .ok, added: 0, historyComplete: true, budgetReached: false)
+    private var _olderRunsCalls: [String] = []
+    var olderRunsCalls: [String] { lock.withLock { _olderRunsCalls } }
+    func loadOlderRuns(repositoryID: String) async throws -> CoreOlderRuns {
+        lock.withLock {
+            _olderRunsCalls.append(repositoryID)
+            return olderRunsResult
+        }
+    }
+    var concurrencyInsertion: CoreConcurrencyInsertion = .refused(.alreadyPresent)
+    private var _insertions: [String] = []
+    var insertions: [String] { lock.withLock { _insertions } }
+    func insertWorkflowConcurrency(repositoryID: String, content: String) async throws -> CoreConcurrencyInsertion {
+        lock.withLock {
+            _insertions.append(content)
+            return concurrencyInsertion
+        }
+    }
+
     var refreshDelayActivity: Duration?
     func refreshWorkspaceActivity(repositoryID: String, wait: Bool, limit: Int) async throws -> CoreWorkspaceActivity {
         let delay = lock.withLock { () -> Duration? in

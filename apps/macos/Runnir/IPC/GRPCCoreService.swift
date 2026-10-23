@@ -115,6 +115,35 @@ struct GRPCCoreService: CoreServicing {
         return Self.map(response)
     }
 
+    func loadOlderRuns(repositoryID: String) async throws -> CoreOlderRuns {
+        let response = try await call {
+            try await client.loadOlderRuns(.with { $0.repositoryID = repositoryID }, options: Self.options(.seconds(60)))
+        }
+        return CoreOlderRuns(access: Self.map(response.status), added: Int(response.added),
+                             historyComplete: response.historyComplete, budgetReached: response.budgetReached)
+    }
+
+    func insertWorkflowConcurrency(repositoryID: String, content: String) async throws -> CoreConcurrencyInsertion {
+        let response = try await call {
+            try await client.insertWorkflowConcurrency(.with {
+                $0.repositoryID = repositoryID
+                $0.content = content
+            }, options: Self.options(Self.callTimeout))
+        }
+        return Self.map(response)
+    }
+
+    static func map(_ response: Runnir_Core_V1_InsertWorkflowConcurrencyResponse) -> CoreConcurrencyInsertion {
+        switch response.refusal {
+        case .alreadyPresent: .refused(.alreadyPresent)
+        case .noJobs: .refused(.noJobs)
+        case .notBlockMapping: .refused(.notBlockMapping)
+        case .parseError: .refused(.parseError)
+        case .tooLarge: .refused(.tooLarge)
+        default: .inserted(content: response.content, firstLine: Int(response.firstLine), lastLine: Int(response.lastLine))
+        }
+    }
+
     func storageUsage(workspaceIDs: [UUID]) async throws -> CoreStorageUsage {
         let response = try await call {
             try await client.getStorageUsage(.with { $0.workspaceIds = workspaceIDs.map { $0.uuidString.lowercased() } },
@@ -158,12 +187,62 @@ struct GRPCCoreService: CoreServicing {
         case .live: .live
         default: .none
         }
+        let pullRequestsAccess: CoreGitHubAccess? = f.pullRequestsAccess == .unspecified
+            ? nil : map(Runnir_Core_V1_GitHubStatus.with { $0.access = f.pullRequestsAccess })
         return CoreWorkspaceActivity(
             runs: activity.runs.map(map), workflows: activity.workflows.map(map),
             freshness: CoreActivityFreshness(
                 source: source, syncing: f.syncing, access: f.hasStatus ? map(f.status) : nil,
                 checkedAt: f.hasCheckedAt ? f.checkedAt.date : nil, syncedAt: f.hasSyncedAt ? f.syncedAt.date : nil,
-                changedAt: f.hasChangedAt ? f.changedAt.date : nil))
+                changedAt: f.hasChangedAt ? f.changedAt.date : nil, pullRequestsAccess: pullRequestsAccess),
+            changes: activity.changes.map(map), concurrencyHints: activity.concurrencyHints.map(map),
+            cachedRuns: Int(activity.cachedRuns), historyComplete: activity.historyComplete)
+    }
+
+    static func map(_ change: Runnir_Core_V1_RunChange) -> CoreRunChange {
+        CoreRunChange(id: change.id, pullRequest: change.hasPullRequest ? map(change.pullRequest) : nil, status: map(change.status),
+                      latestAt: change.hasLatestAt ? change.latestAt.date : nil, sections: change.sections.map(map),
+                      olderRunIDs: change.olderRunIds, olderCommits: Int(change.olderCommits))
+    }
+
+    static func map(_ pullRequest: Runnir_Core_V1_ChangePullRequest) -> CoreChangePullRequest {
+        CoreChangePullRequest(number: pullRequest.number, title: pullRequest.title, state: pullRequest.state, draft: pullRequest.draft,
+                              author: pullRequest.author, htmlURL: webURL(pullRequest.htmlURL), headBranch: pullRequest.headBranch,
+                              baseBranch: pullRequest.baseBranch, mergedAt: pullRequest.hasMergedAt ? pullRequest.mergedAt.date : nil)
+    }
+
+    static func map(_ section: Runnir_Core_V1_RunChangeSection) -> CoreRunChangeSection {
+        let kind: CoreRunChangeSectionKind = switch section.kind {
+        case .afterMerge: .afterMerge
+        case .latestCommit: .latestCommit
+        default: .commit
+        }
+        return CoreRunChangeSection(kind: kind, headSHA: section.headSha, branch: section.branch, commitTitle: section.commitTitle,
+                                    runIDs: section.runIds, repeatRunIDs: section.repeatRunIds)
+    }
+
+    static func map(_ hint: Runnir_Core_V1_ConcurrencyHint) -> CoreConcurrencyHint {
+        CoreConcurrencyHint(workflowID: hint.workflowID, path: hint.path, runs: Int(hint.runs), overlapMinutes: Int(hint.overlapMinutes),
+                            runIDs: hint.runIds, pullRequests: hint.pullRequests)
+    }
+
+    static func map(_ link: Runnir_Core_V1_RunLink) -> CoreRunLink {
+        switch link.kind {
+        case .pullRequest: .pullRequest(link.pullRequest)
+        case .afterMerge: .afterMerge(link.pullRequest)
+        default: .none
+        }
+    }
+
+    static func map(_ ci: Runnir_Core_V1_PullRequestCi) -> CorePullRequestCI {
+        switch ci {
+        case .none: .none
+        case .running: .running
+        case .passed: .passed
+        case .failed: .failed
+        case .cancelled: .cancelled
+        default: .unknown
+        }
     }
 
     static func map(_ storage: Runnir_Core_V1_WorkspaceStorage) -> CoreWorkspaceStorage? {
@@ -196,7 +275,8 @@ struct GRPCCoreService: CoreServicing {
                 triggers: workflow.triggers,
                 jobs: workflow.jobs.map { CoreJob(id: $0.id, name: $0.name, needs: $0.needs) },
                 parseError: workflow.parseError.isEmpty ? nil : workflow.parseError,
-                dispatchInputs: workflow.dispatchInputs.map(Self.dispatchInput)
+                dispatchInputs: workflow.dispatchInputs.map(Self.dispatchInput),
+                concurrency: workflow.concurrency
             )
         }
     }
@@ -371,14 +451,7 @@ struct GRPCCoreService: CoreServicing {
             }, options: options)
         }
         func map(_ pr: Runnir_Core_V1_PullRequest) -> CorePullRequest {
-            let ci: CorePullRequestCI = switch pr.ci {
-            case .none: .none
-            case .running: .running
-            case .passed: .passed
-            case .failed: .failed
-            case .cancelled: .cancelled
-            default: .unknown
-            }
+            let ci = Self.map(pr.ci)
             return CorePullRequest(repository: pr.repository, number: pr.number, title: pr.title, htmlURL: Self.webURL(pr.htmlURL),
                                    state: pr.state, draft: pr.draft, headBranch: pr.headBranch,
                                    updatedAt: pr.hasUpdatedAt ? pr.updatedAt.date : nil, closedAt: pr.hasClosedAt ? pr.closedAt.date : nil,
@@ -475,7 +548,10 @@ struct GRPCCoreService: CoreServicing {
             actor: run.actor.isEmpty ? nil : run.actor, htmlURL: Self.webURL(run.htmlURL),
             createdAt: run.hasCreatedAt ? run.createdAt.date : nil,
             updatedAt: run.hasUpdatedAt ? run.updatedAt.date : nil,
-            runAttempt: max(1, run.runAttempt)
+            runAttempt: max(1, run.runAttempt),
+            headRepository: run.headRepository, commitTitle: run.commitTitle,
+            link: run.hasLink ? Self.map(run.link) : .none,
+            supersededBy: run.supersededBy == 0 ? nil : run.supersededBy
         )
     }
 

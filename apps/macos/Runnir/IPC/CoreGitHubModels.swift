@@ -253,6 +253,22 @@ struct CoreGitHubWorkflow: Equatable, Identifiable, Sendable {
 
 /// GitHub's run status and conclusion, kept as strings from the API and
 /// interpreted by `CoreRunOutcome`.
+/// What a run belongs to, as the Core linked it.
+enum CoreRunLink: Equatable, Sendable {
+    case none
+    /// Ran on a commit of the pull request, before its merge.
+    case pullRequest(Int64)
+    /// Ran on the commit the pull request's merge created.
+    case afterMerge(Int64)
+
+    var pullRequest: Int64? {
+        switch self {
+        case .none: nil
+        case .pullRequest(let number), .afterMerge(let number): number
+        }
+    }
+}
+
 struct CoreWorkflowRun: Equatable, Identifiable, Sendable {
     let id: Int64
     let workflowID: Int64
@@ -270,6 +286,19 @@ struct CoreWorkflowRun: Equatable, Identifiable, Sendable {
     let updatedAt: Date?
     /// 1 for the first attempt; each re-run adds one.
     var runAttempt: Int64 = 1
+    /// "owner/name" the head commit came from; a fork's differs.
+    var headRepository = ""
+    /// The first line of the head commit's message.
+    var commitTitle = ""
+    var link: CoreRunLink = .none
+    /// The newest run of the same workflow on a newer commit of the pull
+    /// request; nil when this run is not superseded.
+    var supersededBy: Int64?
+
+    var isSuperseded: Bool { supersededBy != nil }
+    /// Superseded and still going: it uses runners for a commit the pull
+    /// request has moved past.
+    var isOutdated: Bool { isSuperseded && outcome.isActive }
 
     var outcome: CoreRunOutcome { CoreRunOutcome(status: status, conclusion: conclusion) }
     var title: String { displayTitle.isEmpty ? name : displayTitle }
