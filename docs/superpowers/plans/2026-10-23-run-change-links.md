@@ -3916,14 +3916,14 @@ import (
 	"testing"
 )
 
-const ciWorkflow = "name: CI\non:\n  pull_request:\n  push:\n\n# The jobs\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: make\n"
+const concurrencyCI = "name: CI\non:\n  pull_request:\n  push:\n\n# The jobs\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: make\n"
 
 func TestConcurrencyIsDetected(t *testing.T) {
 	for name, tc := range map[string]struct {
 		source string
 		want   bool
 	}{
-		"none":      {ciWorkflow, false},
+		"none":      {concurrencyCI, false},
 		"top level": {"on: push\nconcurrency: ci\njobs:\n  a:\n    runs-on: x\n", true},
 		"in a job":  {"on: push\njobs:\n  a:\n    concurrency: ci\n    runs-on: x\n", true},
 	} {
@@ -3934,7 +3934,7 @@ func TestConcurrencyIsDetected(t *testing.T) {
 }
 
 func TestConcurrencyGoesBeforeJobsAndItsComments(t *testing.T) {
-	edit := InsertConcurrency(ciWorkflow)
+	edit := InsertConcurrency(concurrencyCI)
 	if edit.Refusal != ConcurrencyInserted || edit.FirstLine != 6 || edit.LastLine != 9 {
 		t.Fatalf("edit = %+v", edit)
 	}
@@ -3957,7 +3957,7 @@ func TestABlankLineSeparatesTheBlockFromTheKeyAbove(t *testing.T) {
 }
 
 func TestConcurrencyKeepsWindowsLineEndings(t *testing.T) {
-	edit := InsertConcurrency(strings.ReplaceAll(ciWorkflow, "\n", "\r\n"))
+	edit := InsertConcurrency(strings.ReplaceAll(concurrencyCI, "\n", "\r\n"))
 	if edit.Refusal != ConcurrencyInserted || strings.Count(edit.Content, "\n") != strings.Count(edit.Content, "\r\n") {
 		t.Fatalf("edit = %q", edit.Content)
 	}

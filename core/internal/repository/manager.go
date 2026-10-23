@@ -54,6 +54,8 @@ type Workflow struct {
 	ParseError string
 	// DispatchInputs are the workflow_dispatch inputs the local file declares.
 	DispatchInputs []DispatchInput
+	// Concurrency: the file sets concurrency at the top level or in a job.
+	Concurrency bool
 }
 
 // DispatchInput is one `on.workflow_dispatch.inputs` entry.

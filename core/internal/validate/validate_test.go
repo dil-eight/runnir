@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"runnir/core/internal/scanner"
 )
 
 func write(t *testing.T, root, rel, content string) {
@@ -282,5 +284,18 @@ func TestAnAliasBombStaysCheap(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("nine levels of nine aliases were expanded")
+	}
+}
+
+func TestTheConcurrencyBlockPassesActionlint(t *testing.T) {
+	root := repo(t)
+	edit := scanner.InsertConcurrency("name: CI\non:\n  pull_request:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: make\n")
+	if edit.Refusal != scanner.ConcurrencyInserted {
+		t.Fatalf("refusal = %v", edit.Refusal)
+	}
+	write(t, root, ".github/workflows/ci.yml", edit.Content)
+	report, err := Workflows(context.Background(), root, "")
+	if err != nil || len(report.Results) != 1 || len(report.Results[0].Diagnostics) != 0 || report.Results[0].Problem != "" {
+		t.Fatalf("report = %+v, %v", report, err)
 	}
 }
