@@ -185,3 +185,46 @@ func TestAnAPIURLEndingInASlashAddsNoEmptySegment(t *testing.T) {
 		t.Errorf("path = %q", path)
 	}
 }
+
+func TestConditionalReadsUseETags(t *testing.T) {
+	var runsSeen, workflowsSeen []string
+	client, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/o/r/actions/runs":
+			runsSeen = append(runsSeen, r.Header.Get("If-None-Match"))
+			if r.Header.Get("If-None-Match") == `"runs-1"` {
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+			w.Header().Set("ETag", `"runs-1"`)
+			_, _ = w.Write([]byte(`{"workflow_runs":[{"id":7,"status":"completed","created_at":"2026-10-18T10:00:00Z","updated_at":"2026-10-18T10:00:00Z"}]}`))
+		case "/repos/o/r/actions/workflows":
+			workflowsSeen = append(workflowsSeen, r.Header.Get("If-None-Match"))
+			if r.Header.Get("If-None-Match") == `"wf-1"` {
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+			w.Header().Set("ETag", `"wf-1"`)
+			_, _ = w.Write([]byte(`{"total_count":1,"workflows":[{"id":3,"name":"CI","path":".github/workflows/ci.yml","state":"active"}]}`))
+		}
+	})
+	ctx := context.Background()
+
+	runs, tag, err := client.RunsIfChanged(ctx, "o", "r", 50, "")
+	if err != nil || len(runs) != 1 || tag != `"runs-1"` {
+		t.Fatalf("first = %v %q %v", runs, tag, err)
+	}
+	if _, _, err := client.RunsIfChanged(ctx, "o", "r", 50, tag); !errors.Is(err, ErrNotModified) {
+		t.Fatalf("second = %v", err)
+	}
+	workflows, wtag, err := client.WorkflowsIfChanged(ctx, "o", "r", "")
+	if err != nil || len(workflows) != 1 || wtag != `"wf-1"` {
+		t.Fatalf("workflows = %v %q %v", workflows, wtag, err)
+	}
+	if _, _, err := client.WorkflowsIfChanged(ctx, "o", "r", wtag); !errors.Is(err, ErrNotModified) {
+		t.Fatalf("workflows again = %v", err)
+	}
+	if len(runsSeen) != 2 || runsSeen[0] != "" || runsSeen[1] != `"runs-1"` || workflowsSeen[1] != `"wf-1"` {
+		t.Fatalf("headers = %v %v", runsSeen, workflowsSeen)
+	}
+}

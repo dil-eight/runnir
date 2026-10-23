@@ -27,6 +27,9 @@ var (
 	ErrPermissionMissing = errors.New("Runnir Desktop or the user lacks the permission")
 	ErrUnavailable       = errors.New("GitHub is unavailable")
 	ErrInvalid           = errors.New("unexpected GitHub response")
+	// ErrNotModified is a conditional read's answer when nothing changed
+	// (HTTP 304). GitHub does not count it against the rate limit.
+	ErrNotModified = errors.New("not modified")
 )
 
 // RejectedError is GitHub refusing a change it understood (HTTP 422, 409, or
@@ -142,28 +145,63 @@ type Job struct {
 func (c *Client) Workflows(ctx context.Context, owner, name string) ([]Workflow, error) {
 	var out []Workflow
 	for page := 1; page <= 3; page++ {
-		var body struct {
-			TotalCount int `json:"total_count"`
-			Workflows  []struct {
-				ID      int64  `json:"id"`
-				Name    string `json:"name"`
-				Path    string `json:"path"`
-				State   string `json:"state"`
-				HTMLURL string `json:"html_url"`
-			} `json:"workflows"`
-		}
+		var body workflowsPage
 		query := url.Values{"per_page": {"100"}, "page": {strconv.Itoa(page)}}
 		if err := c.get(ctx, repoPath(owner, name, "/actions/workflows"), query, &body); err != nil {
 			return nil, err
 		}
-		for _, w := range body.Workflows {
-			out = append(out, Workflow{ID: w.ID, Name: w.Name, Path: w.Path, State: w.State, HTMLURL: w.HTMLURL})
-		}
+		out = append(out, body.list()...)
 		if len(body.Workflows) < 100 || len(out) >= body.TotalCount {
 			break
 		}
 	}
 	return out, nil
+}
+
+type workflowsPage struct {
+	TotalCount int `json:"total_count"`
+	Workflows  []struct {
+		ID      int64  `json:"id"`
+		Name    string `json:"name"`
+		Path    string `json:"path"`
+		State   string `json:"state"`
+		HTMLURL string `json:"html_url"`
+	} `json:"workflows"`
+}
+
+func (p workflowsPage) list() []Workflow {
+	out := make([]Workflow, 0, len(p.Workflows))
+	for _, w := range p.Workflows {
+		out = append(out, Workflow{ID: w.ID, Name: w.Name, Path: w.Path, State: w.State, HTMLURL: w.HTMLURL})
+	}
+	return out
+}
+
+// WorkflowsIfChanged reads the workflows like Workflows. The read is
+// conditional only while the first page holds them all; for a repository
+// with more than 100 the rest are read every time and the ETag is empty.
+func (c *Client) WorkflowsIfChanged(ctx context.Context, owner, name, etag string) ([]Workflow, string, error) {
+	var first workflowsPage
+	path := repoPath(owner, name, "/actions/workflows")
+	tag, err := c.getConditional(ctx, path, url.Values{"per_page": {"100"}, "page": {"1"}}, etag, &first)
+	if err != nil {
+		return nil, "", err
+	}
+	out := first.list()
+	if len(first.Workflows) < 100 || len(out) >= first.TotalCount {
+		return out, tag, nil
+	}
+	for page := 2; page <= 3; page++ {
+		var next workflowsPage
+		if err := c.get(ctx, path, url.Values{"per_page": {"100"}, "page": {strconv.Itoa(page)}}, &next); err != nil {
+			return nil, "", err
+		}
+		out = append(out, next.list()...)
+		if len(next.Workflows) < 100 || len(out) >= first.TotalCount {
+			break
+		}
+	}
+	return out, "", nil
 }
 
 // Runs lists the newest workflow runs, optionally for one branch.
@@ -186,6 +224,26 @@ func (c *Client) Runs(ctx context.Context, owner, name, branch string, limit int
 		runs = append(runs, r.run())
 	}
 	return runs, nil
+}
+
+// RunsIfChanged reads the newest runs like Runs; with etag set GitHub
+// answers ErrNotModified when they did not change. It returns the new ETag.
+func (c *Client) RunsIfChanged(ctx context.Context, owner, name string, limit int, etag string) ([]Run, string, error) {
+	if limit <= 0 || limit > maxRuns {
+		limit = maxRuns
+	}
+	var body struct {
+		WorkflowRuns []runJSON `json:"workflow_runs"`
+	}
+	tag, err := c.getConditional(ctx, repoPath(owner, name, "/actions/runs"), url.Values{"per_page": {strconv.Itoa(limit)}}, etag, &body)
+	if err != nil {
+		return nil, "", err
+	}
+	runs := make([]Run, 0, len(body.WorkflowRuns))
+	for _, r := range body.WorkflowRuns {
+		runs = append(runs, r.run())
+	}
+	return runs, tag, nil
 }
 
 // Run reads one workflow run.
@@ -331,9 +389,30 @@ func (c *Client) send(ctx context.Context, method, path string, query url.Values
 	return data, status, err
 }
 
+// getConditional reads JSON with If-None-Match and returns the new ETag.
+func (c *Client) getConditional(ctx context.Context, path string, query url.Values, etag string, out any) (string, error) {
+	var extra http.Header
+	if etag != "" {
+		extra = http.Header{"If-None-Match": {etag}}
+	}
+	data, _, header, err := c.exchangeWith(ctx, http.MethodGet, path, query, nil, "application/vnd.github+json", extra)
+	if err != nil {
+		return "", err
+	}
+	if err := json.Unmarshal(data, out); err != nil {
+		return "", ErrInvalid
+	}
+	return header.Get("ETag"), nil
+}
+
 // exchange is send that also returns the response headers, for what GitHub
 // says only there (a classic token's scopes, its expiry, SSO).
 func (c *Client) exchange(ctx context.Context, method, path string, query url.Values, body []byte, accept string) ([]byte, int, http.Header, error) {
+	return c.exchangeWith(ctx, method, path, query, body, accept, nil)
+}
+
+// exchangeWith is exchange with extra request headers, such as If-None-Match.
+func (c *Client) exchangeWith(ctx context.Context, method, path string, query url.Values, body []byte, accept string, extra http.Header) ([]byte, int, http.Header, error) {
 	token, ok := c.credential.Token()
 	if !ok {
 		return nil, 0, nil, ErrNoCredential
@@ -354,6 +433,11 @@ func (c *Client) exchange(ctx context.Context, method, path string, query url.Va
 	request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("User-Agent", c.userAgent)
+	for name, values := range extra {
+		for _, value := range values {
+			request.Header.Add(name, value)
+		}
+	}
 	if body != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}
@@ -393,6 +477,8 @@ func (c *Client) exchange(ctx context.Context, method, path string, query url.Va
 		return nil, status, response.Header, &RejectedError{Message: problemMessage(data)}
 	case status >= 500:
 		return nil, status, response.Header, ErrUnavailable
+	case status == http.StatusNotModified:
+		return nil, status, response.Header, ErrNotModified
 	default:
 		return nil, status, response.Header, ErrInvalid
 	}
