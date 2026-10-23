@@ -47,22 +47,27 @@ final class RepositorySession: Identifiable {
     fileprivate(set) var lastRefresh: Date?
     fileprivate(set) var isRefreshing = false
     fileprivate(set) var refreshError: String?
-    /// GitHub Actions data for `githubRepository`, read through the Core.
-    fileprivate(set) var githubAccess: CoreGitHubAccess?
+    /// GitHub Actions data for `githubRepository`, saved and synced by the
+    /// Core; shown at once and kept when access is lost.
     fileprivate(set) var runs: [CoreWorkflowRun] = []
     fileprivate(set) var remoteWorkflows: [CoreGitHubWorkflow] = []
-    fileprivate(set) var isLoadingGitHub = false
-    fileprivate(set) var githubLoadedAt: Date?
+    /// How fresh `runs` and `remoteWorkflows` are, as the Core says.
+    fileprivate(set) var freshness = CoreActivityFreshness()
+    /// The last sync pass's outcome, or why there is none; nil before the first.
+    var githubAccess: CoreGitHubAccess? { freshness.access }
+    var activitySource: CoreActivitySource { freshness.source }
+    var isLoadingGitHub: Bool { freshness.syncing || isReadingActivity }
+    /// When GitHub last answered.
+    var githubLoadedAt: Date? { freshness.syncedAt }
+    fileprivate(set) var isReadingActivity = false
     /// The GitHub repository as the Core last read it: whether the user can
     /// push, and the owner's installation with permissions waiting for an
     /// owner. Read on demand (`githubRepository(workspaceID:)`), not polled.
     fileprivate(set) var githubDetails: CoreGitHubRepository?
     /// The workspace's latest local run, shared by its windows.
     fileprivate(set) var localRun: LocalRunModel?
-    @ObservationIgnored fileprivate var githubPoll: Task<Void, Never>?
-    /// A load was asked for while one was running; run another after it,
-    /// because what the Core may read (the token) can have changed meanwhile.
-    @ObservationIgnored fileprivate var githubReloadPending = false
+    /// A read was asked for while one ran; read once more after it.
+    @ObservationIgnored fileprivate var activityReadPending = false
     @ObservationIgnored fileprivate var windowIDs: Set<UUID> = []
     @ObservationIgnored fileprivate var appliedSequence: UInt64 = 0
 
@@ -131,11 +136,6 @@ final class CoreHub {
     @ObservationIgnored var onGitHubTokenRejected: (@MainActor () async -> Void)?
     /// A local run finished, with its workspace's name.
     @ObservationIgnored var onLocalRunFinished: (@MainActor (LocalRunModel, String) -> Void)?
-    /// How often runs are re-read while any of them is queued or running.
-    @ObservationIgnored var githubPollInterval: Duration = .seconds(20)
-    /// How often runs are re-read otherwise, so new pushes and runs started
-    /// elsewhere show up without a manual reload.
-    @ObservationIgnored var githubIdlePollInterval: Duration = .seconds(300)
     /// First wait before subscribing to events again after the stream ended
     /// while the Core still runs; doubles up to 30 seconds.
     @ObservationIgnored var eventRetryDelay: Duration = .milliseconds(500)
@@ -194,8 +194,9 @@ final class CoreHub {
             // Close events of a previous Core process will never arrive.
             ownCloses.removeAll()
             startEvents()
-            // A new Core process starts without a token.
+            // A new Core process starts without a token or storage preferences.
             schedulePush()
+            Task { await pushStoragePreferences() }
             // Not awaited: later states (a lost Core) must not wait for slow scans.
             Task { await openAll() }
         case .lost:
@@ -297,9 +298,11 @@ final class CoreHub {
         credentialKinds = kinds
         signedInServers = servers
         credentialGeneration += 1
-        // What the Core may read changed: reload every repository's activity.
-        for workspaceID in sessions.keys {
-            if serversChanged { await refresh(workspaceID: workspaceID) } else { await loadGitHubActivity(workspaceID: workspaceID) }
+        // The Core syncs again on its own when a token changes. Which server
+        // a working tree is on depends on the servers it holds: when they
+        // changed, open repositories are read again.
+        if serversChanged {
+            for workspaceID in sessions.keys { await refresh(workspaceID: workspaceID) }
         }
     }
 
@@ -319,73 +322,54 @@ final class CoreHub {
 
     // MARK: GitHub activity
 
-    /// Reads the newest runs and the workflows of the repository's GitHub
-    /// origin. While a run is queued or running, reads again after
-    /// `githubPollInterval`. A call during a running load is not dropped: the
-    /// load runs once more when the current one ends.
+    /// How many of the newest runs a session shows.
+    static let activityLimit = 50
+    /// How often the Core's sync reads a workspace with an active run
+    /// (`workspace.DefaultIntervals` in the Core).
+    static let activeSyncInterval: Duration = .seconds(20)
+
+    /// Asks the Core's sync for a pass and shows the result. The Core merges
+    /// requests from every window into one pass and schedules the next one
+    /// itself, faster while a run is active.
     func loadGitHubActivity(workspaceID: UUID) async {
-        guard let session = sessions[workspaceID], session.coreID != nil, isReady else { return }
-        guard session.githubRepository != nil else {
-            session.githubAccess = .noRemote
+        guard let session = sessions[workspaceID], let coreID = session.coreID, isReady,
+              let service = try? await provider.service() else { return }
+        session.isReadingActivity = true
+        defer { session.isReadingActivity = false }
+        guard let activity = try? await service.refreshWorkspaceActivity(repositoryID: coreID, wait: true, limit: Self.activityLimit),
+              sessions[workspaceID] === session, session.coreID == coreID else { return }
+        await apply(activity, to: session)
+    }
+
+    /// Reads the saved activity. One read per session at a time; a request
+    /// during it reads once more afterwards.
+    private func readActivity(of session: RepositorySession) async {
+        guard !session.isReadingActivity else {
+            session.activityReadPending = true
             return
         }
-        guard !session.isLoadingGitHub else {
-            session.githubReloadPending = true
-            return
-        }
-        session.isLoadingGitHub = true
-        defer { session.isLoadingGitHub = false }
+        session.isReadingActivity = true
+        defer { session.isReadingActivity = false }
         repeat {
-            session.githubReloadPending = false
-            guard await loadGitHubActivityOnce(session) else { return }
-        } while session.githubReloadPending && sessions[workspaceID] === session && isReady
-        scheduleGitHubPoll(for: session)
+            session.activityReadPending = false
+            guard let coreID = session.coreID, isReady, let service = try? await provider.service(),
+                  let activity = try? await service.workspaceActivity(repositoryID: coreID, limit: Self.activityLimit),
+                  sessions[session.workspaceID] === session, session.coreID == coreID else { return }
+            await apply(activity, to: session)
+        } while session.activityReadPending && sessions[session.workspaceID] === session
     }
 
-    /// One read of runs and workflows; false when it was cancelled.
-    private func loadGitHubActivityOnce(_ session: RepositorySession) async -> Bool {
-        let workspaceID = session.workspaceID
-        guard let coreID = session.coreID else { return true }
-        func isCurrent() -> Bool { sessions[workspaceID] === session && session.coreID == coreID }
-        do {
-            let service = try await provider.service()
-            let runs = try await service.listWorkflowRuns(repositoryID: coreID, branch: nil, limit: 30)
-            let workflows = runs.access == .ok ? try await service.listGitHubWorkflows(repositoryID: coreID) : nil
-            guard isCurrent() else { return true }
-            session.githubAccess = runs.access
-            switch runs.access {
-            case .ok:
-                session.runs = runs.items
-                if let workflows, workflows.access == .ok { session.remoteWorkflows = workflows.items }
-                session.githubLoadedAt = Date()
-            case .rateLimited, .unavailable:
-                break // keep the last data; the access state says it may be stale
-            case .noRemote, .signedOut, .tokenRejected, .notVisible, .permissionMissing:
-                session.runs = []
-                session.remoteWorkflows = []
-            }
-            if runs.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
-            // Whether an owner has to accept permissions, or the user lacks
-            // access, decides what the notice asks for.
-            if runs.access == .permissionMissing { await githubRepository(workspaceID: workspaceID) }
-        } catch is CancellationError {
-            return false
-        } catch {
-            if isCurrent() { session.githubAccess = .unavailable }
-        }
-        return true
-    }
-
-    private func scheduleGitHubPoll(for session: RepositorySession) {
-        session.githubPoll?.cancel()
-        guard session.githubRepository != nil else { return }
-        let interval = session.runs.contains(where: { $0.outcome.isActive }) ? githubPollInterval : githubIdlePollInterval
-        let workspaceID = session.workspaceID
-        session.githubPoll = Task { [weak self] in
-            try? await Task.sleep(for: interval)
-            guard !Task.isCancelled, let self, self.sessions[workspaceID] === session else { return }
-            await self.loadGitHubActivity(workspaceID: workspaceID)
-        }
+    private func apply(_ activity: CoreWorkspaceActivity, to session: RepositorySession) async {
+        let previous = session.freshness.access
+        session.runs = activity.runs
+        session.remoteWorkflows = activity.workflows
+        session.freshness = activity.freshness
+        let access = activity.freshness.access
+        guard access != previous else { return }
+        if access == .tokenRejected { await tokenRejected(on: .workspace(session.workspaceID)) }
+        // Whether an owner has to accept permissions, or the user lacks
+        // access, decides what the notice asks for.
+        if access == .permissionMissing { await githubRepository(workspaceID: session.workspaceID) }
     }
 
     // MARK: Dispatch
@@ -638,6 +622,47 @@ final class CoreHub {
             return result
         } catch {
             return CoreGitHubResult(access: .unavailable, items: [])
+        }
+    }
+
+    // MARK: Storage
+
+    /// Whether to keep finished jobs' logs, sent to every new Core.
+    @ObservationIgnored var keepJobLogs: @MainActor () -> Bool = { UserDefaults.standard.bool(forKey: StorageSettings.keepJobLogsKey) }
+
+    private func pushStoragePreferences() async {
+        guard isReady, let service = try? await provider.service() else { return }
+        try? await service.setStoragePreferences(keepJobLogs: keepJobLogs(), deleteKeptLogs: false)
+    }
+
+    /// Turns keeping job logs on or off; off with `deleteKept` deletes kept logs.
+    func setKeepJobLogs(_ keep: Bool, deleteKept: Bool) async {
+        guard isReady, let service = try? await provider.service() else { return }
+        try? await service.setStoragePreferences(keepJobLogs: keep, deleteKeptLogs: deleteKept)
+    }
+
+    /// What workspaces keep on this Mac; nil when the Core cannot say.
+    func storageUsage(workspaceIDs: [UUID] = []) async -> CoreStorageUsage? {
+        guard isReady, let service = try? await provider.service() else { return nil }
+        return try? await service.storageUsage(workspaceIDs: workspaceIDs)
+    }
+
+    /// Clears the cache of the workspaces (all when empty); open ones sync again.
+    @discardableResult
+    func clearCache(workspaceIDs: [UUID]) async -> Bool {
+        guard isReady, let service = try? await provider.service() else { return false }
+        return (try? await service.clearWorkspaceCache(workspaceIDs: workspaceIDs)) != nil
+    }
+
+    /// Deletes a closed workspace's data on this Mac.
+    @discardableResult
+    func deleteWorkspaceData(_ workspaceID: UUID) async -> Bool {
+        guard isReady, let service = try? await provider.service() else { return false }
+        do {
+            try await service.deleteWorkspaceData(workspaceID: workspaceID)
+            return true
+        } catch {
+            return false
         }
     }
 
@@ -928,6 +953,9 @@ final class CoreHub {
             existing.coreID = nil
             existing.branch = ""
             existing.workflows = []
+            existing.runs = []
+            existing.remoteWorkflows = []
+            existing.freshness = CoreActivityFreshness()
             existing.phase = .waitingForCore
             if let oldID { closeInCore(oldID, path: oldPath) }
             if isReady { Task { await open(existing) } }
@@ -956,7 +984,6 @@ final class CoreHub {
         guard let session = sessions[workspaceID] else { afterRelease?(); return }
         session.windowIDs.remove(windowID)
         guard session.windowIDs.isEmpty else { afterRelease?(); return }
-        session.githubPoll?.cancel()
         sessions[workspaceID] = nil
         if let coreID = session.coreID {
             closeInCore(coreID, path: session.path, then: afterRelease)
@@ -1014,7 +1041,7 @@ final class CoreHub {
         func isCurrent() -> Bool { sessions[session.workspaceID] === session && session.path == path }
         do {
             let service = try await provider.service()
-            let repository = try await service.openRepository(path: path)
+            let repository = try await service.openRepository(path: path, workspaceID: session.workspaceID)
             guard isCurrent() else {
                 closeInCore(repository.id, path: path)
                 return
@@ -1024,7 +1051,9 @@ final class CoreHub {
             guard isCurrent() else { return }
             apply(repository, workflows: workflows, to: session)
             session.phase = .ready
-            Task { await loadGitHubActivity(workspaceID: session.workspaceID) }
+            // Saved activity first; the Core syncs on its own once the
+            // workspace is open and announces each pass.
+            Task { await readActivity(of: session) }
         } catch let error as CoreServiceError where error == .unavailable {
             if isCurrent() { session.phase = .unavailable }
         } catch is CancellationError {
@@ -1056,7 +1085,8 @@ final class CoreHub {
             guard isCurrent() else { return }
             apply(repository, workflows: workflows, to: session)
             session.refreshError = nil
-            Task { await loadGitHubActivity(workspaceID: workspaceID) }
+            // The Core's RefreshRepository already asked its sync for a pass.
+            Task { await readActivity(of: session) }
         } catch let error as CoreServiceError where error == .notFound {
             if isCurrent() { await open(session) }
         } catch let error as CoreServiceError where error == .unavailable {
@@ -1137,6 +1167,9 @@ final class CoreHub {
             if let id = event.repositoryID, ownCloses.remove(id) != nil { return }
             guard let session = session(forCoreID: event.repositoryID), session.phase == .ready else { return }
             Task { await open(session) }
+        case .activityChanged:
+            guard let session = session(forCoreID: event.repositoryID) else { return }
+            Task { await readActivity(of: session) }
         case .coreError:
             lastCoreMessage = event.message
         default:

@@ -378,7 +378,7 @@ struct RunInspectorView: View {
             }
             Spacer(minLength: 8)
             if run.outcome.isActive {
-                Text("Live · updating every \(Int(hub.githubPollInterval.components.seconds)) s").foregroundStyle(RunnirTheme.mutedForeground)
+                Text("Live · updating every \(Int(CoreHub.activeSyncInterval.components.seconds)) s").foregroundStyle(RunnirTheme.mutedForeground)
             } else if let updated = run.updatedAt {
                 Text("Updated \(updated.formatted(.relative(presentation: .named)))").foregroundStyle(RunnirTheme.mutedForeground)
             }
