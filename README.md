@@ -133,4 +133,4 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The release workflow builds an unsigned draft app plus platform-specific Core binaries. Production distribution requires Developer ID signing (including the helper), Apple notarization, release notes, and packaging decisions before publishing. Automatic updates remain planned.
+The release workflow builds an unsigned draft app plus platform-specific Core binaries and attaches them to the draft release; after it uploads them it downloads them back and checks their SHA-256 against the built files. Release assets are the only build output CI keeps: pull request and `main` runs build and check the app and Core but upload no Actions artifacts, and no workflow saves Actions caches. Production distribution requires Developer ID signing (including the helper), Apple notarization, release notes, and packaging decisions before publishing. Automatic updates remain planned.
