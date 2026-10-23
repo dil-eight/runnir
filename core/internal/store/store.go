@@ -204,6 +204,9 @@ func (s *Store) openDatabase(ctx context.Context) (string, bool) {
 	if err := s.markInterrupted(ctx); err != nil {
 		return "The workspace database could not be updated.", false
 	}
+	if err := s.cleanBlobs(ctx); err != nil {
+		return "The workspace database could not be updated.", false
+	}
 	if err := s.writeLocalBackup(ctx); err != nil {
 		notes = append(notes, "The backup of local data could not be written.")
 	}

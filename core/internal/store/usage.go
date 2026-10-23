@@ -62,6 +62,3 @@ func (s *Store) ClearCache(ctx context.Context) error {
 	}
 	return s.DeleteLogs(ctx)
 }
-
-// DeleteLogs is replaced by the blob store.
-func (s *Store) DeleteLogs(context.Context) error { return nil }
