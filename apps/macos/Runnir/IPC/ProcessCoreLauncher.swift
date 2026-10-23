@@ -7,6 +7,15 @@ import Darwin
 struct ProcessCoreLauncher: CoreProcessLaunching {
     let executableURL: URL
     var logURL: URL? = nil
+    /// The app's support folder, where the Core keeps workspace databases.
+    var dataDirectory: URL? = nil
+
+    /// The Core's command line.
+    static func arguments(socketPath: String, dataDirectory: URL?) -> [String] {
+        var arguments = ["serve", "--socket", socketPath, "--exit-on-stdin-eof", "--client-secret-stdin"]
+        if let dataDirectory { arguments += ["--data-dir", dataDirectory.path] }
+        return arguments
+    }
 
     func launch(socketPath: String, clientSecret: String) throws -> any CoreProcessHandle {
         guard FileManager.default.isExecutableFile(atPath: executableURL.path) else {
@@ -15,7 +24,7 @@ struct ProcessCoreLauncher: CoreProcessLaunching {
         let process = Process()
         let stdin = Pipe()
         process.executableURL = executableURL
-        process.arguments = ["serve", "--socket", socketPath, "--exit-on-stdin-eof", "--client-secret-stdin"]
+        process.arguments = Self.arguments(socketPath: socketPath, dataDirectory: dataDirectory)
         // TMPDIR keeps the Core's temporary files in the per-user temporary
         // directory; the reduced environment would otherwise leave Go on /tmp.
         // HOME lets the Core find the user's Docker contexts and its cache for

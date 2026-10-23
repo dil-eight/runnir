@@ -100,7 +100,7 @@ func TestUnknownCommand(t *testing.T) {
 }
 
 func TestServeUsage(t *testing.T) {
-	for _, args := range [][]string{{"serve"}, {"serve", "--socket"}, {"serve", "--socket", "/tmp/x", "extra"}, {"serve", "--bogus"}} {
+	for _, args := range [][]string{{"serve"}, {"serve", "--socket"}, {"serve", "--socket", "/tmp/x", "extra"}, {"serve", "--bogus"}, {"serve", "--socket", "/tmp/x", "--data-dir", "relative/path"}} {
 		var out, diagnostics bytes.Buffer
 		if code := run(args, strings.NewReader(""), &out, &diagnostics); code != 2 || out.Len() != 0 {
 			t.Fatalf("%v: code=%d out=%q", args, code, out.String())

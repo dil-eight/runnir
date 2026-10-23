@@ -65,6 +65,7 @@ struct RecentRunsList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            ActivityFreshnessLine(session: session)
             if let access = session.githubAccess,
                let help = hub?.accessHelp(access, workspaceID: session.workspaceID, purpose: .read, details: session.githubDetails)
                    ?? GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails) {
@@ -116,7 +117,9 @@ struct WorkspaceRunsView: View {
                     } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.borderless).disabled(session.isLoadingGitHub).help("Reload runs from GitHub")
                 }
-                .font(.system(size: 12)).padding(12)
+                .font(.system(size: 12)).padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 4)
+                ActivityFreshnessLine(session: session).lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.bottom, 10)
                 DesignDivider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {

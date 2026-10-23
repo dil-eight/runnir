@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -13,6 +14,7 @@ import (
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
 	"runnir/core/internal/scanner"
+	"runnir/core/internal/workspace"
 )
 
 // githubRepo is a repository on one server, with that server's account.
@@ -55,26 +57,20 @@ func (s *service) githubTarget(repositoryID, serverID, githubRepository string) 
 // forgets the token of the account GitHub rejected. Context errors stay
 // call errors.
 func (s *service) githubStatus(account *github.Account, err error) (*corev1.GitHubStatus, error) {
-	var rateLimit *github.RateLimitError
-	switch {
-	case err == nil:
-		return &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_OK}, nil
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return nil, status.FromContextError(err).Err()
-	case errors.Is(err, github.ErrNoCredential):
-		return &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_SIGNED_OUT}, nil
-	case errors.Is(err, github.ErrUnauthorized):
-		account.Credential.Clear()
-		return &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_TOKEN_REJECTED}, nil
-	case errors.Is(err, github.ErrNotVisible):
-		return &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_NOT_VISIBLE}, nil
-	case errors.Is(err, github.ErrPermissionMissing):
-		return &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_PERMISSION_MISSING}, nil
-	case errors.As(err, &rateLimit):
-		return &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_RATE_LIMITED, RetryAfter: timestamppb.New(rateLimit.Reset)}, nil
-	default:
-		return &corev1.GitHubStatus{Access: corev1.GithubAccess_GITHUB_ACCESS_UNAVAILABLE}, nil
+	access, retry, cancelled := workspace.Access(account, err)
+	if cancelled != nil {
+		return nil, status.FromContextError(cancelled).Err()
 	}
+	return statusMessage(access, retry), nil
+}
+
+// statusMessage is a GitHub outcome for the app; retry only when rate limited.
+func statusMessage(access corev1.GithubAccess, retry time.Time) *corev1.GitHubStatus {
+	out := &corev1.GitHubStatus{Access: access}
+	if access == corev1.GithubAccess_GITHUB_ACCESS_RATE_LIMITED && !retry.IsZero() {
+		out.RetryAfter = timestamppb.New(retry)
+	}
+	return out
 }
 
 // ListGitHubRepositories lists the repositories the user's token reaches.
@@ -173,6 +169,24 @@ func (s *service) ListRunJobs(ctx context.Context, request *corev1.ListRunJobsRe
 	if request.GetRunId() <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "run_id is required")
 	}
+	// An open workspace's runtime serves its jobs: from the cache when they
+	// cannot have changed, otherwise one read shared by every window.
+	if request.GetGithubRepository() == "" {
+		if _, err := s.repositories.Get(request.GetRepositoryId()); err != nil {
+			return nil, rpcError(err)
+		}
+		if rt, ok := s.workspaces.ForRepository(request.GetRepositoryId()); ok {
+			jobs, access, retry, err := rt.Jobs(ctx, request.GetRunId())
+			if err != nil {
+				return nil, status.FromContextError(err).Err()
+			}
+			out := &corev1.ListRunJobsResponse{Status: statusMessage(access, retry)}
+			for _, j := range jobs {
+				out.Jobs = append(out.Jobs, jobMessage(j))
+			}
+			return out, nil
+		}
+	}
 	target, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubServer(), request.GetGithubRepository())
 	if err != nil || problem != nil {
 		return &corev1.ListRunJobsResponse{Status: problem}, err
@@ -184,17 +198,21 @@ func (s *service) ListRunJobs(ctx context.Context, request *corev1.ListRunJobsRe
 	}
 	out := &corev1.ListRunJobsResponse{Status: result}
 	for _, j := range jobs {
-		job := &corev1.RunJob{
-			Id: j.ID, Name: j.Name, Status: j.Status, Conclusion: j.Conclusion, HtmlUrl: j.HTMLURL,
-			StartedAt: timestamp(j.StartedAt), CompletedAt: timestamp(j.CompletedAt),
-		}
-		for _, step := range j.Steps {
-			job.Steps = append(job.Steps, &corev1.RunStep{Number: step.Number, Name: step.Name, Status: step.Status, Conclusion: step.Conclusion,
-				StartedAt: timestamp(step.StartedAt), CompletedAt: timestamp(step.CompletedAt)})
-		}
-		out.Jobs = append(out.Jobs, job)
+		out.Jobs = append(out.Jobs, jobMessage(j))
 	}
 	return out, nil
+}
+
+func jobMessage(j github.Job) *corev1.RunJob {
+	job := &corev1.RunJob{
+		Id: j.ID, Name: j.Name, Status: j.Status, Conclusion: j.Conclusion, HtmlUrl: j.HTMLURL,
+		StartedAt: timestamp(j.StartedAt), CompletedAt: timestamp(j.CompletedAt),
+	}
+	for _, step := range j.Steps {
+		job.Steps = append(job.Steps, &corev1.RunStep{Number: step.Number, Name: step.Name, Status: step.Status, Conclusion: step.Conclusion,
+			StartedAt: timestamp(step.StartedAt), CompletedAt: timestamp(step.CompletedAt)})
+	}
+	return job
 }
 
 const maxOriginPaths = 500

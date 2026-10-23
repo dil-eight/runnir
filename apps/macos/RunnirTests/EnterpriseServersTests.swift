@@ -158,7 +158,9 @@ struct EnterpriseHubTests {
         let keychain = Gate()
         hub.enterpriseCredentialsProvider = { await keychain.wait(); return [(server: company, token: "ghp_company")] }
         hub.githubCredentialChanged()
-        try? await Task.sleep(for: .milliseconds(50))
+        // The first push is waiting for the Keychain before anything changes;
+        // a fixed sleep let a slow machine read the provider after the change.
+        #expect(await eventuallyAsync { await keychain.hasWaiter })
         // Meanwhile the server is removed.
         hub.enterpriseCredentialsProvider = { [] }
         hub.githubCredentialChanged()
@@ -168,7 +170,8 @@ struct EnterpriseHubTests {
         #expect(await eventually {
             provider.core.serverCredentialCalls.filter { $0.server == company.id }.map(\.token) == ["ghp_company", nil]
         })
-        #expect(hub.signedInServers.map(\.id) == [""])
+        // The hub records its servers once the Core answered that call.
+        #expect(await eventually { hub.signedInServers.map(\.id) == [""] })
     }
 
     @Test func pullRequestsComeFromEveryServerNewestFirst() async {
@@ -323,6 +326,9 @@ actor Gate {
         if isOpen { return }
         await withCheckedContinuation { waiting.append($0) }
     }
+
+    /// Someone is waiting for the gate to open.
+    var hasWaiter: Bool { !waiting.isEmpty }
 
     func open() {
         isOpen = true

@@ -157,8 +157,7 @@ struct WorkspaceSwitcherView: View {
 
     private func row(_ item: WorkspaceSwitcherItem, selected: Bool) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: "shippingbox").frame(width: 18)
-                .foregroundStyle(selected ? RunnirTheme.primary : RunnirTheme.secondaryForeground)
+            WorkspaceBadge(name: item.workspace.name, id: item.workspace.id, size: 20)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(item.workspace.name).font(.system(size: 13, weight: .medium))

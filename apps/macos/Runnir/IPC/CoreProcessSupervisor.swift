@@ -123,7 +123,8 @@ actor CoreProcessSupervisor {
         return CoreProcessSupervisor(
             launcher: ProcessCoreLauncher(
                 executableURL: bundle.appendingPathComponent("Contents/Helpers/runnir-core"),
-                logURL: logURL
+                logURL: logURL,
+                dataDirectory: try? RunnirSupportDirectory.url()
             ),
             connector: GRPCCoreConnector(),
             socketPath: socketPath(in: FileManager.default.temporaryDirectory, instance: instanceTag(for: bundle))

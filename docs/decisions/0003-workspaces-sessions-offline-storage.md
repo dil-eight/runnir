@@ -1,6 +1,6 @@
 # 0003 Workspace Sessions And Offline Persistence
 
-Status: accepted direction, 2026-10-14; desktop foundation implemented 2026-10-15, database/config/sync pending. Extends ADR 0002 without changing SwiftUI + Go or current source paths.
+Status: accepted direction, 2026-10-14; desktop foundation implemented 2026-10-15; per-workspace database and shared sync implemented 2026-10-22 ([ADR 0007](0007-workspace-sqlite.md)); portable config pending. Extends ADR 0002 without changing SwiftUI + Go or current source paths.
 
 ## Decisions
 
@@ -23,12 +23,12 @@ Restore window shells independently, clamp frames to connected displays and reco
 
 DesktopCoordinator now owns AppKit windows with independent AppState/navigation. Registry and restore eligibility use a single versioned desktop-state.json transaction: validate, write/fsync a private temporary file, rename, then fsync the directory. Combining registry and session avoids a partial reassociation across two files. Manual close commits removal before allowing closure; quit preserves eligible entries before teardown. Corrupt state blocks mutations until an explicit backup-and-reset; backups are never automatically replayed. Real power-loss/crash-injection verification remains outstanding.
 
-The version handshake remains one-shot. ADR 0004 added the persistent transport with shared repository contexts and events, keeping core.v1.version compatibility. Shared DB/sync is not implemented.
+The version handshake remains one-shot. ADR 0004 added the persistent transport with shared repository contexts and events, keeping core.v1.version compatibility. The shared database and sync now run in the Core: one runtime per workspace id, bound to the repository contexts its windows open ([ADR 0007](0007-workspace-sqlite.md)).
 
 Workspace startup/config phases can ship incrementally, but they do not remove FR-06's local-execution gate for a complete v0.1. Basic app use still needs no Runnir account, backend or analytics consent. Keychain remains the only implemented/approved credential storage; external credential providers mentioned in the incoming proposal are deferred.
 
 ## Open Implementation Decisions
 
-SQLite pure-Go driver/library and licensing/version; Core DB access in a signed build; WAL/shutdown/single-writer process ownership; critical session commit/tombstone strategy; app termination callback ordering at macOS 15+; sync/history/blob budgets; field-specific config merge rules; portable secret-reference resolver; dirty-editor behavior across same-workspace windows; any permanent product rename. (Account-wide remote browsing placement was settled on 2026-10-20: a GitHub tab in the Workspace Manager.)
+Core DB access in a signed build (not verified yet); critical session commit/tombstone strategy; app termination callback ordering at macOS 15+; field-specific config merge rules; portable secret-reference resolver; dirty-editor behavior across same-workspace windows; any permanent product rename. (Account-wide remote browsing placement was settled on 2026-10-20: a GitHub tab in the Workspace Manager. The SQLite driver, its licenses and version, WAL/shutdown/single-writer ownership, and the sync, history and blob budgets were settled on 2026-10-22 in ADR 0007.)
 
-See [desktop verification](../architecture/desktop-foundation-verification.md), [lifecycle](../architecture/desktop-lifecycle.md) and [persistence/config/sync](../architecture/workspace-persistence.md). No SQLite dependency has been selected.
+See [desktop verification](../architecture/desktop-foundation-verification.md), [lifecycle](../architecture/desktop-lifecycle.md) and [persistence/config/sync](../architecture/workspace-persistence.md). The SQLite driver is modernc.org/sqlite ([ADR 0007](0007-workspace-sqlite.md)).

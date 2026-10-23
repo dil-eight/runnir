@@ -2,7 +2,7 @@ import SwiftUI
 
 /// A part of Settings, listed in the overlay's sidebar.
 enum SettingsSection: String, CaseIterable, Identifiable, Sendable {
-    case account, runs, notifications, pullRequests, tools, privacy
+    case account, runs, notifications, pullRequests, tools, storage, privacy
 
     var id: Self { self }
 
@@ -13,6 +13,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Sendable {
         case .notifications: "Notifications"
         case .pullRequests: "Pull Requests"
         case .tools: "Tools"
+        case .storage: "Storage"
         case .privacy: "Privacy"
         }
     }
@@ -24,6 +25,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Sendable {
         case .notifications: "bell"
         case .pullRequests: "arrow.triangle.pull"
         case .tools: "wrench.and.screwdriver"
+        case .storage: "internaldrive"
         case .privacy: "hand.raised"
         }
     }
@@ -145,6 +147,8 @@ struct SettingsOverlay: View {
                 PullRequestShortcutSettingsSection(center: desktop.shortcuts)
             case .tools:
                 ToolsSettingsSection(model: ToolsSettingsModel(hub: desktop.core))
+            case .storage:
+                StorageSettingsSection(model: StorageSettingsModel(hub: desktop.core, workspaces: { desktop.snapshot.workspaces }))
             case .privacy:
                 Section("Telemetry") {
                     Text("Runnir does not enable telemetry by default and does not send repository data to a Runnir backend.")

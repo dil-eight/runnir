@@ -1,6 +1,6 @@
 # Optional Analytics And Crash Reporting
 
-Status: proposed requirements/design, 2026-10-13. No analytics SDK, endpoint, consent UI, crash collector or automatic issue publisher is implemented. The issue template is repository infrastructure only.
+Status: proposed requirements/design, 2026-10-13. No analytics SDK, endpoint, consent UI, crash collector or automatic issue publisher is implemented. The issue template is repository infrastructure only. Implemented 2026-10-22: the toolbar GitHub link (an icon button with the GitHub mark) and a manual Report a Bug sheet in the sidebar that previews the environment lines (app, Core and macOS versions, architecture) and opens a prefilled new-issue page built with URLComponents; no crash import, no diagnostic summary, no Copy Link fallback yet.
 
 ## Independent User Choices
 

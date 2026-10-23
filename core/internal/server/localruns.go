@@ -17,6 +17,7 @@ import (
 	"runnir/core/internal/localrun"
 	"runnir/core/internal/repository"
 	"runnir/core/internal/scanner"
+	"runnir/core/internal/store"
 	"runnir/core/internal/tools"
 )
 
@@ -134,6 +135,11 @@ func (s *service) ConfirmLocalRun(_ context.Context, request *corev1.ConfirmLoca
 	if err != nil {
 		return nil, status.Error(codes.Internal, "could not start the run")
 	}
+	// Recorded before it starts, so the run's events are written after it.
+	s.workspaces.RecordLocalRun(info.ID, store.LocalRun{
+		ExecutionID: id, WorkflowPath: approved.Workflow.ID, JobID: approved.Spec.Plan.JobID, Event: approved.Spec.Plan.Event,
+		StartedAt: time.Now(), State: store.LocalQueued, ActVersion: approved.ActVersion, Engine: approved.EngineName,
+	})
 	s.localOutputs.Create(id, info.ID, approved.Spec.Plan, approved.ActVersion, approved.Installed, approved.EngineName)
 	started, err := s.executions.StartJob(execution.Job{
 		ExecutionID: id, RepositoryID: info.ID, RepositoryPath: info.Path,
@@ -141,6 +147,7 @@ func (s *service) ConfirmLocalRun(_ context.Context, request *corev1.ConfirmLoca
 	})
 	if err != nil {
 		s.localOutputs.Remove(id)
+		s.workspaces.LocalRunNotStarted(id, "The run could not start.")
 		return nil, rpcError(err)
 	}
 	return &corev1.ConfirmLocalRunResponse{Execution: &corev1.ExecutionResponse{

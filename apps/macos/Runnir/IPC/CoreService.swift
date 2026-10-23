@@ -92,6 +92,8 @@ enum CoreEventKind: Equatable, Sendable {
     case repositoryOpened, repositoryRefreshed, repositoryClosed
     case workflowStarted, workflowStatusChanged, workflowCompleted, workflowFailed
     case coreError
+    /// A workspace's saved activity or its freshness changed.
+    case activityChanged
     case unknown
 }
 
@@ -127,7 +129,22 @@ enum CoreServiceError: Error, Equatable, Sendable {
 /// repository id. Implementations are safe to call from any task.
 protocol CoreServicing: Sendable {
     func healthCheck() async throws -> CoreHealth
-    func openRepository(path: String) async throws -> CoreRepository
+    /// Opens a working tree; with `workspaceID` it gets the workspace's
+    /// database and sync in the Core.
+    func openRepository(path: String, workspaceID: UUID?) async throws -> CoreRepository
+    /// The workspace's activity as saved on this Mac; never waits for GitHub.
+    func workspaceActivity(repositoryID: String, limit: Int) async throws -> CoreWorkspaceActivity
+    /// Asks the workspace's sync for a pass; with `wait`, answers after it.
+    func refreshWorkspaceActivity(repositoryID: String, wait: Bool, limit: Int) async throws -> CoreWorkspaceActivity
+    /// What workspaces keep on this Mac; empty ids: all with data and all open.
+    func storageUsage(workspaceIDs: [UUID]) async throws -> CoreStorageUsage
+    /// Deletes what can be downloaded again; empty ids: every workspace.
+    func clearWorkspaceCache(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage]
+    /// Deletes a closed workspace's data folder.
+    func deleteWorkspaceData(workspaceID: UUID) async throws
+    /// Whether finished jobs' logs are kept; off with `deleteKeptLogs` also
+    /// deletes the logs kept so far.
+    func setStoragePreferences(keepJobLogs: Bool, deleteKeptLogs: Bool) async throws
     func refreshRepository(id: String) async throws -> CoreRepository
     func closeRepository(id: String) async throws
     func listWorkflows(repositoryID: String) async throws -> [CoreWorkflow]
@@ -208,6 +225,10 @@ enum CoreGitHubTarget: Hashable, Sendable {
 }
 
 extension CoreServicing {
+    func openRepository(path: String) async throws -> CoreRepository {
+        try await openRepository(path: path, workspaceID: nil)
+    }
+
     /// github.com's token.
     @discardableResult
     func setGitHubCredential(_ token: String?) async throws -> CoreGitHubCredentialKind? {
