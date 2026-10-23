@@ -222,3 +222,24 @@ func TestSharedNamesSortByFile(t *testing.T) {
 		t.Fatalf("presets = %+v", got)
 	}
 }
+
+func TestScanChecksPresetsAgainstItsWorkflows(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, ".github/workflows/deploy.yml", "on: workflow_dispatch\njobs: {}\n")
+	write(t, root, ".runnir/launches/ok.yaml", "name: Deploy\nworkflow: deploy.yml\n")
+	write(t, root, ".runnir/launches/missing.yaml", "name: Preview\nworkflow: preview.yml\n")
+	got := scan(t, root).LaunchPresets
+	if len(got) != 2 || got[0].Name != "Deploy" || got[0].Problem != "" || !strings.Contains(got[1].Problem, "preview.yml") {
+		t.Fatalf("presets = %+v", got)
+	}
+}
+
+func TestPresetProblemsNeverFailTheScan(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, ".github/workflows/ci.yml", "on: push\njobs: {}\n")
+	write(t, root, ".runnir", "a file, not a folder")
+	snapshot := scan(t, root)
+	if len(snapshot.Workflows) != 1 || len(snapshot.LaunchPresets) != 1 || snapshot.LaunchPresets[0].Path != ".runnir" {
+		t.Fatalf("snapshot = %+v", snapshot)
+	}
+}

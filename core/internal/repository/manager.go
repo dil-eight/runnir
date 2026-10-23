@@ -234,6 +234,18 @@ func (m *Manager) Workflows(id string) ([]Workflow, error) {
 	return append([]Workflow(nil), e.snap.Workflows...), nil
 }
 
+// LaunchPresets returns the .runnir/launches presets of the latest published
+// snapshot.
+func (m *Manager) LaunchPresets(id string) ([]LaunchPreset, error) {
+	e, err := m.lookupReady(id)
+	if err != nil {
+		return nil, err
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return append([]LaunchPreset(nil), e.snap.LaunchPresets...), nil
+}
+
 // Refresh rescans one repository. Refreshes of the same repository run one at
 // a time; other repositories are unaffected. Closing the repository cancels a
 // running refresh, which then returns ErrNotFound.
