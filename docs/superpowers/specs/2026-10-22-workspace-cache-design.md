@@ -215,7 +215,7 @@ Errors: unknown repository `NOT_FOUND`; activity of a repository opened without 
   - New: `storageUsage(ids:)`, `clearCache(ids:)`, `deleteWorkspaceData(id:)`, `setKeepJobLogs(_:)`, sent at Core start and on change.
 - Freshness line in Overview and the Activity section, from one tested function: "Loading activity…" (none, syncing), "Showing saved activity · synced 2 hours ago" (cache), "Refreshing…", "Up to date · checked 1 minute ago", "No changes · checked just now" (304 most recently). The existing stale-data banner adds "Showing activity from <synced_at>" when the last status is not OK.
 - Settings › Storage, a new tab: the "Keep job logs on this Mac" toggle (UserDefaults, default off; turning it off says it deletes kept logs), each registered workspace with saved runs, log size, database size, local run records and any note, a "Clear Cache…" button per workspace and "Clear All Caches…". Data on disk for a workspace that is no longer registered appears as "Removed workspace" with "Delete…". Every destructive action has a confirmation that says what stays.
-- Workspace window: "Clear Cache…" in the toolbar menu, same confirmation.
+- Workspace window: no Clear Cache action; it lives in Settings › Storage only (changed after review on 2026-10-22).
 - Workspace Manager › Remove Registration: after the registry commit, `deleteWorkspaceData`. When it fails (Core not ready), the data stays and shows in Storage as "Removed workspace".
 
 ## Error Handling Summary

@@ -117,6 +117,11 @@ final class CoreHub {
             default: false
             }
         }
+
+        /// The running Core's version; nil until it is ready.
+        var coreVersion: String? {
+            if case .ready(let version) = self { version } else { nil }
+        }
     }
 
     private(set) var status: Status = .starting

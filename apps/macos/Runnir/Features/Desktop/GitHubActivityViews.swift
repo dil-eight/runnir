@@ -112,13 +112,14 @@ struct WorkspaceRunsView: View {
                         Text(session.branch.isEmpty ? "Current branch" : session.branch).lineLimit(1)
                     }.toggleStyle(.checkbox).disabled(session.branch.isEmpty)
                     Spacer()
-                    ActivityFreshnessLine(session: session).lineLimit(1)
                     Button {
                         Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
                     } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.borderless).disabled(session.isLoadingGitHub).help("Reload runs from GitHub")
                 }
-                .font(.system(size: 12)).padding(12)
+                .font(.system(size: 12)).padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 4)
+                ActivityFreshnessLine(session: session).lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.bottom, 10)
                 DesignDivider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {

@@ -58,13 +58,51 @@ struct StartupSplashView: View {
     }
 }
 
+/// Runnir's public repository, as an icon button with the GitHub mark
+/// (Primer Octicons, MIT).
 struct ProjectLink: View {
+    static let url = URL(string: "https://github.com/dil-eight/runnir")!
+    @Environment(\.openURL) private var openURL
+    @State private var hovering = false
+
     var body: some View {
-        Link(destination: URL(string: "https://github.com/dil-eight/runnir")!) {
-            Image(systemName: "arrow.up.right.square")
+        Button { openURL(Self.url) } label: {
+            Image("GitHubMark").resizable().scaledToFit().frame(width: 15, height: 15)
+                .foregroundStyle(hovering ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
+                .frame(width: 28, height: 28)
+                .background(hovering ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
         .help("Open Runnir on GitHub")
         .accessibilityLabel("Open Runnir on GitHub")
+    }
+}
+
+/// A workspace's first letter on a color taken from its id, like an IDE's
+/// project badge; the same workspace keeps its color across launches.
+struct WorkspaceBadge: View {
+    let name: String
+    let id: UUID
+    var size: CGFloat = 18
+
+    static let palette: [Color] = [RunnirTheme.primary, RunnirTheme.info, RunnirTheme.success, RunnirTheme.destructive, RunnirTheme.syntaxKey]
+
+    nonisolated static func initial(_ name: String) -> String {
+        guard let first = name.first else { return "?" }
+        return String(first).uppercased()
+    }
+
+    /// An index into `palette` (five colors) from the id's first byte.
+    nonisolated static func colorIndex(_ id: UUID) -> Int { Int(id.uuid.0) % 5 }
+
+    var body: some View {
+        Text(Self.initial(name))
+            .font(.system(size: size * 0.56, weight: .bold)).foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(Self.palette[Self.colorIndex(id)], in: RoundedRectangle(cornerRadius: size * 0.24))
+            .accessibilityHidden(true)
     }
 }
 
@@ -458,7 +496,8 @@ struct DesktopWorkspaceView: View {
     /// A file created from the name sheet, opened once the sheet is gone so
     /// a question about unsaved edits does not sit on top of it.
     @State private var openAfterSheet: String?
-    @State private var confirmClearCache = false
+    @State private var hoveringSwitcher = false
+    @State private var reportingBug = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -484,11 +523,8 @@ struct DesktopWorkspaceView: View {
         .background(RunnirTheme.background).foregroundStyle(RunnirTheme.foreground).tint(RunnirTheme.primary)
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: windowID)
-        .confirmationDialog("Clear the cache of \(workspace.name)?", isPresented: $confirmClearCache, titleVisibility: .visible) {
-            Button("Clear Cache") { Task { await desktop.core?.clearCache(workspaceIDs: [workspace.id]) } }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Saved runs, jobs, workflows and kept logs are deleted and download again. Local run history, presets, favorites and your sign-in stay.")
+        .sheet(isPresented: $reportingBug) {
+            BugReportSheet(draft: BugReportDraft.current(coreVersion: desktop.core?.status.coreVersion))
         }
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
@@ -784,12 +820,6 @@ struct DesktopWorkspaceView: View {
                     }
                 }
                 .disabled(reader == nil || files.isLoading || session?.isRefreshing == true).help("Refresh local workflows")
-                Menu {
-                    Button("Clear Cache...") { confirmClearCache = true }
-                        .disabled(desktop.core == nil)
-                } label: { Image(systemName: "ellipsis.circle") }
-                .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize().help("More workspace actions")
-                .accessibilityLabel("More workspace actions")
                 Button { requestRun(workflowID: nil) } label: { Label("Run Workflow...", systemImage: "play") }
                     .buttonStyle(DesignButtonStyle(primary: true))
                     .disabled(session?.githubRepository == nil)
@@ -855,14 +885,14 @@ struct DesktopWorkspaceView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
             // The title bar row: the window's buttons, then the workspace
-            // switcher next to them.
+            // switcher next to them, centered on the buttons (y = 16).
             HStack(spacing: 0) {
                 Color.clear.frame(width: 64)
                 workspaceSwitcherButton
                 Spacer(minLength: 0)
             }
-            .frame(height: 28)
-            Color.clear.frame(height: 5)
+            .frame(height: 32)
+            Color.clear.frame(height: 8)
             BrandLogo(height: 47, width: 128).padding(.leading, 6).padding(.top, 2).padding(.bottom, 14)
             VStack(spacing: 2) {
                 ForEach(AppSection.sidebarSections) { section in
@@ -895,11 +925,16 @@ struct DesktopWorkspaceView: View {
                     }
                 }
             }.padding(.horizontal, 10).frame(height: 45)
+            Button { reportingBug = true } label: { Label("Report a Bug...", systemImage: "ladybug") }
+                .buttonStyle(.plain).font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
+                .padding(.horizontal, 10).frame(height: 30)
+                .help("Open a bug report for Runnir on GitHub")
+                .accessibilityIdentifier("report-bug")
             Button { desktop.showSettings(in: windowID) } label: { Label("Settings...", systemImage: "gearshape") }
                 .buttonStyle(.plain).font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
                 .padding(.horizontal, 10).frame(height: 30)
         }
-        .padding(.horizontal, 12).padding(.top, 7).padding(.bottom, 14).frame(width: 220)
+        .padding(.horizontal, 12).padding(.bottom, 14).frame(width: 220)
         .frame(maxHeight: .infinity).background(RunnirTheme.sidebar)
     }
 
@@ -907,18 +942,18 @@ struct DesktopWorkspaceView: View {
     private var workspaceSwitcherButton: some View {
         Button { state.showingSwitcher = true } label: {
             HStack(spacing: 6) {
-                Image(systemName: "shippingbox").font(.system(size: 11)).foregroundStyle(RunnirTheme.primary)
-                Text(workspace.name).font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.middle)
-                Image(systemName: "chevron.up.chevron.down").font(.system(size: 9)).foregroundStyle(RunnirTheme.secondaryForeground)
+                WorkspaceBadge(name: workspace.name, id: workspace.id)
+                Text(workspace.name).font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(RunnirTheme.secondaryForeground)
             }
-            .padding(.horizontal, 8).frame(height: 24)
-            .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
+            .padding(.horizontal, 5).frame(height: 26)
+            .background(hoveringSwitcher ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: 132, alignment: .leading)
-        .help("\(workspace.name), a local working tree. Switch workspace (Shift-Command-O)")
+        .onHover { hoveringSwitcher = $0 }
+        .frame(maxWidth: 140, alignment: .leading)
+        .help(WorkspaceSwitcher.abbreviate(workspace.path))
         .accessibilityLabel("Workspace \(workspace.name)")
         .accessibilityHint("Switches to another workspace")
         .accessibilityIdentifier("workspace-switcher")

@@ -114,6 +114,51 @@ import Testing
         #expect(ActivityFreshnessText.line(F(source: .live, access: .unavailable, syncedAt: now.addingTimeInterval(-600)), now: now)
             == "Showing activity from 10 minutes ago")
         #expect(ActivityFreshnessText.line(F(), now: now) == nil)
+        // A change seconds before the last answer is "up to date", not "no changes since just now".
+        #expect(ActivityFreshnessText.line(F(source: .live, access: .ok, checkedAt: now.addingTimeInterval(-2),
+                                              syncedAt: now.addingTimeInterval(-2), changedAt: now.addingTimeInterval(-20)), now: now)
+            == "Up to date · checked just now")
+    }
+}
+
+@Suite struct BugReportTests {
+    let draft = BugReportDraft(appVersion: "0.1.0 (7)", coreVersion: "0.1.0", macOSVersion: "27.2", architecture: "arm64")
+
+    @Test func theDraftOpensANewIssueWithTheEnvironmentOnly() throws {
+        let components = try #require(URLComponents(url: draft.url, resolvingAgainstBaseURL: false))
+        #expect(components.scheme == "https" && components.host == "github.com" && components.path == "/dil-eight/runnir/issues/new")
+        let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        #expect(items["title"] == "[Bug] ")
+        let body = try #require(items["body"])
+        #expect(body.contains("- Runnir version/build: 0.1.0 (7)"))
+        #expect(body.contains("- Core version (if known): 0.1.0"))
+        #expect(body.contains("- macOS major/minor version: 27.2"))
+        #expect(body.contains("- Architecture (arm64/amd64): arm64"))
+        #expect(body.contains("## Privacy Check"))
+        #expect(!body.contains("/Users") && !body.contains(NSHomeDirectory()))
+    }
+
+    @Test func anUnknownCoreSaysSo() {
+        let offline = BugReportDraft(appVersion: "0.1.0", coreVersion: nil, macOSVersion: "27.2", architecture: "x86_64")
+        #expect(offline.environment[1] == "- Core version (if known): unknown")
+    }
+
+    @Test func theCurrentDraftReadsThisMac() {
+        let current = BugReportDraft.current(coreVersion: "1.2.3")
+        #expect(current.coreVersion == "1.2.3")
+        #expect(current.macOSVersion.split(separator: ".").count == 2)
+        #expect(["arm64", "x86_64"].contains(current.architecture))
+    }
+}
+
+@MainActor
+@Suite struct WorkspaceBadgeTests {
+    @Test func theBadgeShowsTheFirstLetterInAStableColor() {
+        let id = UUID(uuidString: "5CE88FF0-5C16-43B3-8F20-8E33E852B019")!
+        #expect(WorkspaceBadge.initial("runnir") == "R")
+        #expect(WorkspaceBadge.initial("") == "?")
+        #expect(WorkspaceBadge.colorIndex(id) == WorkspaceBadge.colorIndex(id))
+        #expect((0..<WorkspaceBadge.palette.count).contains(WorkspaceBadge.colorIndex(id)))
     }
 }
 

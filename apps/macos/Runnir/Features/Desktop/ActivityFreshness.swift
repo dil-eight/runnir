@@ -15,7 +15,9 @@ enum ActivityFreshnessText {
                 return f.syncedAt.map { "Showing activity from \(relative($0, now))" }
             }
             let checked = f.checkedAt.map { relative($0, now) } ?? "just now"
-            if let changed = f.changedAt, let synced = f.syncedAt, changed < synced {
+            // A change minutes before the last answer is still news; only
+            // an older one says how long nothing has changed.
+            if let changed = f.changedAt, let synced = f.syncedAt, synced.timeIntervalSince(changed) >= 300 {
                 return "No changes since \(relative(changed, now)) · checked \(checked)"
             }
             return "Up to date · checked \(checked)"
