@@ -108,6 +108,13 @@ func testIntervals() Intervals {
 
 func startRuntime(t *testing.T, dir string, resolve Resolver, log *eventLog) *Runtime {
 	t.Helper()
+	return startRuntimeWith(t, dir, resolve, log, nil)
+}
+
+// startRuntimeWith lets a test change the configuration before the loop
+// starts; changing it afterwards would race with the loop.
+func startRuntimeWith(t *testing.T, dir string, resolve Resolver, log *eventLog, change func(*config)) *Runtime {
+	t.Helper()
 	st, err := store.Open(dir, store.Options{})
 	if err != nil {
 		t.Fatal(err)
@@ -116,8 +123,11 @@ func startRuntime(t *testing.T, dir string, resolve Resolver, log *eventLog) *Ru
 	if log != nil {
 		publish = log.publish
 	}
-	r := newRuntime("5ce88ff0-5c16-43b3-8f20-8e33e852b019", "repo_1", resolve,
-		config{store: st, publish: publish, now: time.Now, intervals: testIntervals(), keepLogs: func() bool { return false }})
+	cfg := config{store: st, publish: publish, now: time.Now, intervals: testIntervals(), keepLogs: func() bool { return false }}
+	if change != nil {
+		change(&cfg)
+	}
+	r := newRuntime("5ce88ff0-5c16-43b3-8f20-8e33e852b019", "repo_1", resolve, cfg)
 	r.start()
 	t.Cleanup(func() { r.Close(); _ = st.Close() })
 	return r
