@@ -27,7 +27,7 @@ func run(args []string, input io.Reader, output, diagnostics io.Writer) int {
 		return serve(args[1:], input, diagnostics)
 	}
 	if len(args) != 1 {
-		fmt.Fprintln(diagnostics, "usage: runnir version | rpc | serve --socket PATH")
+		fmt.Fprintln(diagnostics, "usage: runnir version | rpc | serve --socket PATH [--data-dir PATH]")
 		return 2
 	}
 	var err error
@@ -37,7 +37,7 @@ func run(args []string, input io.Reader, output, diagnostics io.Writer) int {
 	case "rpc":
 		err = ipc.Serve(input, output, handle)
 	default:
-		fmt.Fprintln(diagnostics, "unknown command; usage: runnir version | rpc | serve --socket PATH")
+		fmt.Fprintln(diagnostics, "unknown command; usage: runnir version | rpc | serve --socket PATH [--data-dir PATH]")
 		return 2
 	}
 	if err != nil {
@@ -68,18 +68,21 @@ func handle(method string, params json.RawMessage) (any, *ipc.Error) {
 // --exit-on-stdin-eof, until the parent closes our stdin (including by dying).
 // With --client-secret-stdin the first stdin line is a per-launch secret that
 // every call except HealthCheck must present; it never appears in argv or env.
+// --data-dir is the app's support folder, where workspace databases live;
+// without it nothing is written to disk.
 func serve(args []string, input io.Reader, diagnostics io.Writer) int {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	socket := flags.String("socket", "", "Unix domain socket path")
 	exitOnEOF := flags.Bool("exit-on-stdin-eof", false, "stop when stdin closes")
 	secretOnStdin := flags.Bool("client-secret-stdin", false, "read the client secret from the first stdin line")
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || *socket == "" {
-		fmt.Fprintln(diagnostics, "usage: runnir serve --socket PATH [--exit-on-stdin-eof] [--client-secret-stdin]")
+	dataDir := flags.String("data-dir", "", "the app's support folder for workspace databases")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || *socket == "" || (*dataDir != "" && !filepath.IsAbs(*dataDir)) {
+		fmt.Fprintln(diagnostics, "usage: runnir serve --socket PATH [--data-dir PATH] [--exit-on-stdin-eof] [--client-secret-stdin]")
 		return 2
 	}
 	reader := bufio.NewReaderSize(input, 512)
-	options := server.Options{BundledAct: bundledAct()}
+	options := server.Options{BundledAct: bundledAct(), DataDir: *dataDir}
 	if *secretOnStdin {
 		secret, err := readSecret(reader)
 		if err != nil {

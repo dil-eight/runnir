@@ -21,7 +21,9 @@ import (
 	"runnir/core/internal/github"
 	"runnir/core/internal/localrun"
 	"runnir/core/internal/repository"
+	"runnir/core/internal/store"
 	"runnir/core/internal/validate"
+	"runnir/core/internal/workspace"
 )
 
 // service implements the RunnirCore RPCs. Unimplemented methods return
@@ -31,6 +33,8 @@ type service struct {
 	repositories *repository.Manager
 	events       *events.Bus
 	executions   *execution.Coordinator
+	// workspaces holds one runtime per open workspace: its database and sync.
+	workspaces *workspace.Runtimes
 	// accounts holds github.com and the Enterprise servers, each with its
 	// own token and client.
 	accounts     *github.Accounts
@@ -87,18 +91,31 @@ func (s *service) SetGitHubCredential(_ context.Context, request *corev1.SetGitH
 	case err != nil:
 		return nil, status.Error(codes.InvalidArgument, "not a valid GitHub token")
 	}
+	s.workspaces.CredentialChanged(account.Server.ID)
 	return &corev1.SetGitHubCredentialResponse{Kind: credentialKind(account.Credential.Kind())}, nil
 }
 
 func (s *service) ClearGitHubCredential(_ context.Context, request *corev1.ClearGitHubCredentialRequest) (*corev1.ClearGitHubCredentialResponse, error) {
 	s.accounts.Clear(request.GetServerId())
+	s.workspaces.CredentialChanged(request.GetServerId())
 	return &corev1.ClearGitHubCredentialResponse{}, nil
 }
 
 func (s *service) OpenRepository(ctx context.Context, request *corev1.OpenRepositoryRequest) (*corev1.RepositoryResponse, error) {
+	workspaceID := request.GetWorkspaceId()
+	if _, ok := store.NormalizeWorkspaceID(workspaceID); workspaceID != "" && !ok {
+		return nil, status.Error(codes.InvalidArgument, "workspace_id must be a UUID")
+	}
 	info, err := s.repositories.Open(ctx, request.GetPath())
 	if err != nil {
 		return nil, rpcError(err)
+	}
+	if workspaceID != "" {
+		if _, err := s.workspaces.Attach(workspaceID, info.ID, s.workspaceResolver(info.ID)); errors.Is(err, workspace.ErrMismatch) {
+			return nil, status.Error(codes.FailedPrecondition, "this folder is open for another workspace")
+		} else if err != nil {
+			return nil, status.Error(codes.Internal, "the workspace could not be opened")
+		}
 	}
 	return &corev1.RepositoryResponse{Repository: s.repositoryMessage(info)}, nil
 }
@@ -107,6 +124,10 @@ func (s *service) RefreshRepository(ctx context.Context, request *corev1.Refresh
 	info, err := s.repositories.Refresh(ctx, request.GetRepositoryId())
 	if err != nil {
 		return nil, rpcError(err)
+	}
+	// The origin may have changed, and a refresh means "read again".
+	if rt, ok := s.workspaces.ForRepository(info.ID); ok {
+		_ = rt.Refresh(ctx, false)
 	}
 	return &corev1.RepositoryResponse{Repository: s.repositoryMessage(info)}, nil
 }

@@ -14,6 +14,7 @@ import (
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
 	"runnir/core/internal/joblog"
+	"runnir/core/internal/store"
 )
 
 const maxLogLines = 50_000
@@ -34,30 +35,54 @@ type runAction struct {
 }
 
 func (s *service) GetJobLog(ctx context.Context, request *corev1.GetJobLogRequest) (*corev1.GetJobLogResponse, error) {
-	if request.GetJobId() <= 0 {
+	jobID := request.GetJobId()
+	if jobID <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "job_id is required")
 	}
 	target, problem, err := s.githubTarget(request.GetRepositoryId(), "", "")
 	if err != nil || problem != nil {
 		return &corev1.GetJobLogResponse{Status: problem}, err
 	}
-	job, fetchErr := target.account.Client.Job(ctx, target.owner, target.name, request.GetJobId())
-	result, err := s.githubStatus(target.account, fetchErr)
-	if err != nil {
-		return nil, err
+	rt, shared := s.workspaces.ForRepository(request.GetRepositoryId())
+	job, cached := github.Job{}, false
+	if shared {
+		job, cached = rt.CompletedJob(ctx, jobID)
 	}
-	out := &corev1.GetJobLogResponse{Status: result}
-	if fetchErr != nil {
-		return out, nil
+	if !cached {
+		fetched, fetchErr := target.account.Client.Job(ctx, target.owner, target.name, jobID)
+		result, err := s.githubStatus(target.account, fetchErr)
+		if err != nil {
+			return nil, err
+		}
+		if fetchErr != nil {
+			return &corev1.GetJobLogResponse{Status: result}, nil
+		}
+		job = fetched
 	}
+	out := &corev1.GetJobLogResponse{Status: statusMessage(corev1.GithubAccess_GITHUB_ACCESS_OK, time.Time{})}
 	if job.Status != "completed" {
 		out.Availability = corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_NOT_READY
 		return out, nil
 	}
-	// Bound the whole download so the Core answers before the app gives up.
-	logCtx, cancel := context.WithTimeout(ctx, jobLogBudget)
-	defer cancel()
-	log, logErr := target.account.Client.JobLog(logCtx, target.owner, target.name, request.GetJobId(), 0)
+	if shared {
+		if data, meta, ok := rt.KeptLog(ctx, jobID); ok {
+			fillLog(out, job, github.JobLog{Data: data, DroppedLines: meta.DroppedLines, Truncated: meta.Truncated, StoppedEarly: meta.StoppedEarly})
+			return out, nil
+		}
+	}
+	download := func(c context.Context) (github.JobLog, error) {
+		return target.account.Client.JobLog(c, target.owner, target.name, jobID, 0)
+	}
+	var log github.JobLog
+	var logErr error
+	if shared {
+		log, logErr = rt.SharedLog(ctx, jobID, jobLogBudget, download)
+	} else {
+		// Bound the whole download so the Core answers before the app gives up.
+		logCtx, cancel := context.WithTimeout(ctx, jobLogBudget)
+		log, logErr = download(logCtx)
+		cancel()
+	}
 	if errors.Is(logErr, context.DeadlineExceeded) && ctx.Err() == nil {
 		logErr = github.ErrUnavailable
 	}
@@ -71,6 +96,15 @@ func (s *service) GetJobLog(ctx context.Context, request *corev1.GetJobLogReques
 	if logErr != nil {
 		return out, nil
 	}
+	if shared {
+		rt.KeepLog(ctx, jobID, log.Data, store.LogMeta{DroppedLines: log.DroppedLines, Truncated: log.Truncated, StoppedEarly: log.StoppedEarly})
+	}
+	fillLog(out, job, log)
+	return out, nil
+}
+
+// fillLog parses a log tail into the response's lines.
+func fillLog(out *corev1.GetJobLogResponse, job github.Job, log github.JobLog) {
 	steps := make([]joblog.Step, 0, len(job.Steps))
 	for _, step := range job.Steps {
 		if step.Conclusion != "skipped" {
@@ -88,7 +122,6 @@ func (s *service) GetJobLog(ctx context.Context, request *corev1.GetJobLogReques
 	for _, line := range lines {
 		out.Lines = append(out.Lines, &corev1.LogLine{Number: line.Number, Text: line.Text, Kind: lineKind(line.Kind), StepNumber: line.Step})
 	}
-	return out, nil
 }
 
 func (s *service) PrepareRunAction(ctx context.Context, request *corev1.PrepareRunActionRequest) (*corev1.PrepareRunActionResponse, error) {

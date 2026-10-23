@@ -22,6 +22,7 @@ import (
 	"runnir/core/internal/repository"
 	"runnir/core/internal/scanner"
 	"runnir/core/internal/tools"
+	"runnir/core/internal/workspace"
 )
 
 // MaxSocketPathBytes is the portable sockaddr_un.sun_path limit on macOS
@@ -57,6 +58,9 @@ type Options struct {
 	ActCache string
 	// Tools overrides the tool detector, for tests.
 	Tools toolChecker
+	// DataDir is the app's support folder; each workspace keeps its database
+	// in DataDir/repositories/<workspaceId>. Empty keeps everything in memory.
+	DataDir string
 }
 
 // Run serves gRPC on a Unix domain socket until ctx is cancelled, then stops
@@ -98,6 +102,10 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 
 	bus := events.New(options.EventBuffer)
 	outputs := localrun.NewOutputs()
+	workspaces := workspace.New(workspace.Options{DataDir: options.DataDir, Publish: bus.Publish})
+	// Registered before repositories.Shutdown, so it runs after it: closing
+	// the repositories detaches their runtimes first.
+	defer workspaces.Shutdown()
 	runner := options.Runner
 	if runner == nil {
 		runner = localrun.NewRunner(outputs)
@@ -108,6 +116,7 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 	}
 	executions := execution.New(runner, execution.Options{Limit: limit}, func(e events.Event) {
 		outputs.Observe(e)
+		workspaces.ObserveExecution(e)
 		bus.Publish(e)
 	})
 	home := options.Home
@@ -127,6 +136,7 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 	repositories := repository.New(scanner.New(), func(e repository.Event) {
 		if e.Type == repository.RepositoryClosed {
 			executions.CancelRepository(e.RepositoryID)
+			workspaces.Detach(e.RepositoryID)
 		}
 		bus.Publish(fromRepository(e))
 	})
@@ -136,7 +146,7 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 		grpc.StreamInterceptor(authStream(options.ClientSecret)),
 	)
 	corev1.RegisterRunnirCoreServer(grpcServer, &service{
-		repositories: repositories, events: bus, executions: executions,
+		repositories: repositories, events: bus, executions: executions, workspaces: workspaces,
 		accounts:     github.NewAccounts(options.GitHubBaseURL, buildinfo.Version),
 		dispatches:   dispatch.NewStore(0, nil),
 		runActions:   approval.NewStore[runAction]("action_", 0, nil),
