@@ -121,23 +121,58 @@ func openDisk(dir string, now func() time.Time) (*Store, string) {
 	return s, ""
 }
 
-// openDatabase opens, checks and migrates state.sqlite.
+// openDatabase opens, checks, recovers and migrates state.sqlite.
 func (s *Store) openDatabase(ctx context.Context) (string, bool) {
 	path := filepath.Join(s.dir, databaseName)
-	if info, err := os.Lstat(path); err == nil && !info.Mode().IsRegular() {
+	info, statErr := os.Lstat(path)
+	if statErr == nil && !info.Mode().IsRegular() {
 		return "The workspace database is not a regular file.", false
 	}
-	db, err := openFile(path)
-	if err == nil {
-		err = quickCheck(db)
-	}
-	if err != nil {
-		if db != nil {
-			_ = db.Close()
+	missing := errors.Is(statErr, os.ErrNotExist)
+	var notes []string
+	var salvaged []LocalRun
+	damaged := false
+	if missing {
+		// A WAL without its database cannot be applied; keep it as evidence.
+		if _, err := os.Lstat(path + "-wal"); err == nil {
+			if _, _, err := s.quarantine(); err != nil {
+				return "Leftover database files could not be moved aside.", false
+			}
 		}
-		return "The workspace database could not be opened.", false
+	} else {
+		db, err := openFile(path)
+		if err == nil {
+			err = quickCheck(db)
+		}
+		switch {
+		case err == nil:
+			s.db = db
+		case isDamaged(err):
+			if db != nil {
+				_ = db.Close()
+			}
+			evidence, rows, moveErr := s.quarantine()
+			if moveErr != nil {
+				return "The damaged workspace database could not be moved aside.", false
+			}
+			salvaged, damaged = rows, true
+			notes = append(notes, fmt.Sprintf("The database was damaged; it was kept in %s and a new one was made.",
+				filepath.Join(recoveryDir, filepath.Base(evidence))))
+		default:
+			if db != nil {
+				_ = db.Close()
+			}
+			return "The workspace database could not be opened.", false
+		}
 	}
-	s.db = db
+	fresh := s.db == nil
+	if fresh {
+		db, err := openFile(path)
+		if err != nil {
+			return "The workspace database could not be created.", false
+		}
+		s.db = db
+	}
 	_ = os.Chmod(path, 0o600)
 	version, err := s.userVersion()
 	if err != nil {
@@ -146,9 +181,33 @@ func (s *Store) openDatabase(ctx context.Context) (string, bool) {
 	if version > len(migrations) {
 		return fmt.Sprintf("Made by a newer version of Runnir (schema %d).", version), false
 	}
+	if version > 0 && version < len(migrations) {
+		if err := s.backupBeforeMigration(ctx, version); err != nil {
+			return "A copy of the workspace database could not be made before upgrading it.", false
+		}
+	}
 	if err := s.migrate(ctx, version); err != nil {
 		return "The workspace database could not be upgraded.", false
 	}
+	if fresh {
+		restored, err := s.restoreLocal(ctx, salvaged)
+		if err != nil {
+			return "Local run records could not be restored.", false
+		}
+		switch {
+		case damaged && restored > 0:
+			notes = append(notes, fmt.Sprintf("Restored %d local run records.", restored))
+		case missing && restored > 0:
+			notes = append(notes, fmt.Sprintf("The database was missing. Restored %d local run records from the backup.", restored))
+		}
+	}
+	if err := s.markInterrupted(ctx); err != nil {
+		return "The workspace database could not be updated.", false
+	}
+	if err := s.writeLocalBackup(ctx); err != nil {
+		notes = append(notes, "The backup of local data could not be written.")
+	}
+	s.report.Note = joinNotes(notes)
 	return "", true
 }
 
@@ -163,6 +222,7 @@ func (s *Store) Dir() string { return s.dir }
 func (s *Store) Close() error {
 	s.closeOnce.Do(func() {
 		if s.dir != "" {
+			_ = s.writeLocalBackup(context.Background())
 			_, _ = s.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
 		}
 		s.closeErr = s.db.Close()
