@@ -57,7 +57,9 @@ jobs:
       - run: go run ./cmd/runnir version
 
   cross-build:
-    # The weekly run only rescans for vulnerabilities.
+    # The weekly run only rescans for vulnerabilities. The binaries only show
+    # that every target builds and are not uploaded; release.yml publishes
+    # the tagged ones as release assets.
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -82,10 +84,6 @@ jobs:
           suffix=""
           if [ "$GOOS" = windows ]; then suffix=".exe"; fi
           go build -trimpath -o "../build/runnir-${GOOS}-${GOARCH}${suffix}" ./cmd/runnir
-      - uses: actions/upload-artifact@v7
-        with:
-          name: runnir-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: build/runnir-*
 
   contracts:
     # The weekly run only rescans for vulnerabilities.

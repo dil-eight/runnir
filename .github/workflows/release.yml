@@ -1,5 +1,8 @@
 name: Release Build
 
+# The only workflow that keeps build output: the tagged app and Core binaries
+# are published as assets of a draft GitHub release. One job builds them all,
+# so no Actions artifacts are needed to pass files between jobs.
 on:
   push:
     tags:
@@ -9,41 +12,8 @@ permissions:
   contents: write
 
 jobs:
-  core-binaries:
-    name: Core ${{ matrix.goos }}/${{ matrix.goarch }}
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      matrix:
-        goos: [darwin, linux, windows]
-        goarch: [arm64, amd64]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: core/go.mod
-          cache: false
-      - name: Build tagged binary
-        working-directory: core
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: "0"
-        run: |
-          suffix=""
-          if [ "$GOOS" = windows ]; then suffix=".exe"; fi
-          go build -trimpath -ldflags "-X runnir/core/internal/buildinfo.Version=${GITHUB_REF_NAME#v}" \
-            -o "../build/runnir-${GITHUB_REF_NAME}-${GOOS}-${GOARCH}${suffix}" ./cmd/runnir
-      - uses: actions/upload-artifact@v7
-        with:
-          name: core-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: build/runnir-*
-
   build-release:
-    needs: core-binaries
-    name: Build unsigned release artifact
+    name: Build unsigned release
     runs-on: macos-26
     timeout-minutes: 45
     steps:
@@ -58,11 +28,20 @@ jobs:
           go-version-file: core/go.mod
           cache: false
 
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: core-*
-          merge-multiple: true
-          path: build/export
+      - name: Build Core binaries
+        working-directory: core
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          for goos in darwin linux windows; do
+            for goarch in arm64 amd64; do
+              suffix=""
+              if [ "$goos" = windows ]; then suffix=".exe"; fi
+              GOOS=$goos GOARCH=$goarch go build -trimpath \
+                -ldflags "-X runnir/core/internal/buildinfo.Version=${GITHUB_REF_NAME#v}" \
+                -o "../build/export/runnir-${GITHUB_REF_NAME}-${goos}-${goarch}${suffix}" ./cmd/runnir
+            done
+          done
 
       - name: Build archive
         run: |
@@ -74,9 +53,8 @@ jobs:
             MARKETING_VERSION="${GITHUB_REF_NAME#v}" \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Package app artifact
+      - name: Package app
         run: |
-          mkdir -p build/export
           ditto -c -k --sequesterRsrc --keepParent \
             build/Runnir.xcarchive/Products/Applications/Runnir.app \
             build/export/Runnir-${GITHUB_REF_NAME}-unsigned.zip
@@ -97,3 +75,14 @@ jobs:
             ${prerelease_flag} \
             --title "Runnir ${GITHUB_REF_NAME}" \
             --notes "Unsigned bootstrap build. Production releases require Developer ID signing and notarization."
+
+      - name: Check release assets
+        # Downloads every asset back from the release and compares it with
+        # the file that was built.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          (cd build/export && shasum -a 256 Runnir-* runnir-*) > "$RUNNER_TEMP/built.sha256"
+          gh release download "${GITHUB_REF_NAME}" --dir "$RUNNER_TEMP/downloaded"
+          (cd "$RUNNER_TEMP/downloaded" && shasum -a 256 -c "$RUNNER_TEMP/built.sha256")
+          test "$(ls "$RUNNER_TEMP/downloaded" | wc -l)" -eq "$(wc -l < "$RUNNER_TEMP/built.sha256")"
