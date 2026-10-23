@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -454,5 +455,23 @@ func TestCommonDirIsFollowedOnlyForALinkedWorktree(t *testing.T) {
 	write(t, worktree, ".git", "gitdir: "+filepath.Join(main, ".git", "worktrees", "wt")+"\n")
 	if got := scan(t, worktree); got.OriginRepository != "" || got.Branch != "topic" {
 		t.Fatalf("worktree with a foreign commondir = %+v", got)
+	}
+}
+
+func TestScanReadsTheDispatchInputsOfEachWorkflow(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, ".github/workflows/deploy.yml", "on:\n  workflow_dispatch:\n    inputs:\n      value:\n        description: The password for staging\n      region:\n        type: choice\n        options: [eu, us]\njobs: {}\n")
+	write(t, root, ".github/workflows/ci.yml", "on: push\njobs: {}\n")
+	snapshot := scan(t, root)
+	deploy := byID(snapshot, ".github/workflows/deploy.yml")
+	want := []repository.DispatchInput{
+		{Name: "value", Description: "The password for staging", Type: "string"},
+		{Name: "region", Type: "choice", Options: []string{"eu", "us"}},
+	}
+	if deploy == nil || !reflect.DeepEqual(deploy.DispatchInputs, want) {
+		t.Fatalf("deploy = %+v", deploy)
+	}
+	if ci := byID(snapshot, ".github/workflows/ci.yml"); ci == nil || len(ci.DispatchInputs) != 0 {
+		t.Fatalf("ci = %+v", ci)
 	}
 }

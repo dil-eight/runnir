@@ -470,6 +470,7 @@ func parse(id string, data []byte) repository.Workflow {
 			workflow.Jobs = jobs(value, &workflow)
 		}
 	}
+	workflow.DispatchInputs = dispatchOf(top).Inputs
 	return workflow
 }
 

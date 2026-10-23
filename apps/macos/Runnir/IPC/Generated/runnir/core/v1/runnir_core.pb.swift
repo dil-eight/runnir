@@ -1091,6 +1091,9 @@ nonisolated struct Runnir_Core_V1_Workflow: Sendable {
   /// Set when the file could not be parsed; other fields may be partial.
   var parseError: String = String()
 
+  /// The workflow_dispatch inputs the local file declares.
+  var dispatchInputs: [Runnir_Core_V1_DispatchInput] = []
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -3941,7 +3944,7 @@ nonisolated extension Runnir_Core_V1_ListWorkflowsResponse: SwiftProtobuf.Messag
 
 nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".Workflow"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}triggers\0\u{1}jobs\0\u{3}parse_error\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}triggers\0\u{1}jobs\0\u{3}parse_error\0\u{3}dispatch_inputs\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3954,6 +3957,7 @@ nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProto
       case 3: try { try decoder.decodeRepeatedStringField(value: &self.triggers) }()
       case 4: try { try decoder.decodeRepeatedMessageField(value: &self.jobs) }()
       case 5: try { try decoder.decodeSingularStringField(value: &self.parseError) }()
+      case 6: try { try decoder.decodeRepeatedMessageField(value: &self.dispatchInputs) }()
       default: break
       }
     }
@@ -3975,6 +3979,9 @@ nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProto
     if !self.parseError.isEmpty {
       try visitor.visitSingularStringField(value: self.parseError, fieldNumber: 5)
     }
+    if !self.dispatchInputs.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.dispatchInputs, fieldNumber: 6)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3984,6 +3991,7 @@ nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProto
     if lhs.triggers != rhs.triggers {return false}
     if lhs.jobs != rhs.jobs {return false}
     if lhs.parseError != rhs.parseError {return false}
+    if lhs.dispatchInputs != rhs.dispatchInputs {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -49,6 +49,8 @@ final class RepositorySession: Identifiable {
     fileprivate(set) var launchPresets: [CoreLaunchPreset] = []
     /// Why the last read of `launchPresets` failed; the previous list stays.
     fileprivate(set) var launchPresetsError: String?
+    /// Counts reads of `launchPresets`; only the latest one may land.
+    @ObservationIgnored fileprivate var launchPresetReads = 0
     fileprivate(set) var lastRefresh: Date?
     fileprivate(set) var isRefreshing = false
     fileprivate(set) var refreshError: String?
@@ -1229,14 +1231,22 @@ final class CoreHub {
     }
 
     /// Reads the repository's presets. A failed read keeps the last list and
-    /// says why; it never fails opening or refreshing the repository.
+    /// says why; it never fails opening or refreshing the repository. Reads
+    /// started from opening, refreshing and events are not ordered, so only
+    /// the latest started may land: it saw the newest scan.
     private func loadLaunchPresets(of session: RepositorySession, coreID: String, service: any CoreServicing) async {
-        func isCurrent() -> Bool { sessions[session.workspaceID] === session && session.coreID == coreID }
+        session.launchPresetReads += 1
+        let read = session.launchPresetReads
+        func isCurrent() -> Bool {
+            sessions[session.workspaceID] === session && session.coreID == coreID && session.launchPresetReads == read
+        }
         do {
             let presets = try await service.listLaunchPresets(repositoryID: coreID)
             guard isCurrent() else { return }
             session.launchPresets = presets
             session.launchPresetsError = nil
+        } catch is CancellationError {
+            return // nothing failed
         } catch {
             guard isCurrent() else { return }
             session.launchPresetsError = Self.describe(error)

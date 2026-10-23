@@ -390,17 +390,18 @@ struct WorkspaceOverview: View {
     @ViewBuilder private func sharedRow(_ row: RepositoryPresetRow, available: Bool) -> some View {
         switch row {
         case .preset(let preset, let workflow):
+            let declared = session?.workflows.first { $0.id == preset.workflowPath }?.dispatchInputs ?? []
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(preset.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                    Text(sharedDetail(preset, workflow: workflow, available: available))
+                    Text(RepositoryPresetRow.detail(preset, workflow: workflow, declared: declared, available: available))
                         .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
                 }
                 Spacer(minLength: 8)
                 Button("Run") {
                     if let workflow { runWorkflow(workflow.id, CoreLaunchPreset.presetID(workspaceID: workspaceID, path: preset.path)) }
                 }
-                .buttonStyle(DesignButtonStyle()).disabled(!available || workflow?.state != "active")
+                .buttonStyle(DesignButtonStyle()).disabled(!RepositoryPresetRow.canRun(workflow: workflow, available: available))
                 .help(workflow.map { "Review and start \($0.name) with this preset" } ?? "This workflow is not on GitHub yet")
             }.padding(.vertical, 4)
         case .problem(let preset):
@@ -408,13 +409,6 @@ struct WorkspaceOverview: View {
         case .unreadable(let reason):
             problemRow(title: ".runnir/launches", detail: "Repository presets could not be read. \(reason)")
         }
-    }
-
-    private func sharedDetail(_ preset: CoreLaunchPreset, workflow: CoreGitHubWorkflow?, available: Bool) -> String {
-        let name = workflow?.name ?? (preset.workflowPath as NSString).lastPathComponent
-        let detail = DispatchPreset.detail(workflow: name, ref: preset.ref ?? "", inputs: preset.inputs)
-        // GitHub's list is known only with access; without it every Run is off anyway.
-        return workflow == nil && available ? detail + " · not on GitHub yet" : detail
     }
 
     private func problemRow(title: String, detail: String) -> some View {

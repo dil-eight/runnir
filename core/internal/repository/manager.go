@@ -52,6 +52,19 @@ type Workflow struct {
 	Triggers   []string
 	Jobs       []Job
 	ParseError string
+	// DispatchInputs are the workflow_dispatch inputs the local file declares.
+	DispatchInputs []DispatchInput
+}
+
+// DispatchInput is one `on.workflow_dispatch.inputs` entry.
+type DispatchInput struct {
+	Name        string
+	Description string
+	// Type is "string" (the default), "boolean", "choice", "number" or "environment".
+	Type     string
+	Required bool
+	Default  string
+	Options  []string
 }
 
 type Job struct {

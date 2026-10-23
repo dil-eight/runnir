@@ -44,7 +44,12 @@ func ReadLaunchPresets(ctx context.Context, root string, workflows map[string]bo
 		case errors.Is(err, fs.ErrNotExist):
 			return nil
 		case err != nil:
-			return []repository.LaunchPreset{{Path: dir, Problem: "Can't read " + dir}}
+			// lstat needs to search the folder that holds dir, not dir itself.
+			blame := path.Dir(dir)
+			if blame == "." {
+				blame = dir
+			}
+			return []repository.LaunchPreset{{Path: blame, Problem: "Can't read " + blame}}
 		case info.Mode()&fs.ModeSymlink != 0:
 			return []repository.LaunchPreset{{Path: dir, Problem: dir + " is a symbolic link; Runnir does not follow links"}}
 		case !info.IsDir():
@@ -70,12 +75,14 @@ func ReadLaunchPresets(ctx context.Context, root string, workflows map[string]bo
 			break
 		}
 		read++
-		rel := path.Join(launchesDir, entry.Name())
+		// gRPC refuses strings that are not valid UTF-8, and one such file
+		// name would fail the whole list; the name is only shown.
+		rel := path.Join(launchesDir, strings.ToValidUTF8(entry.Name(), "�"))
 		if entry.Type()&fs.ModeSymlink != 0 {
 			problems = append(problems, repository.LaunchPreset{Path: rel, Problem: "symbolic link; Runnir does not follow links"})
 			continue
 		}
-		data, err := readBounded(filepath.Join(root, filepath.FromSlash(rel)), maxLaunchFileBytes)
+		data, err := readBounded(filepath.Join(root, filepath.FromSlash(launchesDir), entry.Name()), maxLaunchFileBytes)
 		switch {
 		case err == errTooLarge:
 			problems = append(problems, repository.LaunchPreset{Path: rel, Problem: "file is larger than 64 KiB"})

@@ -192,7 +192,15 @@ final class DispatchFormModel {
     /// only, as the Core last read them.
     var repositoryPresets: [DispatchPreset] {
         guard let path = selectedWorkflow?.path, let workspaceID, let session = hub.session(for: workspaceID) else { return [] }
-        return session.launchPresets.filter { $0.isUsable && $0.workflowPath == path }.map { $0.dispatchPreset(workspaceID: workspaceID) }
+        return session.launchPresets.filter { $0.isUsable && $0.workflowPath == path }
+            .sorted(by: CoreLaunchPreset.menuOrder).map { $0.dispatchPreset(workspaceID: workspaceID) }
+    }
+
+    /// The preset menu works when either source has something to offer:
+    /// presets on this Mac can be off (their file is unreadable) while the
+    /// repository's are fine.
+    var canChoosePreset: Bool {
+        presets?.isAvailable == true || !repositoryPresets.isEmpty
     }
 
     var appliedPreset: DispatchPreset? {
@@ -568,7 +576,7 @@ struct RunWorkflowSheet: View {
                     Label(presetTitle, systemImage: "bookmark")
                 }
                 .fixedSize()
-                .disabled(!presets.isAvailable)
+                .disabled(!model.canChoosePreset)
             }
             if let problem = presets.problem {
                 Label(problem, systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(RunnirTheme.warning)

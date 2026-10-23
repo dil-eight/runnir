@@ -150,6 +150,9 @@ func (s *service) ListWorkflows(_ context.Context, request *corev1.ListWorkflows
 		for _, j := range w.Jobs {
 			item.Jobs = append(item.Jobs, &corev1.Job{Id: j.ID, Name: j.Name, Needs: j.Needs})
 		}
+		for _, input := range w.DispatchInputs {
+			item.DispatchInputs = append(item.DispatchInputs, dispatchInputMessage(input))
+		}
 		out.Workflows = append(out.Workflows, item)
 	}
 	return out, nil

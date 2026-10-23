@@ -38,6 +38,8 @@ struct CoreWorkflow: Equatable, Identifiable, Sendable {
     let triggers: [String]
     let jobs: [CoreJob]
     let parseError: String?
+    /// The workflow_dispatch inputs the local file declares.
+    var dispatchInputs: [CoreDispatchInput] = []
 }
 
 /// A Run Workflow preset the repository shares in .runnir/launches, or, with

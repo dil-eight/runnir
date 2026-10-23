@@ -243,3 +243,35 @@ func TestPresetProblemsNeverFailTheScan(t *testing.T) {
 		t.Fatalf("snapshot = %+v", snapshot)
 	}
 }
+
+func TestAnUnsearchableRunnirFolderIsNamed(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("permission bits are not enforced here")
+	}
+	root := t.TempDir()
+	write(t, root, ".runnir/launches/p.yaml", "name: A\nworkflow: deploy.yml\n")
+	dir := filepath.Join(root, ".runnir")
+	if err := os.Chmod(dir, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(dir, 0o755)
+	got := readPresets(t, root)
+	if len(got) != 1 || got[0].Path != ".runnir" || got[0].Problem != "Can't read .runnir" {
+		t.Fatalf("presets = %+v", got)
+	}
+}
+
+func TestFileNamesThatAreNotUTF8StayValid(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".runnir", "launches"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	name := "bad\xff.yaml"
+	if err := os.WriteFile(filepath.Join(root, ".runnir", "launches", name), []byte("name: Bad\nworkflow: deploy.yml\n"), 0o644); err != nil {
+		t.Skip("this file system refuses names that are not UTF-8")
+	}
+	got := readPresets(t, root)
+	if len(got) != 1 || !utf8.ValidString(got[0].Path) || got[0].Problem != "" || got[0].Name != "Bad" {
+		t.Fatalf("presets = %+v", got)
+	}
+}

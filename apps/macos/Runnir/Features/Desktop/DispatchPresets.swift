@@ -29,12 +29,17 @@ struct DispatchPreset: Codable, Identifiable, Equatable, Sendable {
     /// heuristic: the app cannot know what an input carries, so the sheet
     /// says which inputs are left out rather than promising none are kept.
     static func looksSecret(_ input: CoreDispatchInput) -> Bool {
-        let text = (input.name + " " + input.description).lowercased()
+        looksSecret(name: input.name, description: input.description)
+    }
+
+    /// The same check from a name and, when known, the input's description.
+    static func looksSecret(name: String, description: String) -> Bool {
+        let text = (name + " " + description).lowercased()
         if ["secret", "token", "passw", "passphrase", "credential", "apikey", "privatekey"].contains(where: text.contains) {
             return true
         }
         let secretWords: Set<String> = ["key", "pat", "pwd", "pass", "otp", "pin", "auth", "cert", "cookie", "session"]
-        return !secretWords.isDisjoint(with: words(input.name)) || !secretWords.isDisjoint(with: words(input.description))
+        return !secretWords.isDisjoint(with: words(name)) || !secretWords.isDisjoint(with: words(description))
     }
 
     /// Lowercased words of an identifier or sentence: "deployKey" and
@@ -271,14 +276,26 @@ extension CoreLaunchPreset {
     }
 }
 
+extension CoreLaunchPreset {
+    /// Menu order: by name as Finder sorts ("P2" before "P10", case
+    /// ignored), then by file.
+    static func menuOrder(_ a: CoreLaunchPreset, _ b: CoreLaunchPreset) -> Bool {
+        switch a.name.localizedStandardCompare(b.name) {
+        case .orderedAscending: true
+        case .orderedDescending: false
+        case .orderedSame: a.path < b.path
+        }
+    }
+}
+
 extension DispatchPreset {
     /// "Deploy · main · environment=staging": the workflow, the branch when
-    /// set, then the values by name, with values of inputs that look secret
-    /// hidden.
-    static func detail(workflow: String, ref: String, inputs: [String: String]) -> String {
+    /// set, then the values by name. A value is hidden when its input looks
+    /// secret, judged with the description `declared` gives for it.
+    static func detail(workflow: String, ref: String, inputs: [String: String], declared: [CoreDispatchInput] = []) -> String {
+        let descriptions = Dictionary(declared.map { ($0.name, $0.description) }, uniquingKeysWith: { first, _ in first })
         let values = inputs.sorted { $0.key < $1.key }.map { name, value in
-            let hidden = looksSecret(CoreDispatchInput(name: name, description: "", kind: .string, required: false, defaultValue: "", options: []))
-            return "\(name)=\(hidden ? "•••" : value)"
+            "\(name)=\(looksSecret(name: name, description: descriptions[name] ?? "") ? "•••" : value)"
         }
         return ([workflow] + (ref.isEmpty ? [] : [ref]) + values).joined(separator: " · ")
     }
@@ -302,13 +319,28 @@ enum RepositoryPresetRow: Equatable, Identifiable {
         }
     }
 
-    /// The Core's order (usable presets by name, then problems), then a row
-    /// for a failed read.
+    /// Usable presets in menu order, then problems as the Core lists them,
+    /// then a row for a failed read.
     static func rows(presets: [CoreLaunchPreset], remoteWorkflows: [CoreGitHubWorkflow], readError: String?) -> [RepositoryPresetRow] {
-        var rows = presets.map { preset -> RepositoryPresetRow in
-            preset.isUsable ? .preset(preset, workflow: remoteWorkflows.first { $0.path == preset.workflowPath }) : .problem(preset)
+        var rows = presets.filter(\.isUsable).sorted(by: CoreLaunchPreset.menuOrder).map { preset -> RepositoryPresetRow in
+            .preset(preset, workflow: remoteWorkflows.first { $0.path == preset.workflowPath })
         }
+        rows += presets.filter { !$0.isUsable }.map { .problem($0) }
         if let readError { rows.append(.unreadable(readError)) }
         return rows
+    }
+
+    /// Run is offered while GitHub can be used and runs the preset's workflow.
+    static func canRun(workflow: CoreGitHubWorkflow?, available: Bool) -> Bool {
+        available && workflow?.state == "active"
+    }
+
+    /// A usable preset's detail line. `declared` are the inputs the local
+    /// workflow file declares. "not on GitHub yet" is added only while
+    /// GitHub's list is known (`available`); without it every Run is off.
+    static func detail(_ preset: CoreLaunchPreset, workflow: CoreGitHubWorkflow?, declared: [CoreDispatchInput], available: Bool) -> String {
+        let name = workflow?.name ?? (preset.workflowPath as NSString).lastPathComponent
+        let detail = DispatchPreset.detail(workflow: name, ref: preset.ref ?? "", inputs: preset.inputs, declared: declared)
+        return workflow == nil && available ? detail + " · not on GitHub yet" : detail
     }
 }

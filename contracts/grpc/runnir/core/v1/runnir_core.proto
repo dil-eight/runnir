@@ -210,6 +210,8 @@ message Workflow {
   repeated Job jobs = 4;
   // Set when the file could not be parsed; other fields may be partial.
   string parse_error = 5;
+  // The workflow_dispatch inputs the local file declares.
+  repeated DispatchInput dispatch_inputs = 6;
 }
 
 message Job {
