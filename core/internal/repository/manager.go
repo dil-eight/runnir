@@ -41,6 +41,9 @@ type Snapshot struct {
 	OriginHost       string
 	OriginRepository string
 	Workflows        []Workflow
+	// LaunchPresets are the Run Workflow presets of .runnir/launches, with
+	// entries for files or folders that cannot be used.
+	LaunchPresets []LaunchPreset
 }
 
 type Workflow struct {
@@ -55,6 +58,23 @@ type Job struct {
 	ID    string
 	Name  string
 	Needs []string
+}
+
+// LaunchPreset is one file of .runnir/launches: a Run Workflow preset the
+// repository shares, or, with Problem set, why a file or folder there cannot
+// be used.
+type LaunchPreset struct {
+	// Path is ".runnir/launches/<file>", or ".runnir" or ".runnir/launches"
+	// for an entry about that folder.
+	Path string
+	Name string
+	// WorkflowPath is ".github/workflows/<file>".
+	WorkflowPath string
+	// Ref is empty when the preset keeps the form's branch.
+	Ref    string
+	Inputs map[string]string
+	// Problem is empty for a usable preset.
+	Problem string
 }
 
 // Info is a point-in-time view of one repository context.
