@@ -18,6 +18,25 @@ service RunnirCore {
   rpc CloseRepository(CloseRepositoryRequest) returns (CloseRepositoryResponse);
   rpc RefreshRepository(RefreshRepositoryRequest) returns (RepositoryResponse);
 
+  // A workspace's GitHub activity as cached on this Mac: the newest runs,
+  // the workflows and how fresh they are. Never waits for GitHub. Needs a
+  // repository opened with a workspace_id (FAILED_PRECONDITION otherwise).
+  rpc GetWorkspaceActivity(GetWorkspaceActivityRequest) returns (WorkspaceActivity);
+  // Asks the workspace's sync for a pass; requests during a pass are merged
+  // into one more. With wait, answers after a pass that started after the
+  // request ended.
+  rpc RefreshWorkspaceActivity(RefreshWorkspaceActivityRequest) returns (WorkspaceActivity);
+  // What workspaces keep on this Mac, by id; empty ids: every workspace with
+  // data and every open one.
+  rpc GetStorageUsage(GetStorageUsageRequest) returns (GetStorageUsageResponse);
+  // Deletes what can be downloaded again (runs, jobs, workflows, kept
+  // logs); local run history, backups and recovery copies stay.
+  rpc ClearWorkspaceCache(ClearWorkspaceCacheRequest) returns (ClearWorkspaceCacheResponse);
+  // Deletes a workspace's whole folder; refused while it is open.
+  rpc DeleteWorkspaceData(DeleteWorkspaceDataRequest) returns (DeleteWorkspaceDataResponse);
+  // Whether completed jobs' logs are kept on this Mac. Off in every new Core.
+  rpc SetStoragePreferences(SetStoragePreferencesRequest) returns (SetStoragePreferencesResponse);
+
   rpc ListWorkflows(ListWorkflowsRequest) returns (ListWorkflowsResponse);
   // Checks the workflow files on disk now with actionlint, built into the
   // Core; no external program runs and nothing is sent anywhere.
@@ -133,6 +152,9 @@ message HealthCheckResponse {
 message OpenRepositoryRequest {
   // Absolute path of a working tree already granted to the app.
   string path = 1;
+  // The registry's UUID of the workspace; gives the repository its
+  // database and sync. Empty opens without them.
+  string workspace_id = 2;
 }
 
 message CloseRepositoryRequest {
@@ -229,6 +251,8 @@ enum CoreEventType {
   CORE_EVENT_TYPE_WORKFLOW_COMPLETED = 7;
   CORE_EVENT_TYPE_WORKFLOW_FAILED = 8;
   CORE_EVENT_TYPE_CORE_ERROR = 9;
+  // A workspace's cached activity or its freshness changed; read it again.
+  CORE_EVENT_TYPE_ACTIVITY_CHANGED = 10;
 }
 
 message CoreEvent {
@@ -1061,3 +1085,100 @@ message RenameWorkflowFileResponse {
   // The file's Workflow.id under its new name.
   string workflow_id = 1;
 }
+
+message GetWorkspaceActivityRequest {
+  string repository_id = 1;
+  // Runs to return, newest first: 1 to 200; 0 means 50.
+  uint32 limit = 2;
+}
+
+message RefreshWorkspaceActivityRequest {
+  string repository_id = 1;
+  bool wait = 2;
+  uint32 limit = 3;
+}
+
+message WorkspaceActivity {
+  repeated WorkflowRun runs = 1;
+  repeated GitHubWorkflow workflows = 2;
+  ActivityFreshness freshness = 3;
+}
+
+enum ActivitySource {
+  ACTIVITY_SOURCE_UNSPECIFIED = 0;
+  // Nothing is cached for the repository the origin points at now.
+  ACTIVITY_SOURCE_NONE = 1;
+  // Read from this Mac; no pass reached GitHub since the Core started.
+  ACTIVITY_SOURCE_CACHE = 2;
+  // A pass reached GitHub since the Core started.
+  ACTIVITY_SOURCE_LIVE = 3;
+}
+
+message ActivityFreshness {
+  ActivitySource source = 1;
+  bool syncing = 2;
+  // The last pass's outcome; unset before the first one.
+  GitHubStatus status = 3;
+  // When the last pass ended.
+  google.protobuf.Timestamp checked_at = 4;
+  // When a pass last got answers (new data or not modified).
+  google.protobuf.Timestamp synced_at = 5;
+  // When the cached data last changed.
+  google.protobuf.Timestamp changed_at = 6;
+}
+
+enum StorageState {
+  STORAGE_STATE_UNSPECIFIED = 0;
+  STORAGE_STATE_PERSISTENT = 1;
+  // Kept in memory for now; note says why.
+  STORAGE_STATE_MEMORY_ONLY = 2;
+  // Nothing on this Mac.
+  STORAGE_STATE_ABSENT = 3;
+}
+
+message WorkspaceStorage {
+  // Lowercase UUID.
+  string workspace_id = 1;
+  StorageState state = 2;
+  // Why it is in memory, or what recovery did. Never a credential.
+  string note = 3;
+  bool open = 4;
+  // The database and its write-ahead log.
+  uint64 database_bytes = 5;
+  uint64 log_bytes = 6;
+  uint32 cached_runs = 7;
+  uint32 local_runs = 8;
+  uint32 recovery_copies = 9;
+}
+
+message GetStorageUsageRequest {
+  repeated string workspace_ids = 1;
+}
+
+message GetStorageUsageResponse {
+  repeated WorkspaceStorage workspaces = 1;
+  bool keep_job_logs = 2;
+}
+
+message ClearWorkspaceCacheRequest {
+  // Empty: every workspace.
+  repeated string workspace_ids = 1;
+}
+
+message ClearWorkspaceCacheResponse {
+  repeated WorkspaceStorage workspaces = 1;
+}
+
+message DeleteWorkspaceDataRequest {
+  string workspace_id = 1;
+}
+
+message DeleteWorkspaceDataResponse {}
+
+message SetStoragePreferencesRequest {
+  bool keep_job_logs = 1;
+  // With keep_job_logs off: also delete the logs kept so far.
+  bool delete_kept_logs = 2;
+}
+
+message SetStoragePreferencesResponse {}

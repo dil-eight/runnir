@@ -28,6 +28,12 @@ const (
 	RunnirCore_OpenRepository_FullMethodName           = "/runnir.core.v1.RunnirCore/OpenRepository"
 	RunnirCore_CloseRepository_FullMethodName          = "/runnir.core.v1.RunnirCore/CloseRepository"
 	RunnirCore_RefreshRepository_FullMethodName        = "/runnir.core.v1.RunnirCore/RefreshRepository"
+	RunnirCore_GetWorkspaceActivity_FullMethodName     = "/runnir.core.v1.RunnirCore/GetWorkspaceActivity"
+	RunnirCore_RefreshWorkspaceActivity_FullMethodName = "/runnir.core.v1.RunnirCore/RefreshWorkspaceActivity"
+	RunnirCore_GetStorageUsage_FullMethodName          = "/runnir.core.v1.RunnirCore/GetStorageUsage"
+	RunnirCore_ClearWorkspaceCache_FullMethodName      = "/runnir.core.v1.RunnirCore/ClearWorkspaceCache"
+	RunnirCore_DeleteWorkspaceData_FullMethodName      = "/runnir.core.v1.RunnirCore/DeleteWorkspaceData"
+	RunnirCore_SetStoragePreferences_FullMethodName    = "/runnir.core.v1.RunnirCore/SetStoragePreferences"
 	RunnirCore_ListWorkflows_FullMethodName            = "/runnir.core.v1.RunnirCore/ListWorkflows"
 	RunnirCore_ValidateWorkflows_FullMethodName        = "/runnir.core.v1.RunnirCore/ValidateWorkflows"
 	RunnirCore_SaveWorkflowFile_FullMethodName         = "/runnir.core.v1.RunnirCore/SaveWorkflowFile"
@@ -68,6 +74,24 @@ type RunnirCoreClient interface {
 	OpenRepository(ctx context.Context, in *OpenRepositoryRequest, opts ...grpc.CallOption) (*RepositoryResponse, error)
 	CloseRepository(ctx context.Context, in *CloseRepositoryRequest, opts ...grpc.CallOption) (*CloseRepositoryResponse, error)
 	RefreshRepository(ctx context.Context, in *RefreshRepositoryRequest, opts ...grpc.CallOption) (*RepositoryResponse, error)
+	// A workspace's GitHub activity as cached on this Mac: the newest runs,
+	// the workflows and how fresh they are. Never waits for GitHub. Needs a
+	// repository opened with a workspace_id (FAILED_PRECONDITION otherwise).
+	GetWorkspaceActivity(ctx context.Context, in *GetWorkspaceActivityRequest, opts ...grpc.CallOption) (*WorkspaceActivity, error)
+	// Asks the workspace's sync for a pass; requests during a pass are merged
+	// into one more. With wait, answers after a pass that started after the
+	// request ended.
+	RefreshWorkspaceActivity(ctx context.Context, in *RefreshWorkspaceActivityRequest, opts ...grpc.CallOption) (*WorkspaceActivity, error)
+	// What workspaces keep on this Mac, by id; empty ids: every workspace with
+	// data and every open one.
+	GetStorageUsage(ctx context.Context, in *GetStorageUsageRequest, opts ...grpc.CallOption) (*GetStorageUsageResponse, error)
+	// Deletes what can be downloaded again (runs, jobs, workflows, kept
+	// logs); local run history, backups and recovery copies stay.
+	ClearWorkspaceCache(ctx context.Context, in *ClearWorkspaceCacheRequest, opts ...grpc.CallOption) (*ClearWorkspaceCacheResponse, error)
+	// Deletes a workspace's whole folder; refused while it is open.
+	DeleteWorkspaceData(ctx context.Context, in *DeleteWorkspaceDataRequest, opts ...grpc.CallOption) (*DeleteWorkspaceDataResponse, error)
+	// Whether completed jobs' logs are kept on this Mac. Off in every new Core.
+	SetStoragePreferences(ctx context.Context, in *SetStoragePreferencesRequest, opts ...grpc.CallOption) (*SetStoragePreferencesResponse, error)
 	ListWorkflows(ctx context.Context, in *ListWorkflowsRequest, opts ...grpc.CallOption) (*ListWorkflowsResponse, error)
 	// Checks the workflow files on disk now with actionlint, built into the
 	// Core; no external program runs and nothing is sent anywhere.
@@ -197,6 +221,66 @@ func (c *runnirCoreClient) RefreshRepository(ctx context.Context, in *RefreshRep
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RepositoryResponse)
 	err := c.cc.Invoke(ctx, RunnirCore_RefreshRepository_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) GetWorkspaceActivity(ctx context.Context, in *GetWorkspaceActivityRequest, opts ...grpc.CallOption) (*WorkspaceActivity, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceActivity)
+	err := c.cc.Invoke(ctx, RunnirCore_GetWorkspaceActivity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) RefreshWorkspaceActivity(ctx context.Context, in *RefreshWorkspaceActivityRequest, opts ...grpc.CallOption) (*WorkspaceActivity, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceActivity)
+	err := c.cc.Invoke(ctx, RunnirCore_RefreshWorkspaceActivity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) GetStorageUsage(ctx context.Context, in *GetStorageUsageRequest, opts ...grpc.CallOption) (*GetStorageUsageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetStorageUsageResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_GetStorageUsage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) ClearWorkspaceCache(ctx context.Context, in *ClearWorkspaceCacheRequest, opts ...grpc.CallOption) (*ClearWorkspaceCacheResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearWorkspaceCacheResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ClearWorkspaceCache_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) DeleteWorkspaceData(ctx context.Context, in *DeleteWorkspaceDataRequest, opts ...grpc.CallOption) (*DeleteWorkspaceDataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteWorkspaceDataResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_DeleteWorkspaceData_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) SetStoragePreferences(ctx context.Context, in *SetStoragePreferencesRequest, opts ...grpc.CallOption) (*SetStoragePreferencesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetStoragePreferencesResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_SetStoragePreferences_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -511,6 +595,24 @@ type RunnirCoreServer interface {
 	OpenRepository(context.Context, *OpenRepositoryRequest) (*RepositoryResponse, error)
 	CloseRepository(context.Context, *CloseRepositoryRequest) (*CloseRepositoryResponse, error)
 	RefreshRepository(context.Context, *RefreshRepositoryRequest) (*RepositoryResponse, error)
+	// A workspace's GitHub activity as cached on this Mac: the newest runs,
+	// the workflows and how fresh they are. Never waits for GitHub. Needs a
+	// repository opened with a workspace_id (FAILED_PRECONDITION otherwise).
+	GetWorkspaceActivity(context.Context, *GetWorkspaceActivityRequest) (*WorkspaceActivity, error)
+	// Asks the workspace's sync for a pass; requests during a pass are merged
+	// into one more. With wait, answers after a pass that started after the
+	// request ended.
+	RefreshWorkspaceActivity(context.Context, *RefreshWorkspaceActivityRequest) (*WorkspaceActivity, error)
+	// What workspaces keep on this Mac, by id; empty ids: every workspace with
+	// data and every open one.
+	GetStorageUsage(context.Context, *GetStorageUsageRequest) (*GetStorageUsageResponse, error)
+	// Deletes what can be downloaded again (runs, jobs, workflows, kept
+	// logs); local run history, backups and recovery copies stay.
+	ClearWorkspaceCache(context.Context, *ClearWorkspaceCacheRequest) (*ClearWorkspaceCacheResponse, error)
+	// Deletes a workspace's whole folder; refused while it is open.
+	DeleteWorkspaceData(context.Context, *DeleteWorkspaceDataRequest) (*DeleteWorkspaceDataResponse, error)
+	// Whether completed jobs' logs are kept on this Mac. Off in every new Core.
+	SetStoragePreferences(context.Context, *SetStoragePreferencesRequest) (*SetStoragePreferencesResponse, error)
 	ListWorkflows(context.Context, *ListWorkflowsRequest) (*ListWorkflowsResponse, error)
 	// Checks the workflow files on disk now with actionlint, built into the
 	// Core; no external program runs and nothing is sent anywhere.
@@ -617,6 +719,24 @@ func (UnimplementedRunnirCoreServer) CloseRepository(context.Context, *CloseRepo
 }
 func (UnimplementedRunnirCoreServer) RefreshRepository(context.Context, *RefreshRepositoryRequest) (*RepositoryResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RefreshRepository not implemented")
+}
+func (UnimplementedRunnirCoreServer) GetWorkspaceActivity(context.Context, *GetWorkspaceActivityRequest) (*WorkspaceActivity, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetWorkspaceActivity not implemented")
+}
+func (UnimplementedRunnirCoreServer) RefreshWorkspaceActivity(context.Context, *RefreshWorkspaceActivityRequest) (*WorkspaceActivity, error) {
+	return nil, status.Error(codes.Unimplemented, "method RefreshWorkspaceActivity not implemented")
+}
+func (UnimplementedRunnirCoreServer) GetStorageUsage(context.Context, *GetStorageUsageRequest) (*GetStorageUsageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetStorageUsage not implemented")
+}
+func (UnimplementedRunnirCoreServer) ClearWorkspaceCache(context.Context, *ClearWorkspaceCacheRequest) (*ClearWorkspaceCacheResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClearWorkspaceCache not implemented")
+}
+func (UnimplementedRunnirCoreServer) DeleteWorkspaceData(context.Context, *DeleteWorkspaceDataRequest) (*DeleteWorkspaceDataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteWorkspaceData not implemented")
+}
+func (UnimplementedRunnirCoreServer) SetStoragePreferences(context.Context, *SetStoragePreferencesRequest) (*SetStoragePreferencesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetStoragePreferences not implemented")
 }
 func (UnimplementedRunnirCoreServer) ListWorkflows(context.Context, *ListWorkflowsRequest) (*ListWorkflowsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListWorkflows not implemented")
@@ -794,6 +914,114 @@ func _RunnirCore_RefreshRepository_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnirCoreServer).RefreshRepository(ctx, req.(*RefreshRepositoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_GetWorkspaceActivity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWorkspaceActivityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).GetWorkspaceActivity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_GetWorkspaceActivity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).GetWorkspaceActivity(ctx, req.(*GetWorkspaceActivityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_RefreshWorkspaceActivity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshWorkspaceActivityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).RefreshWorkspaceActivity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_RefreshWorkspaceActivity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).RefreshWorkspaceActivity(ctx, req.(*RefreshWorkspaceActivityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_GetStorageUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetStorageUsageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).GetStorageUsage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_GetStorageUsage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).GetStorageUsage(ctx, req.(*GetStorageUsageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_ClearWorkspaceCache_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearWorkspaceCacheRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ClearWorkspaceCache(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ClearWorkspaceCache_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ClearWorkspaceCache(ctx, req.(*ClearWorkspaceCacheRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_DeleteWorkspaceData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteWorkspaceDataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).DeleteWorkspaceData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_DeleteWorkspaceData_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).DeleteWorkspaceData(ctx, req.(*DeleteWorkspaceDataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_SetStoragePreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetStoragePreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).SetStoragePreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_SetStoragePreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).SetStoragePreferences(ctx, req.(*SetStoragePreferencesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1335,6 +1563,30 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RefreshRepository",
 			Handler:    _RunnirCore_RefreshRepository_Handler,
+		},
+		{
+			MethodName: "GetWorkspaceActivity",
+			Handler:    _RunnirCore_GetWorkspaceActivity_Handler,
+		},
+		{
+			MethodName: "RefreshWorkspaceActivity",
+			Handler:    _RunnirCore_RefreshWorkspaceActivity_Handler,
+		},
+		{
+			MethodName: "GetStorageUsage",
+			Handler:    _RunnirCore_GetStorageUsage_Handler,
+		},
+		{
+			MethodName: "ClearWorkspaceCache",
+			Handler:    _RunnirCore_ClearWorkspaceCache_Handler,
+		},
+		{
+			MethodName: "DeleteWorkspaceData",
+			Handler:    _RunnirCore_DeleteWorkspaceData_Handler,
+		},
+		{
+			MethodName: "SetStoragePreferences",
+			Handler:    _RunnirCore_SetStoragePreferences_Handler,
 		},
 		{
 			MethodName: "ListWorkflows",

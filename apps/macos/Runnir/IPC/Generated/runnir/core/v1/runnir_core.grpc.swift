@@ -77,6 +77,84 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "GetWorkspaceActivity" metadata.
+        internal enum GetWorkspaceActivity: Sendable {
+            /// Request type for "GetWorkspaceActivity".
+            internal typealias Input = Runnir_Core_V1_GetWorkspaceActivityRequest
+            /// Response type for "GetWorkspaceActivity".
+            internal typealias Output = Runnir_Core_V1_WorkspaceActivity
+            /// Descriptor for "GetWorkspaceActivity".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "GetWorkspaceActivity",
+                type: .unary
+            )
+        }
+        /// Namespace for "RefreshWorkspaceActivity" metadata.
+        internal enum RefreshWorkspaceActivity: Sendable {
+            /// Request type for "RefreshWorkspaceActivity".
+            internal typealias Input = Runnir_Core_V1_RefreshWorkspaceActivityRequest
+            /// Response type for "RefreshWorkspaceActivity".
+            internal typealias Output = Runnir_Core_V1_WorkspaceActivity
+            /// Descriptor for "RefreshWorkspaceActivity".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "RefreshWorkspaceActivity",
+                type: .unary
+            )
+        }
+        /// Namespace for "GetStorageUsage" metadata.
+        internal enum GetStorageUsage: Sendable {
+            /// Request type for "GetStorageUsage".
+            internal typealias Input = Runnir_Core_V1_GetStorageUsageRequest
+            /// Response type for "GetStorageUsage".
+            internal typealias Output = Runnir_Core_V1_GetStorageUsageResponse
+            /// Descriptor for "GetStorageUsage".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "GetStorageUsage",
+                type: .unary
+            )
+        }
+        /// Namespace for "ClearWorkspaceCache" metadata.
+        internal enum ClearWorkspaceCache: Sendable {
+            /// Request type for "ClearWorkspaceCache".
+            internal typealias Input = Runnir_Core_V1_ClearWorkspaceCacheRequest
+            /// Response type for "ClearWorkspaceCache".
+            internal typealias Output = Runnir_Core_V1_ClearWorkspaceCacheResponse
+            /// Descriptor for "ClearWorkspaceCache".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ClearWorkspaceCache",
+                type: .unary
+            )
+        }
+        /// Namespace for "DeleteWorkspaceData" metadata.
+        internal enum DeleteWorkspaceData: Sendable {
+            /// Request type for "DeleteWorkspaceData".
+            internal typealias Input = Runnir_Core_V1_DeleteWorkspaceDataRequest
+            /// Response type for "DeleteWorkspaceData".
+            internal typealias Output = Runnir_Core_V1_DeleteWorkspaceDataResponse
+            /// Descriptor for "DeleteWorkspaceData".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "DeleteWorkspaceData",
+                type: .unary
+            )
+        }
+        /// Namespace for "SetStoragePreferences" metadata.
+        internal enum SetStoragePreferences: Sendable {
+            /// Request type for "SetStoragePreferences".
+            internal typealias Input = Runnir_Core_V1_SetStoragePreferencesRequest
+            /// Response type for "SetStoragePreferences".
+            internal typealias Output = Runnir_Core_V1_SetStoragePreferencesResponse
+            /// Descriptor for "SetStoragePreferences".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "SetStoragePreferences",
+                type: .unary
+            )
+        }
         /// Namespace for "ListWorkflows" metadata.
         internal enum ListWorkflows: Sendable {
             /// Request type for "ListWorkflows".
@@ -460,6 +538,12 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             OpenRepository.descriptor,
             CloseRepository.descriptor,
             RefreshRepository.descriptor,
+            GetWorkspaceActivity.descriptor,
+            RefreshWorkspaceActivity.descriptor,
+            GetStorageUsage.descriptor,
+            ClearWorkspaceCache.descriptor,
+            DeleteWorkspaceData.descriptor,
+            SetStoragePreferences.descriptor,
             ListWorkflows.descriptor,
             ValidateWorkflows.descriptor,
             SaveWorkflowFile.descriptor,
@@ -574,6 +658,120 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_RefreshRepositoryRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_RepositoryResponse>
+
+        /// Handle the "GetWorkspaceActivity" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > A workspace's GitHub activity as cached on this Mac: the newest runs,
+        /// > the workflows and how fresh they are. Never waits for GitHub. Needs a
+        /// > repository opened with a workspace_id (FAILED_PRECONDITION otherwise).
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_GetWorkspaceActivityRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_WorkspaceActivity` messages.
+        func getWorkspaceActivity(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetWorkspaceActivityRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_WorkspaceActivity>
+
+        /// Handle the "RefreshWorkspaceActivity" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Asks the workspace's sync for a pass; requests during a pass are merged
+        /// > into one more. With wait, answers after a pass that started after the
+        /// > request ended.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_RefreshWorkspaceActivityRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_WorkspaceActivity` messages.
+        func refreshWorkspaceActivity(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_RefreshWorkspaceActivityRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_WorkspaceActivity>
+
+        /// Handle the "GetStorageUsage" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > What workspaces keep on this Mac, by id; empty ids: every workspace with
+        /// > data and every open one.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_GetStorageUsageRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_GetStorageUsageResponse` messages.
+        func getStorageUsage(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetStorageUsageRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetStorageUsageResponse>
+
+        /// Handle the "ClearWorkspaceCache" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Deletes what can be downloaded again (runs, jobs, workflows, kept
+        /// > logs); local run history, backups and recovery copies stay.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ClearWorkspaceCacheRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ClearWorkspaceCacheResponse` messages.
+        func clearWorkspaceCache(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ClearWorkspaceCacheRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ClearWorkspaceCacheResponse>
+
+        /// Handle the "DeleteWorkspaceData" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Deletes a workspace's whole folder; refused while it is open.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_DeleteWorkspaceDataRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_DeleteWorkspaceDataResponse` messages.
+        func deleteWorkspaceData(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_DeleteWorkspaceDataRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse>
+
+        /// Handle the "SetStoragePreferences" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Whether completed jobs' logs are kept on this Mac. Off in every new Core.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_SetStoragePreferencesRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_SetStoragePreferencesResponse` messages.
+        func setStoragePreferences(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SetStoragePreferencesRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SetStoragePreferencesResponse>
 
         /// Handle the "ListWorkflows" method.
         ///
@@ -1169,6 +1367,120 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_RepositoryResponse>
 
+        /// Handle the "GetWorkspaceActivity" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > A workspace's GitHub activity as cached on this Mac: the newest runs,
+        /// > the workflows and how fresh they are. Never waits for GitHub. Needs a
+        /// > repository opened with a workspace_id (FAILED_PRECONDITION otherwise).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetWorkspaceActivityRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_WorkspaceActivity` message.
+        func getWorkspaceActivity(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_GetWorkspaceActivityRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_WorkspaceActivity>
+
+        /// Handle the "RefreshWorkspaceActivity" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Asks the workspace's sync for a pass; requests during a pass are merged
+        /// > into one more. With wait, answers after a pass that started after the
+        /// > request ended.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_RefreshWorkspaceActivityRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_WorkspaceActivity` message.
+        func refreshWorkspaceActivity(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_RefreshWorkspaceActivityRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_WorkspaceActivity>
+
+        /// Handle the "GetStorageUsage" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > What workspaces keep on this Mac, by id; empty ids: every workspace with
+        /// > data and every open one.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetStorageUsageRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_GetStorageUsageResponse` message.
+        func getStorageUsage(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_GetStorageUsageRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetStorageUsageResponse>
+
+        /// Handle the "ClearWorkspaceCache" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Deletes what can be downloaded again (runs, jobs, workflows, kept
+        /// > logs); local run history, backups and recovery copies stay.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClearWorkspaceCacheRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ClearWorkspaceCacheResponse` message.
+        func clearWorkspaceCache(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ClearWorkspaceCacheRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ClearWorkspaceCacheResponse>
+
+        /// Handle the "DeleteWorkspaceData" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Deletes a workspace's whole folder; refused while it is open.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_DeleteWorkspaceDataRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_DeleteWorkspaceDataResponse` message.
+        func deleteWorkspaceData(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_DeleteWorkspaceDataRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse>
+
+        /// Handle the "SetStoragePreferences" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Whether completed jobs' logs are kept on this Mac. Off in every new Core.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SetStoragePreferencesRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_SetStoragePreferencesResponse` message.
+        func setStoragePreferences(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_SetStoragePreferencesRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SetStoragePreferencesResponse>
+
         /// Handle the "ListWorkflows" method.
         ///
         /// - Parameters:
@@ -1761,6 +2073,120 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_RepositoryResponse
 
+        /// Handle the "GetWorkspaceActivity" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > A workspace's GitHub activity as cached on this Mac: the newest runs,
+        /// > the workflows and how fresh they are. Never waits for GitHub. Needs a
+        /// > repository opened with a workspace_id (FAILED_PRECONDITION otherwise).
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_GetWorkspaceActivityRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_WorkspaceActivity` to respond with.
+        func getWorkspaceActivity(
+            request: Runnir_Core_V1_GetWorkspaceActivityRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_WorkspaceActivity
+
+        /// Handle the "RefreshWorkspaceActivity" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Asks the workspace's sync for a pass; requests during a pass are merged
+        /// > into one more. With wait, answers after a pass that started after the
+        /// > request ended.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_RefreshWorkspaceActivityRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_WorkspaceActivity` to respond with.
+        func refreshWorkspaceActivity(
+            request: Runnir_Core_V1_RefreshWorkspaceActivityRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_WorkspaceActivity
+
+        /// Handle the "GetStorageUsage" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > What workspaces keep on this Mac, by id; empty ids: every workspace with
+        /// > data and every open one.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_GetStorageUsageRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_GetStorageUsageResponse` to respond with.
+        func getStorageUsage(
+            request: Runnir_Core_V1_GetStorageUsageRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_GetStorageUsageResponse
+
+        /// Handle the "ClearWorkspaceCache" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Deletes what can be downloaded again (runs, jobs, workflows, kept
+        /// > logs); local run history, backups and recovery copies stay.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ClearWorkspaceCacheRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ClearWorkspaceCacheResponse` to respond with.
+        func clearWorkspaceCache(
+            request: Runnir_Core_V1_ClearWorkspaceCacheRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ClearWorkspaceCacheResponse
+
+        /// Handle the "DeleteWorkspaceData" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Deletes a workspace's whole folder; refused while it is open.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_DeleteWorkspaceDataRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_DeleteWorkspaceDataResponse` to respond with.
+        func deleteWorkspaceData(
+            request: Runnir_Core_V1_DeleteWorkspaceDataRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_DeleteWorkspaceDataResponse
+
+        /// Handle the "SetStoragePreferences" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Whether completed jobs' logs are kept on this Mac. Off in every new Core.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_SetStoragePreferencesRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_SetStoragePreferencesResponse` to respond with.
+        func setStoragePreferences(
+            request: Runnir_Core_V1_SetStoragePreferencesRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_SetStoragePreferencesResponse
+
         /// Handle the "ListWorkflows" method.
         ///
         /// - Parameters:
@@ -2338,6 +2764,72 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.GetWorkspaceActivity.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetWorkspaceActivityRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_WorkspaceActivity>(),
+            handler: { request, context in
+                try await self.getWorkspaceActivity(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.RefreshWorkspaceActivity.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_RefreshWorkspaceActivityRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_WorkspaceActivity>(),
+            handler: { request, context in
+                try await self.refreshWorkspaceActivity(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.GetStorageUsage.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetStorageUsageRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetStorageUsageResponse>(),
+            handler: { request, context in
+                try await self.getStorageUsage(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ClearWorkspaceCache.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ClearWorkspaceCacheRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ClearWorkspaceCacheResponse>(),
+            handler: { request, context in
+                try await self.clearWorkspaceCache(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.DeleteWorkspaceData.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_DeleteWorkspaceDataRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_DeleteWorkspaceDataResponse>(),
+            handler: { request, context in
+                try await self.deleteWorkspaceData(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.SetStoragePreferences.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SetStoragePreferencesRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SetStoragePreferencesResponse>(),
+            handler: { request, context in
+                try await self.setStoragePreferences(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.ListWorkflows.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListWorkflowsRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListWorkflowsResponse>(),
@@ -2700,6 +3192,72 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_RepositoryResponse> {
         let response = try await self.refreshRepository(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func getWorkspaceActivity(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetWorkspaceActivityRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_WorkspaceActivity> {
+        let response = try await self.getWorkspaceActivity(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func refreshWorkspaceActivity(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_RefreshWorkspaceActivityRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_WorkspaceActivity> {
+        let response = try await self.refreshWorkspaceActivity(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func getStorageUsage(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetStorageUsageRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetStorageUsageResponse> {
+        let response = try await self.getStorageUsage(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func clearWorkspaceCache(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ClearWorkspaceCacheRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ClearWorkspaceCacheResponse> {
+        let response = try await self.clearWorkspaceCache(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func deleteWorkspaceData(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_DeleteWorkspaceDataRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse> {
+        let response = try await self.deleteWorkspaceData(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func setStoragePreferences(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SetStoragePreferencesRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SetStoragePreferencesResponse> {
+        let response = try await self.setStoragePreferences(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -3074,6 +3632,84 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_RepositoryResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_RepositoryResponse>(
             message: try await self.refreshRepository(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func getWorkspaceActivity(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_GetWorkspaceActivityRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_WorkspaceActivity> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_WorkspaceActivity>(
+            message: try await self.getWorkspaceActivity(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func refreshWorkspaceActivity(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_RefreshWorkspaceActivityRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_WorkspaceActivity> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_WorkspaceActivity>(
+            message: try await self.refreshWorkspaceActivity(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func getStorageUsage(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_GetStorageUsageRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetStorageUsageResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_GetStorageUsageResponse>(
+            message: try await self.getStorageUsage(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func clearWorkspaceCache(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ClearWorkspaceCacheRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ClearWorkspaceCacheResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ClearWorkspaceCacheResponse>(
+            message: try await self.clearWorkspaceCache(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func deleteWorkspaceData(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_DeleteWorkspaceDataRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse>(
+            message: try await self.deleteWorkspaceData(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func setStoragePreferences(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_SetStoragePreferencesRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SetStoragePreferencesResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_SetStoragePreferencesResponse>(
+            message: try await self.setStoragePreferences(
                 request: request.message,
                 context: context
             ),
@@ -3550,6 +4186,150 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_RepositoryResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_RepositoryResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "GetWorkspaceActivity" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > A workspace's GitHub activity as cached on this Mac: the newest runs,
+        /// > the workflows and how fresh they are. Never waits for GitHub. Needs a
+        /// > repository opened with a workspace_id (FAILED_PRECONDITION otherwise).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetWorkspaceActivityRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetWorkspaceActivityRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_WorkspaceActivity` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func getWorkspaceActivity<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetWorkspaceActivityRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetWorkspaceActivityRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_WorkspaceActivity>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_WorkspaceActivity>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "RefreshWorkspaceActivity" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Asks the workspace's sync for a pass; requests during a pass are merged
+        /// > into one more. With wait, answers after a pass that started after the
+        /// > request ended.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_RefreshWorkspaceActivityRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_RefreshWorkspaceActivityRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_WorkspaceActivity` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func refreshWorkspaceActivity<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_RefreshWorkspaceActivityRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_RefreshWorkspaceActivityRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_WorkspaceActivity>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_WorkspaceActivity>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "GetStorageUsage" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > What workspaces keep on this Mac, by id; empty ids: every workspace with
+        /// > data and every open one.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetStorageUsageRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetStorageUsageRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetStorageUsageResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func getStorageUsage<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetStorageUsageRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetStorageUsageRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetStorageUsageResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetStorageUsageResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ClearWorkspaceCache" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Deletes what can be downloaded again (runs, jobs, workflows, kept
+        /// > logs); local run history, backups and recovery copies stay.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClearWorkspaceCacheRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ClearWorkspaceCacheRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ClearWorkspaceCacheResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func clearWorkspaceCache<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ClearWorkspaceCacheRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ClearWorkspaceCacheRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ClearWorkspaceCacheResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearWorkspaceCacheResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "DeleteWorkspaceData" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Deletes a workspace's whole folder; refused while it is open.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_DeleteWorkspaceDataRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_DeleteWorkspaceDataRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_DeleteWorkspaceDataResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func deleteWorkspaceData<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_DeleteWorkspaceDataRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_DeleteWorkspaceDataRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_DeleteWorkspaceDataResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "SetStoragePreferences" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Whether completed jobs' logs are kept on this Mac. Off in every new Core.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SetStoragePreferencesRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SetStoragePreferencesRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_SetStoragePreferencesResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func setStoragePreferences<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SetStoragePreferencesRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SetStoragePreferencesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SetStoragePreferencesResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SetStoragePreferencesResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "ListWorkflows" method.
@@ -4356,6 +5136,216 @@ extension Runnir_Core_V1_RunnirCore {
             try await self.client.unary(
                 request: request,
                 descriptor: Runnir_Core_V1_RunnirCore.Method.RefreshRepository.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "GetWorkspaceActivity" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > A workspace's GitHub activity as cached on this Mac: the newest runs,
+        /// > the workflows and how fresh they are. Never waits for GitHub. Needs a
+        /// > repository opened with a workspace_id (FAILED_PRECONDITION otherwise).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetWorkspaceActivityRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetWorkspaceActivityRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_WorkspaceActivity` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func getWorkspaceActivity<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetWorkspaceActivityRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetWorkspaceActivityRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_WorkspaceActivity>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_WorkspaceActivity>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.GetWorkspaceActivity.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "RefreshWorkspaceActivity" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Asks the workspace's sync for a pass; requests during a pass are merged
+        /// > into one more. With wait, answers after a pass that started after the
+        /// > request ended.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_RefreshWorkspaceActivityRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_RefreshWorkspaceActivityRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_WorkspaceActivity` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func refreshWorkspaceActivity<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_RefreshWorkspaceActivityRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_RefreshWorkspaceActivityRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_WorkspaceActivity>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_WorkspaceActivity>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.RefreshWorkspaceActivity.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "GetStorageUsage" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > What workspaces keep on this Mac, by id; empty ids: every workspace with
+        /// > data and every open one.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetStorageUsageRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetStorageUsageRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetStorageUsageResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func getStorageUsage<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetStorageUsageRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetStorageUsageRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetStorageUsageResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetStorageUsageResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.GetStorageUsage.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ClearWorkspaceCache" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Deletes what can be downloaded again (runs, jobs, workflows, kept
+        /// > logs); local run history, backups and recovery copies stay.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClearWorkspaceCacheRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ClearWorkspaceCacheRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ClearWorkspaceCacheResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func clearWorkspaceCache<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ClearWorkspaceCacheRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ClearWorkspaceCacheRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ClearWorkspaceCacheResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearWorkspaceCacheResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ClearWorkspaceCache.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "DeleteWorkspaceData" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Deletes a workspace's whole folder; refused while it is open.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_DeleteWorkspaceDataRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_DeleteWorkspaceDataRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_DeleteWorkspaceDataResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func deleteWorkspaceData<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_DeleteWorkspaceDataRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_DeleteWorkspaceDataRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_DeleteWorkspaceDataResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.DeleteWorkspaceData.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "SetStoragePreferences" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Whether completed jobs' logs are kept on this Mac. Off in every new Core.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SetStoragePreferencesRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SetStoragePreferencesRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_SetStoragePreferencesResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func setStoragePreferences<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SetStoragePreferencesRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SetStoragePreferencesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SetStoragePreferencesResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SetStoragePreferencesResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.SetStoragePreferences.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -5459,6 +6449,186 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "GetWorkspaceActivity" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > A workspace's GitHub activity as cached on this Mac: the newest runs,
+    /// > the workflows and how fresh they are. Never waits for GitHub. Needs a
+    /// > repository opened with a workspace_id (FAILED_PRECONDITION otherwise).
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_GetWorkspaceActivityRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getWorkspaceActivity<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_GetWorkspaceActivityRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_WorkspaceActivity>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.getWorkspaceActivity(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetWorkspaceActivityRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_WorkspaceActivity>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "RefreshWorkspaceActivity" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Asks the workspace's sync for a pass; requests during a pass are merged
+    /// > into one more. With wait, answers after a pass that started after the
+    /// > request ended.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_RefreshWorkspaceActivityRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func refreshWorkspaceActivity<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_RefreshWorkspaceActivityRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_WorkspaceActivity>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.refreshWorkspaceActivity(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_RefreshWorkspaceActivityRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_WorkspaceActivity>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetStorageUsage" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > What workspaces keep on this Mac, by id; empty ids: every workspace with
+    /// > data and every open one.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_GetStorageUsageRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getStorageUsage<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_GetStorageUsageRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetStorageUsageResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.getStorageUsage(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetStorageUsageRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetStorageUsageResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ClearWorkspaceCache" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Deletes what can be downloaded again (runs, jobs, workflows, kept
+    /// > logs); local run history, backups and recovery copies stay.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ClearWorkspaceCacheRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func clearWorkspaceCache<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ClearWorkspaceCacheRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearWorkspaceCacheResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.clearWorkspaceCache(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ClearWorkspaceCacheRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ClearWorkspaceCacheResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "DeleteWorkspaceData" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Deletes a workspace's whole folder; refused while it is open.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_DeleteWorkspaceDataRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func deleteWorkspaceData<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_DeleteWorkspaceDataRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.deleteWorkspaceData(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_DeleteWorkspaceDataRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_DeleteWorkspaceDataResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SetStoragePreferences" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Whether completed jobs' logs are kept on this Mac. Off in every new Core.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_SetStoragePreferencesRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func setStoragePreferences<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_SetStoragePreferencesRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SetStoragePreferencesResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.setStoragePreferences(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SetStoragePreferencesRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SetStoragePreferencesResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "ListWorkflows" method.
     ///
     /// - Parameters:
@@ -6419,6 +7589,210 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.refreshRepository(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetWorkspaceActivity" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > A workspace's GitHub activity as cached on this Mac: the newest runs,
+    /// > the workflows and how fresh they are. Never waits for GitHub. Needs a
+    /// > repository opened with a workspace_id (FAILED_PRECONDITION otherwise).
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getWorkspaceActivity<Result>(
+        _ message: Runnir_Core_V1_GetWorkspaceActivityRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_WorkspaceActivity>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_GetWorkspaceActivityRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.getWorkspaceActivity(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "RefreshWorkspaceActivity" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Asks the workspace's sync for a pass; requests during a pass are merged
+    /// > into one more. With wait, answers after a pass that started after the
+    /// > request ended.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func refreshWorkspaceActivity<Result>(
+        _ message: Runnir_Core_V1_RefreshWorkspaceActivityRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_WorkspaceActivity>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_RefreshWorkspaceActivityRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.refreshWorkspaceActivity(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetStorageUsage" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > What workspaces keep on this Mac, by id; empty ids: every workspace with
+    /// > data and every open one.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getStorageUsage<Result>(
+        _ message: Runnir_Core_V1_GetStorageUsageRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetStorageUsageResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_GetStorageUsageRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.getStorageUsage(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ClearWorkspaceCache" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Deletes what can be downloaded again (runs, jobs, workflows, kept
+    /// > logs); local run history, backups and recovery copies stay.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func clearWorkspaceCache<Result>(
+        _ message: Runnir_Core_V1_ClearWorkspaceCacheRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearWorkspaceCacheResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ClearWorkspaceCacheRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.clearWorkspaceCache(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "DeleteWorkspaceData" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Deletes a workspace's whole folder; refused while it is open.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func deleteWorkspaceData<Result>(
+        _ message: Runnir_Core_V1_DeleteWorkspaceDataRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_DeleteWorkspaceDataRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.deleteWorkspaceData(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SetStoragePreferences" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Whether completed jobs' logs are kept on this Mac. Off in every new Core.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func setStoragePreferences<Result>(
+        _ message: Runnir_Core_V1_SetStoragePreferencesRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SetStoragePreferencesResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_SetStoragePreferencesRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.setStoragePreferences(
             request: request,
             options: options,
             onResponse: handleResponse
