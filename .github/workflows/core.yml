@@ -124,7 +124,14 @@ jobs:
         run: git diff --exit-code -- core/internal/gen apps/macos/Runnir/IPC/Generated
       - name: No breaking changes
         if: github.event_name == 'pull_request'
-        run: buf breaking --against ".git#branch=origin/${{ github.base_ref }}"
+        # Backward compatibility starts with the first release tag (AGENTS.md);
+        # before it the contract changes in place.
+        run: |
+          if [ -z "$(git tag --list 'v*')" ]; then
+            echo "No release tag yet: breaking contract changes are allowed."
+            exit 0
+          fi
+          buf breaking --against ".git#branch=origin/${{ github.base_ref }}"
 
   lint-security:
     runs-on: ubuntu-latest

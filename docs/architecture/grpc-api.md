@@ -58,7 +58,9 @@ The scanner reads the branch from `.git/HEAD` (also linked worktrees; detached H
 
 ## Compatibility
 
-Package `runnir.core.v1`; `buf breaking` (FILE rules) guards it, and generated Go and Swift code is committed (`scripts/generate-contracts.sh`). Additive fields and calls keep the package; a breaking change needs `v2`. Clients check `protocol_version` before other calls.
+Package `runnir.core.v1`; generated Go and Swift code is committed (`scripts/generate-contracts.sh`). Clients check `protocol_version` before other calls.
+
+Until the first release tag the contract changes in place: the app and the Core ship in one bundle and nothing outside it calls the Core yet, so fields and calls are changed or removed without keeping old forms (see AGENTS.md). CI runs `buf breaking` (FILE rules) only once the repository has a version tag. From the first tag on, additive fields and calls keep the package and a breaking change needs `v2`.
 
 ## Security Model Today
 
