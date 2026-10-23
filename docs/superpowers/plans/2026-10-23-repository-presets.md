@@ -1185,7 +1185,7 @@ struct RepositoryPresetFormTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let preset = try #require(form.repositoryPresets.first)
         form.apply(preset)
-        _ = await eventually { form.ref == "main" && !form.isLoadingDefinition }
+        #expect(await eventually { form.ref == "main" && !form.isLoadingDefinition && form.values["environment"] == "production" })
         #expect(!form.updateAppliedPreset())
         #expect(!form.renameAppliedPreset(to: "Renamed"))
         form.deleteAppliedPreset()

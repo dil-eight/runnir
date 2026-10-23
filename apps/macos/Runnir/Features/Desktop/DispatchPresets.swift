@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Observation
 
@@ -238,5 +239,34 @@ final class DispatchPresetLibrary {
             readable = false
             problem = "Saved presets could not be read, so presets are off for now. The file was left as it is."
         }
+    }
+}
+
+// MARK: Repository presets
+
+extension CoreLaunchPreset {
+    /// Whether the Run Workflow form can use it.
+    var isUsable: Bool { problem == nil }
+
+    /// The file name for a problem row, or the folder for an entry about it.
+    var fileName: String {
+        let folder = ".runnir/launches/"
+        return path.hasPrefix(folder) ? String(path.dropFirst(folder.count)) : path
+    }
+
+    /// The preset as the Run Workflow form applies it. Its branch is empty
+    /// when the preset keeps the form's.
+    func dispatchPreset(workspaceID: UUID) -> DispatchPreset {
+        DispatchPreset(id: Self.presetID(workspaceID: workspaceID, path: path), name: name, workspaceID: workspaceID,
+                       workflowPath: workflowPath, ref: ref ?? "", inputs: inputs, updatedAt: .distantPast)
+    }
+
+    /// A name-based id from the workspace and the file, so a preset keeps it
+    /// across rescans and the Overview can hand it to Run Workflow.
+    static func presetID(workspaceID: UUID, path: String) -> UUID {
+        var b = Array(SHA256.hash(data: Data((workspaceID.uuidString + "\n" + path).utf8)).prefix(16))
+        b[6] = (b[6] & 0x0F) | 0x50 // version 5: name-based
+        b[8] = (b[8] & 0x3F) | 0x80 // RFC 4122 variant
+        return UUID(uuid: (b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]))
     }
 }

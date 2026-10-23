@@ -142,8 +142,7 @@ final class DispatchFormModel {
             ref = refs.branches.contains(currentBranch) ? currentBranch : refs.defaultBranch
         }
         await loadDefinition()
-        if let initialPresetID, let preset = presets?.preset(id: initialPresetID),
-           preset.workflowPath == selectedWorkflow?.path {
+        if let initialPresetID, let preset = (repositoryPresets + availablePresets).first(where: { $0.id == initialPresetID }) {
             apply(preset)
         }
     }
@@ -189,9 +188,29 @@ final class DispatchFormModel {
         return presets.presets(workspaceID: workspaceID, workflowPath: path)
     }
 
+    /// Presets the repository shares for the selected workflow, usable ones
+    /// only, as the Core last read them.
+    var repositoryPresets: [DispatchPreset] {
+        guard let path = selectedWorkflow?.path, let workspaceID, let session = hub.session(for: workspaceID) else { return [] }
+        return session.launchPresets.filter { $0.isUsable && $0.workflowPath == path }.map { $0.dispatchPreset(workspaceID: workspaceID) }
+    }
+
     var appliedPreset: DispatchPreset? {
         guard let appliedPresetID else { return nil }
-        return availablePresets.first { $0.id == appliedPresetID }
+        return (repositoryPresets + availablePresets).first { $0.id == appliedPresetID }
+    }
+
+    /// The applied preset comes from the repository: it is changed by editing
+    /// its file, never here.
+    var appliedPresetIsShared: Bool {
+        guard let appliedPresetID else { return false }
+        return repositoryPresets.contains { $0.id == appliedPresetID }
+    }
+
+    /// The file of the applied repository preset, for the menu's hint.
+    var appliedPresetFile: String? {
+        guard let appliedPresetID, let workspaceID, let session = hub.session(for: workspaceID) else { return nil }
+        return session.launchPresets.first { CoreLaunchPreset.presetID(workspaceID: workspaceID, path: $0.path) == appliedPresetID }?.path
     }
 
     /// The values a preset would keep: every known input that does not look
@@ -206,10 +225,18 @@ final class DispatchFormModel {
         (definition?.inputs ?? []).filter { DispatchPreset.looksSecret($0) && !(values[$0.name] ?? "").isEmpty }.map(\.name)
     }
 
-    /// The form no longer matches the applied preset.
+    /// The form no longer matches what applying the preset gives: its branch
+    /// when it has one, the workflow's defaults with its values on top. Inputs
+    /// that look secret are left out on both sides.
     var presetIsModified: Bool {
         guard let preset = appliedPreset else { return false }
-        return preset.ref != ref || preset.inputs != presetValues
+        if !preset.ref.isEmpty && preset.ref != ref { return true }
+        let inputs = definition?.inputs ?? []
+        let secret = Set(inputs.filter(DispatchPreset.looksSecret).map(\.name))
+        let kept = Set(presetValues.keys)
+        var expected = Self.initialValues(for: inputs).filter { kept.contains($0.key) }
+        for (name, value) in preset.inputs where kept.contains(name) { expected[name] = value }
+        return expected != presetValues || preset.inputs.keys.contains { !kept.contains($0) && !secret.contains($0) }
     }
 
     var canSavePreset: Bool {
@@ -223,12 +250,13 @@ final class DispatchFormModel {
         appliedPresetID = preset.id
         presetNotes = []
         let known = (refs?.branches ?? []) + (refs?.tags ?? [])
-        if preset.ref != ref, known.contains(preset.ref) {
+        // A preset without a branch keeps the form's.
+        if !preset.ref.isEmpty, preset.ref != ref, known.contains(preset.ref) {
             pendingPreset = preset
             select(ref: preset.ref)
             return
         }
-        if preset.ref != ref {
+        if !preset.ref.isEmpty, preset.ref != ref {
             presetNotes.append("The preset's branch \(preset.ref) no longer exists on GitHub; \(ref) is kept.")
         }
         if let definition, !isLoadingDefinition, definition.access == .ok, definition.parseError == nil {
@@ -244,6 +272,12 @@ final class DispatchFormModel {
         for (name, value) in preset.inputs.sorted(by: { $0.key < $1.key }) {
             guard let input = byName[name] else {
                 presetNotes.append("\"\(name)\" is no longer an input of this workflow on \(ref).")
+                continue
+            }
+            if DispatchPreset.looksSecret(input) {
+                // GitHub logs dispatch inputs; presets on this Mac never hold
+                // such values, a file in the repository might.
+                presetNotes.append("Not applied because it looks secret: \(name).")
                 continue
             }
             switch input.kind {
@@ -273,19 +307,20 @@ final class DispatchFormModel {
     /// Writes the current branch and values into the applied preset.
     @discardableResult
     func updateAppliedPreset() -> Bool {
-        guard canSavePreset, let id = appliedPresetID, presets?.update(id, ref: ref, inputs: presetValues) == true else { return false }
+        guard canSavePreset, !appliedPresetIsShared, let id = appliedPresetID,
+              presets?.update(id, ref: ref, inputs: presetValues) == true else { return false }
         presetNotes = []
         return true
     }
 
     @discardableResult
     func renameAppliedPreset(to name: String) -> Bool {
-        guard let id = appliedPresetID else { return false }
+        guard let id = appliedPresetID, !appliedPresetIsShared else { return false }
         return presets?.rename(id, to: name) == true
     }
 
     func deleteAppliedPreset() {
-        guard let id = appliedPresetID, presets?.delete(id) == true else { return }
+        guard let id = appliedPresetID, !appliedPresetIsShared, presets?.delete(id) == true else { return }
         appliedPresetID = nil
         presetNotes = []
     }
@@ -505,18 +540,29 @@ struct RunWorkflowSheet: View {
         if let presets = model.presets {
             LabeledContent("Preset") {
                 Menu {
-                    ForEach(model.availablePresets) { preset in
-                        Button { model.apply(preset) } label: {
-                            if preset.id == model.appliedPresetID { Label(preset.name, systemImage: "checkmark") } else { Text(preset.name) }
+                    if model.repositoryPresets.isEmpty {
+                        ForEach(model.availablePresets) { presetButton($0) }
+                    } else {
+                        Section("In This Repository") {
+                            ForEach(model.repositoryPresets) { presetButton($0) }
+                        }
+                        if !model.availablePresets.isEmpty {
+                            Section("On This Mac") {
+                                ForEach(model.availablePresets) { presetButton($0) }
+                            }
                         }
                     }
-                    if !model.availablePresets.isEmpty { Divider() }
+                    if !model.availablePresets.isEmpty || !model.repositoryPresets.isEmpty { Divider() }
                     Button("Save as New Preset...") { presetName = ""; presetPrompt = .save }.disabled(!model.canSavePreset)
                     if let applied = model.appliedPreset {
-                        Button("Update \"\(applied.name)\"") { model.updateAppliedPreset() }
-                            .disabled(!model.canSavePreset || !model.presetIsModified)
-                        Button("Rename \"\(applied.name)\"...") { presetName = applied.name; presetPrompt = .rename }
-                        Button("Delete \"\(applied.name)\"...", role: .destructive) { confirmingDelete = true }
+                        if model.appliedPresetIsShared {
+                            Text("Edit \(model.appliedPresetFile ?? ".runnir/launches") to change this preset")
+                        } else {
+                            Button("Update \"\(applied.name)\"") { model.updateAppliedPreset() }
+                                .disabled(!model.canSavePreset || !model.presetIsModified)
+                            Button("Rename \"\(applied.name)\"...") { presetName = applied.name; presetPrompt = .rename }
+                            Button("Delete \"\(applied.name)\"...", role: .destructive) { confirmingDelete = true }
+                        }
                     }
                 } label: {
                     Label(presetTitle, systemImage: "bookmark")
@@ -533,9 +579,15 @@ struct RunWorkflowSheet: View {
         }
     }
 
+    private func presetButton(_ preset: DispatchPreset) -> some View {
+        Button { model.apply(preset) } label: {
+            if preset.id == model.appliedPresetID { Label(preset.name, systemImage: "checkmark") } else { Text(preset.name) }
+        }
+    }
+
     private var presetTitle: String {
         guard let applied = model.appliedPreset else {
-            return model.availablePresets.isEmpty ? "No presets" : "Choose a preset"
+            return model.availablePresets.isEmpty && model.repositoryPresets.isEmpty ? "No presets" : "Choose a preset"
         }
         return model.presetIsModified ? "\(applied.name) · modified" : applied.name
     }
