@@ -228,3 +228,43 @@ func TestConditionalReadsUseETags(t *testing.T) {
 		t.Fatalf("headers = %v %v", runsSeen, workflowsSeen)
 	}
 }
+
+func TestRunsCarryTheirCommitAndPullRequests(t *testing.T) {
+	client, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"workflow_runs":[
+			{"id":1,"workflow_id":5,"event":"pull_request","head_branch":"retry","head_sha":"b2","created_at":"2026-10-18T10:00:00Z",
+			 "head_repository":{"full_name":"O/R"},"head_commit":{"message":"Add retry\n\nWith a longer body"},
+			 "pull_requests":[{"number":142,"base":{"repo":{"url":"https://api.github.com/repos/o/r"}}},
+			                  {"number":9,"base":{"repo":{"url":"https://api.github.com/repos/upstream/r"}}}]},
+			{"id":2,"workflow_id":5,"event":"push","head_branch":"main","head_sha":"c3","created_at":"2026-10-18T09:00:00Z",
+			 "head_repository":null,"head_commit":null,"pull_requests":null}]}`))
+	})
+	runs, _, err := client.RunsIfChanged(context.Background(), "o", "r", 50, "")
+	if err != nil || len(runs) != 2 {
+		t.Fatalf("runs = %+v, %v", runs, err)
+	}
+	first := runs[0]
+	// In a fork GitHub also lists the upstream's pull requests: only this
+	// repository's are kept.
+	if first.HeadRepository != "o/r" || first.CommitTitle != "Add retry" || len(first.PullRequests) != 1 || first.PullRequests[0] != 142 {
+		t.Fatalf("first = %+v", first)
+	}
+	if second := runs[1]; second.HeadRepository != "" || second.CommitTitle != "" || second.PullRequests != nil {
+		t.Fatalf("second = %+v", second)
+	}
+}
+
+func TestOlderRunsAskForRunsCreatedUpToATime(t *testing.T) {
+	before := time.Date(2026, 10, 1, 10, 0, 0, 0, time.UTC)
+	client, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if r.URL.Path != "/repos/o/r/actions/runs" || query.Get("created") != "<=2026-10-01T10:00:00Z" || query.Get("per_page") != "100" {
+			t.Errorf("request = %s", r.URL)
+		}
+		_, _ = w.Write([]byte(`{"workflow_runs":[{"id":3,"workflow_id":5,"created_at":"2026-10-01T09:00:00Z","head_commit":{"message":"Old"}}]}`))
+	})
+	runs, err := client.OlderRuns(context.Background(), "o", "r", before, 100)
+	if err != nil || len(runs) != 1 || runs[0].ID != 3 || runs[0].CommitTitle != "Old" {
+		t.Fatalf("runs = %+v, %v", runs, err)
+	}
+}

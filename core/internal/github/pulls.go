@@ -174,7 +174,7 @@ func (c *Client) fillCI(ctx context.Context, pr *PullRequest) error {
 	}
 	list := make([]Run, 0, len(runs.WorkflowRuns))
 	for _, r := range runs.WorkflowRuns {
-		list = append(list, r.run())
+		list = append(list, r.run(owner, name))
 	}
 	summarizeCI(pr, list)
 	return nil
