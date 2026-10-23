@@ -1,14 +1,12 @@
 # Repository Configuration, SQLite And Synchronization
 
-Status: in part implemented, updated 2026-10-22. Swift persists the local registry and window session together in Application Support/Runnir/desktop-state.json. The Go Core keeps one SQLite database per workspace with its GitHub activity and local run history, and runs one sync per workspace ([ADR 0007](../decisions/0007-workspace-sqlite.md), [implemented behavior](#implemented-2026-10-22)). No .runnir loader, local file index or environment subsystem exists yet. See [ADR 0003](../decisions/0003-workspaces-sessions-offline-storage.md).
+Status: in part implemented, updated 2026-10-22. Swift persists the local registry and window session together in Application Support/Runnir/desktop-state.json. The Go Core keeps one SQLite database per workspace with its GitHub activity and local run history, and runs one sync per workspace ([ADR 0007](../decisions/0007-workspace-sqlite.md), [implemented behavior](#implemented-2026-10-22)). The Core reads Run Workflow presets from `.runnir/launches` (B25, [design](../superpowers/specs/2026-10-23-repository-presets-design.md)); there is no local file index or environment subsystem. See [ADR 0003](../decisions/0003-workspaces-sessions-offline-storage.md).
 
 ## Storage Ownership
 
 ```text
 <repo>/.github/workflows/*.yml|*.yaml   # user-authored local workflow source
-<repo>/.runnir/config.yaml             # optional portable non-secret defaults
-<repo>/.runnir/environments.yaml       # optional non-secret env definitions/references
-<repo>/.runnir/launches/*.yaml          # optional portable launch presets
+<repo>/.runnir/launches/*.yaml          # optional portable Run Workflow presets (implemented, read-only)
 
 <ApplicationSupport>/Runnir/settings.json
 <ApplicationSupport>/Runnir/session.json
@@ -43,7 +41,7 @@ Allocate workspaceId once on registration. Track path/display name/optional sani
 
 Missing/moved roots retain records/cache and offer user-assisted relinking; preserve workspaceId and explicit folder authorization. Do not silently grant a new path, delete state or merge clones by remote URL. No GitHub remote or .runnir directory is required for local use. Registry removal never silently deletes the working tree or portable files. Account-wide remote browsing is not local workspace registration: it is the Workspace Manager's GitHub tab. A workspace record remembers the `owner/name` its origin pointed at when the Core last opened it, only so that tab can open the registered clone.
 
-## Portable Configuration Examples
+## Registry Example And .runnir
 
 Proposed global repositories.json entry (device-private, not portable config):
 
@@ -62,60 +60,25 @@ Proposed global repositories.json entry (device-private, not portable config):
 
 Folder grant/bookmark encoding is a native storage design decision, not an invented portable URI. Paths/remotes and these IDs never enter analytics or public crash reports.
 
-Examples are proposed schema v1, not an implemented parser or current IPC contract. Use bounded safe YAML parsing, explicit keys/types/enums and unsupported-version errors; no dynamic evaluation or plugin DSL. Reject traversal/absolute workflow paths and out-of-scope symlink resolution.
-
-config.yaml:
+`.runnir` holds only `launches/*.yaml`: Run Workflow presets a team shares through Git. Runnir reads them and never creates, changes or deletes them; the format, limits and error handling are in the [B25 design](../superpowers/specs/2026-10-23-repository-presets-design.md). `config.yaml` and `environments.yaml` from the earlier plan are not introduced: nothing would use them.
 
 ```yaml
-version: 1
-repository:
-  provider: github
-defaults:
-  environment: local
-  ref: main
-sync:
-  workflows: true
-  runs: true
-```
-
-environments.yaml:
-
-```yaml
-version: 1
-environments:
-  local:
-    variables:
-      NODE_ENV: development
-  staging:
-    variables:
-      NODE_ENV: staging
-    secrets:
-      API_TOKEN: keychain://runnir/staging/api-token
-```
-
-launches/deploy-staging.yaml:
-
-```yaml
-version: 1
-name: Deploy Staging
+# .runnir/launches/deploy-staging.yaml
+name: Deploy to staging
 workflow: deploy.yml
-execution:
-  target: github
-defaults:
-  ref: main
-  inputs:
-    environment: staging
-safety:
-  confirmationRequired: true
+ref: main
+inputs:
+  environment: staging
 ```
 
-Only github/local targets are allowed; local remains unavailable until an executor is implemented and never falls back to remote. workflow references a known file under .github/workflows, not arbitrary paths/commands. The selected ref is a preference, not proof of current branch/default or remote availability. Validate current workflow inputs/permissions at execution.
+Secrets never go into `.runnir`. Plan for local runs (B28, not implemented): the secrets a run needs are the `secrets.X` the workflow itself references; for each one the user enters a value for this run, or keeps it in Keychain for this workspace, and a kept value is shown only after Touch ID or the password. Values reach act through its environment (`-s NAME`), never argv, disk, the database or logs. Environment variables come from the user's own tools (dotenvx, `.env`, act's files) rather than a Runnir format. GitHub Actions secrets stay on GitHub.
 
-keychain:// is an illustrative reference, not an existing/universal URI API. Define ownership, lookup/access prompts, repository trust, missing-secret behavior and scope before resolving it. Repository content cannot cause arbitrary Keychain reads or automatic environment injection. GitHub Actions secrets remain GitHub-managed; a local reference is not permission to upload a Keychain secret to GitHub. Portable config contains no credentials, private keys or machine-specific absolute paths.
+A malformed or unusable preset file is listed with its problem and never used; the workspace opens normally. Opening never writes to the working tree. Local-only presets stay machine-private in `dispatch-presets.json`.
 
-Precedence for permitted non-secret values, highest first: explicit per-launch UI override -> machine-local workspace override -> launch preset -> selected environment -> repository defaults -> app defaults. Define merging per field, including absent versus null/false, input-map replacement, removal and invalid values; no arbitrary deep merge. Show effective values and their origins. Security/approval policy is enforced outside this hierarchy; confirmationRequired:false cannot bypass it. Effective secrets exist transiently only when explicitly authorized, never in previews, snapshots/DB/debug dumps or persisted environment maps.
+## Implemented (2026-10-23): repository presets
 
-Malformed/missing/unsupported config yields filename/diagnostic and a usable workspace in degraded/default mode. Normal open remains read-only. Valid optional config may be edited/generated only through explicit reviewed user action, with unsaved/external-change handling like workflow files. Local-only presets remain supported as machine-private overrides; portable presets are a separate user-chosen storage mode.
+- The Core's repository scan reads `.runnir/launches` after `.github/workflows`: regular `.yml`/`.yaml` files directly in the folder, at most 100 of at most 64 KiB, never through a symlinked folder or file. Each file is checked (`name`, `workflow` naming a file the same scan found, optional `ref` and scalar `inputs`; any other key refuses the file) and kept in the repository snapshot; a problem becomes an entry with its reason and never fails the scan. `ListLaunchPresets` returns them.
+- The app reads them with the repository's workflows (open, Refresh, `REPOSITORY_REFRESHED`). Overview › Run manually lists them under "In this repository" above the presets on this Mac, with unusable files shown; the Run Workflow menu offers both. A repository preset is applied like a Mac preset, leaves out values of inputs that look secret, and can be copied to this Mac but not changed in Runnir.
 
 ## Implemented (2026-10-22)
 
@@ -158,15 +121,15 @@ Local files are authoritative for their local index; GitHub is authoritative for
 | ID | Required evidence |
 | --- | --- |
 | W01 | Repo without remote/.runnir opens; no silent writes; clones/relinks/canonical identity behave correctly |
-| W02 | Safe optional YAML parse, future-version error, limits/traversal/unsafe input denial and degraded opening |
-| W03 | Field precedence/effective-value origins tested; repository safety flag cannot bypass app policy |
-| W04 | Secret reference scoped/missing/denied; no values in portable/local persistence or diagnostics |
+| W02 | Safe optional YAML parse of `.runnir/launches`, limits/traversal/symlink denial and degraded opening |
+| W03 | Field precedence/effective-value origins tested; repository safety flag cannot bypass app policy (B28) |
+| W04 | Secret reference scoped/missing/denied; no values in portable/local persistence or diagnostics (B28) |
 | W05 | SQLite migrations/transaction/concurrent-window reads and single-writer integrity; missing/corrupt DB repair preserves unique local data |
 | W06 | Offline relaunch renders cache before network; shared windows issue one logical sync; checked/failed/succeeded times remain separate |
 | W07 | Local changes, remote YAML and live run updates are distinguishable; auth/rate-limit/backoff/cancel handled |
 | W08 | Clear Cache/retention/path extraction limits do not delete config/overrides/grants/credentials; blob traversal denied |
 | W09 | Interrupted execution history is unknown/interrupted, never automatically resumed/successful |
 
-State on 2026-10-22: W05 is covered by Core tests (migrations, single writer, damaged and missing databases keeping local runs) but not by a signed build or crash injection; W06 by Core gRPC tests (two opens of one workspace make one sync; activity survives a Core restart with GitHub unreachable; check, success and change times apart) and app unit tests, not by a live two-window run against GitHub; W08 by tests of Clear Cache keeping local runs and of blob path, symlink and size checks; W09 in part: local run records left queued or running become interrupted when the database opens, and nothing is resumed. W01–W04 and W07 are unchanged.
+State on 2026-10-22: W05 is covered by Core tests (migrations, single writer, damaged and missing databases keeping local runs) but not by a signed build or crash injection; W06 by Core gRPC tests (two opens of one workspace make one sync; activity survives a Core restart with GitHub unreachable; check, success and change times apart) and app unit tests, not by a live two-window run against GitHub; W08 by tests of Clear Cache keeping local runs and of blob path, symlink and size checks; W09 in part: local run records left queued or running become interrupted when the database opens, and nothing is resumed. W01, W03, W04 and W07 are unchanged. W02 is covered by Core tests of `.runnir/launches` (2026-10-23).
 
 Unit tests cover schemas/precedence/IDs/migrations/sync reconciliation/redaction. Real integration tests cover signed scope grants, concurrent windows, file changes, offline networks, partial writes and corruption recovery. Configuration parsing alone is not a completed local executor.

@@ -1,6 +1,6 @@
 # 0003 Workspace Sessions And Offline Persistence
 
-Status: accepted direction, 2026-10-14; desktop foundation implemented 2026-10-15; per-workspace database and shared sync implemented 2026-10-22 ([ADR 0007](0007-workspace-sqlite.md)); portable config pending. Extends ADR 0002 without changing SwiftUI + Go or current source paths.
+Status: accepted direction, 2026-10-14; desktop foundation implemented 2026-10-15; per-workspace database and shared sync implemented 2026-10-22 ([ADR 0007](0007-workspace-sqlite.md)); portable Run Workflow presets in `.runnir/launches` implemented 2026-10-23; config and environment files not introduced. Extends ADR 0002 without changing SwiftUI + Go or current source paths.
 
 ## Decisions
 
@@ -10,7 +10,7 @@ Status: accepted direction, 2026-10-14; desktop foundation implemented 2026-10-1
 - Portable Go services own repository config interpretation, effective non-secret configuration, per-workspace database/index/sync and execution domain records. Swift retains Keychain and native file-access/notification bridges. Preserve existing Swift GitHub services until tested migration; do not create a second competing sync writer during transition.
 - Use per-workspace embedded SQLite under resolved Application Support, outside Git. It is now an explicit offline-query/transaction requirement, superseding the earlier optional-SQLite/light-config recommendation. Keep global settings/registry/session in versioned local files.
 - Share one logical WorkspaceRuntime and SyncCoordinator per workspaceId across windows. WindowState is per window. A runtime is a service object, not necessarily a process. Prefer one app-owned Core service process for the future shared runtime, with bounded lifetime ending at app exit; it is not a permanent daemon.
-- .runnir contains optional portable declarative config/environments/launch presets. Normal opening is read-only; creation/editing requires user action. Machine overrides/cache/session and credentials never belong there.
+- .runnir contains optional portable Run Workflow presets (`launches/*.yaml`). Runnir only reads them; creating or editing them is the user's. Machine overrides, cache, session and credentials never belong there.
 - Cache-first window rendering must not await GitHub. Remote dispatch uses published GitHub definitions; local act execution remains a separate, explicitly approved v0.1 capability.
 
 ## Lifecycle Guarantees
