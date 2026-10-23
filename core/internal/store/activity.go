@@ -56,6 +56,9 @@ type Pass struct {
 	DefaultBranch string
 	Runs          *RunsUpdate
 	Workflows     *WorkflowsUpdate
+	// PullRequests is the pull request list's read; nil when the pass did
+	// not read it.
+	PullRequests *PullRequestsUpdate
 }
 
 // Activity is the cached activity and what the last passes said.
@@ -70,9 +73,14 @@ type Activity struct {
 	CachedRuns int
 	// HistoryComplete: GitHub has no run older than the oldest cached one.
 	HistoryComplete bool
-	CheckedAt       time.Time
-	SyncedAt        time.Time
-	ChangedAt       time.Time
+	// PullRequests most recently updated first; Lookups by key.
+	PullRequests []github.RepositoryPullRequest
+	Lookups      map[string][]int64
+	// PullRequestsAccess is the last read's outcome; 0 before one.
+	PullRequestsAccess int32
+	CheckedAt          time.Time
+	SyncedAt           time.Time
+	ChangedAt          time.Time
 	// Access and RetryAfter are the last pass's; Access is 0 before one.
 	Access     int32
 	RetryAfter time.Time
@@ -94,7 +102,8 @@ func (s *Store) ApplySync(ctx context.Context, p Pass) (bool, error) {
 	}
 	defer tx.Rollback()
 	changed := false
-	hasData := (p.Runs != nil && !p.Runs.NotModified) || (p.Workflows != nil && !p.Workflows.NotModified)
+	hasData := (p.Runs != nil && !p.Runs.NotModified) || (p.Workflows != nil && !p.Workflows.NotModified) ||
+		(p.PullRequests != nil && !p.PullRequests.NotModified && !p.PullRequests.Refused)
 	if hasData {
 		current, has, err := readSource(ctx, tx)
 		if err != nil {
@@ -146,6 +155,20 @@ func (s *Store) ApplySync(ctx context.Context, p Pass) (bool, error) {
 		if err := setETag(ctx, tx, scopeWorkflows, p.Workflows.ETag); err != nil {
 			return false, err
 		}
+	}
+	if p.PullRequests != nil {
+		c, err := applyPulls(ctx, tx, p.PullRequests)
+		if err != nil {
+			return false, err
+		}
+		changed = changed || c
+	}
+	if hasData {
+		c, err := trimLinks(ctx, tx)
+		if err != nil {
+			return false, err
+		}
+		changed = changed || c
 	}
 	at := millis(p.At)
 	if _, err := tx.ExecContext(ctx, `
@@ -385,6 +408,16 @@ func (s *Store) Activity(ctx context.Context, limit int) (Activity, error) {
 		return Activity{}, err
 	}
 	rows.Close()
+	if a.PullRequests, err = s.pullRequests(ctx); err != nil {
+		return Activity{}, err
+	}
+	if a.Lookups, err = s.lookups(ctx); err != nil {
+		return Activity{}, err
+	}
+	err = s.db.QueryRowContext(ctx, "SELECT access FROM sync_state WHERE scope = ?", scopePulls).Scan(&a.PullRequestsAccess)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return Activity{}, err
+	}
 	var checked, synced, changed, retry int64
 	err = s.db.QueryRowContext(ctx, "SELECT checked_at, synced_at, changed_at, access, retry_after FROM sync_state WHERE scope = ?", scopeActivity).
 		Scan(&checked, &synced, &changed, &a.Access, &retry)
@@ -470,25 +503,32 @@ func (s *Store) Newest(ctx context.Context, src Source) (time.Time, bool, error)
 
 // ETags returns the stored ETags when the cache holds this repository's
 // data, otherwise empty strings, so another repository's never match.
-func (s *Store) ETags(ctx context.Context, src Source) (string, string, error) {
+func (s *Store) ETags(ctx context.Context, src Source) (Tags, error) {
 	current, has, err := readSource(ctx, s.db)
 	if err != nil || !has || current != src {
-		return "", "", err
+		return Tags{}, err
 	}
-	tags := map[string]string{}
-	rows, err := s.db.QueryContext(ctx, "SELECT scope, etag FROM sync_state WHERE scope IN (?, ?)", scopeRuns, scopeWorkflows)
+	rows, err := s.db.QueryContext(ctx, "SELECT scope, etag FROM sync_state WHERE scope IN (?, ?, ?)", scopeRuns, scopeWorkflows, scopePulls)
 	if err != nil {
-		return "", "", err
+		return Tags{}, err
 	}
 	defer rows.Close()
+	var tags Tags
 	for rows.Next() {
 		var scope, etag string
 		if err := rows.Scan(&scope, &etag); err != nil {
-			return "", "", err
+			return Tags{}, err
 		}
-		tags[scope] = etag
+		switch scope {
+		case scopeRuns:
+			tags.Runs = etag
+		case scopeWorkflows:
+			tags.Workflows = etag
+		case scopePulls:
+			tags.Pulls = etag
+		}
 	}
-	return tags[scopeRuns], tags[scopeWorkflows], rows.Err()
+	return tags, rows.Err()
 }
 
 func clearCache(ctx context.Context, tx *sql.Tx) error {

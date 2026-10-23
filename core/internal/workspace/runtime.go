@@ -250,21 +250,21 @@ func (r *Runtime) read(resolve Resolver) (store.Pass, string, bool) {
 	}
 	source := target.Source()
 	p := store.Pass{Source: source}
-	runsTag, workflowsTag, _ := r.cfg.store.ETags(r.ctx, source)
+	tags, _ := r.cfg.store.ETags(r.ctx, source)
 	client := target.Account.Client
-	runs, tag, err := client.RunsIfChanged(r.ctx, target.Owner, target.Name, pageSize, runsTag)
+	runs, tag, err := client.RunsIfChanged(r.ctx, target.Owner, target.Name, pageSize, tags.Runs)
 	switch {
 	case errors.Is(err, github.ErrNotModified):
-		p.Runs = &store.RunsUpdate{NotModified: true, ETag: runsTag}
+		p.Runs = &store.RunsUpdate{NotModified: true, ETag: tags.Runs}
 	case err != nil:
 		return r.failed(p, target, err), source.ServerID, true
 	default:
 		p.Runs = &store.RunsUpdate{Runs: runs, Complete: len(runs) < pageSize, ETag: tag}
 	}
-	workflows, workflowsTagNow, err := client.WorkflowsIfChanged(r.ctx, target.Owner, target.Name, workflowsTag)
+	workflows, workflowsTagNow, err := client.WorkflowsIfChanged(r.ctx, target.Owner, target.Name, tags.Workflows)
 	switch {
 	case errors.Is(err, github.ErrNotModified):
-		p.Workflows = &store.WorkflowsUpdate{NotModified: true, ETag: workflowsTag}
+		p.Workflows = &store.WorkflowsUpdate{NotModified: true, ETag: tags.Workflows}
 	case err != nil:
 		return r.failed(p, target, err), source.ServerID, true
 	default:

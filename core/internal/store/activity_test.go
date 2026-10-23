@@ -49,11 +49,11 @@ func TestAPassIsStoredAndReadBackNewestFirst(t *testing.T) {
 	if a.Runs[0].Actor != "octocat" || !a.Runs[0].CreatedAt.Equal(fixedNow().Add(2*time.Minute)) {
 		t.Fatalf("run = %+v", a.Runs[0])
 	}
-	runsTag, workflowsTag, _ := s.ETags(ctx, source)
-	if runsTag != `"r"` || workflowsTag != `"w"` {
-		t.Fatalf("etags = %q %q", runsTag, workflowsTag)
+	tags, _ := s.ETags(ctx, source)
+	if tags.Runs != `"r"` || tags.Workflows != `"w"` {
+		t.Fatalf("etags = %+v", tags)
 	}
-	if r, w, _ := s.ETags(ctx, Source{Repository: "other/repo"}); r != "" || w != "" {
+	if tags, _ := s.ETags(ctx, Source{Repository: "other/repo"}); tags != (Tags{}) {
 		t.Fatal("etags leaked to another repository")
 	}
 }
