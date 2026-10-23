@@ -186,6 +186,7 @@ private struct WorkspaceRegistryRow: View {
                 Button("Open New Window") { desktop.openRegistered(workspace) }
                 Button("Locate / Grant Access...") { desktop.importRepository(relinkID: workspace.id) }
                 Button("Remove Registration", role: .destructive) { desktop.removeRegistration(workspace) }.disabled(count > 0)
+                    .help("Forget this workspace in Runnir and delete its saved activity and local run history on this Mac. The repository's files stay.")
             } label: { Image(systemName: "ellipsis") }
             .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize().help("Workspace actions")
         }
@@ -457,6 +458,7 @@ struct DesktopWorkspaceView: View {
     /// A file created from the name sheet, opened once the sheet is gone so
     /// a question about unsaved edits does not sit on top of it.
     @State private var openAfterSheet: String?
+    @State private var confirmClearCache = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -482,6 +484,12 @@ struct DesktopWorkspaceView: View {
         .background(RunnirTheme.background).foregroundStyle(RunnirTheme.foreground).tint(RunnirTheme.primary)
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: windowID)
+        .confirmationDialog("Clear the cache of \(workspace.name)?", isPresented: $confirmClearCache, titleVisibility: .visible) {
+            Button("Clear Cache") { Task { await desktop.core?.clearCache(workspaceIDs: [workspace.id]) } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Saved runs, jobs, workflows and kept logs are deleted and download again. Local run history, presets, favorites and your sign-in stay.")
+        }
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
         // Once the Core has opened the working tree: its origin's GitHub
@@ -776,6 +784,12 @@ struct DesktopWorkspaceView: View {
                     }
                 }
                 .disabled(reader == nil || files.isLoading || session?.isRefreshing == true).help("Refresh local workflows")
+                Menu {
+                    Button("Clear Cache...") { confirmClearCache = true }
+                        .disabled(desktop.core == nil)
+                } label: { Image(systemName: "ellipsis.circle") }
+                .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize().help("More workspace actions")
+                .accessibilityLabel("More workspace actions")
                 Button { requestRun(workflowID: nil) } label: { Label("Run Workflow...", systemImage: "play") }
                     .buttonStyle(DesignButtonStyle(primary: true))
                     .disabled(session?.githubRepository == nil)

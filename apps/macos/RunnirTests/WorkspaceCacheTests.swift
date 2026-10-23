@@ -95,3 +95,72 @@ import Testing
         #expect(provider.core.storagePreferences.first?.delete == false)
     }
 }
+
+@Suite struct FreshnessTextTests {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    @Test func eachStateHasItsLine() {
+        typealias F = CoreActivityFreshness
+        #expect(ActivityFreshnessText.line(F(source: .none, syncing: true), now: now) == "Loading activity…")
+        #expect(ActivityFreshnessText.line(F(source: .live, syncing: true, access: .ok), now: now) == "Refreshing…")
+        #expect(ActivityFreshnessText.line(F(source: .cache, syncedAt: now.addingTimeInterval(-7200)), now: now)
+            == "Showing saved activity · synced 2 hours ago")
+        #expect(ActivityFreshnessText.line(F(source: .live, access: .ok, checkedAt: now.addingTimeInterval(-60),
+                                              syncedAt: now.addingTimeInterval(-60), changedAt: now.addingTimeInterval(-60)), now: now)
+            == "Up to date · checked 1 minute ago")
+        #expect(ActivityFreshnessText.line(F(source: .live, access: .ok, checkedAt: now.addingTimeInterval(-2),
+                                              syncedAt: now.addingTimeInterval(-2), changedAt: now.addingTimeInterval(-3600)), now: now)
+            == "No changes since 1 hour ago · checked just now")
+        #expect(ActivityFreshnessText.line(F(source: .live, access: .unavailable, syncedAt: now.addingTimeInterval(-600)), now: now)
+            == "Showing activity from 10 minutes ago")
+        #expect(ActivityFreshnessText.line(F(), now: now) == nil)
+    }
+}
+
+@MainActor
+@Suite struct StorageSettingsTests {
+    private func workspace(_ name: String) -> WorkspaceRecord {
+        WorkspaceRecord(id: UUID(), path: "/repo/\(name)", name: name, bookmark: Data(), lastOpenedAt: Date())
+    }
+
+    private func storage(_ id: UUID) -> CoreWorkspaceStorage {
+        CoreWorkspaceStorage(workspaceID: id, state: .persistent, note: nil, isOpen: false, databaseBytes: 4096,
+                             logBytes: 0, cachedRuns: 3, localRuns: 1, recoveryCopies: 0)
+    }
+
+    @Test func registeredAndRemovedWorkspacesAreListedAndCleared() async {
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        hub.keepJobLogs = { false }
+        hub.startMonitoring()
+        provider.ready()
+        _ = await eventually { hub.status == .ready(version: "fake") }
+        _ = await eventually { provider.core.storagePreferences.count == 1 } // the push at Core start
+        let kept = workspace("kept"), empty = workspace("empty")
+        let removed = UUID()
+        provider.core.storage = CoreStorageUsage(workspaces: [storage(kept.id), storage(removed)], keepJobLogs: false)
+        let defaults = UserDefaults(suiteName: "storage-\(UUID())")!
+        let model = StorageSettingsModel(hub: hub, workspaces: { [kept, empty] }, defaults: defaults)
+        await model.load()
+        #expect(model.rows.map(\.name) == ["empty", "kept", "Removed workspace"])
+        #expect(model.rows.first { $0.id == empty.id }?.storage == nil)
+        #expect(model.rows.first { $0.id == removed }?.isRegistered == false)
+        let keptStorage = model.rows.first(where: { $0.id == kept.id })?.storage
+        let summary = StorageSettingsModel.summary(keptStorage)
+        #expect(summary.hasPrefix("3 saved runs · 1 local run"))
+
+        await model.clear([kept.id])
+        #expect(provider.core.clearedCaches == [[kept.id]])
+        await model.clearAll()
+        #expect(provider.core.clearedCaches.last == [])
+        await model.delete(removed)
+        #expect(provider.core.deletedData == [removed])
+
+        await model.setKeepJobLogs(true)
+        #expect(defaults.bool(forKey: StorageSettings.keepJobLogsKey))
+        await model.setKeepJobLogs(false)
+        #expect(provider.core.storagePreferences.dropFirst().map(\.keep) == [true, false])
+        #expect(provider.core.storagePreferences.last?.delete == true, "turning it off deletes kept logs")
+        #expect(!defaults.bool(forKey: StorageSettings.keepJobLogsKey))
+    }
+}

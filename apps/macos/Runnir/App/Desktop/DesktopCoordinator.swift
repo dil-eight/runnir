@@ -429,6 +429,10 @@ final class DesktopCoordinator {
             try commit(candidate)
             presets.removeAll(workspaceID: workspace.id)
             favorites.removeAll(workspaceID: workspace.id)
+            // Its saved activity and local run history go too. A Core that is
+            // not running leaves them; Settings › Storage then lists them as
+            // a removed workspace to delete.
+            if let core { Task { await core.deleteWorkspaceData(workspace.id) } }
         }
         catch { message = "Registration could not be removed. Repository files were not changed." }
     }

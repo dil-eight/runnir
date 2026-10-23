@@ -65,6 +65,7 @@ struct RecentRunsList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            ActivityFreshnessLine(session: session)
             if let access = session.githubAccess,
                let help = hub?.accessHelp(access, workspaceID: session.workspaceID, purpose: .read, details: session.githubDetails)
                    ?? GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails) {
@@ -111,6 +112,7 @@ struct WorkspaceRunsView: View {
                         Text(session.branch.isEmpty ? "Current branch" : session.branch).lineLimit(1)
                     }.toggleStyle(.checkbox).disabled(session.branch.isEmpty)
                     Spacer()
+                    ActivityFreshnessLine(session: session).lineLimit(1)
                     Button {
                         Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
                     } label: { Image(systemName: "arrow.clockwise") }

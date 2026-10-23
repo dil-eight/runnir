@@ -277,6 +277,21 @@ struct DesktopCoordinatorTests {
         run.stopFollowing()
     }
 
+    @Test func removingARegistrationDeletesItsSavedData() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        _ = await eventually { hub.status == .ready(version: "fake") }
+        let coordinator = DesktopCoordinator(store: fixture.store, core: hub)
+        await coordinator.loadSession()
+        coordinator.removeRegistration(fixture.original)
+        #expect(coordinator.snapshot.workspaces.isEmpty)
+        #expect(await eventually { provider.core.deletedData == [fixture.original.id] })
+    }
+
     @Test func closingAWindowWithUnsavedEditsAsksFirst() async throws {
         let fixture = try CoordinatorFixture()
         defer { fixture.remove() }
