@@ -337,3 +337,6 @@ func clearCache(ctx context.Context, tx *sql.Tx) error {
 	}
 	return nil
 }
+
+// CacheSource returns the repository the cached activity belongs to.
+func (s *Store) CacheSource(ctx context.Context) (Source, bool, error) { return readSource(ctx, s.db) }
