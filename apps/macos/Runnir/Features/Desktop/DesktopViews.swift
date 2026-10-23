@@ -307,6 +307,11 @@ final class WorkspaceFilesModel {
     /// Changes whenever another file or version is loaded, so a save that
     /// finishes afterwards does not overwrite what is shown now.
     private var loadGeneration = 0
+    /// An edit the editor applies as one undoable change (the concurrency block).
+    private(set) var pendingEdit: CodeEditorEdit?
+    /// Why the last suggested edit was not made, shown over the editor.
+    private(set) var editNotice: String?
+    private var editCount = 0
 
     /// The editor holds changes that are not on disk.
     var isDirty: Bool { selected != nil && savedDigest != nil && source != savedSource }
@@ -387,6 +392,8 @@ final class WorkspaceFilesModel {
         savedDigest = nil
         diskChange = nil
         saveError = nil
+        pendingEdit = nil
+        editNotice = nil
         sourceTask?.cancel()
         isLoadingSource = true
         sourceTask = Task {
@@ -413,6 +420,39 @@ final class WorkspaceFilesModel {
         guard let selected else { return }
         select(selected, reader: reader)
     }
+
+    /// Waits until `file` is loaded in the editor; false when another file
+    /// is open or it could not be read.
+    func waitUntilLoaded(_ file: LocalWorkflowFile) async -> Bool {
+        await sourceTask?.value
+        return selected == file && savedDigest != nil
+    }
+
+    /// Asks the Core for the open file's text with the concurrency block and
+    /// hands it to the editor as one undoable edit. Nothing is saved.
+    func insertConcurrency(hub: CoreHub, workspaceID: UUID) async {
+        guard selected != nil, savedDigest != nil else { return }
+        guard isWritable else {
+            editNotice = "This workflow file is read-only, so the concurrency block can't be added."
+            return
+        }
+        let before = source
+        switch await hub.insertWorkflowConcurrency(workspaceID: workspaceID, content: before) {
+        case .inserted(let content, let firstLine, _)?:
+            // Typing while the Core answered: the answer is for older text.
+            guard source == before, let edit = CodeEditorEdit(from: before, to: content, id: editCount + 1) else { return }
+            editCount += 1
+            editNotice = nil
+            pendingEdit = edit
+            reveal(line: firstLine)
+        case .refused(let refusal)?:
+            editNotice = refusal.message
+        case nil:
+            editNotice = "Runnir Core could not add the block. Try again once it is ready."
+        }
+    }
+
+    func dismissEditNotice() { editNotice = nil }
 
     /// Saves the editor's text through the Core. A file that changed on disk
     /// since it was loaded is only replaced with `overwrite`.
@@ -608,26 +648,43 @@ struct DesktopWorkspaceView: View {
         Task { await files.validate(hub: hub, workspaceID: workspace.id) }
     }
 
-    /// Opens another file in the editor, asking first, in a sheet on this
-    /// window, when the open one has edits that are not saved.
-    private func open(_ file: LocalWorkflowFile) {
-        guard let reader, file != files.selected else { return }
-        guard files.isDirty, let current = files.selected else {
-            files.select(file, reader: reader)
-            return
-        }
-        Task {
-            let choice = await UnsavedChangesPrompt.ask(fileName: current.name, sheetOn: desktop.window(windowID))
-            // Answered for the file that was open when asked.
-            guard files.selected == current else { return }
-            switch choice {
-            case .save:
-                if await saveAndRevalidate() { files.select(file, reader: reader) }
-            case .discard:
-                files.select(file, reader: reader)
-            case .cancel:
-                break
+    /// Opens a file in the editor, asking first, in a sheet on this window,
+    /// when the open one has unsaved edits; true once that file is loaded.
+    private func openAndLoad(_ file: LocalWorkflowFile) async -> Bool {
+        guard let reader else { return false }
+        if file != files.selected {
+            if files.isDirty, let current = files.selected {
+                let choice = await UnsavedChangesPrompt.ask(fileName: current.name, sheetOn: desktop.window(windowID))
+                // Answered for the file that was open when asked.
+                guard files.selected == current else { return false }
+                switch choice {
+                case .save:
+                    guard await saveAndRevalidate() else { return false }
+                case .discard:
+                    break
+                case .cancel:
+                    return false
+                }
             }
+            files.select(file, reader: reader)
+        }
+        return await files.waitUntilLoaded(file)
+    }
+
+    private func open(_ file: LocalWorkflowFile) {
+        Task { _ = await openAndLoad(file) }
+    }
+
+    /// Opens a workflow file in the editor with the suggested concurrency
+    /// block as an unsaved edit; the user reviews, saves and commits it.
+    private func addConcurrency(path: String) {
+        guard let hub = desktop.core else { return }
+        let file = LocalWorkflowFile(relativePath: path)
+        state.selectedSection = .workspace
+        state.workspaceTab = .editor
+        Task {
+            guard await openAndLoad(file) else { return }
+            await files.insertConcurrency(hub: hub, workspaceID: workspace.id)
         }
     }
 
@@ -1089,7 +1146,7 @@ private struct LocalWorkflowBrowser: View {
             } else {
                 editorBanner
                 CodeEditor(text: $model.source, flaggedLines: model.isDirty ? [] : flagged, highlightedLine: model.highlightedLine,
-                           revealCount: model.revealCount, isEditable: model.isWritable && model.savedDigest != nil)
+                           revealCount: model.revealCount, isEditable: model.isWritable && model.savedDigest != nil, edit: model.pendingEdit)
             }
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).background(RunnirTheme.editor)
     }
@@ -1107,6 +1164,10 @@ private struct LocalWorkflowBrowser: View {
             }
         } else if let error = model.saveError {
             banner(error, symbol: "exclamationmark.triangle", tint: RunnirTheme.warning) { EmptyView() }
+        } else if let notice = model.editNotice {
+            banner(notice, symbol: "info.circle", tint: RunnirTheme.info) {
+                Button("Dismiss") { model.dismissEditNotice() }
+            }
         } else if !model.isWritable {
             banner("This file is read-only. Change its permissions to edit it here.", symbol: "lock", tint: RunnirTheme.secondaryForeground) { EmptyView() }
         }

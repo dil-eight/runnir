@@ -35,6 +35,54 @@ struct WorkflowEditingTests {
         return model
     }
 
+    @Test func anEditIsTheTextBetweenTheCommonStartAndEnd() throws {
+        let edit = try #require(CodeEditorEdit(from: "a\nc\n", to: "a\nb\nc\n", id: 1))
+        #expect(edit.range == NSRange(location: 2, length: 0) && edit.replacement == "b\n")
+        #expect(CodeEditorEdit(from: "same", to: "same", id: 2) == nil)
+        let replaced = try #require(CodeEditorEdit(from: "abc", to: "aXc", id: 3))
+        #expect(replaced.range == NSRange(location: 1, length: 1) && replaced.replacement == "X")
+    }
+
+    @Test func theConcurrencyBlockBecomesOneEditForTheEditor() async throws {
+        let (root, reader, hub, core, workspace) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let model = await loaded(reader)
+        let inserted = "name: CI\non: push\n\n# block\nconcurrency:\n  group: g\n  cancel-in-progress: true\n\njobs:\n  lint:\n    runs-on: ubuntu-latest\n"
+        core.concurrencyInsertion = .inserted(content: inserted, firstLine: 4, lastLine: 7)
+        await model.insertConcurrency(hub: hub, workspaceID: workspace)
+        #expect(core.insertions == [Self.original])
+        let edit = try #require(model.pendingEdit)
+        #expect(edit.before == Self.original)
+        #expect(edit.range == NSRange(location: 18, length: 0))
+        #expect(edit.replacement == "\n# block\nconcurrency:\n  group: g\n  cancel-in-progress: true\n\n")
+        #expect(model.highlightedLine == 4)
+        #expect(model.source == Self.original, "the editor applies the edit; the text follows through its binding")
+        #expect(model.editNotice == nil)
+    }
+
+    @Test func aRefusedConcurrencyBlockSaysWhyAndChangesNothing() async throws {
+        let (root, reader, hub, core, workspace) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let model = await loaded(reader)
+        core.concurrencyInsertion = .refused(.alreadyPresent)
+        await model.insertConcurrency(hub: hub, workspaceID: workspace)
+        #expect(model.pendingEdit == nil && model.source == Self.original)
+        #expect(model.editNotice == CoreConcurrencyRefusal.alreadyPresent.message)
+        model.dismissEditNotice()
+        #expect(model.editNotice == nil)
+    }
+
+    @Test func waitingForAFileEndsWhenItIsLoaded() async throws {
+        let (root, reader, _, _, _) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let model = WorkspaceFilesModel()
+        let file = LocalWorkflowFile(relativePath: ".github/workflows/ci.yml")
+        model.select(file, reader: reader)
+        #expect(await model.waitUntilLoaded(file))
+        #expect(model.source == Self.original)
+        #expect(!(await model.waitUntilLoaded(LocalWorkflowFile(relativePath: ".github/workflows/other.yml"))))
+    }
+
     @Test func editsAreDirtyUntilSaved() async throws {
         let (root, reader, hub, core, workspace) = try await setUp()
         defer { try? FileManager.default.removeItem(at: root) }
