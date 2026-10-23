@@ -1,10 +1,11 @@
-// Package scanner reads a repository's current branch and GitHub Actions
-// workflow files. It only parses structure: expressions are kept verbatim,
-// nothing is evaluated, and symlinks are never followed. The only reads outside
-// the repository root concern a linked worktree's git directory named by its
-// ".git" file: the bounded "gitdir" back-reference file is read and compared
-// (never returned) to confirm the directory belongs to this worktree, and only
-// then is its HEAD read for the branch.
+// Package scanner reads a repository's current branch, GitHub Actions
+// workflow files and the Run Workflow presets in .runnir/launches. It only
+// parses structure: expressions are kept verbatim, nothing is evaluated, and
+// symlinks are never followed. The only reads outside the repository root
+// concern a linked worktree's git directory named by its ".git" file: the
+// bounded "gitdir" back-reference file is read and compared (never returned)
+// to confirm the directory belongs to this worktree, and only then is its HEAD
+// read for the branch.
 package scanner
 
 import (
@@ -54,7 +55,14 @@ func (Scanner) Scan(ctx context.Context, root string) (repository.Snapshot, erro
 	if err != nil {
 		return repository.Snapshot{}, err
 	}
-	snapshot := repository.Snapshot{Workflows: workflows}
+	ids := make(map[string]bool, len(workflows))
+	for _, workflow := range workflows {
+		ids[workflow.ID] = true
+	}
+	snapshot := repository.Snapshot{Workflows: workflows, LaunchPresets: ReadLaunchPresets(ctx, root, ids)}
+	if err := ctx.Err(); err != nil {
+		return repository.Snapshot{}, err
+	}
 	if gitDir, linked, ok := resolveGitDir(root); ok {
 		snapshot.Branch = readBranch(gitDir)
 		snapshot.OriginHost, snapshot.OriginRepository = readOrigin(gitDir, linked)
@@ -462,6 +470,7 @@ func parse(id string, data []byte) repository.Workflow {
 			workflow.Jobs = jobs(value, &workflow)
 		}
 	}
+	workflow.DispatchInputs = dispatchOf(top).Inputs
 	return workflow
 }
 

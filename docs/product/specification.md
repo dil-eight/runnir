@@ -82,9 +82,9 @@ Manual close durably removes only that window from restoration; Cmd+Q preserves 
 
 ## FR-09 Portable Config And Offline Persistence
 
-Priority: P0 architecture foundation, phased with GitHub features. Read optional .runnir config/environments/launches safely and read-only on open. Store per-workspace SQLite/cache/runtime/overrides outside Git under resolved Application Support; Keychain owns secret values. Render local/cached UI before background shared sync, label origin/freshness and recover missing/moved roots or invalid/corrupt state without losing unique user data. See [persistence contract](../architecture/workspace-persistence.md) and W01-W09 acceptance cases.
+Priority: P0 architecture foundation, phased with GitHub features. Read optional `.runnir/launches` presets safely and read-only on open. Store per-workspace SQLite/cache/runtime/overrides outside Git under resolved Application Support; Keychain owns secret values. Render local/cached UI before background shared sync, label origin/freshness and recover missing/moved roots or invalid/corrupt state without losing unique user data. See [persistence contract](../architecture/workspace-persistence.md) and W01-W09 acceptance cases.
 
-Local-only presets remain device-private; portable .runnir launch presets require explicit creation/editing. Local/remote execution targets and effective non-secret value origins are visible; repository settings cannot bypass approval or grant credentials. Parsing a local target does not prove an executor exists. FR-06 remains required for complete v0.1; automatic shell/process restoration stays out of scope.
+Local-only presets remain device-private; portable `.runnir/launches` presets are written by the user, never by Runnir. Local/remote execution targets and effective non-secret value origins are visible; repository settings cannot bypass approval or grant credentials. Parsing a local target does not prove an executor exists. FR-06 remains required for complete v0.1; automatic shell/process restoration stays out of scope.
 
 ## UI And Storage
 
@@ -92,7 +92,7 @@ App entry route: splash -> eligible restored workspace windows or Workspace Mana
 
 Dashboard: favorites, recent/failed/active runs, quick actions. Workflow detail: source/name, history, ref/inputs, presets, run action, jobs/logs. Workspace: repository selector, workflows, YAML editor, diagnostics, basic job dependencies, execution controls/output.
 
-Use versioned Application Support settings/session/registry files and an embedded SQLite DB per registered local working-tree instance. This explicit offline requirement supersedes the earlier optional-SQLite recommendation. Keep portable non-secret .runnir configuration in the working tree only by user choice; local overrides and caches stay device-private. Credentials remain in Keychain. Cache removal preserves user-authored overrides/config and requires classified retention/recovery behavior.
+Use versioned Application Support settings/session/registry files and an embedded SQLite DB per registered local working-tree instance. This explicit offline requirement supersedes the earlier optional-SQLite recommendation. Keep portable non-secret `.runnir/launches` presets in the working tree only by user choice; local overrides and caches stay device-private. Credentials remain in Keychain. Cache removal preserves user-authored overrides/config and requires classified retention/recovery behavior.
 
 ## Security And Release Requirements
 

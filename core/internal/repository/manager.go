@@ -41,6 +41,9 @@ type Snapshot struct {
 	OriginHost       string
 	OriginRepository string
 	Workflows        []Workflow
+	// LaunchPresets are the Run Workflow presets of .runnir/launches, with
+	// entries for files or folders that cannot be used.
+	LaunchPresets []LaunchPreset
 }
 
 type Workflow struct {
@@ -49,12 +52,42 @@ type Workflow struct {
 	Triggers   []string
 	Jobs       []Job
 	ParseError string
+	// DispatchInputs are the workflow_dispatch inputs the local file declares.
+	DispatchInputs []DispatchInput
+}
+
+// DispatchInput is one `on.workflow_dispatch.inputs` entry.
+type DispatchInput struct {
+	Name        string
+	Description string
+	// Type is "string" (the default), "boolean", "choice", "number" or "environment".
+	Type     string
+	Required bool
+	Default  string
+	Options  []string
 }
 
 type Job struct {
 	ID    string
 	Name  string
 	Needs []string
+}
+
+// LaunchPreset is one file of .runnir/launches: a Run Workflow preset the
+// repository shares, or, with Problem set, why a file or folder there cannot
+// be used.
+type LaunchPreset struct {
+	// Path is ".runnir/launches/<file>", or ".runnir" or ".runnir/launches"
+	// for an entry about that folder.
+	Path string
+	Name string
+	// WorkflowPath is ".github/workflows/<file>".
+	WorkflowPath string
+	// Ref is empty when the preset keeps the form's branch.
+	Ref    string
+	Inputs map[string]string
+	// Problem is empty for a usable preset.
+	Problem string
 }
 
 // Info is a point-in-time view of one repository context.
@@ -212,6 +245,18 @@ func (m *Manager) Workflows(id string) ([]Workflow, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return append([]Workflow(nil), e.snap.Workflows...), nil
+}
+
+// LaunchPresets returns the .runnir/launches presets of the latest published
+// snapshot.
+func (m *Manager) LaunchPresets(id string) ([]LaunchPreset, error) {
+	e, err := m.lookupReady(id)
+	if err != nil {
+		return nil, err
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return append([]LaunchPreset(nil), e.snap.LaunchPresets...), nil
 }
 
 // Refresh rescans one repository. Refreshes of the same repository run one at

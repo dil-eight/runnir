@@ -45,6 +45,7 @@ private struct FakeService: CoreServicing {
     func refreshRepository(id: String) async throws -> CoreRepository { throw CoreServiceError.unavailable }
     func closeRepository(id: String) async throws { throw CoreServiceError.unavailable }
     func listWorkflows(repositoryID: String) async throws -> [CoreWorkflow] { throw CoreServiceError.unavailable }
+    func listLaunchPresets(repositoryID: String) async throws -> [CoreLaunchPreset] { throw CoreServiceError.unavailable }
     func startWorkflow(repositoryID: String, workflowID: String, ref: String?) async throws -> CoreExecution { throw CoreServiceError.unavailable }
     func validateWorkflows(repositoryID: String, workflowID: String?) async throws -> CoreValidationReport { throw CoreServiceError.unavailable }
     func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error> {

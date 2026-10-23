@@ -1,7 +1,8 @@
 // Runnir Core local gRPC contract, version 1. See ADR 0004.
 //
-// Every repository-scoped call carries repository_id. Additive changes keep
-// this package; breaking changes require a new package version.
+// Every repository-scoped call carries repository_id. Until the first release
+// tag the contract changes in place (AGENTS.md); from then on additive changes
+// keep this package and breaking changes require a new package version.
 syntax = "proto3";
 
 package runnir.core.v1;
@@ -38,6 +39,9 @@ service RunnirCore {
   rpc SetStoragePreferences(SetStoragePreferencesRequest) returns (SetStoragePreferencesResponse);
 
   rpc ListWorkflows(ListWorkflowsRequest) returns (ListWorkflowsResponse);
+  // Run Workflow presets the repository shares in .runnir/launches, read in
+  // the same scan as its workflows. Runnir never writes these files.
+  rpc ListLaunchPresets(ListLaunchPresetsRequest) returns (ListLaunchPresetsResponse);
   // Checks the workflow files on disk now with actionlint, built into the
   // Core; no external program runs and nothing is sent anywhere.
   rpc ValidateWorkflows(ValidateWorkflowsRequest) returns (ValidateWorkflowsResponse);
@@ -206,12 +210,36 @@ message Workflow {
   repeated Job jobs = 4;
   // Set when the file could not be parsed; other fields may be partial.
   string parse_error = 5;
+  // The workflow_dispatch inputs the local file declares.
+  repeated DispatchInput dispatch_inputs = 6;
 }
 
 message Job {
   string id = 1;
   string name = 2;
   repeated string needs = 3;
+}
+
+message ListLaunchPresetsRequest {
+  string repository_id = 1;
+}
+
+message ListLaunchPresetsResponse {
+  // Usable presets by name, then path; entries with a problem after them, by path.
+  repeated LaunchPreset presets = 1;
+}
+
+message LaunchPreset {
+  // ".runnir/launches/<file>", or ".runnir" / ".runnir/launches" for a problem with that folder.
+  string path = 1;
+  string name = 2;
+  // ".github/workflows/<file>".
+  string workflow_path = 3;
+  // Empty: keep the branch the form has.
+  string ref = 4;
+  map<string, string> inputs = 5;
+  // Why the entry cannot be used; empty when it can. Other fields are empty then.
+  string problem = 6;
 }
 
 message StartWorkflowRequest {

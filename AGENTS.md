@@ -13,6 +13,7 @@ Runnir combines a native macOS desktop app with a portable Go Core. Keep impleme
 - Do not add telemetry by default.
 - Do not claim authentication, signing, notarization, auto-update, or deployment features are complete until they are implemented and verified.
 - Prefer small protocol-backed services and deterministic tests.
+- No backward compatibility before the first release tag. Runnir has not been released, so change file formats (`.runnir`, files in Application Support), gRPC and IPC contracts, database schemas and settings in place: no migrations, fallbacks, version fields or aliases kept only for data or clients from earlier development builds. Local data that no longer fits may be discarded. Existing migration code stays until someone removes it on purpose. Backward compatibility starts with the first published version tag; from then on follow the compatibility rules in ADR 0004 and ADR 0007.
 - Run `xcodebuild -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'platform=macOS' build` before handing off code changes.
 - Run unit tests with `xcodebuild -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'platform=macOS' test -only-testing:RunnirTests`.
 - For Core changes, run `go test ./...`, `go vet ./...`, and `go build ./...` from `core/`.

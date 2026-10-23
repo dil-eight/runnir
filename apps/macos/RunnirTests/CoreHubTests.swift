@@ -276,6 +276,31 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         lock.withLock { _listCalls.append(repositoryID); return workflows[repositoryID] ?? [] }
     }
 
+    private var launchPresets: [String: [CoreLaunchPreset]] = [:]
+    private var launchPresetsError: CoreServiceError?
+    private var launchPresetsCancel = false
+    private var launchPresetDelays: [Duration] = []
+    private var _launchPresetCalls = 0
+    var launchPresetCalls: Int { lock.withLock { _launchPresetCalls } }
+    func setLaunchPresets(_ list: [CoreLaunchPreset], for path: String) { lock.withLock { launchPresets[Self.id(for: path)] = list } }
+    func failLaunchPresets(with error: CoreServiceError?) { lock.withLock { launchPresetsError = error } }
+    /// The next read throws CancellationError, as a cancelled call does.
+    func cancelLaunchPresets(_ cancel: Bool) { lock.withLock { launchPresetsCancel = cancel } }
+    /// The next reads answer after these delays, one each, with the list
+    /// set when the call started.
+    func delayLaunchPresets(_ delays: [Duration]) { lock.withLock { launchPresetDelays = delays } }
+    func listLaunchPresets(repositoryID: String) async throws -> [CoreLaunchPreset] {
+        let (list, error, cancel, delay) = lock.withLock {
+            _launchPresetCalls += 1
+            let delay = launchPresetDelays.isEmpty ? nil : launchPresetDelays.removeFirst()
+            return (launchPresets[repositoryID] ?? [], launchPresetsError, launchPresetsCancel, delay)
+        }
+        if let delay { try? await Task.sleep(for: delay) }
+        if cancel { throw CancellationError() }
+        if let error { throw error }
+        return list
+    }
+
     func startWorkflow(repositoryID: String, workflowID: String, ref: String?) async throws -> CoreExecution {
         throw CoreServiceError.unavailable
     }
@@ -523,6 +548,11 @@ private func workflow(_ id: String) -> CoreWorkflow {
     CoreWorkflow(id: id, name: id, triggers: ["push"], jobs: [], parseError: nil)
 }
 
+private func launchPreset(_ name: String) -> CoreLaunchPreset {
+    CoreLaunchPreset(path: ".runnir/launches/\(name).yaml", name: name, workflowPath: ".github/workflows/deploy.yml",
+                     ref: nil, inputs: [:], problem: nil)
+}
+
 // MARK: Tests
 
 @MainActor
@@ -606,6 +636,78 @@ struct CoreHubTests {
         #expect(hub.session(for: b)?.branch == "main")
         #expect(hub.session(for: b)?.lastRefresh == nil)
         #expect(provider.core.refreshCalls == [FakeCore.id(for: "/repo/a")])
+    }
+
+    @Test
+    func repositoryPresetsArriveWithTheRepositoryAndFollowRefreshesAndEvents() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        provider.core.setLaunchPresets([launchPreset("a")], for: "/repo/a")
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { hub.session(for: workspace)?.launchPresets.map(\.name) == ["a"] })
+
+        provider.core.setLaunchPresets([launchPreset("a"), launchPreset("b")], for: "/repo/a")
+        await hub.refresh(workspaceID: workspace)
+        #expect(hub.session(for: workspace)?.launchPresets.count == 2)
+
+        provider.core.setLaunchPresets([launchPreset("c")], for: "/repo/a")
+        provider.core.push(coreEvent(.repositoryRefreshed, repository: FakeCore.id(for: "/repo/a"), sequence: 5))
+        #expect(await eventually { hub.session(for: workspace)?.launchPresets.map(\.name) == ["c"] })
+    }
+
+    @Test
+    func aFailedPresetReadKeepsTheLastListAndNeverFailsTheRepository() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        provider.core.setLaunchPresets([launchPreset("a")], for: "/repo/a")
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { hub.session(for: workspace)?.launchPresets.count == 1 })
+
+        provider.core.failLaunchPresets(with: .timedOut)
+        await hub.refresh(workspaceID: workspace)
+        let session = hub.session(for: workspace)
+        #expect(session?.launchPresets.count == 1)
+        #expect(session?.launchPresetsError != nil)
+        #expect(session?.phase == .ready && session?.refreshError == nil)
+
+        provider.core.failLaunchPresets(with: nil)
+        await hub.refresh(workspaceID: workspace)
+        #expect(hub.session(for: workspace)?.launchPresetsError == nil)
+    }
+
+    @Test
+    func aSlowOlderPresetReadNeverReplacesANewerOne() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        provider.core.setLaunchPresets([launchPreset("a")], for: "/repo/a")
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { hub.session(for: workspace)?.launchPresets.map(\.name) == ["a"] })
+
+        // An event starts a slow read of the old list...
+        let calls = provider.core.launchPresetCalls
+        provider.core.setLaunchPresets([launchPreset("old")], for: "/repo/a")
+        provider.core.delayLaunchPresets([.milliseconds(300)])
+        provider.core.push(coreEvent(.repositoryRefreshed, repository: FakeCore.id(for: "/repo/a"), sequence: 7))
+        #expect(await eventually { provider.core.launchPresetCalls == calls + 1 })
+        // ...then a refresh reads the new one and finishes first.
+        provider.core.setLaunchPresets([launchPreset("new")], for: "/repo/a")
+        await hub.refresh(workspaceID: workspace)
+        #expect(hub.session(for: workspace)?.launchPresets.map(\.name) == ["new"])
+        try? await Task.sleep(for: .milliseconds(450))
+        #expect(hub.session(for: workspace)?.launchPresets.map(\.name) == ["new"])
+    }
+
+    @Test
+    func aCancelledPresetReadIsNotReportedAsAFailure() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        provider.core.setLaunchPresets([launchPreset("a")], for: "/repo/a")
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
+        #expect(await eventually { hub.session(for: workspace)?.launchPresets.count == 1 })
+        provider.core.cancelLaunchPresets(true)
+        await hub.refresh(workspaceID: workspace)
+        #expect(hub.session(for: workspace)?.launchPresetsError == nil)
+        #expect(hub.session(for: workspace)?.launchPresets.count == 1)
     }
 
     @Test

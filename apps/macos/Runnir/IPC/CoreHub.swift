@@ -44,6 +44,13 @@ final class RepositorySession: Identifiable {
         githubRepository.map { GitHubRepositoryRef(serverID: githubServerID ?? "", fullName: $0) }
     }
     fileprivate(set) var workflows: [CoreWorkflow] = []
+    /// Run Workflow presets the repository shares in .runnir/launches, with
+    /// entries for files that cannot be used, as the Core last read them.
+    fileprivate(set) var launchPresets: [CoreLaunchPreset] = []
+    /// Why the last read of `launchPresets` failed; the previous list stays.
+    fileprivate(set) var launchPresetsError: String?
+    /// Counts reads of `launchPresets`; only the latest one may land.
+    @ObservationIgnored fileprivate var launchPresetReads = 0
     fileprivate(set) var lastRefresh: Date?
     fileprivate(set) var isRefreshing = false
     fileprivate(set) var refreshError: String?
@@ -977,6 +984,8 @@ final class CoreHub {
             existing.coreID = nil
             existing.branch = ""
             existing.workflows = []
+            existing.launchPresets = []
+            existing.launchPresetsError = nil
             existing.runs = []
             existing.remoteWorkflows = []
             existing.freshness = CoreActivityFreshness()
@@ -1076,6 +1085,7 @@ final class CoreHub {
             guard isCurrent() else { return }
             apply(repository, workflows: workflows, to: session)
             session.phase = .ready
+            Task { await loadLaunchPresets(of: session, coreID: repository.id, service: service) }
             // Saved activity first; the Core syncs on its own once the
             // workspace is open and announces each pass.
             Task { await readActivity(of: session) }
@@ -1110,6 +1120,7 @@ final class CoreHub {
             guard isCurrent() else { return }
             apply(repository, workflows: workflows, to: session)
             session.refreshError = nil
+            await loadLaunchPresets(of: session, coreID: coreID, service: service)
             // The Core's RefreshRepository already asked its sync for a pass.
             Task { await readActivity(of: session) }
         } catch let error as CoreServiceError where error == .notFound {
@@ -1215,6 +1226,30 @@ final class CoreHub {
                   let workflows = try? await service.listWorkflows(repositoryID: coreID),
                   sessions[session.workspaceID] === session, session.coreID == coreID else { return }
             session.workflows = workflows
+            await self.loadLaunchPresets(of: session, coreID: coreID, service: service)
+        }
+    }
+
+    /// Reads the repository's presets. A failed read keeps the last list and
+    /// says why; it never fails opening or refreshing the repository. Reads
+    /// started from opening, refreshing and events are not ordered, so only
+    /// the latest started may land: it saw the newest scan.
+    private func loadLaunchPresets(of session: RepositorySession, coreID: String, service: any CoreServicing) async {
+        session.launchPresetReads += 1
+        let read = session.launchPresetReads
+        func isCurrent() -> Bool {
+            sessions[session.workspaceID] === session && session.coreID == coreID && session.launchPresetReads == read
+        }
+        do {
+            let presets = try await service.listLaunchPresets(repositoryID: coreID)
+            guard isCurrent() else { return }
+            session.launchPresets = presets
+            session.launchPresetsError = nil
+        } catch is CancellationError {
+            return // nothing failed
+        } catch {
+            guard isCurrent() else { return }
+            session.launchPresetsError = Self.describe(error)
         }
     }
 

@@ -195,8 +195,30 @@ struct GRPCCoreService: CoreServicing {
                 name: workflow.name,
                 triggers: workflow.triggers,
                 jobs: workflow.jobs.map { CoreJob(id: $0.id, name: $0.name, needs: $0.needs) },
-                parseError: workflow.parseError.isEmpty ? nil : workflow.parseError
+                parseError: workflow.parseError.isEmpty ? nil : workflow.parseError,
+                dispatchInputs: workflow.dispatchInputs.map(Self.dispatchInput)
             )
+        }
+    }
+
+    private static func dispatchInput(_ input: Runnir_Core_V1_DispatchInput) -> CoreDispatchInput {
+        let kind: CoreDispatchInputKind = switch input.type {
+        case .boolean: .boolean
+        case .choice: .choice
+        case .number: .number
+        case .environment: .environment
+        default: .string
+        }
+        return CoreDispatchInput(name: input.name, description: input.description_p, kind: kind,
+                                 required: input.required, defaultValue: input.defaultValue, options: input.options)
+    }
+
+    func listLaunchPresets(repositoryID: String) async throws -> [CoreLaunchPreset] {
+        let response = try await call { try await client.listLaunchPresets(.with { $0.repositoryID = repositoryID }, options: Self.options(Self.callTimeout)) }
+        return response.presets.map { preset in
+            CoreLaunchPreset(path: preset.path, name: preset.name, workflowPath: preset.workflowPath,
+                             ref: preset.ref.isEmpty ? nil : preset.ref, inputs: preset.inputs,
+                             problem: preset.problem.isEmpty ? nil : preset.problem)
         }
     }
 
@@ -511,17 +533,7 @@ struct GRPCCoreService: CoreServicing {
         return CoreDispatchDefinition(
             access: Self.map(response.status),
             dispatchable: response.dispatchable,
-            inputs: response.inputs.map { input in
-                let kind: CoreDispatchInputKind = switch input.type {
-                case .boolean: .boolean
-                case .choice: .choice
-                case .number: .number
-                case .environment: .environment
-                default: .string
-                }
-                return CoreDispatchInput(name: input.name, description: input.description_p, kind: kind,
-                                         required: input.required, defaultValue: input.defaultValue, options: input.options)
-            },
+            inputs: response.inputs.map(Self.dispatchInput),
             parseError: response.parseError.isEmpty ? nil : response.parseError
         )
     }

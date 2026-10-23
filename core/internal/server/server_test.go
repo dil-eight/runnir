@@ -291,3 +291,69 @@ func TestOpenRepositoryReportsAnUnreadableFolder(t *testing.T) {
 		t.Fatalf("a denied open must not register a repository: %v, %v", health, err)
 	}
 }
+
+func TestListLaunchPresetsOverGRPC(t *testing.T) {
+	path := socketPath(t)
+	stop := start(t, path)
+	defer stop()
+	client := connect(t, path)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(os.MkdirAll(filepath.Join(root, ".github", "workflows"), 0o755))
+	must(os.WriteFile(filepath.Join(root, ".github", "workflows", "deploy.yml"),
+		[]byte("on:\n  workflow_dispatch:\n    inputs:\n      environment:\n        description: Where to deploy\n        type: choice\n        options: [staging, production]\njobs: {}\n"), 0o644))
+	must(os.MkdirAll(filepath.Join(root, ".runnir", "launches"), 0o755))
+	must(os.WriteFile(filepath.Join(root, ".runnir", "launches", "staging.yaml"),
+		[]byte("name: Staging\nworkflow: deploy.yml\nref: main\ninputs:\n  environment: staging\n"), 0o644))
+
+	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed, err := client.ListLaunchPresets(ctx, &corev1.ListLaunchPresetsRequest{RepositoryId: opened.Repository.Id})
+	if err != nil || len(listed.Presets) != 1 {
+		t.Fatalf("list = %v, %v", listed, err)
+	}
+	workflows, err := client.ListWorkflows(ctx, &corev1.ListWorkflowsRequest{RepositoryId: opened.Repository.Id})
+	if err != nil || len(workflows.GetWorkflows()) != 1 || len(workflows.Workflows[0].DispatchInputs) != 1 {
+		t.Fatalf("workflows = %v, %v", workflows, err)
+	}
+	if in := workflows.Workflows[0].DispatchInputs[0]; in.Name != "environment" || in.Description != "Where to deploy" ||
+		in.Type != corev1.DispatchInputType_DISPATCH_INPUT_TYPE_CHOICE || len(in.Options) != 2 {
+		t.Fatalf("dispatch input = %v", in)
+	}
+	p := listed.Presets[0]
+	if p.Path != ".runnir/launches/staging.yaml" || p.Name != "Staging" || p.WorkflowPath != ".github/workflows/deploy.yml" ||
+		p.Ref != "main" || p.Inputs["environment"] != "staging" || p.Problem != "" {
+		t.Fatalf("preset = %v", p)
+	}
+
+	// A file added on disk shows after a refresh, never before.
+	must(os.WriteFile(filepath.Join(root, ".runnir", "launches", "broken.yaml"), []byte("name: Broken\nworkflow: missing.yml\n"), 0o644))
+	if before, err := client.ListLaunchPresets(ctx, &corev1.ListLaunchPresetsRequest{RepositoryId: opened.Repository.Id}); err != nil || len(before.GetPresets()) != 1 {
+		t.Fatalf("before refresh = %v, %v", before, err)
+	}
+	if _, err := client.RefreshRepository(ctx, &corev1.RefreshRepositoryRequest{RepositoryId: opened.Repository.Id}); err != nil {
+		t.Fatal(err)
+	}
+	again, err := client.ListLaunchPresets(ctx, &corev1.ListLaunchPresetsRequest{RepositoryId: opened.Repository.Id})
+	if err != nil || len(again.Presets) != 2 || again.Presets[1].Path != ".runnir/launches/broken.yaml" || again.Presets[1].Problem == "" {
+		t.Fatalf("after refresh = %v, %v", again, err)
+	}
+
+	_, err = client.ListLaunchPresets(ctx, &corev1.ListLaunchPresetsRequest{RepositoryId: "repo_nope"})
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("unknown id = %v", err)
+	}
+}
