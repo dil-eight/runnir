@@ -275,7 +275,7 @@ Errors: unknown repository `NOT_FOUND`; activity or `LoadOlderRuns` for a reposi
 **Runs section.**
 
 - Header: segmented `List | By change` (`@SceneStorage`, default List), the current-branch checkbox (both modes; in By change it keeps changes with a run on that branch), Reload.
-- Row detail: `CI #881 · main · push · #142 after merge`, `… · #142`, or the short commit when there is no link. Help: the pull request's title and the commit title.
+- Row detail: `CI #881 · #142 after merge · main · push` or `CI #879 · #142 · retry · pull_request`: the pull request comes right after the run number, so the narrow list never cuts it; a run without a pull request ends with its short commit (`CI #878 · main · push · 3c4d5e6`). Help: the pull request's title and the commit title.
 - List: completed superseded runs are hidden; a footer row "6 superseded runs hidden · Show" reveals them dimmed with "older commit" (not remembered). An outdated run shows an "outdated" label, with help naming the newer run.
 - By change: one block per change. A pull request header shows status, `#142 Title`, state (open, draft, merged, closed) and branch; a commit header shows status, short sha, commit title and branch. Sections show their runs as rows; "N earlier runs on M older commits" and "N earlier runs on this commit" expand in place.
 - Selecting a run opens the inspector as today. The selection stays when its run becomes hidden.

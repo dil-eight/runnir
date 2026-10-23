@@ -145,6 +145,22 @@ struct GitHubAccessHelpTests {
         #expect(model.phase == .idle)
         #expect(provider.core.runActions.isEmpty, "nothing was asked of GitHub")
     }
+
+    @Test func unreadablePullRequestsSayWhatToFix() {
+        let token = GitHubAccessHelp.pullRequestsUnreadable(repository: "o/r", details: nil, credential: .fineGrained, server: nil)
+        #expect(token.message.contains("Pull requests: Read-only"))
+        if case .editToken = token.fix {} else { Issue.record("fix = \(token.fix)") }
+        let installation = CoreGitHubInstallation(id: 1, account: "o", accountType: "Organization", repositorySelection: "all",
+                                                  htmlURL: URL(string: "https://github.com/organizations/o/settings/installations/1"),
+                                                  missingPermissions: ["pull_requests: read"])
+        let details = CoreGitHubRepository(access: .ok, fullName: "o/r", visibility: "private", defaultBranch: "main", htmlURL: nil,
+                                           canPush: true, installation: installation)
+        let pending = GitHubAccessHelp.pullRequestsUnreadable(repository: "o/r", details: details, credential: .appUser, server: nil)
+        #expect(pending.title == "Pull requests can't be read")
+        #expect(pending.message.contains("An owner of o accepts it on GitHub"))
+        #expect(pending.fix == .reviewPermissions(URL(string: "https://github.com/organizations/o/settings/installations/1")!))
+        #expect(GitHubAccessHelp.permissionName("pull_requests: read") == "Pull requests (read)")
+    }
 }
 
 struct EnterpriseAccessHelpTests {

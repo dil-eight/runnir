@@ -40,6 +40,7 @@ Spec: [docs/superpowers/specs/2026-10-23-run-change-links-design.md](../specs/20
 - `summarizeCI` is split: the new exported `github.SummarizeRuns` sums up the runs it is given; the menu bar keeps picking the newest run per workflow before calling it, so its counts do not change. Changes pass the newest run per workflow and event.
 - The fine-grained token check (`CheckGitHubToken`) is not changed; the token help text adds "Pull requests: Read-only" as the spec says.
 - The default branch is read once per runtime and target in the loop goroutine (`Runtime.branchFor`), not stored per pass when unchanged.
+- A row's detail line puts the pull request right after the run number (`CI #881 · #142 after merge · main · push`): in the 300-point list the end of the line is cut, as the design frames showed. A run without a pull request keeps its short commit at the end.
 - The lazy-loading trigger is a footer row in a `LazyVStack` with `.task(id: runs.count)`, so it asks again while it stays on screen and stops when it scrolls away.
 - Development databases created before this change have the old columns. The schema changes in place, so delete `~/Library/Application Support/Runnir/repositories/*/state.sqlite*` once after updating; local run history is restored from `backups/local-data.sqlite` (B26 recovery). Task 15 records this in the PR description.
 
@@ -85,7 +86,7 @@ Load the tools with ToolSearch `select:mcp__pencil__get_app_state,mcp__pencil__e
 
 - [ ] **Step 2: Add the frames, to the right of the existing Runs frame in row D, in this order**
 
-1. **D · Runs · List.** Copy of the Runs frame. Above the list: a segmented control `List | By change` (List selected), the current-branch checkbox, Reload. Rows show the new detail line: `CI #881 · main · push · #142 after merge`, `CI #879 · retry · pull_request · #142`, `Nightly #31 · main · schedule · b7c8d9e`. One row with an "outdated" label (capsule, info tint) and its run still running. Last row: `6 superseded runs hidden · Show`.
+1. **D · Runs · List.** Copy of the Runs frame. Above the list: a segmented control `List | By change` (List selected), the current-branch checkbox, Reload. Rows show the new detail line: `CI #881 · #142 after merge · main · push`, `CI #879 · #142 · retry · pull_request`, `Nightly #31 · main · schedule · b7c8d9e` (the pull request right after the run number, so the narrow list does not cut it). One row with an "outdated" label (capsule, info tint) and its run still running. Last row: `6 superseded runs hidden · Show`.
 2. **D · Runs · List with superseded shown.** Same, the footer reads `Hide superseded runs`, and two rows are dimmed with "older commit".
 3. **D · Runs · By change.** The segmented control on `By change`. Blocks: merged `#142 Add retry to deploy` (status passed; sections "After merge · main · a1b2c3d" with CI push and Deploy workflow_dispatch, "On the PR · 9f8e7d6 (latest)" with CI pull_request and Lint pull_request; `2 earlier runs on 2 older commits`), open draft `#145 Cache act images` (running), commit `3c4d5e6 Bump Go to 1.25 · main` (failed), commit `b7c8d9e Nightly · main` with `6 earlier runs on this commit`. Under #142 a concurrency banner (see 5).
 4. **D · Run inspector · Superseded.** The inspector of an outdated run: under the summary line, "Pull request #142 Add retry to deploy · open" and "Commit 7e8f9a0 Tweak retry count"; "Superseded by CI #883 on a newer commit" (a link); the existing Cancel Run button enabled.
@@ -5364,7 +5365,8 @@ import Testing
         #expect(RunPresentation.linkText(run(1, link: .pullRequest(142))) == "#142")
         #expect(RunPresentation.linkText(run(1, link: .afterMerge(142))) == "#142 after merge")
         #expect(RunPresentation.linkText(run(1)) == "a1b2c3d")
-        #expect(RunPresentation.detail(run(881, link: .afterMerge(142))) == "CI #881 · main · push · #142 after merge")
+        #expect(RunPresentation.detail(run(881, link: .afterMerge(142))) == "CI #881 · #142 after merge · main · push")
+        #expect(RunPresentation.detail(run(878)) == "CI #878 · main · push · a1b2c3d")
         #expect(RunPresentation.summary(run(881, link: .afterMerge(142))) == "run #881 · a1b2c3d · #142 after merge")
         #expect(RunPresentation.summary(run(881)) == "run #881 · a1b2c3d")
         #expect(RunPresentation.pullRequestLine(pull) == "Pull request #142 Add retry to deploy · merged")
@@ -5486,9 +5488,15 @@ enum RunPresentation {
         }
     }
 
-    /// A row's second line: workflow and number, branch, event and link.
+    /// A row's second line: workflow and number, then the pull request when
+    /// there is one (a 300-point list cuts the end of the line), branch and
+    /// event; a run without a pull request ends with its short commit.
     static func detail(_ run: CoreWorkflowRun) -> String {
-        ["\(run.name) #\(run.runNumber)", run.branch, run.event, linkText(run)].filter { !$0.isEmpty }.joined(separator: " · ")
+        let head = "\(run.name) #\(run.runNumber)"
+        let parts = run.link.pullRequest == nil
+            ? [head, run.branch, run.event, linkText(run)]
+            : [head, linkText(run), run.branch, run.event]
+        return parts.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     /// The Overview's latest run: "run #881 · a1b2c3d · #142 after merge".

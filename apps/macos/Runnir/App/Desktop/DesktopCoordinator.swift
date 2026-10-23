@@ -101,6 +101,8 @@ final class DesktopCoordinator {
     let presets: DispatchPresetLibrary
     /// Favorite workflows of each workspace, kept on this Mac.
     let favorites: WorkflowFavorites
+    /// Workflows whose concurrency suggestion the user turned off, per workspace.
+    let hintDismissals: ConcurrencyHintDismissals
     /// Repositories starred in the Workspace Manager's GitHub tab.
     let repositoryFavorites: RepositoryFavorites
     /// The GitHub tab's list, kept while the Manager is closed.
@@ -115,6 +117,7 @@ final class DesktopCoordinator {
          github: GitHubSession? = nil,
          presets: DispatchPresetLibrary = DispatchPresetLibrary(store: nil),
          favorites: WorkflowFavorites = WorkflowFavorites(store: nil),
+         hintDismissals: ConcurrencyHintDismissals = ConcurrencyHintDismissals(),
          repositoryFavorites: RepositoryFavorites = RepositoryFavorites(store: nil),
          pullRequests: PullRequestsModel = PullRequestsModel(store: nil),
          makeGrant: @escaping (WorkspaceRecord) throws -> any RepositoryGranting = { try RepositoryGrant(record: $0) },
@@ -126,6 +129,7 @@ final class DesktopCoordinator {
         self.github = github
         self.presets = presets
         self.favorites = favorites
+        self.hintDismissals = hintDismissals
         self.repositoryFavorites = repositoryFavorites
         self.pullRequests = pullRequests
         self.makeGrant = makeGrant
@@ -429,6 +433,7 @@ final class DesktopCoordinator {
             try commit(candidate)
             presets.removeAll(workspaceID: workspace.id)
             favorites.removeAll(workspaceID: workspace.id)
+            hintDismissals.removeAll(workspaceID: workspace.id)
             // Its saved activity and local run history go too. A Core that is
             // not running leaves them; Settings › Storage then lists them as
             // a removed workspace to delete.
