@@ -1,7 +1,8 @@
 /// Runnir Core local gRPC contract, version 1. See ADR 0004.
 ///
-/// Every repository-scoped call carries repository_id. Additive changes keep
-/// this package; breaking changes require a new package version.
+/// Every repository-scoped call carries repository_id. Until the first release
+/// tag the contract changes in place (AGENTS.md); from then on additive changes
+/// keep this package and breaking changes require a new package version.
 
 // DO NOT EDIT.
 // swift-format-ignore-file
@@ -165,6 +166,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             internal static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
                 method: "ListWorkflows",
+                type: .unary
+            )
+        }
+        /// Namespace for "ListLaunchPresets" metadata.
+        internal enum ListLaunchPresets: Sendable {
+            /// Request type for "ListLaunchPresets".
+            internal typealias Input = Runnir_Core_V1_ListLaunchPresetsRequest
+            /// Response type for "ListLaunchPresets".
+            internal typealias Output = Runnir_Core_V1_ListLaunchPresetsResponse
+            /// Descriptor for "ListLaunchPresets".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ListLaunchPresets",
                 type: .unary
             )
         }
@@ -545,6 +559,7 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             DeleteWorkspaceData.descriptor,
             SetStoragePreferences.descriptor,
             ListWorkflows.descriptor,
+            ListLaunchPresets.descriptor,
             ValidateWorkflows.descriptor,
             SaveWorkflowFile.descriptor,
             CreateWorkflowFile.descriptor,
@@ -786,6 +801,25 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListWorkflowsRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListWorkflowsResponse>
+
+        /// Handle the "ListLaunchPresets" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Run Workflow presets the repository shares in .runnir/launches, read in
+        /// > the same scan as its workflows. Runnir never writes these files.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ListLaunchPresetsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ListLaunchPresetsResponse` messages.
+        func listLaunchPresets(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListLaunchPresetsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListLaunchPresetsResponse>
 
         /// Handle the "ValidateWorkflows" method.
         ///
@@ -1495,6 +1529,25 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListWorkflowsResponse>
 
+        /// Handle the "ListLaunchPresets" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Run Workflow presets the repository shares in .runnir/launches, read in
+        /// > the same scan as its workflows. Runnir never writes these files.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListLaunchPresetsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ListLaunchPresetsResponse` message.
+        func listLaunchPresets(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ListLaunchPresetsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListLaunchPresetsResponse>
+
         /// Handle the "ValidateWorkflows" method.
         ///
         /// > Source IDL Documentation:
@@ -2201,6 +2254,25 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_ListWorkflowsResponse
 
+        /// Handle the "ListLaunchPresets" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Run Workflow presets the repository shares in .runnir/launches, read in
+        /// > the same scan as its workflows. Runnir never writes these files.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ListLaunchPresetsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ListLaunchPresetsResponse` to respond with.
+        func listLaunchPresets(
+            request: Runnir_Core_V1_ListLaunchPresetsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ListLaunchPresetsResponse
+
         /// Handle the "ValidateWorkflows" method.
         ///
         /// > Source IDL Documentation:
@@ -2841,6 +2913,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ListLaunchPresets.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListLaunchPresetsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListLaunchPresetsResponse>(),
+            handler: { request, context in
+                try await self.listLaunchPresets(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.ValidateWorkflows.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ValidateWorkflowsRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ValidateWorkflowsResponse>(),
@@ -3269,6 +3352,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListWorkflowsResponse> {
         let response = try await self.listWorkflows(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func listLaunchPresets(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListLaunchPresetsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListLaunchPresetsResponse> {
+        let response = try await self.listLaunchPresets(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -3723,6 +3817,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListWorkflowsResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_ListWorkflowsResponse>(
             message: try await self.listWorkflows(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func listLaunchPresets(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ListLaunchPresetsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListLaunchPresetsResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ListLaunchPresetsResponse>(
+            message: try await self.listLaunchPresets(
                 request: request.message,
                 context: context
             ),
@@ -4349,6 +4456,30 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListWorkflowsResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListWorkflowsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ListLaunchPresets" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Run Workflow presets the repository shares in .runnir/launches, read in
+        /// > the same scan as its workflows. Runnir never writes these files.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListLaunchPresetsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListLaunchPresetsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListLaunchPresetsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func listLaunchPresets<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListLaunchPresetsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListLaunchPresetsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListLaunchPresetsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListLaunchPresetsResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "ValidateWorkflows" method.
@@ -5376,6 +5507,41 @@ extension Runnir_Core_V1_RunnirCore {
             try await self.client.unary(
                 request: request,
                 descriptor: Runnir_Core_V1_RunnirCore.Method.ListWorkflows.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ListLaunchPresets" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Run Workflow presets the repository shares in .runnir/launches, read in
+        /// > the same scan as its workflows. Runnir never writes these files.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListLaunchPresetsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListLaunchPresetsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListLaunchPresetsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func listLaunchPresets<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListLaunchPresetsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListLaunchPresetsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListLaunchPresetsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListLaunchPresetsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ListLaunchPresets.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -6654,6 +6820,36 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "ListLaunchPresets" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Run Workflow presets the repository shares in .runnir/launches, read in
+    /// > the same scan as its workflows. Runnir never writes these files.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ListLaunchPresetsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listLaunchPresets<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ListLaunchPresetsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListLaunchPresetsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.listLaunchPresets(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListLaunchPresetsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListLaunchPresetsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "ValidateWorkflows" method.
     ///
     /// > Source IDL Documentation:
@@ -7822,6 +8018,40 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.listWorkflows(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListLaunchPresets" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Run Workflow presets the repository shares in .runnir/launches, read in
+    /// > the same scan as its workflows. Runnir never writes these files.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listLaunchPresets<Result>(
+        _ message: Runnir_Core_V1_ListLaunchPresetsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListLaunchPresetsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ListLaunchPresetsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.listLaunchPresets(
             request: request,
             options: options,
             onResponse: handleResponse

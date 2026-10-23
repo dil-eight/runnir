@@ -6,18 +6,12 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v3"
+
+	"runnir/core/internal/repository"
 )
 
 // DispatchInput is one `on.workflow_dispatch.inputs` entry.
-type DispatchInput struct {
-	Name        string
-	Description string
-	// Type is "string" (the default), "boolean", "choice", "number" or "environment".
-	Type     string
-	Required bool
-	Default  string
-	Options  []string
-}
+type DispatchInput = repository.DispatchInput
 
 // DispatchDefinition says whether a workflow can be started by hand and with
 // which inputs.
@@ -45,30 +39,36 @@ func ParseDispatch(data []byte) (DispatchDefinition, error) {
 	if top.Kind != yaml.MappingNode {
 		return DispatchDefinition{}, nil
 	}
+	return dispatchOf(top), nil
+}
+
+// dispatchOf reads the workflow_dispatch trigger from a workflow's top-level
+// mapping.
+func dispatchOf(top *yaml.Node) DispatchDefinition {
 	on := mappingValue(top, "on")
 	if on == nil {
-		return DispatchDefinition{}, nil
+		return DispatchDefinition{}
 	}
 	switch on.Kind {
 	case yaml.ScalarNode, yaml.SequenceNode:
 		for _, trigger := range scalarList(on) {
 			if trigger == "workflow_dispatch" {
-				return DispatchDefinition{Dispatchable: true}, nil
+				return DispatchDefinition{Dispatchable: true}
 			}
 		}
-		return DispatchDefinition{}, nil
+		return DispatchDefinition{}
 	case yaml.MappingNode:
 		dispatch, present := mappingEntry(on, "workflow_dispatch")
 		if !present {
-			return DispatchDefinition{}, nil
+			return DispatchDefinition{}
 		}
 		definition := DispatchDefinition{Dispatchable: true}
 		if dispatch == nil || dispatch.Kind != yaml.MappingNode {
-			return definition, nil
+			return definition
 		}
 		inputs := mappingValue(dispatch, "inputs")
 		if inputs == nil || inputs.Kind != yaml.MappingNode {
-			return definition, nil
+			return definition
 		}
 		for i := 0; i+1 < len(inputs.Content) && len(definition.Inputs) < maxDispatchInputs; i += 2 {
 			input := DispatchInput{Name: inputs.Content[i].Value, Type: "string"}
@@ -96,9 +96,9 @@ func ParseDispatch(data []byte) (DispatchDefinition, error) {
 			}
 			definition.Inputs = append(definition.Inputs, input)
 		}
-		return definition, nil
+		return definition
 	}
-	return DispatchDefinition{}, nil
+	return DispatchDefinition{}
 }
 
 // mappingEntry finds a key; present is true even when its value is null.

@@ -150,7 +150,25 @@ func (s *service) ListWorkflows(_ context.Context, request *corev1.ListWorkflows
 		for _, j := range w.Jobs {
 			item.Jobs = append(item.Jobs, &corev1.Job{Id: j.ID, Name: j.Name, Needs: j.Needs})
 		}
+		for _, input := range w.DispatchInputs {
+			item.DispatchInputs = append(item.DispatchInputs, dispatchInputMessage(input))
+		}
 		out.Workflows = append(out.Workflows, item)
+	}
+	return out, nil
+}
+
+// ListLaunchPresets returns the .runnir/launches presets of the latest scan.
+func (s *service) ListLaunchPresets(_ context.Context, request *corev1.ListLaunchPresetsRequest) (*corev1.ListLaunchPresetsResponse, error) {
+	presets, err := s.repositories.LaunchPresets(request.GetRepositoryId())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	out := &corev1.ListLaunchPresetsResponse{Presets: make([]*corev1.LaunchPreset, 0, len(presets))}
+	for _, p := range presets {
+		out.Presets = append(out.Presets, &corev1.LaunchPreset{
+			Path: p.Path, Name: p.Name, WorkflowPath: p.WorkflowPath, Ref: p.Ref, Inputs: p.Inputs, Problem: p.Problem,
+		})
 	}
 	return out, nil
 }

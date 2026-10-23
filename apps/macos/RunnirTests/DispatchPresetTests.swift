@@ -259,3 +259,208 @@ struct DispatchPresetFormTests {
         #expect(form.appliedPresetID == nil && library.presets(workspaceID: form.workspaceID!, workflowPath: workflow.path).isEmpty)
     }
 }
+
+@MainActor
+@Suite(.timeLimit(.minutes(1)))
+struct RepositoryPresetFormTests {
+    private let workflow = CoreGitHubWorkflow(id: 1, name: "Deploy", path: ".github/workflows/deploy.yml", state: "active", htmlURL: nil)
+    private let inputs = [
+        CoreDispatchInput(name: "environment", description: "", kind: .choice, required: true, defaultValue: "staging", options: ["staging", "production"]),
+        CoreDispatchInput(name: "version", description: "", kind: .string, required: false, defaultValue: "", options: []),
+        CoreDispatchInput(name: "deploy_token", description: "", kind: .string, required: false, defaultValue: "", options: []),
+    ]
+    private let production = CoreLaunchPreset(path: ".runnir/launches/production.yaml", name: "Production", workflowPath: ".github/workflows/deploy.yml",
+                                              ref: "main", inputs: ["environment": "production", "deploy_token": "ghp_from_git"], problem: nil)
+
+    /// `openWith` is the repository preset the Overview hands to the sheet.
+    private func rig(_ launchPresets: [CoreLaunchPreset], openWith: CoreLaunchPreset? = nil) async -> (DispatchFormModel, DispatchPresetLibrary, UUID, URL) {
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        provider.core.setBranch("feature", for: "/repo/linked")
+        provider.core.setLaunchPresets(launchPresets, for: "/repo/linked")
+        provider.core.dispatchDefinition = CoreDispatchDefinition(access: .ok, dispatchable: true, inputs: inputs, parseError: nil)
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        _ = await eventually {
+            hub.session(for: workspace)?.githubAccess == .ok && hub.session(for: workspace)?.launchPresets.count == launchPresets.count
+        }
+        let directory = temporaryDirectory()
+        let library = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: directory))
+        let form = DispatchFormModel(workspaceID: workspace, hub: hub, workflows: [workflow], workflowID: workflow.id,
+                                     currentBranch: "feature", presets: library,
+                                     presetID: openWith.map { CoreLaunchPreset.presetID(workspaceID: workspace, path: $0.path) })
+        await form.load()
+        return (form, library, workspace, directory)
+    }
+
+    @Test
+    func presetIDsAreStableAndDistinct() {
+        let workspace = UUID()
+        let id = CoreLaunchPreset.presetID(workspaceID: workspace, path: ".runnir/launches/a.yaml")
+        #expect(id == CoreLaunchPreset.presetID(workspaceID: workspace, path: ".runnir/launches/a.yaml"))
+        #expect(id != CoreLaunchPreset.presetID(workspaceID: workspace, path: ".runnir/launches/b.yaml"))
+        #expect(id != CoreLaunchPreset.presetID(workspaceID: UUID(), path: ".runnir/launches/a.yaml"))
+        #expect(id.uuidString.dropFirst(14).first == "5")
+    }
+
+    @Test
+    func repositoryPresetsAreOfferedApartFromThoseOnThisMac() async throws {
+        let other = CoreLaunchPreset(path: ".runnir/launches/other.yaml", name: "Other", workflowPath: ".github/workflows/ci.yml",
+                                     ref: nil, inputs: [:], problem: nil)
+        let broken = CoreLaunchPreset(path: ".runnir/launches/broken.yaml", name: "", workflowPath: "", ref: nil, inputs: [:],
+                                      problem: "name is missing")
+        let (form, library, workspace, directory) = await rig([production, other, broken])
+        defer { try? FileManager.default.removeItem(at: directory) }
+        _ = try #require(library.add(name: "Mine", workspaceID: workspace, workflowPath: workflow.path, ref: "feature", inputs: [:]))
+        #expect(form.repositoryPresets.map(\.name) == ["Production"])
+        #expect(form.availablePresets.map(\.name) == ["Mine"])
+    }
+
+    @Test
+    func applyingARepositoryPresetLeavesOutValuesThatLookSecret() async throws {
+        let (form, _, _, directory) = await rig([production])
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let preset = try #require(form.repositoryPresets.first)
+        form.apply(preset)
+        #expect(await eventually { form.ref == "main" && !form.isLoadingDefinition && form.values["environment"] == "production" })
+        #expect(form.values["deploy_token"] == "")
+        #expect(form.presetNotes == ["Not applied because it looks secret: deploy_token."])
+        #expect(form.appliedPresetIsShared)
+        #expect(form.appliedPresetFile == ".runnir/launches/production.yaml")
+        #expect(!form.presetIsModified)
+        form.values["version"] = "2.0"
+        #expect(form.presetIsModified)
+    }
+
+    @Test
+    func aRepositoryPresetIsOnlyCopiedNeverChangedHere() async throws {
+        let (form, library, workspace, directory) = await rig([production])
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let preset = try #require(form.repositoryPresets.first)
+        form.apply(preset)
+        #expect(await eventually { form.ref == "main" && !form.isLoadingDefinition && form.values["environment"] == "production" })
+        #expect(!form.updateAppliedPreset())
+        #expect(!form.renameAppliedPreset(to: "Renamed"))
+        form.deleteAppliedPreset()
+        #expect(form.appliedPresetID == preset.id)
+
+        #expect(form.saveAsPreset(named: "My production"))
+        let copy = try #require(library.presets(workspaceID: workspace, workflowPath: workflow.path).first)
+        #expect(copy.ref == "main" && copy.inputs == ["environment": "production", "version": ""])
+        #expect(!form.appliedPresetIsShared)
+    }
+
+    @Test
+    func repositoryPresetsStayChoosableWhenPresetsOnThisMacAreOff() async throws {
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        provider.core.setLaunchPresets([production], for: "/repo/linked")
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        _ = await eventually { hub.session(for: workspace)?.launchPresets.count == 1 }
+        let library = DispatchPresetLibrary(store: FailingPresetStore())
+        library.prepare()
+        #expect(!library.isAvailable)
+        let form = DispatchFormModel(workspaceID: workspace, hub: hub, workflows: [workflow], workflowID: workflow.id,
+                                     currentBranch: "feature", presets: library)
+        #expect(form.canChoosePreset)
+        provider.core.setLaunchPresets([], for: "/repo/linked")
+        await hub.refresh(workspaceID: workspace)
+        #expect(!form.canChoosePreset)
+    }
+
+    @Test
+    func repositoryPresetsAreSortedAsFinderSortsNames() async throws {
+        let names = ["Zeta", "alpha", "P10", "P2"]
+        let presets = names.map { CoreLaunchPreset(path: ".runnir/launches/\($0).yaml", name: $0, workflowPath: workflow.path,
+                                                   ref: nil, inputs: [:], problem: nil) }
+        let (form, _, _, directory) = await rig(presets)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        #expect(form.repositoryPresets.map(\.name) == ["alpha", "P2", "P10", "Zeta"])
+    }
+
+    @Test
+    func aRepositoryPresetWithoutABranchKeepsTheFormsBranch() async throws {
+        let plain = CoreLaunchPreset(path: ".runnir/launches/plain.yaml", name: "Plain", workflowPath: workflow.path,
+                                     ref: nil, inputs: ["version": "1.0"], problem: nil)
+        let (form, _, _, directory) = await rig([plain])
+        defer { try? FileManager.default.removeItem(at: directory) }
+        form.apply(try #require(form.repositoryPresets.first))
+        #expect(form.ref == "feature")
+        #expect(form.values["version"] == "1.0")
+        #expect(form.presetNotes.isEmpty)
+        #expect(!form.presetIsModified)
+    }
+
+    @Test
+    func aRepositoryPresetChosenOnTheOverviewIsAppliedWhenTheSheetOpens() async {
+        let (form, _, workspace, directory) = await rig([production], openWith: production)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        #expect(await eventually { form.values["environment"] == "production" })
+        #expect(form.appliedPresetID == CoreLaunchPreset.presetID(workspaceID: workspace, path: production.path))
+    }
+}
+
+@Suite
+struct RepositoryPresetRowTests {
+    private let deploy = CoreGitHubWorkflow(id: 1, name: "Deploy", path: ".github/workflows/deploy.yml", state: "active", htmlURL: nil)
+
+    @Test
+    func rowsFollowTheCoreAndFindTheirWorkflows() {
+        let staging = CoreLaunchPreset(path: ".runnir/launches/staging.yaml", name: "Staging", workflowPath: ".github/workflows/deploy.yml",
+                                       ref: "main", inputs: [:], problem: nil)
+        let preview = CoreLaunchPreset(path: ".runnir/launches/preview.yaml", name: "Preview", workflowPath: ".github/workflows/preview.yml",
+                                       ref: nil, inputs: [:], problem: nil)
+        let broken = CoreLaunchPreset(path: ".runnir/launches/broken.yaml", name: "", workflowPath: "", ref: nil, inputs: [:],
+                                      problem: "name is missing")
+        let rows = RepositoryPresetRow.rows(presets: [staging, preview, broken], remoteWorkflows: [deploy], readError: "The Core is not available.")
+        #expect(rows == [.preset(preview, workflow: nil), .preset(staging, workflow: deploy), .problem(broken), .unreadable("The Core is not available.")])
+        #expect(Set(rows.map(\.id)).count == rows.count)
+        #expect(broken.fileName == "broken.yaml")
+        #expect(RepositoryPresetRow.rows(presets: [], remoteWorkflows: [deploy], readError: nil).isEmpty)
+    }
+
+    @Test
+    func detailLinesHideValuesThatLookSecret() {
+        #expect(DispatchPreset.detail(workflow: "Deploy", ref: "main", inputs: ["environment": "staging", "deploy_token": "ghp_x"])
+                == "Deploy · main · deploy_token=••• · environment=staging")
+        #expect(DispatchPreset.detail(workflow: "Deploy", ref: "", inputs: [:]) == "Deploy")
+        // The description from the workflow file counts too, as in Run Workflow.
+        let declared = [CoreDispatchInput(name: "value", description: "The password for staging", kind: .string, required: false,
+                                          defaultValue: "", options: [])]
+        #expect(DispatchPreset.detail(workflow: "Deploy", ref: "", inputs: ["value": "hunter2"], declared: declared) == "Deploy · value=•••")
+    }
+
+    @Test
+    func usablePresetsAreSortedAsFinderSortsNamesAndProblemsFollow() {
+        let preset = { (name: String) in
+            CoreLaunchPreset(path: ".runnir/launches/\(name).yaml", name: name, workflowPath: ".github/workflows/deploy.yml",
+                             ref: nil, inputs: [:], problem: nil)
+        }
+        let broken = CoreLaunchPreset(path: ".runnir/launches/a-broken.yaml", name: "", workflowPath: "", ref: nil, inputs: [:],
+                                      problem: "name is missing")
+        let rows = RepositoryPresetRow.rows(presets: [broken, preset("Zeta"), preset("alpha"), preset("P10"), preset("P2")],
+                                            remoteWorkflows: [], readError: nil)
+        #expect(rows.map(\.id) == ["preset:.runnir/launches/alpha.yaml", "preset:.runnir/launches/P2.yaml", "preset:.runnir/launches/P10.yaml",
+                                    "preset:.runnir/launches/Zeta.yaml", "problem:.runnir/launches/a-broken.yaml"])
+    }
+
+    @Test
+    func runIsOfferedOnlyForAnActiveWorkflowOnGitHub() {
+        let staging = CoreLaunchPreset(path: ".runnir/launches/staging.yaml", name: "Staging", workflowPath: ".github/workflows/deploy.yml",
+                                       ref: "main", inputs: ["environment": "staging"], problem: nil)
+        let disabled = CoreGitHubWorkflow(id: 2, name: "Deploy", path: ".github/workflows/deploy.yml", state: "disabled_manually", htmlURL: nil)
+        #expect(RepositoryPresetRow.canRun(workflow: deploy, available: true))
+        #expect(!RepositoryPresetRow.canRun(workflow: deploy, available: false))
+        #expect(!RepositoryPresetRow.canRun(workflow: disabled, available: true))
+        #expect(!RepositoryPresetRow.canRun(workflow: nil, available: true))
+        #expect(RepositoryPresetRow.detail(staging, workflow: deploy, declared: [], available: true) == "Deploy · main · environment=staging")
+        #expect(RepositoryPresetRow.detail(staging, workflow: nil, declared: [], available: true)
+                == "deploy.yml · main · environment=staging · not on GitHub yet")
+        #expect(RepositoryPresetRow.detail(staging, workflow: nil, declared: [], available: false) == "deploy.yml · main · environment=staging")
+    }
+}

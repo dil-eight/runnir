@@ -455,3 +455,30 @@ func TestCloseDuringInitialOpenReportsNotFound(t *testing.T) {
 		t.Fatalf("open = %v, want ErrNotFound", err)
 	}
 }
+
+func TestLaunchPresetsComeFromTheLatestSnapshot(t *testing.T) {
+	var name atomic.Value
+	name.Store("First")
+	scanner := &fakeScanner{scan: func(context.Context, string) (Snapshot, error) {
+		return Snapshot{LaunchPresets: []LaunchPreset{{Path: ".runnir/launches/p.yaml", Name: name.Load().(string)}}}, nil
+	}}
+	m, _ := newManager(scanner)
+	info, err := m.Open(context.Background(), dir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	presets, err := m.LaunchPresets(info.ID)
+	if err != nil || len(presets) != 1 || presets[0].Name != "First" {
+		t.Fatalf("presets = %v, %v", presets, err)
+	}
+	name.Store("Second")
+	if _, err := m.Refresh(context.Background(), info.ID); err != nil {
+		t.Fatal(err)
+	}
+	if presets, _ := m.LaunchPresets(info.ID); len(presets) != 1 || presets[0].Name != "Second" {
+		t.Fatalf("after refresh = %v", presets)
+	}
+	if _, err := m.LaunchPresets("repo_nope"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown id = %v", err)
+	}
+}

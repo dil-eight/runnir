@@ -52,12 +52,16 @@ func (s *service) DescribeWorkflowDispatch(ctx context.Context, request *corev1.
 	}
 	out.Dispatchable = definition.Dispatchable
 	for _, input := range definition.Inputs {
-		out.Inputs = append(out.Inputs, &corev1.DispatchInput{
-			Name: input.Name, Description: input.Description, Type: inputType(input.Type),
-			Required: input.Required, DefaultValue: input.Default, Options: input.Options,
-		})
+		out.Inputs = append(out.Inputs, dispatchInputMessage(input))
 	}
 	return out, nil
+}
+
+func dispatchInputMessage(input scanner.DispatchInput) *corev1.DispatchInput {
+	return &corev1.DispatchInput{
+		Name: input.Name, Description: input.Description, Type: inputType(input.Type),
+		Required: input.Required, DefaultValue: input.Default, Options: input.Options,
+	}
 }
 
 func (s *service) PrepareWorkflowDispatch(ctx context.Context, request *corev1.PrepareWorkflowDispatchRequest) (*corev1.PrepareWorkflowDispatchResponse, error) {

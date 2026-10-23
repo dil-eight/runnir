@@ -1,8 +1,8 @@
 name: App Build
 
 # Builds an unsigned universal Runnir.app on every pull request and push to
-# main, and keeps it as a short-lived artifact for testing. Tagged releases are
-# built by release.yml.
+# main to check that it archives and is universal. Nothing is uploaded: the
+# only kept builds are the assets of tagged releases (release.yml).
 on:
   pull_request:
     paths: &app-inputs
@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 # A newer push to the same pull request makes the running build obsolete;
-# builds on main always finish, so every merge commit keeps its artifact.
+# builds on main always finish.
 concurrency:
   group: app-build-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -62,29 +62,11 @@ jobs:
             case "$archs" in *arm64*x86_64*|*x86_64*arm64*) ;; *) echo "not universal" >&2; exit 1 ;; esac
           done
 
-      - name: Package
-        id: package
-        run: |
-          name="Runnir-${GITHUB_SHA::7}-unsigned"
-          mkdir -p build/export
-          ditto -c -k --sequesterRsrc --keepParent \
-            build/Runnir.xcarchive/Products/Applications/Runnir.app \
-            "build/export/$name.zip"
-          echo "name=$name" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: ${{ steps.package.outputs.name }}
-          path: build/export/*.zip
-          retention-days: 14
-          if-no-files-found: error
-
       - name: Summary
         run: |
           {
             echo "### Runnir app build"
             echo
-            echo "Unsigned universal build (arm64 + x86_64), macOS 15 or newer: artifact \`${{ steps.package.outputs.name }}\`, kept 14 days."
-            echo "It is not signed or notarized, so Gatekeeper blocks it on first launch: open it with right-click, Open,"
-            echo "or remove the quarantine flag with \`xattr -dr com.apple.quarantine Runnir.app\`."
+            echo "Unsigned universal build (arm64 + x86_64), macOS 15 or newer: archived and checked, not uploaded."
+            echo "Downloadable builds are published only as assets of tagged releases."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -21,6 +21,8 @@ const testWorkspace = "5CE88FF0-5C16-43B3-8F20-8E33E852B019"
 
 type countingGitHub struct {
 	runs, jobs atomic.Int64
+	// hold, when set, keeps the next runs request waiting until it is closed.
+	hold atomic.Pointer[chan struct{}]
 }
 
 func (c *countingGitHub) server(t *testing.T) *httptest.Server {
@@ -29,6 +31,9 @@ func (c *countingGitHub) server(t *testing.T) *httptest.Server {
 		switch r.URL.Path {
 		case "/repos/o/r/actions/runs":
 			c.runs.Add(1)
+			if gate := c.hold.Swap(nil); gate != nil {
+				<-*gate
+			}
 			if r.Header.Get("If-None-Match") == `"v1"` {
 				w.WriteHeader(http.StatusNotModified)
 				return
@@ -86,6 +91,8 @@ func TestWindowsOfOneWorkspaceShareOneSync(t *testing.T) {
 		t.Fatalf("activity = %v, %v", activity, err)
 	}
 	before := counts.runs.Load()
+	gate := make(chan struct{})
+	counts.hold.Store(&gate)
 	var wg sync.WaitGroup
 	for i := 0; i < 6; i++ {
 		wg.Add(1)
@@ -96,6 +103,14 @@ func TestWindowsOfOneWorkspaceShareOneSync(t *testing.T) {
 			}
 		}()
 	}
+	// The first request starts a pass, which waits at GitHub while the other
+	// windows ask; without the wait a slow machine lets a late request find
+	// the next pass already started, which rightly needs a third.
+	for deadline := time.Now().Add(5 * time.Second); counts.runs.Load() == before && time.Now().Before(deadline); {
+		time.Sleep(5 * time.Millisecond)
+	}
+	time.Sleep(300 * time.Millisecond)
+	close(gate)
 	wg.Wait()
 	if added := counts.runs.Load() - before; added < 1 || added > 2 {
 		t.Fatalf("six windows refreshing made %d runs requests", added)

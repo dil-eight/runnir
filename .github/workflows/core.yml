@@ -57,7 +57,9 @@ jobs:
       - run: go run ./cmd/runnir version
 
   cross-build:
-    # The weekly run only rescans for vulnerabilities.
+    # The weekly run only rescans for vulnerabilities. The binaries only show
+    # that every target builds and are not uploaded; release.yml publishes
+    # the tagged ones as release assets.
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -82,10 +84,6 @@ jobs:
           suffix=""
           if [ "$GOOS" = windows ]; then suffix=".exe"; fi
           go build -trimpath -o "../build/runnir-${GOOS}-${GOARCH}${suffix}" ./cmd/runnir
-      - uses: actions/upload-artifact@v7
-        with:
-          name: runnir-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: build/runnir-*
 
   contracts:
     # The weekly run only rescans for vulnerabilities.
@@ -124,7 +122,14 @@ jobs:
         run: git diff --exit-code -- core/internal/gen apps/macos/Runnir/IPC/Generated
       - name: No breaking changes
         if: github.event_name == 'pull_request'
-        run: buf breaking --against ".git#branch=origin/${{ github.base_ref }}"
+        # Backward compatibility starts with the first release tag (AGENTS.md);
+        # before it the contract changes in place.
+        run: |
+          if [ -z "$(git tag --list 'v*')" ]; then
+            echo "No release tag yet: breaking contract changes are allowed."
+            exit 0
+          fi
+          buf breaking --against ".git#branch=origin/${{ github.base_ref }}"
 
   lint-security:
     runs-on: ubuntu-latest
