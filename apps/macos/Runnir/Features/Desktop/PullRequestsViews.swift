@@ -52,6 +52,8 @@ final class PullRequestsModel {
     private(set) var open: [CorePullRequest] = []
     private(set) var recentlyClosed: [CorePullRequest] = []
     private(set) var headsUnreadable = false
+    /// Installations whose private repositories' pull requests are missing.
+    private(set) var pendingInstallations: [CoreGitHubInstallation] = []
     private(set) var loadedAt: Date?
     private(set) var isLoading = false
     private(set) var dismissed: [String: Date] = [:]
@@ -99,11 +101,13 @@ final class PullRequestsModel {
             open = result.open
             recentlyClosed = result.closed
             headsUnreadable = result.headsUnreadable
+            pendingInstallations = result.pendingInstallations
             loadedAt = now()
         case .signedOut, .tokenRejected:
             open = []
             recentlyClosed = []
             headsUnreadable = false
+            pendingInstallations = []
             loadedAt = nil
         default:
             break // keep what was read; `access` says why it may be old
@@ -228,7 +232,7 @@ struct PullRequestRow: View {
                 }
                 Text(subtitle).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
             }
-            trailing.frame(width: 14).padding(.top, 2)
+            trailing
         }
         .padding(.vertical, 7).padding(.horizontal, 8)
         .background(RoundedRectangle(cornerRadius: 8).fill(hovering ? RunnirTheme.selected : .clear))
@@ -244,16 +248,35 @@ struct PullRequestRow: View {
 
     @ViewBuilder private var trailing: some View {
         if let dismiss {
-            Button(action: dismiss) { Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)) }
-                .buttonStyle(.hit).foregroundStyle(RunnirTheme.secondaryForeground)
+            // A 28-point target with its own hover, so a near miss removes
+            // instead of opening the pull request under it.
+            RemoveButton(action: dismiss)
                 .opacity(hovering ? 1 : 0)
+                .padding(.top, -6).padding(.trailing, -6)
                 .help("Remove from this list")
                 .accessibilityLabel("Remove \(pullRequest.title) from this list")
         } else {
             Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(RunnirTheme.secondaryForeground)
+                .frame(width: 14).padding(.top, 2)
                 .opacity(hovering ? 1 : 0)
                 .accessibilityHidden(true)
+        }
+    }
+
+    private struct RemoveButton: View {
+        let action: () -> Void
+        @State private var hovering = false
+
+        var body: some View {
+            Button(action: action) {
+                Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(hovering ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(hovering ? RunnirTheme.secondary : .clear).frame(width: 22, height: 22))
+            }
+            .buttonStyle(.hit)
+            .onHover { hovering = $0 }
         }
     }
 
@@ -372,6 +395,9 @@ struct PullRequestsList: View {
             }
         }
         if model.access == .ok {
+            ForEach(model.pendingInstallations) { installation in
+                pendingNote(installation).padding(.horizontal, inset).padding(.top, 10)
+            }
             scope(Self.scopeNote(credential: desktop.core?.credentialKind)).padding(.horizontal, inset).padding(.top, 10)
         }
         Color.clear.frame(height: 8)
@@ -385,6 +411,28 @@ struct PullRequestsList: View {
         credential == .appUser
             ? ("Only repositories where Runnir Desktop is installed are listed.", true)
             : ("Only repositories your token reaches are listed.", false)
+    }
+
+    /// Why an account's private pull requests are missing: "dil-eight hasn't
+    /// accepted Pull requests (read) for Runnir Desktop, so pull requests in
+    /// its private repositories are not listed."
+    static func pendingText(_ installation: CoreGitHubInstallation) -> String {
+        installation.suspended
+            ? "Runnir Desktop is suspended on \(installation.account), so its repositories' pull requests are not listed."
+            : "\(installation.account) hasn't accepted Pull requests (read) for Runnir Desktop, so pull requests in its private repositories are not listed."
+    }
+
+    private func pendingNote(_ installation: CoreGitHubInstallation) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(Self.pendingText(installation), systemImage: "exclamationmark.triangle")
+                .foregroundStyle(RunnirTheme.warning).fixedSize(horizontal: false, vertical: true)
+            Button(installation.accountType == "User" ? "Review Permissions..." : "Review Permissions (an owner of \(installation.account))...") {
+                openURL(installation.htmlURL ?? GitHubAppConfiguration.runnirDesktop.installationURL)
+            }
+            .buttonStyle(.link).pointerStyle(.link)
+            .help("Opens the installation on GitHub, where the new permissions are accepted")
+        }
+        .font(.system(size: 11))
     }
 
     private func scope(_ note: (text: String, managesAccess: Bool)) -> some View {

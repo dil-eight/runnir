@@ -631,6 +631,7 @@ final class CoreHub {
         let servers = signedInServers.isEmpty ? [GitHubServerRef.dotCom] : signedInServers
         var open: [CorePullRequest] = [], closed: [CorePullRequest] = []
         var answered = 0, headsUnreadable = false
+        var pending: [CoreGitHubInstallation] = []
         var firstFailure: CoreGitHubAccess?
         for server in servers {
             guard let result = try? await service.listPullRequests(server: server.id, closedSince: closedSince) else {
@@ -644,6 +645,7 @@ final class CoreHub {
             }
             answered += 1
             headsUnreadable = headsUnreadable || result.headsUnreadable
+            pending += result.pendingInstallations
             open += result.open.map { var pr = $0; pr.server = server.id; return pr }
             closed += result.closed.map { var pr = $0; pr.server = server.id; return pr }
         }
@@ -654,7 +656,7 @@ final class CoreHub {
             open.sort(by: newest)
             closed.sort(by: newest)
         }
-        return CorePullRequests(access: .ok, open: open, closed: closed, headsUnreadable: headsUnreadable)
+        return CorePullRequests(access: .ok, open: open, closed: closed, headsUnreadable: headsUnreadable, pendingInstallations: pending)
     }
 
     /// What a token can do, asked of GitHub through the Core without

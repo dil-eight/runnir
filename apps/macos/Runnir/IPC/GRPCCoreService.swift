@@ -459,7 +459,8 @@ struct GRPCCoreService: CoreServicing {
                                    ciURL: Self.webURL(pr.ciURL))
         }
         return CorePullRequests(access: Self.map(response.status), open: response.open.map(map), closed: response.closed.map(map),
-                                headsUnreadable: response.headsUnreadable)
+                                headsUnreadable: response.headsUnreadable,
+                                pendingInstallations: response.pendingInstallations.map(Self.map))
     }
 
     func githubOrigins(paths: [String]) async throws -> [String: GitHubRepositoryRef] {

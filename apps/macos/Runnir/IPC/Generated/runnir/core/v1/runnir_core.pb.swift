@@ -1788,6 +1788,12 @@ nonisolated struct Runnir_Core_V1_ListPullRequestsResponse: Sendable {
   /// token lacks Pull requests read; their CI is UNKNOWN.
   var headsUnreadable: Bool = false
 
+  /// With a Runnir Desktop sign-in, installations that are suspended or have
+  /// not accepted Pull requests read: the search finds no pull requests in
+  /// their private repositories, so the list says so instead of leaving them
+  /// out silently.
+  var pendingInstallations: [Runnir_Core_V1_GitHubInstallation] = []
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -5528,7 +5534,7 @@ nonisolated extension Runnir_Core_V1_ListPullRequestsRequest: SwiftProtobuf.Mess
 
 nonisolated extension Runnir_Core_V1_ListPullRequestsResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ListPullRequestsResponse"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{1}open\0\u{1}closed\0\u{3}heads_unreadable\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{1}open\0\u{1}closed\0\u{3}heads_unreadable\0\u{3}pending_installations\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -5540,6 +5546,7 @@ nonisolated extension Runnir_Core_V1_ListPullRequestsResponse: SwiftProtobuf.Mes
       case 2: try { try decoder.decodeRepeatedMessageField(value: &self.`open`) }()
       case 3: try { try decoder.decodeRepeatedMessageField(value: &self.closed) }()
       case 4: try { try decoder.decodeSingularBoolField(value: &self.headsUnreadable) }()
+      case 5: try { try decoder.decodeRepeatedMessageField(value: &self.pendingInstallations) }()
       default: break
       }
     }
@@ -5562,6 +5569,9 @@ nonisolated extension Runnir_Core_V1_ListPullRequestsResponse: SwiftProtobuf.Mes
     if self.headsUnreadable != false {
       try visitor.visitSingularBoolField(value: self.headsUnreadable, fieldNumber: 4)
     }
+    if !self.pendingInstallations.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.pendingInstallations, fieldNumber: 5)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -5570,6 +5580,7 @@ nonisolated extension Runnir_Core_V1_ListPullRequestsResponse: SwiftProtobuf.Mes
     if lhs.`open` != rhs.`open` {return false}
     if lhs.closed != rhs.closed {return false}
     if lhs.headsUnreadable != rhs.headsUnreadable {return false}
+    if lhs.pendingInstallations != rhs.pendingInstallations {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

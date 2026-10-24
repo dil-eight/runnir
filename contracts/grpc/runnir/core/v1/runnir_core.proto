@@ -490,6 +490,11 @@ message ListPullRequestsResponse {
   // The head of some open pull request could not be read, because the
   // token lacks Pull requests read; their CI is UNKNOWN.
   bool heads_unreadable = 4;
+  // With a Runnir Desktop sign-in, installations that are suspended or have
+  // not accepted Pull requests read: the search finds no pull requests in
+  // their private repositories, so the list says so instead of leaving them
+  // out silently.
+  repeated GitHubInstallation pending_installations = 5;
 }
 
 message PullRequest {

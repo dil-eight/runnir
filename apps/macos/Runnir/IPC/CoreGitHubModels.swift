@@ -131,6 +131,9 @@ struct CorePullRequests: Equatable, Sendable {
     let closed: [CorePullRequest]
     /// Some open pull request's head could not be read; its CI is unknown.
     let headsUnreadable: Bool
+    /// Runnir Desktop installations, suspended or without Pull requests
+    /// read, whose private repositories' pull requests the search misses.
+    var pendingInstallations: [CoreGitHubInstallation] = []
 
     static func failed(_ access: CoreGitHubAccess) -> CorePullRequests {
         CorePullRequests(access: access, open: [], closed: [], headsUnreadable: false)
