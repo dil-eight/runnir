@@ -7,6 +7,7 @@ struct RunTag: View {
 
     var body: some View {
         Text(text).font(.system(size: 10, weight: .medium)).foregroundStyle(tint)
+            .lineLimit(1).fixedSize()
             .padding(.horizontal, 6).padding(.vertical, 1)
             .background(tint.opacity(0.12), in: Capsule())
     }
@@ -25,15 +26,21 @@ struct ConcurrencyHintBanner: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(RunPresentation.hintText(hint, workflowName: workflowName))
                     .font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 12) {
-                    Button("Add concurrency…", action: add).buttonStyle(DesignButtonStyle(primary: true))
-                        .help("Open \(hint.path) in the editor with a block that cancels runs a newer commit replaced. Nothing is saved until you save it.")
-                    Button("Don't suggest for this workflow", action: dismiss).buttonStyle(.link)
+                // Side by side where they fit, one under the other in a narrow list.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { buttons }
+                    VStack(alignment: .leading, spacing: 8) { buttons }
                 }.font(.system(size: 12))
             }
             Spacer(minLength: 0)
         }
         .padding(12).background(RunnirTheme.info.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    @ViewBuilder private var buttons: some View {
+        Button("Add concurrency…", action: add).buttonStyle(DesignButtonStyle(primary: true)).fixedSize()
+            .help("Open \(hint.path) in the editor with a block that cancels runs a newer commit replaced. Nothing is saved until you save it.")
+        Button("Don't suggest for this workflow", action: dismiss).buttonStyle(.link).fixedSize()
     }
 }
 

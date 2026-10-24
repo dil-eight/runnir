@@ -40,6 +40,8 @@ struct RunRow: View {
         HStack(alignment: .top, spacing: 10) {
             RunOutcomeIcon(outcome: run.outcome).padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
+                // The age shares the title's line, so the detail line has
+                // the full width for what the run belongs to.
                 HStack(spacing: 6) {
                     Text(run.title).font(.system(size: 13, weight: .medium)).lineLimit(1)
                     if run.isOutdated {
@@ -47,13 +49,14 @@ struct RunRow: View {
                     } else if dimmed {
                         RunTag(text: "older commit", tint: RunnirTheme.secondaryForeground)
                     }
+                    Spacer(minLength: 8)
+                    if let created = run.createdAt {
+                        Text(created, format: .relative(presentation: .numeric, unitsStyle: .narrow))
+                            .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                            .lineLimit(1).fixedSize()
+                    }
                 }
                 Text(RunPresentation.detail(run)).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            if let created = run.createdAt {
-                Text(created, format: .relative(presentation: .named))
-                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
             }
         }
         .opacity(dimmed ? 0.6 : 1)

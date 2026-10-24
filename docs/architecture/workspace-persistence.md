@@ -82,6 +82,12 @@ A malformed or unusable preset file is listed with its problem and never used; t
 
 Live check on 2026-10-23 in the Debug test copy (`com.dileight.runnir.alertcheck`, `--ui-testing`, its own state folder) on a scratch working tree with an origin on GitHub, signed out: Overview › Run manually showed "In this repository · .runnir/launches" with two usable presets (a secret-looking input shown as `•••`), warning rows for a file with invalid YAML (with its line) and one naming a missing workflow, then "On this Mac" and the footnote; a preset file added on disk appeared after Refresh, in name order; nothing under `.runnir` was written. Not checked live: the Run Workflow preset menu and applying a repository preset, which need a signed-in GitHub account (covered by unit tests), and a signed build.
 
+## Implemented (2026-10-23): runs linked to pull requests and commits
+
+The links, superseded runs, 5000-run budget and older pages are described in the [B30 spec](../superpowers/specs/2026-10-23-run-change-links-design.md); the budgets below include them.
+
+Live check on 2026-10-23 in the Debug test copy (`com.dileight.runnir.alertcheck`, `--ui-testing`, its own state folder), signed out, with a seeded cache (nine runs of three workflows, a merged pull request and a draft one) and a scratch working tree whose `ci.yml` had no `concurrency`: Overview and Runs showed what each run belongs to ("CI #881 · #142 after merge · main · push"), "2 superseded runs hidden · Show" and the still-running superseded run as "outdated"; By change grouped the runs under #145 and #142 with their sections, folded earlier runs and the suggestion; the inspector of a superseded run showed its pull request, commit and the newer run. "Add concurrency…" on the first visit to the Workspace opened `ci.yml` with the block before `jobs:` as one unsaved edit; Undo removed it, it did not come back on the next visit, and the file on disk was unchanged. Not checked live: the GitHub reads (pull requests, lookups, older pages), which need a signed-in account and are covered by Core tests against a fake server, and a signed build.
+
 ## Implemented (2026-10-22)
 
 What exists in the Core and the app; the design sections below remain the target for the rest.

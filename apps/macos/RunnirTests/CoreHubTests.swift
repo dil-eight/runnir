@@ -349,11 +349,15 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     var concurrencyInsertion: CoreConcurrencyInsertion = .refused(.alreadyPresent)
     private var _insertions: [String] = []
     var insertions: [String] { lock.withLock { _insertions } }
+    /// How long the Core takes to answer an insertion, nil for at once.
+    var insertionDelay: Duration?
     func insertWorkflowConcurrency(repositoryID: String, content: String) async throws -> CoreConcurrencyInsertion {
-        lock.withLock {
+        let delay = lock.withLock { () -> Duration? in
             _insertions.append(content)
-            return concurrencyInsertion
+            return insertionDelay
         }
+        if let delay { try? await Task.sleep(for: delay) }
+        return lock.withLock { concurrencyInsertion }
     }
 
     var refreshDelayActivity: Duration?

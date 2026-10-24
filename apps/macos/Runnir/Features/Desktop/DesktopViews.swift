@@ -289,8 +289,12 @@ final class WorkspaceFilesModel {
 
     var files: [LocalWorkflowFile] = []
     var selected: LocalWorkflowFile?
-    /// The text in the editor.
-    var source = ""
+    /// The text in the editor. Once it moves away from the text an edit was
+    /// made for, the edit is done (applied, or typed over), so an editor shown
+    /// again later does not apply it a second time after an undo.
+    var source = "" {
+        didSet { if let pendingEdit, source != pendingEdit.before { self.pendingEdit = nil } }
+    }
     /// The file as loaded from or last saved to disk.
     private(set) var savedSource = ""
     /// SHA-256 of `savedSource`'s bytes, which a save must still find on disk.
@@ -363,8 +367,9 @@ final class WorkspaceFilesModel {
         return result.diagnostics.count + (result.problem == nil ? 0 : 1)
     }
 
-    /// Lists the files again and reloads the open one, unless it has edits:
-    /// then only a change on disk is noted, and the edits stay.
+    /// Lists the files again and reloads the open one when it changed on
+    /// disk, unless it has edits: then only the change is noted, and the
+    /// edits stay.
     func load(_ reader: RepositoryReader) async {
         guard !isLoading else { return }
         isLoading = true
@@ -373,7 +378,7 @@ final class WorkspaceFilesModel {
             files = try await Task.detached { try reader.workflows() }.value
             error = nil
             if let selected, files.contains(selected) {
-                if isDirty { await noticeDiskChange(selected, reader: reader) } else { select(selected, reader: reader) }
+                if isDirty { await noticeDiskChange(selected, reader: reader) } else { await reloadIfChanged(selected, reader: reader) }
             } else if !isDirty {
                 selected = files.first
                 if let selected { select(selected, reader: reader) }
@@ -421,10 +426,13 @@ final class WorkspaceFilesModel {
         select(selected, reader: reader)
     }
 
-    /// Waits until `file` is loaded in the editor; false when another file
-    /// is open or it could not be read.
+    /// Waits until `file` is loaded in the editor, through loads started
+    /// meanwhile; false when another file is open or it could not be read.
     func waitUntilLoaded(_ file: LocalWorkflowFile) async -> Bool {
-        await sourceTask?.value
+        while let task = sourceTask {
+            await task.value
+            if sourceTask == task { break }
+        }
         return selected == file && savedDigest != nil
     }
 
@@ -439,8 +447,12 @@ final class WorkspaceFilesModel {
         let before = source
         switch await hub.insertWorkflowConcurrency(workspaceID: workspaceID, content: before) {
         case .inserted(let content, let firstLine, _)?:
-            // Typing while the Core answered: the answer is for older text.
-            guard source == before, let edit = CodeEditorEdit(from: before, to: content, id: editCount + 1) else { return }
+            // Typing or a reload while the Core answered: the answer is for older text.
+            guard source == before else {
+                editNotice = "The file changed while the block was prepared, so it was not added. Try again."
+                return
+            }
+            guard let edit = CodeEditorEdit(from: before, to: content, id: editCount + 1) else { return }
             editCount += 1
             editNotice = nil
             pendingEdit = edit
@@ -515,6 +527,24 @@ final class WorkspaceFilesModel {
             files = try await Task.detached { try reader.workflows() }.value
             error = nil
         } catch { self.error = "Workflow files could not be read. Check access and keep files inside this repository." }
+    }
+
+    /// Loads the open, unedited file again only when its bytes on disk
+    /// changed, so a check that reloads files leaves an edit being prepared
+    /// for it (the concurrency block) alone.
+    private func reloadIfChanged(_ file: LocalWorkflowFile, reader: RepositoryReader) async {
+        // A load in progress reads the file as it is now.
+        guard !isLoadingSource else { return }
+        if savedDigest != nil {
+            let read = try? await Task.detached(operation: { (try reader.loadSource(for: file), reader.isWritable(file)) }).value
+            // Another file, edits or a new load since: that state wins.
+            guard selected == file, !isDirty, !isLoadingSource else { return }
+            if let read, read.0.sha256 == savedDigest {
+                isWritable = read.1
+                return
+            }
+        }
+        select(file, reader: reader)
     }
 
     private func noticeDiskChange(_ file: LocalWorkflowFile, reader: RepositoryReader) async {

@@ -60,6 +60,48 @@ struct WorkflowEditingTests {
         #expect(model.editNotice == nil)
     }
 
+    @Test func aCheckThatReloadsTheFilesKeepsTheConcurrencyEdit() async throws {
+        let (root, reader, hub, core, workspace) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let model = await loaded(reader)
+        let inserted = "name: CI\non: push\n\nconcurrency: g\n\njobs:\n  lint:\n    runs-on: ubuntu-latest\n"
+        core.concurrencyInsertion = .inserted(content: inserted, firstLine: 4, lastLine: 4)
+        core.insertionDelay = .milliseconds(200)
+        // The first visit to Workspace checks the files while the block is prepared.
+        let insertion = Task { await model.insertConcurrency(hub: hub, workspaceID: workspace) }
+        try await Task.sleep(for: .milliseconds(50))
+        await model.load(reader)
+        await insertion.value
+        let edit = try #require(model.pendingEdit)
+        #expect(model.editNotice == nil)
+        #expect(model.source == Self.original)
+
+        await model.load(reader)
+        #expect(model.pendingEdit == edit, "an unchanged file is not loaded again")
+        #expect(model.savedDigest == WorkflowDigest.sha256(Self.original))
+
+        // The editor applies it; an undo later does not bring it back.
+        model.source = inserted
+        #expect(model.pendingEdit == nil)
+        model.source = Self.original
+        #expect(model.pendingEdit == nil)
+    }
+
+    @Test func theConcurrencyBlockIsNotAddedToTextThatChangedMeanwhile() async throws {
+        let (root, reader, hub, core, workspace) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let model = await loaded(reader)
+        core.concurrencyInsertion = .inserted(content: "concurrency: g\n" + Self.original, firstLine: 1, lastLine: 1)
+        core.insertionDelay = .milliseconds(200)
+        let insertion = Task { await model.insertConcurrency(hub: hub, workspaceID: workspace) }
+        try await Task.sleep(for: .milliseconds(50))
+        model.source = Self.original + "# typed\n"
+        await insertion.value
+        #expect(model.pendingEdit == nil)
+        #expect(model.source == Self.original + "# typed\n")
+        #expect(model.editNotice != nil)
+    }
+
     @Test func aRefusedConcurrencyBlockSaysWhyAndChangesNothing() async throws {
         let (root, reader, hub, core, workspace) = try await setUp()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -81,6 +123,19 @@ struct WorkflowEditingTests {
         #expect(await model.waitUntilLoaded(file))
         #expect(model.source == Self.original)
         #expect(!(await model.waitUntilLoaded(LocalWorkflowFile(relativePath: ".github/workflows/other.yml"))))
+    }
+
+    @Test func waitingForAFileOutlastsALoadStartedMeanwhile() async throws {
+        let (root, reader, _, _, _) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let model = WorkspaceFilesModel()
+        let file = LocalWorkflowFile(relativePath: ".github/workflows/ci.yml")
+        model.select(file, reader: reader)
+        let waiting = Task { await model.waitUntilLoaded(file) }
+        await Task.yield()
+        model.select(file, reader: reader)
+        #expect(await waiting.value)
+        #expect(model.source == Self.original)
     }
 
     @Test func editsAreDirtyUntilSaved() async throws {
