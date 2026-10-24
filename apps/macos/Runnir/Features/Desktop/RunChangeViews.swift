@@ -40,7 +40,7 @@ struct ConcurrencyHintBanner: View {
     @ViewBuilder private var buttons: some View {
         Button("Add concurrency…", action: add).buttonStyle(DesignButtonStyle(primary: true)).fixedSize()
             .help("Open \(hint.path) in the editor with a block that cancels runs a newer commit replaced. Nothing is saved until you save it.")
-        Button("Don't suggest for this workflow", action: dismiss).buttonStyle(.link).fixedSize()
+        Button("Don't suggest for this workflow", action: dismiss).buttonStyle(.link).pointerStyle(.link).fixedSize()
     }
 }
 
@@ -57,13 +57,16 @@ struct RunChangeBlock: View {
     let addConcurrency: (String) -> Void
     let dismissHint: (String) -> Void
 
+    /// Where the runs start: under the header's title, so they read as its.
+    static let indent: CGFloat = 32
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 1) {
             header
             ForEach(Array(change.sections.enumerated()), id: \.offset) { _, section in
                 if let title = RunPresentation.sectionTitle(section) {
-                    Text(title).font(.system(size: 11, weight: .medium)).foregroundStyle(RunnirTheme.secondaryForeground)
-                        .padding(.horizontal, 10).padding(.top, 4)
+                    Text(title).font(.system(size: 11, weight: .medium)).foregroundStyle(RunnirTheme.mutedForeground)
+                        .padding(.leading, Self.indent).padding(.trailing, 10).padding(.top, 5).padding(.bottom, 1)
                 }
                 rows(section.runIDs)
                 if let text = RunPresentation.repeatsText(section) {
@@ -76,23 +79,31 @@ struct RunChangeBlock: View {
             ForEach(hints, id: \.workflowID) { hint in
                 ConcurrencyHintBanner(hint: hint, workflowName: workflowName(hint.workflowID),
                                       add: { addConcurrency(hint.path) }, dismiss: { dismissHint(hint.path) })
-                    .padding(.horizontal, 6).padding(.top, 4)
+                    .padding(.leading, Self.indent - 6).padding(.trailing, 6).padding(.top, 4)
             }
         }
         .padding(.vertical, 6)
         .overlay(alignment: .bottom) { DesignDivider() }
     }
 
+    /// The pull request (number, title, state) or commit, and under it the
+    /// branches, so the rows below need not repeat them.
     private var header: some View {
         let icon = PullRequestRow.ciIcon(change.status)
-        return HStack(spacing: 8) {
-            Image(systemName: icon.symbol).foregroundStyle(icon.tint).font(.system(size: 13))
-            Text(RunPresentation.changeTitle(change)).font(.system(size: 13, weight: .semibold)).lineLimit(1)
-            Spacer(minLength: 6)
-            if let pullRequest = change.pullRequest, let state = RunPresentation.stateLabel(pullRequest) {
-                RunTag(text: state, tint: RunnirTheme.secondaryForeground)
-            } else if change.pullRequest == nil, let branch = change.sections.first?.branch {
-                Text(branch).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: icon.symbol).foregroundStyle(icon.tint).font(.system(size: 13)).frame(width: 14)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(RunPresentation.changeTitle(change)).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    Spacer(minLength: 6)
+                    if let pullRequest = change.pullRequest, let state = RunPresentation.stateLabel(pullRequest) {
+                        RunTag(text: state, tint: RunnirTheme.secondaryForeground)
+                    }
+                }
+                if let subtitle = RunPresentation.changeSubtitle(change) {
+                    Text(subtitle).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        .lineLimit(1).truncationMode(.middle)
+                }
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 4)
@@ -101,9 +112,13 @@ struct RunChangeBlock: View {
 
     @ViewBuilder private func rows(_ ids: [Int64]) -> some View {
         ForEach(ids.compactMap { runs[$0] }) { run in
-            RunRow(run: run, selected: run.id == selectedRunID, pullRequest: change.pullRequest)
+            RunChangeRow(run: run, selected: run.id == selectedRunID, pullRequest: change.pullRequest, newer: newer(run))
                 .onTapGesture { select(run.id) }
         }
+    }
+
+    private func newer(_ run: CoreWorkflowRun) -> CoreWorkflowRun? {
+        run.supersededBy.flatMap { runs[$0] }
     }
 
     @ViewBuilder private func expander(_ text: String, key: String, ids: [Int64]) -> some View {
@@ -112,10 +127,50 @@ struct RunChangeBlock: View {
             if open { expanded.remove(key) } else { expanded.insert(key) }
         } label: {
             Label(text, systemImage: open ? "chevron.down" : "chevron.right").font(.system(size: 11))
+                .foregroundStyle(RunnirTheme.secondaryForeground)
+                .padding(.leading, Self.indent).padding(.trailing, 10).padding(.vertical, 3)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.borderless).foregroundStyle(RunnirTheme.secondaryForeground)
-        .padding(.horizontal, 10).padding(.vertical, 2)
+        .buttonStyle(.hit)
         if open { rows(ids) }
+    }
+}
+
+/// A run inside a change: a status dot, workflow and number, event and age
+/// on one line. The change's header already names the pull request, commit
+/// and branches.
+struct RunChangeRow: View {
+    let run: CoreWorkflowRun
+    var selected = false
+    var pullRequest: CoreChangePullRequest? = nil
+    var newer: CoreWorkflowRun? = nil
+
+    private var dimmed: Bool { run.isSuperseded && !run.outcome.isActive }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle().fill(RunOutcomeIcon.color(run.outcome)).frame(width: 6, height: 6)
+                .accessibilityLabel(run.outcome.label)
+            Text("\(run.name) #\(run.runNumber)").font(.system(size: 12, weight: .medium)).lineLimit(1)
+            Text(run.event).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
+            if run.isOutdated {
+                RunTag(text: "outdated", tint: RunnirTheme.info).help(RunPresentation.outdatedHelp(run, newer: newer))
+            } else if dimmed {
+                RunTag(text: "older commit", tint: RunnirTheme.secondaryForeground)
+            }
+            Spacer(minLength: 8)
+            if let created = run.createdAt {
+                Text(created, format: .relative(presentation: .numeric, unitsStyle: .narrow))
+                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                    .lineLimit(1).fixedSize()
+            }
+        }
+        .opacity(dimmed ? 0.6 : 1)
+        .padding(.leading, RunChangeBlock.indent - 1).padding(.trailing, 10).frame(height: 26)
+        .clickable()
+        .background(selected ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .help(([run.title] + [RunPresentation.rowHelp(run, pullRequest: pullRequest)]).joined(separator: "\n"))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -134,13 +189,13 @@ struct OlderRunsFooter: View {
             case .failed:
                 HStack(spacing: 8) {
                     Text("Couldn't load older runs.")
-                    Button("Retry") { Task { await hub.showMoreRuns(workspaceID: session.workspaceID) } }.buttonStyle(.link)
+                    Button("Retry") { Task { await hub.showMoreRuns(workspaceID: session.workspaceID) } }.buttonStyle(.link).pointerStyle(.link)
                 }
             case .budgetReached:
                 HStack(spacing: 8) {
                     Text("Older runs are on GitHub.")
                     if let url = RunPresentation.actionsURL(session.runs) {
-                        Button("Open Actions on GitHub") { openURL(url) }.buttonStyle(.link)
+                        Button("Open Actions on GitHub") { openURL(url) }.buttonStyle(.link).pointerStyle(.link)
                     }
                 }
             case .idle:

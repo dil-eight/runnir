@@ -177,11 +177,11 @@ struct WorkspaceOverview: View {
                     Image(systemName: favorites.isFavorite(selected.relativePath, workspaceID: workspaceID) ? "star.fill" : "star")
                         .foregroundStyle(favorites.isFavorite(selected.relativePath, workspaceID: workspaceID) ? RunnirTheme.warning : RunnirTheme.secondaryForeground)
                 }
-                .buttonStyle(.borderless).disabled(!favorites.isAvailable)
+                .buttonStyle(.borderless).pointerStyle(.link).disabled(!favorites.isAvailable)
                 .help(favorites.isFavorite(selected.relativePath, workspaceID: workspaceID) ? "Remove from favorites" : "Add to favorites; favorites come first")
                 .accessibilityLabel(favorites.isFavorite(selected.relativePath, workspaceID: workspaceID) ? "Remove from favorites" : "Add to favorites")
                 Button { openFile(selected) } label: { Image(systemName: "pencil") }
-                    .buttonStyle(.borderless).help("Open in the Workspace editor").accessibilityLabel("Edit")
+                    .buttonStyle(.borderless).pointerStyle(.link).help("Open in the Workspace editor").accessibilityLabel("Edit")
             }
         }
     }
@@ -198,7 +198,7 @@ struct WorkspaceOverview: View {
                         Text(created, format: .relative(presentation: .named)).foregroundStyle(RunnirTheme.secondaryForeground)
                     }
                 }.font(.system(size: 12))
-            }.buttonStyle(.plain).help("Open this run")
+            }.buttonStyle(.hit).help("Open this run")
         } else if session?.githubAccess == .ok, remote(file.relativePath) == nil {
             Text("Not on GitHub yet").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                 .help("This workflow file is not on GitHub's default branch, or has not run")
@@ -313,7 +313,7 @@ struct WorkspaceOverview: View {
             HStack {
                 SectionLabel(title: "RECENT RUNS")
                 Spacer()
-                Button("All runs", action: openRuns).buttonStyle(.link).font(.system(size: 12)).disabled(session?.runs.isEmpty ?? true)
+                Button("All runs", action: openRuns).buttonStyle(.link).pointerStyle(.link).font(.system(size: 12)).disabled(session?.runs.isEmpty ?? true)
             }
             DesignDivider()
             if let session, session.githubRepository != nil {
@@ -335,7 +335,7 @@ struct WorkspaceOverview: View {
             HStack {
                 SectionLabel(title: "RUN MANUALLY")
                 Spacer()
-                Button("New...") { runWorkflow(nil, nil) }.buttonStyle(.link).font(.system(size: 12)).disabled(!available)
+                Button("New...") { runWorkflow(nil, nil) }.buttonStyle(.link).pointerStyle(.link).font(.system(size: 12)).disabled(!available)
             }
             DesignDivider()
             // Reading works, but starting waits for an owner's approval or

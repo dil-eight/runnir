@@ -291,13 +291,13 @@ struct GitHubTokenAdvice: View {
                 Text("Resource owner: your account or the organization. Repository access: the repositories you use in Runnir, or all. Repository permissions: Actions — Read and write; Contents — Read-only. GitHub adds Metadata — Read-only."
                      + (enterprise ? " Fine-grained tokens need GitHub Enterprise Server 3.10 or later; use a classic token on older servers." : ""))
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
-                Button("New Fine-Grained Token...") { openURL(Self.newFineGrainedURL(webURL: webURL)) }.buttonStyle(.link).font(.system(size: 11))
+                Button("New Fine-Grained Token...") { openURL(Self.newFineGrainedURL(webURL: webURL)) }.buttonStyle(.link).pointerStyle(.link).font(.system(size: 11))
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text("Classic token").font(.system(size: 12, weight: .medium))
                 Text("Scope: repo. For an organization that uses single sign-on, authorize the token for it afterwards (Configure SSO).")
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
-                Button("New Classic Token...") { openURL(Self.newClassicURL(webURL: webURL)) }.buttonStyle(.link).font(.system(size: 11))
+                Button("New Classic Token...") { openURL(Self.newClassicURL(webURL: webURL)) }.buttonStyle(.link).pointerStyle(.link).font(.system(size: 11))
             }
         }
     }
@@ -310,8 +310,9 @@ struct GitHubAccountRow: View {
 
     var body: some View {
         Button { showingConnect = true } label: {
-            HStack(spacing: 8) {
-                Image(systemName: symbol).font(.system(size: 18)).foregroundStyle(RunnirTheme.secondaryForeground)
+            // The icon column matches the sidebar items' (16 points, 10 apart).
+            HStack(spacing: 10) {
+                Image(systemName: symbol).font(.system(size: 16)).frame(width: 16).foregroundStyle(RunnirTheme.secondaryForeground)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("GitHub").font(.system(size: 12))
                     Text(status).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
@@ -320,7 +321,7 @@ struct GitHubAccountRow: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.hit)
         .help("GitHub connection")
         .sheet(isPresented: $showingConnect) { GitHubConnectView(session: session) }
     }

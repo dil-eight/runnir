@@ -996,6 +996,18 @@ final class CoreHub {
         }
     }
 
+    /// One job's whole log, written to a file by the Core.
+    func saveJobLog(workspaceID: UUID, jobID: Int64) async -> CoreSavedJobLog {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return .failed(.unavailable) }
+        do {
+            let saved = try await service.saveJobLog(repositoryID: coreID, jobID: jobID)
+            if saved.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
+            return saved
+        } catch {
+            return .failed(.unavailable)
+        }
+    }
+
     func prepareRunAction(workspaceID: UUID, runID: Int64, action: CoreRunAction) async -> CorePreparedRunAction {
         guard let (service, coreID) = await serviceAndCoreID(workspaceID),
               let prepared = try? await service.prepareRunAction(repositoryID: coreID, runID: runID, action: action) else {

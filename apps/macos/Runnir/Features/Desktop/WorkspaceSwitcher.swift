@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// One row of the workspace switcher.
@@ -71,16 +72,65 @@ enum WorkspaceSwitcher {
     }
 }
 
-/// "Open Quickly" for workspaces: search, keyboard navigation, and where each
-/// workspace is already open.
+/// An action at the top of the switcher, found by the same search.
+enum WorkspaceSwitcherAction: CaseIterable, Identifiable {
+    case importRepository, manager
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .importRepository: "Import Repository..."
+        case .manager: "Workspace Manager..."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .importRepository: "square.and.arrow.down"
+        case .manager: "square.grid.2x2"
+        }
+    }
+
+    var shortcut: String? {
+        switch self {
+        case .importRepository: nil
+        case .manager: "⌘N"
+        }
+    }
+
+    /// Every token of the query appears in the title.
+    static func matching(_ query: String) -> [WorkspaceSwitcherAction] {
+        let tokens = query.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
+        return allCases.filter { action in tokens.allSatisfy { action.title.lowercased().contains($0) } }
+    }
+}
+
+/// The workspace switcher under the title, laid out like JetBrains' project
+/// and branch popups: search, actions with their shortcuts, then recent
+/// workspaces with their branch and where they are open. Keyboard: arrows
+/// move through actions and workspaces, Return opens, Command-Return opens a
+/// workspace in a new window, Escape closes.
 struct WorkspaceSwitcherView: View {
     let desktop: DesktopCoordinator
     let currentWorkspaceID: UUID
     let windowID: UUID
-    @Environment(\.dismiss) private var dismiss
+    let close: () -> Void
     @State private var query = ""
     @State private var selection = 0
     @FocusState private var searchFocused: Bool
+
+    private enum Entry: Identifiable {
+        case action(WorkspaceSwitcherAction)
+        case workspace(WorkspaceSwitcherItem)
+
+        var id: String {
+            switch self {
+            case .action(let action): "action-\(action)"
+            case .workspace(let item): item.id.uuidString
+            }
+        }
+    }
 
     private var items: [WorkspaceSwitcherItem] {
         WorkspaceSwitcher.items(
@@ -96,114 +146,162 @@ struct WorkspaceSwitcherView: View {
     }
 
     var body: some View {
+        let actions = WorkspaceSwitcherAction.matching(query)
         let rows = items
+        let entries = actions.map(Entry.action) + rows.map(Entry.workspace)
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(RunnirTheme.secondaryForeground)
-                TextField("Search workspaces", text: $query)
-                    .textFieldStyle(.plain).font(.system(size: 15))
+                TextField("Search workspaces and actions", text: $query)
+                    .textFieldStyle(.plain).font(.system(size: 13))
                     .focused($searchFocused)
-                    .onSubmit { open(rows, newWindow: false) }
-                    .onKeyPress(.downArrow) { move(1, in: rows); return .handled }
-                    .onKeyPress(.upArrow) { move(-1, in: rows); return .handled }
+                    .onSubmit { activate(entries, newWindow: false) }
+                    .onKeyPress(.downArrow) { move(1, count: entries.count); return .handled }
+                    .onKeyPress(.upArrow) { move(-1, count: entries.count); return .handled }
                     .onKeyPress(.return, phases: .down) { press in
                         guard press.modifiers.contains(.command) else { return .ignored }
-                        open(rows, newWindow: true)
+                        activate(entries, newWindow: true)
                         return .handled
                     }
             }
-            .padding(.horizontal, 16).frame(height: 48)
-            Divider()
-            if rows.isEmpty {
-                Text(desktop.snapshot.workspaces.isEmpty ? "No workspaces yet. Import a repository to start." : "No workspace matches \"\(query)\".")
-                    .font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
-                    .frame(maxWidth: .infinity, minHeight: 120)
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 2) {
-                            ForEach(Array(rows.enumerated()), id: \.element.id) { index, item in
-                                row(item, selected: index == selection)
-                                    .id(item.id)
-                                    .onTapGesture(count: 2) { selection = index; open(rows, newWindow: false) }
-                                    .onTapGesture { selection = index }
-                            }
-                        }.padding(8)
+            .padding(.horizontal, 8).frame(height: 30)
+            .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.primary.opacity(0.6)))
+            .padding(10)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 1) {
+                        ForEach(Array(actions.enumerated()), id: \.element) { index, action in
+                            actionRow(action, selected: index == selection)
+                                .id(Entry.action(action).id)
+                                .onTapGesture { selection = index; activate(entries, newWindow: false) }
+                        }
+                        if !actions.isEmpty && !rows.isEmpty {
+                            DesignDivider().padding(.vertical, 5).padding(.horizontal, 4)
+                        }
+                        if !rows.isEmpty {
+                            Text("Recent").font(.system(size: 11, weight: .medium)).foregroundStyle(RunnirTheme.mutedForeground)
+                                .padding(.horizontal, 10).padding(.top, 2).padding(.bottom, 3)
+                        }
+                        ForEach(Array(rows.enumerated()), id: \.element.id) { offset, item in
+                            let index = actions.count + offset
+                            row(item, selected: index == selection)
+                                .id(item.id.uuidString)
+                                .onTapGesture { selection = index; activate(entries, newWindow: false) }
+                                .contextMenu {
+                                    Button("Open in New Window") { close(); desktop.openRegistered(item.workspace) }
+                                    Button("Show in Finder") {
+                                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: item.workspace.path)])
+                                    }
+                                }
+                        }
+                        if entries.isEmpty {
+                            Text("Nothing matches \"\(query)\".").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                                .frame(maxWidth: .infinity, minHeight: 60)
+                        } else if rows.isEmpty && query.isEmpty {
+                            Text("No workspaces yet. Import a repository to start.").font(.system(size: 12))
+                                .foregroundStyle(RunnirTheme.secondaryForeground).padding(10)
+                        }
                     }
-                    .frame(maxHeight: 360)
-                    .onChange(of: selection) { _, value in
-                        if rows.indices.contains(value) { proxy.scrollTo(rows[value].id) }
-                    }
+                    .padding(.horizontal, 6).padding(.bottom, 6)
+                }
+                .frame(maxHeight: 420)
+                .onChange(of: selection) { _, value in
+                    if entries.indices.contains(value) { proxy.scrollTo(entries[value].id) }
                 }
             }
-            Divider()
-            HStack(spacing: 12) {
-                Button("Import Repository...") { dismiss(); desktop.importRepository() }
-                Button("Workspace Manager...") { dismiss(); desktop.showManager() }
-                Spacer()
-                Text("↩ open   ⌘↩ new window   esc close")
-                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
-            }
-            .buttonStyle(.link).font(.system(size: 12))
-            .padding(.horizontal, 16).frame(height: 40)
+            DesignDivider()
+            Text("↩ open   ⌘↩ new window   esc close")
+                .font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12).frame(height: 28)
         }
-        .frame(width: 560)
-        .background(RunnirTheme.background)
+        .frame(width: 440)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(RunnirTheme.surface)
         .foregroundStyle(RunnirTheme.foreground)
-        .onAppear { searchFocused = true }
+        .onAppear {
+            searchFocused = true
+            // Return goes to the most recent other workspace, as before.
+            selection = rows.isEmpty ? 0 : actions.count
+        }
         .onChange(of: query) { _, _ in selection = 0 }
-        .onExitCommand { dismiss() }
+        .onExitCommand { close() }
+    }
+
+    private func actionRow(_ action: WorkspaceSwitcherAction, selected: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: action.symbol).frame(width: 18).foregroundStyle(RunnirTheme.secondaryForeground)
+            Text(action.title).font(.system(size: 13))
+            Spacer(minLength: 8)
+            if let shortcut = action.shortcut {
+                Text(shortcut).font(.system(size: 12)).foregroundStyle(RunnirTheme.mutedForeground)
+            }
+        }
+        .padding(.horizontal, 8).frame(height: 28)
+        .clickable()
+        .background(selected ? RunnirTheme.primary.opacity(0.28) : .clear, in: RoundedRectangle(cornerRadius: 5))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 
     private func row(_ item: WorkspaceSwitcherItem, selected: Bool) -> some View {
         HStack(spacing: 10) {
-            WorkspaceBadge(name: item.workspace.name, id: item.workspace.id, size: 20)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(item.workspace.name).font(.system(size: 13, weight: .medium))
+            WorkspaceBadge(name: item.workspace.name, id: item.workspace.id, size: 18)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 8) {
+                    Text(item.workspace.name).font(.system(size: 13, weight: item.isCurrent ? .semibold : .regular)).lineLimit(1)
                     if let branch = item.branch {
                         Label(branch, systemImage: "arrow.triangle.branch").labelStyle(.titleAndIcon)
-                            .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                            .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
                     }
                 }
                 Text(item.githubRepository.map { "\($0) · \(item.displayPath)" } ?? item.displayPath)
-                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground)
                     .lineLimit(1).truncationMode(.middle)
             }
             Spacer(minLength: 8)
             if item.isCurrent {
-                Text("This window").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold)).foregroundStyle(RunnirTheme.primary)
+                    .help("This window")
             } else if item.openWindows > 0 {
-                Text(item.openWindows == 1 ? "Open" : "Open in \(item.openWindows) windows")
+                Text(item.openWindows == 1 ? "Open" : "Open in \(item.openWindows)")
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
             }
         }
-        .padding(.horizontal, 10).frame(height: 46)
-        .contentShape(Rectangle())
-        .background(selected ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 8).frame(height: 38)
+        .clickable()
+        .background(selected ? RunnirTheme.primary.opacity(0.28) : .clear, in: RoundedRectangle(cornerRadius: 5))
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
-    private func move(_ delta: Int, in rows: [WorkspaceSwitcherItem]) {
-        guard !rows.isEmpty else { return }
-        selection = min(max(selection + delta, 0), rows.count - 1)
+    private func move(_ delta: Int, count: Int) {
+        guard count > 0 else { return }
+        selection = min(max(selection + delta, 0), count - 1)
     }
 
-    /// Return: focus the workspace where it is already open, otherwise show it
-    /// in this window. Command-Return: always a new window.
-    private func open(_ rows: [WorkspaceSwitcherItem], newWindow: Bool) {
-        guard rows.indices.contains(selection) else { return }
-        let item = rows[selection]
-        dismiss()
-        if newWindow {
-            desktop.openRegistered(item.workspace)
-        } else if item.isCurrent {
-            return
-        } else if item.openWindows > 0 {
-            desktop.focus(item.workspace.id)
-        } else {
-            desktop.openRegistered(item.workspace, reuseWindowID: windowID)
+    /// An action runs. A workspace: Return focuses it where it is already
+    /// open, otherwise shows it in this window; Command-Return always opens a
+    /// new window.
+    private func activate(_ entries: [Entry], newWindow: Bool) {
+        guard entries.indices.contains(selection) else { return }
+        close()
+        switch entries[selection] {
+        case .action(.importRepository):
+            desktop.importRepository()
+        case .action(.manager):
+            desktop.showManager()
+        case .workspace(let item):
+            if newWindow {
+                desktop.openRegistered(item.workspace)
+            } else if item.isCurrent {
+                return
+            } else if item.openWindows > 0 {
+                desktop.focus(item.workspace.id)
+            } else {
+                desktop.openRegistered(item.workspace, reuseWindowID: windowID)
+            }
         }
     }
 }

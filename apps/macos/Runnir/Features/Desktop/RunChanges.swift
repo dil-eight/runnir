@@ -74,6 +74,19 @@ enum RunPresentation {
         return [shortSHA(section.headSHA), section.commitTitle].filter { !$0.isEmpty }.joined(separator: " ")
     }
 
+    /// Under a change's title: a pull request's branches ("retry → main"),
+    /// a commit's branch; nil when the Core knows neither.
+    static func changeSubtitle(_ change: CoreRunChange) -> String? {
+        if let pullRequest = change.pullRequest {
+            switch (pullRequest.headBranch.isEmpty, pullRequest.baseBranch.isEmpty) {
+            case (false, false): return "\(pullRequest.headBranch) → \(pullRequest.baseBranch)"
+            case (false, true): return pullRequest.headBranch
+            default: break
+            }
+        }
+        return change.sections.first { !$0.branch.isEmpty }?.branch
+    }
+
     /// "After merge · main · a1b2c3d", "On the PR · 9f8e7d6 (latest)"; nil
     /// for a commit, whose header already says it.
     static func sectionTitle(_ section: CoreRunChangeSection) -> String? {

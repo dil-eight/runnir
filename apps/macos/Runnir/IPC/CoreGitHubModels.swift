@@ -472,6 +472,20 @@ struct CoreJobLog: Equatable, Sendable {
     }
 }
 
+/// A job's whole log written to a file by the Core.
+struct CoreSavedJobLog: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    let availability: CoreJobLogAvailability
+    /// The file, when the log was available.
+    let file: URL?
+    /// The log is larger than the Core reads: the file has its start.
+    var stoppedEarly = false
+
+    static func failed(_ access: CoreGitHubAccess) -> CoreSavedJobLog {
+        CoreSavedJobLog(access: access, availability: .available, file: nil)
+    }
+}
+
 enum CoreRunAction: Equatable, Sendable {
     case cancel
     case rerun

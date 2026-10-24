@@ -232,7 +232,7 @@ struct PullRequestRow: View {
         }
         .padding(.vertical, 7).padding(.horizontal, 8)
         .background(RoundedRectangle(cornerRadius: 8).fill(hovering ? RunnirTheme.selected : .clear))
-        .contentShape(Rectangle())
+        .clickable()
         .onHover { hovering = $0 }
         .onTapGesture { if let url = pullRequest.htmlURL { openURL(url) } }
         .help("Open \(pullRequest.repository) #\(pullRequest.number) on GitHub")
@@ -245,7 +245,7 @@ struct PullRequestRow: View {
     @ViewBuilder private var trailing: some View {
         if let dismiss {
             Button(action: dismiss) { Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)) }
-                .buttonStyle(.plain).foregroundStyle(RunnirTheme.secondaryForeground)
+                .buttonStyle(.hit).foregroundStyle(RunnirTheme.secondaryForeground)
                 .opacity(hovering ? 1 : 0)
                 .help("Remove from this list")
                 .accessibilityLabel("Remove \(pullRequest.title) from this list")
@@ -289,7 +289,7 @@ struct PullRequestRow: View {
             let icon = Self.ciIcon(pullRequest.ci)
             if let url = pullRequest.ciURL {
                 Button { openURL(url) } label: { Image(systemName: icon.symbol).foregroundStyle(icon.tint) }
-                    .buttonStyle(.plain).help("Open the run on GitHub")
+                    .buttonStyle(.hit).help("Open the run on GitHub")
                     .accessibilityLabel(ciText)
             } else {
                 Image(systemName: icon.symbol).foregroundStyle(icon.tint).accessibilityLabel(ciText)
@@ -392,7 +392,7 @@ struct PullRequestsList: View {
             Text(note.text).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
             if note.managesAccess {
                 Button("Manage Repository Access...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
-                    .buttonStyle(.link)
+                    .buttonStyle(.link).pointerStyle(.link)
                     .help("Install Runnir Desktop on more repositories on GitHub")
             }
         }
@@ -562,18 +562,18 @@ struct PullRequestsMenu: View {
             Image(systemName: symbol).font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
                 .frame(width: 26, height: 26).contentShape(Rectangle())
         }
-        .buttonStyle(.plain).help(help).accessibilityLabel(help)
+        .buttonStyle(.hit).help(help).accessibilityLabel(help)
     }
 
     private var footer: some View {
         HStack(spacing: 8) {
             if signedOut {
-                Button("Open Runnir") { desktop.showManager() }.buttonStyle(.link)
+                Button("Open Runnir") { desktop.showManager() }.buttonStyle(.link).pointerStyle(.link)
                 Spacer()
-                Button("Settings…") { desktop.showSettingsInFrontWindow() }.buttonStyle(.plain)
+                Button("Settings…") { desktop.showSettingsInFrontWindow() }.buttonStyle(.hit)
                     .foregroundStyle(RunnirTheme.secondaryForeground)
             } else {
-                Button("Open Pull Requests Window") { desktop.showPullRequests() }.buttonStyle(.link).fontWeight(.medium)
+                Button("Open Pull Requests Window") { desktop.showPullRequests() }.buttonStyle(.link).pointerStyle(.link).fontWeight(.medium)
                 if let shortcut {
                     Text(shortcut).font(.system(size: 10)).foregroundStyle(RunnirTheme.secondaryForeground)
                         .padding(.horizontal, 5).padding(.vertical, 1)
@@ -582,7 +582,7 @@ struct PullRequestsMenu: View {
                 }
                 Spacer()
                 if !model.dismissed.isEmpty {
-                    Button("Show Removed (\(model.dismissed.count))") { model.restoreDismissed() }.buttonStyle(.plain)
+                    Button("Show Removed (\(model.dismissed.count))") { model.restoreDismissed() }.buttonStyle(.hit)
                         .foregroundStyle(RunnirTheme.secondaryForeground)
                         .help("Bring back the closed pull requests removed from this list")
                 }

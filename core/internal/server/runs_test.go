@@ -6,6 +6,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -169,6 +171,38 @@ func TestJobLogLinesCarryKindAndStep(t *testing.T) {
 		t.Fatalf("unknown job = %v, %v", missing, err)
 	}
 	if _, err := client.GetJobLog(ctx, &corev1.GetJobLogRequest{RepositoryId: id}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("no job id = %v", err)
+	}
+}
+
+func TestSaveJobLogWritesTheWholeLogToATemporaryFile(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	client, id, _, ctx := runsRig(t)
+	saved, err := client.SaveJobLog(ctx, &corev1.SaveJobLogRequest{RepositoryId: id, JobId: 14})
+	if err != nil || saved.Availability != corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_AVAILABLE || saved.StoppedEarly {
+		t.Fatalf("saved = %v, %v", saved, err)
+	}
+	if filepath.Base(saved.Path) != "o-r-job-14.log" || filepath.Dir(saved.Path) != filepath.Join(os.TempDir(), "runnir-logs") {
+		t.Fatalf("path = %q", saved.Path)
+	}
+	data, err := os.ReadFile(saved.Path)
+	if err != nil || string(data) != strings.Repeat("x\n", maxLogLines+10) {
+		t.Fatalf("the file has %d bytes, %v; every line is kept, not only the end GetJobLog shows", len(data), err)
+	}
+	// Through GitHub's redirect, replacing nothing else.
+	redirected, err := client.SaveJobLog(ctx, &corev1.SaveJobLogRequest{RepositoryId: id, JobId: 11})
+	if data, _ := os.ReadFile(redirected.GetPath()); err != nil || !strings.Contains(string(data), "Provisioning profile expired") {
+		t.Fatalf("redirected = %v, %v", redirected, err)
+	}
+	expired, err := client.SaveJobLog(ctx, &corev1.SaveJobLogRequest{RepositoryId: id, JobId: 13})
+	if err != nil || expired.Availability != corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_EXPIRED || expired.Path != "" {
+		t.Fatalf("expired = %v, %v", expired, err)
+	}
+	entries, _ := os.ReadDir(filepath.Join(os.TempDir(), "runnir-logs"))
+	if len(entries) != 2 {
+		t.Fatalf("files = %v, want the two saved logs and no temporary ones", entries)
+	}
+	if _, err := client.SaveJobLog(ctx, &corev1.SaveJobLogRequest{RepositoryId: id}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("no job id = %v", err)
 	}
 }

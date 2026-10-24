@@ -12,7 +12,9 @@ struct RunOutcomeIcon: View {
             .accessibilityLabel(outcome.label)
     }
 
-    private var color: Color {
+    private var color: Color { Self.color(outcome) }
+
+    static func color(_ outcome: CoreRunOutcome) -> Color {
         switch outcome {
         case .succeeded: RunnirTheme.success
         case .failed: RunnirTheme.destructive
@@ -61,7 +63,7 @@ struct RunRow: View {
         }
         .opacity(dimmed ? 0.6 : 1)
         .padding(.horizontal, 10).padding(.vertical, 8)
-        .contentShape(Rectangle())
+        .clickable()
         .background(selected ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
         .help(RunPresentation.rowHelp(run, pullRequest: pullRequest))
         .accessibilityElement(children: .combine)
@@ -105,7 +107,7 @@ struct RecentRunsList: View {
             ForEach(RunPresentation.visible(session.runs, showingSuperseded: false).prefix(limit)) { run in
                 Button { open(run) } label: {
                     RunRow(run: run, pullRequest: run.link.pullRequest.flatMap { pullRequests[$0] })
-                }.buttonStyle(.plain)
+                }.buttonStyle(.hit)
             }
         }
     }
@@ -178,16 +180,16 @@ struct WorkspaceRunsView: View {
                 Text("List").tag(RunsMode.list)
                 Text("By change").tag(RunsMode.byChange)
             }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
+            .pickerStyle(.segmented).pointerStyle(.link).labelsHidden().fixedSize()
             .help("List shows runs newest first; By change groups them by pull request and commit")
             Toggle(isOn: $onlyCurrentBranch) {
                 Text(session.branch.isEmpty ? "Current branch" : session.branch).lineLimit(1)
-            }.toggleStyle(.checkbox).disabled(session.branch.isEmpty)
+            }.toggleStyle(.checkbox).pointerStyle(.link).disabled(session.branch.isEmpty)
             Spacer()
             Button {
                 Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
             } label: { Image(systemName: "arrow.clockwise") }
-            .buttonStyle(.borderless).disabled(session.isLoadingGitHub).help("Reload runs from GitHub")
+            .buttonStyle(.borderless).pointerStyle(.link).disabled(session.isLoadingGitHub).help("Reload runs from GitHub")
         }
         .font(.system(size: 12)).padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 4)
     }
@@ -208,7 +210,7 @@ struct WorkspaceRunsView: View {
             Button(showingSuperseded ? "Hide superseded runs" : "\(hidden) superseded \(hidden == 1 ? "run" : "runs") hidden · Show") {
                 showingSuperseded.toggle()
             }
-            .buttonStyle(.link).font(.system(size: 12)).padding(.horizontal, 10).padding(.vertical, 6)
+            .buttonStyle(.link).pointerStyle(.link).font(.system(size: 12)).padding(.horizontal, 10).padding(.vertical, 6)
             .help("Runs on older commits of a pull request that a newer push replaced")
         }
     }
@@ -282,7 +284,7 @@ struct WorkspaceWorkflowsView: View {
                                 Image(systemName: favorite ? "star.fill" : "star")
                                     .foregroundStyle(favorite ? RunnirTheme.warning : RunnirTheme.mutedForeground)
                             }
-                            .buttonStyle(.borderless).disabled(!favorites.isAvailable)
+                            .buttonStyle(.borderless).pointerStyle(.link).disabled(!favorites.isAvailable)
                             .help(favorite ? "Remove from favorites" : "Add to favorites; favorites come first")
                             .accessibilityLabel(favorite ? "Remove \(workflow.name) from favorites" : "Add \(workflow.name) to favorites")
                         }
@@ -299,15 +301,15 @@ struct WorkspaceWorkflowsView: View {
                                 .font(.system(size: 11)).foregroundStyle(RunnirTheme.warning)
                         }
                         if let latest {
-                            Button("Last run") { showRun(latest) }.buttonStyle(.link).font(.system(size: 12))
+                            Button("Last run") { showRun(latest) }.buttonStyle(.link).pointerStyle(.link).font(.system(size: 12))
                         }
                         if workflow.canBeStartedByHand {
-                            Button("Run...") { runWorkflow(workflow) }.buttonStyle(.link).font(.system(size: 12))
+                            Button("Run...") { runWorkflow(workflow) }.buttonStyle(.link).pointerStyle(.link).font(.system(size: 12))
                                 .help("Start this workflow by hand if it has a workflow_dispatch trigger")
                         }
                         if let url = workflow.htmlURL {
                             Button { openURL(url) } label: { Image(systemName: "arrow.up.right.square") }
-                                .buttonStyle(.borderless).help("Open on GitHub")
+                                .buttonStyle(.borderless).pointerStyle(.link).help("Open on GitHub")
                         }
                     }
                     .padding(.horizontal, 12).frame(height: 52)

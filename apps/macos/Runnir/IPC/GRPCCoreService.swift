@@ -649,6 +649,24 @@ struct GRPCCoreService: CoreServicing {
         )
     }
 
+    /// The whole log can take minutes to download, so this call waits longer.
+    func saveJobLog(repositoryID: String, jobID: Int64) async throws -> CoreSavedJobLog {
+        let response = try await call {
+            try await client.saveJobLog(.with {
+                $0.repositoryID = repositoryID
+                $0.jobID = jobID
+            }, options: Self.options(.seconds(330)))
+        }
+        let availability: CoreJobLogAvailability = switch response.availability {
+        case .expired: .expired
+        case .notReady: .notReady
+        default: .available
+        }
+        return CoreSavedJobLog(access: Self.map(response.status), availability: availability,
+                               file: response.path.isEmpty ? nil : URL(fileURLWithPath: response.path),
+                               stoppedEarly: response.stoppedEarly)
+    }
+
     /// A log of up to 50,000 lines can exceed gRPC's default 4 MiB message
     /// limit on the wire, so this call allows more.
     func jobLog(repositoryID: String, jobID: Int64) async throws -> CoreJobLog {

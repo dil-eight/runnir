@@ -54,6 +54,8 @@ import Testing
                                    olderRunIDs: [], olderCommits: 0)
         #expect(RunPresentation.changeTitle(commit) == "3c4d5e6 Bump Go")
         #expect(RunPresentation.sectionTitle(commit.sections[0]) == nil)
+        #expect(RunPresentation.changeSubtitle(change) == "retry → main", "the header names the branches, not each row")
+        #expect(RunPresentation.changeSubtitle(commit) == "main")
         let runs = Dictionary(uniqueKeysWithValues: [run(9, branch: "main"), run(3, branch: "retry")].map { ($0.id, $0) })
         #expect(RunPresentation.changes([change, commit], runs: runs, branch: "retry").map(\.id) == ["pr:142"])
         #expect(RunPresentation.changes([change, commit], runs: runs, branch: nil).count == 2)

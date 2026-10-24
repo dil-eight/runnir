@@ -159,6 +159,8 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     var runActions: [CoreRunAction] { lock.withLock { _runActions } }
     var confirmedActions: [String] { lock.withLock { _confirmedActions } }
     func jobLog(repositoryID: String, jobID: Int64) async throws -> CoreJobLog { lock.withLock { jobLogResult } }
+    var savedJobLog = CoreSavedJobLog(access: .ok, availability: .available, file: URL(fileURLWithPath: "/tmp/runnir-logs/o-r-job-1.log"))
+    func saveJobLog(repositoryID: String, jobID: Int64) async throws -> CoreSavedJobLog { lock.withLock { savedJobLog } }
     func prepareRunAction(repositoryID: String, runID: Int64, action: CoreRunAction) async throws -> CorePreparedRunAction {
         lock.withLock {
             _runActions.append(action)

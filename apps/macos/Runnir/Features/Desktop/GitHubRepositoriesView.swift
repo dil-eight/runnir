@@ -429,7 +429,7 @@ struct GitHubRepositoriesView: View {
                     .accessibilityIdentifier("repository-search")
                 Button { Task { await reload(hub) } } label: {
                     Image(systemName: "arrow.clockwise")
-                }.buttonStyle(.borderless).disabled(model.isLoading).help("Read the repositories from GitHub again")
+                }.buttonStyle(.borderless).pointerStyle(.link).disabled(model.isLoading).help("Read the repositories from GitHub again")
             }.padding(10)
             HStack(spacing: 8) {
                 Picker("Owner", selection: $model.owner) {
@@ -438,9 +438,9 @@ struct GitHubRepositoriesView: View {
                         Text(owner).tag(Optional(owner))
                     }
                 }.labelsHidden().fixedSize()
-                Toggle("Starred", isOn: $model.starredOnly).toggleStyle(.checkbox).font(.system(size: 12))
+                Toggle("Starred", isOn: $model.starredOnly).toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12))
                 if accounts.count > 1 {
-                    Toggle("By Server", isOn: $groupByServer).toggleStyle(.checkbox).font(.system(size: 12))
+                    Toggle("By Server", isOn: $groupByServer).toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12))
                         .help("Group the repositories by the GitHub server they are on")
                         .accessibilityIdentifier("repository-group-by-server")
                 }
@@ -533,11 +533,11 @@ struct GitHubRepositoriesView: View {
                     EmptyView()
                 } else if model.credentialKind.isPersonal {
                     Button("Token Settings...") { openURL(GitHubAccessHelp.tokenSettingsURL(model.credentialKind)) }
-                        .buttonStyle(.link).font(.system(size: 11))
+                        .buttonStyle(.link).pointerStyle(.link).font(.system(size: 11))
                         .help("Signed in with a personal access token: the repositories it reaches are set on GitHub")
                 } else {
                     Button("More Repositories...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
-                        .buttonStyle(.link).font(.system(size: 11))
+                        .buttonStyle(.link).pointerStyle(.link).font(.system(size: 11))
                         .help("Install Runnir Desktop on more accounts or repositories on GitHub")
                 }
             }.padding(.horizontal, 12).padding(.vertical, 8)
@@ -589,7 +589,7 @@ private struct RepositoryListRow: View {
                 Image(systemName: starred ? "star.fill" : "star")
                     .foregroundStyle(starred ? RunnirTheme.warning : RunnirTheme.mutedForeground)
             }
-            .buttonStyle(.plain).disabled(!canStar)
+            .buttonStyle(.hit).disabled(!canStar)
             .help(starred ? "Remove from starred" : "Star this repository")
             .accessibilityLabel(starred ? "Remove from starred" : "Star")
             Button(action: select) {
@@ -611,7 +611,7 @@ private struct RepositoryListRow: View {
                     }
                     Spacer(minLength: 0)
                 }.contentShape(Rectangle())
-            }.buttonStyle(.plain)
+            }.buttonStyle(.hit)
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(selected ? RunnirTheme.selected : .clear)
@@ -705,7 +705,7 @@ private struct RemoteRepositoryDetail: View {
                 Text(repository.fullName).font(.system(size: 17, weight: .semibold)).lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 8)
                 Button { Task { await model.load(hub: hub) } } label: { Image(systemName: "arrow.clockwise") }
-                    .buttonStyle(.borderless).disabled(model.isLoading).help("Read workflows and runs again")
+                    .buttonStyle(.borderless).pointerStyle(.link).disabled(model.isLoading).help("Read workflows and runs again")
             }
             if !repository.description.isEmpty {
                 Text(repository.description).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
@@ -795,7 +795,7 @@ private struct RemoteRepositoryDetail: View {
             }
             ForEach(Array((model.runs?.items ?? []).prefix(10))) { run in
                 Button { if let url = run.htmlURL { openURL(url) } } label: { RunRow(run: run).contentShape(Rectangle()) }
-                    .buttonStyle(.plain).disabled(run.htmlURL == nil).help("Open this run on GitHub")
+                    .buttonStyle(.hit).disabled(run.htmlURL == nil).help("Open this run on GitHub")
             }
         }
     }

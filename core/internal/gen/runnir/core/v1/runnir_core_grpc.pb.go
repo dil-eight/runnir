@@ -60,6 +60,7 @@ const (
 	RunnirCore_PrepareWorkflowDispatch_FullMethodName   = "/runnir.core.v1.RunnirCore/PrepareWorkflowDispatch"
 	RunnirCore_ConfirmWorkflowDispatch_FullMethodName   = "/runnir.core.v1.RunnirCore/ConfirmWorkflowDispatch"
 	RunnirCore_GetJobLog_FullMethodName                 = "/runnir.core.v1.RunnirCore/GetJobLog"
+	RunnirCore_SaveJobLog_FullMethodName                = "/runnir.core.v1.RunnirCore/SaveJobLog"
 	RunnirCore_PrepareRunAction_FullMethodName          = "/runnir.core.v1.RunnirCore/PrepareRunAction"
 	RunnirCore_ConfirmRunAction_FullMethodName          = "/runnir.core.v1.RunnirCore/ConfirmRunAction"
 	RunnirCore_GetToolReadiness_FullMethodName          = "/runnir.core.v1.RunnirCore/GetToolReadiness"
@@ -170,6 +171,9 @@ type RunnirCoreClient interface {
 	// The end of one job's log (at most 2 MiB and 50,000 lines), split into
 	// lines that are tagged with their kind and the step that wrote them.
 	GetJobLog(ctx context.Context, in *GetJobLogRequest, opts ...grpc.CallOption) (*GetJobLogResponse, error)
+	// The whole log of one job (at most 256 MiB) written to a file in the
+	// user's temporary folder, for an editor; the path is in the answer.
+	SaveJobLog(ctx context.Context, in *SaveJobLogRequest, opts ...grpc.CallOption) (*SaveJobLogResponse, error)
 	// Cancelling or re-running a run takes two calls, like a dispatch: Prepare
 	// checks the run's current state and returns a single-use confirmation;
 	// only Confirm sends the request to GitHub, once.
@@ -560,6 +564,16 @@ func (c *runnirCoreClient) GetJobLog(ctx context.Context, in *GetJobLogRequest, 
 	return out, nil
 }
 
+func (c *runnirCoreClient) SaveJobLog(ctx context.Context, in *SaveJobLogRequest, opts ...grpc.CallOption) (*SaveJobLogResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveJobLogResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_SaveJobLog_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnirCoreClient) PrepareRunAction(ctx context.Context, in *PrepareRunActionRequest, opts ...grpc.CallOption) (*PrepareRunActionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PrepareRunActionResponse)
@@ -731,6 +745,9 @@ type RunnirCoreServer interface {
 	// The end of one job's log (at most 2 MiB and 50,000 lines), split into
 	// lines that are tagged with their kind and the step that wrote them.
 	GetJobLog(context.Context, *GetJobLogRequest) (*GetJobLogResponse, error)
+	// The whole log of one job (at most 256 MiB) written to a file in the
+	// user's temporary folder, for an editor; the path is in the answer.
+	SaveJobLog(context.Context, *SaveJobLogRequest) (*SaveJobLogResponse, error)
 	// Cancelling or re-running a run takes two calls, like a dispatch: Prepare
 	// checks the run's current state and returns a single-use confirmation;
 	// only Confirm sends the request to GitHub, once.
@@ -866,6 +883,9 @@ func (UnimplementedRunnirCoreServer) ConfirmWorkflowDispatch(context.Context, *C
 }
 func (UnimplementedRunnirCoreServer) GetJobLog(context.Context, *GetJobLogRequest) (*GetJobLogResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetJobLog not implemented")
+}
+func (UnimplementedRunnirCoreServer) SaveJobLog(context.Context, *SaveJobLogRequest) (*SaveJobLogResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SaveJobLog not implemented")
 }
 func (UnimplementedRunnirCoreServer) PrepareRunAction(context.Context, *PrepareRunActionRequest) (*PrepareRunActionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method PrepareRunAction not implemented")
@@ -1532,6 +1552,24 @@ func _RunnirCore_GetJobLog_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_SaveJobLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveJobLogRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).SaveJobLog(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_SaveJobLog_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).SaveJobLog(ctx, req.(*SaveJobLogRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnirCore_PrepareRunAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(PrepareRunActionRequest)
 	if err := dec(in); err != nil {
@@ -1800,6 +1838,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetJobLog",
 			Handler:    _RunnirCore_GetJobLog_Handler,
+		},
+		{
+			MethodName: "SaveJobLog",
+			Handler:    _RunnirCore_SaveJobLog_Handler,
 		},
 		{
 			MethodName: "PrepareRunAction",

@@ -222,6 +222,8 @@ protocol CoreServicing: Sendable {
     func confirmWorkflowDispatch(dispatchID: String) async throws -> CoreDispatchResult
     /// The end of one job's log, split into lines tagged with kind and step.
     func jobLog(repositoryID: String, jobID: Int64) async throws -> CoreJobLog
+    /// Writes one job's whole log to a file for an editor.
+    func saveJobLog(repositoryID: String, jobID: Int64) async throws -> CoreSavedJobLog
     /// Checks a cancel or re-run against the run's state; nothing is sent yet.
     func prepareRunAction(repositoryID: String, runID: Int64, action: CoreRunAction) async throws -> CorePreparedRunAction
     /// Sends a prepared run action once. Throws when the confirmation expired or was used.

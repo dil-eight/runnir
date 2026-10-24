@@ -121,6 +121,9 @@ service RunnirCore {
   // The end of one job's log (at most 2 MiB and 50,000 lines), split into
   // lines that are tagged with their kind and the step that wrote them.
   rpc GetJobLog(GetJobLogRequest) returns (GetJobLogResponse);
+  // The whole log of one job (at most 256 MiB) written to a file in the
+  // user's temporary folder, for an editor; the path is in the answer.
+  rpc SaveJobLog(SaveJobLogRequest) returns (SaveJobLogResponse);
   // Cancelling or re-running a run takes two calls, like a dispatch: Prepare
   // checks the run's current state and returns a single-use confirmation;
   // only Confirm sends the request to GitHub, once.
@@ -828,6 +831,21 @@ message GetJobLogResponse {
   // The log is larger than the Core reads (256 MiB): the lines are the end
   // of what was read, not the end of the log.
   bool stopped_early = 5;
+}
+
+message SaveJobLogRequest {
+  string repository_id = 1;
+  int64 job_id = 2;
+}
+
+message SaveJobLogResponse {
+  GitHubStatus status = 1;
+  JobLogAvailability availability = 2;
+  // The file with the log, set when it is AVAILABLE. It is replaced on the
+  // next save of the same job and left to the system to clean up.
+  string path = 3;
+  // The log is larger than the Core reads (256 MiB): the file has its start.
+  bool stopped_early = 4;
 }
 
 enum RunAction {

@@ -73,7 +73,7 @@ struct ProjectLink: View {
                 .background(hovering ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.hit)
         .onHover { hovering = $0 }
         .help("Open Runnir on GitHub")
         .accessibilityLabel("Open Runnir on GitHub")
@@ -117,7 +117,7 @@ struct WorkspaceManagerView: View {
             HStack {
                 BrandLogo(height: 51, width: 140)
                 Spacer()
-                ProjectLink().buttonStyle(.plain)
+                ProjectLink().buttonStyle(.hit)
                 if !desktop.snapshot.workspaces.isEmpty {
                     Button { desktop.importRepository() } label: {
                         Label("Import Repository...", systemImage: "folder.badge.plus")
@@ -143,7 +143,7 @@ struct WorkspaceManagerView: View {
                         Button("Back Up and Reset...") { desktop.resetUnreadableSession() }
                     } else {
                         Button { desktop.message = nil } label: { Image(systemName: "xmark") }
-                            .buttonStyle(.plain).help("Dismiss message")
+                            .buttonStyle(.hit).help("Dismiss message")
                     }
                 }
                 .padding(12).background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
@@ -226,7 +226,7 @@ private struct WorkspaceRegistryRow: View {
                 Button("Remove Registration", role: .destructive) { desktop.removeRegistration(workspace) }.disabled(count > 0)
                     .help("Forget this workspace in Runnir and delete its saved activity and local run history on this Mac. The repository's files stay.")
             } label: { Image(systemName: "ellipsis") }
-            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize().help("Workspace actions")
+            .menuStyle(.button).buttonStyle(.plain).pointerStyle(.link).menuIndicator(.hidden).fixedSize().help("Workspace actions")
         }
         .buttonStyle(DesignButtonStyle()).padding(.horizontal, 12).frame(height: 62)
     }
@@ -591,6 +591,7 @@ struct DesktopWorkspaceView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(RunnirTheme.background).foregroundStyle(RunnirTheme.foreground).tint(RunnirTheme.primary)
+        .overlay(alignment: .topLeading) { switcherPanel }
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: windowID)
         .sheet(isPresented: $reportingBug) {
@@ -661,9 +662,6 @@ struct DesktopWorkspaceView: View {
         // once GitHub answers, and again after a new sign-in.
         .task(id: "\(session?.githubAccess == .ok)|\(desktop.core?.credentialGeneration ?? 0)") {
             if session?.githubAccess == .ok { await desktop.core?.githubRepository(workspaceID: workspace.id) }
-        }
-        .sheet(isPresented: Binding(get: { state.showingSwitcher }, set: { state.showingSwitcher = $0 })) {
-            WorkspaceSwitcherView(desktop: desktop, currentWorkspaceID: workspace.id, windowID: windowID)
         }
     }
 
@@ -882,7 +880,7 @@ struct DesktopWorkspaceView: View {
                     }.font(.system(size: 12)).frame(maxWidth: 150)
                         .padding(.horizontal, 10).frame(height: 26)
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
-                }.menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize().disabled(reader == nil)
+                }.menuStyle(.button).buttonStyle(.plain).pointerStyle(.link).menuIndicator(.hidden).fixedSize().disabled(reader == nil)
                 editorStatus
             }
             Spacer(minLength: 4)
@@ -913,7 +911,7 @@ struct DesktopWorkspaceView: View {
                     .disabled(session?.githubRepository == nil)
                     .help(runWorkflowHelp)
             }
-            ProjectLink().buttonStyle(.plain)
+            ProjectLink().buttonStyle(.hit)
         }
         .buttonStyle(DesignButtonStyle()).padding(.horizontal, 20).frame(height: 52)
     }
@@ -985,18 +983,8 @@ struct DesktopWorkspaceView: View {
             VStack(spacing: 2) {
                 ForEach(AppSection.sidebarSections) { section in
                     Button { state.selectedSection = section } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: section.symbolName).frame(width: 16)
-                                .foregroundStyle(state.selectedSection == section ? RunnirTheme.primary : RunnirTheme.secondaryForeground)
-                            Text(section.title)
-                            Spacer()
-                        }
-                        .font(.system(size: 13)).padding(.horizontal, 10).frame(height: 30)
-                        .contentShape(Rectangle())
-                        .foregroundStyle(state.selectedSection == section ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
-                        .background(state.selectedSection == section ? RunnirTheme.selected : .clear,
-                                    in: RoundedRectangle(cornerRadius: 6))
-                    }.buttonStyle(.plain).accessibilityAddTraits(state.selectedSection == section ? .isSelected : [])
+                        SidebarItemLabel(title: section.title, symbol: section.symbolName, selected: state.selectedSection == section)
+                    }.buttonStyle(.hit).accessibilityAddTraits(state.selectedSection == section ? .isSelected : [])
                 }
             }
             Spacer()
@@ -1004,29 +992,29 @@ struct DesktopWorkspaceView: View {
                 if let github = desktop.github {
                     GitHubAccountRow(session: github)
                 } else {
-                    HStack(spacing: 8) {
-                        Image(systemName: "person.crop.circle").font(.system(size: 18)).foregroundStyle(RunnirTheme.secondaryForeground)
+                    HStack(spacing: 10) {
+                        Image(systemName: "person.crop.circle").font(.system(size: 16)).frame(width: 16)
+                            .foregroundStyle(RunnirTheme.secondaryForeground)
                         VStack(alignment: .leading, spacing: 1) {
                             Text("GitHub").font(.system(size: 12))
                             Text("Not connected").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                         }
+                        Spacer(minLength: 0)
                     }
                 }
             }.padding(.horizontal, 10).frame(height: 45)
-            Button { reportingBug = true } label: { Label("Report a Bug...", systemImage: "ladybug") }
-                .buttonStyle(.plain).font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
-                .padding(.horizontal, 10).frame(height: 30)
+            Button { reportingBug = true } label: { SidebarItemLabel(title: "Report a Bug...", symbol: "ladybug") }
+                .buttonStyle(.hit)
                 .help("Open a bug report for Runnir on GitHub")
                 .accessibilityIdentifier("report-bug")
-            Button { desktop.showSettings(in: windowID) } label: { Label("Settings...", systemImage: "gearshape") }
-                .buttonStyle(.plain).font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
-                .padding(.horizontal, 10).frame(height: 30)
+            Button { desktop.showSettings(in: windowID) } label: { SidebarItemLabel(title: "Settings...", symbol: "gearshape") }
+                .buttonStyle(.hit)
         }
         .padding(.horizontal, 12).padding(.bottom, 14).frame(width: 220)
         .frame(maxHeight: .infinity).background(RunnirTheme.sidebar)
     }
 
-    /// The workspace's name in the title bar; opens Open Quickly to switch.
+    /// The workspace's name in the title bar; opens the switcher under it.
     private var workspaceSwitcherButton: some View {
         Button { state.showingSwitcher = true } label: {
             HStack(spacing: 6) {
@@ -1038,7 +1026,7 @@ struct DesktopWorkspaceView: View {
             .background(hoveringSwitcher ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.hit)
         .onHover { hoveringSwitcher = $0 }
         .frame(maxWidth: 140, alignment: .leading)
         .help(WorkspaceSwitcher.abbreviate(workspace.path))
@@ -1048,6 +1036,23 @@ struct DesktopWorkspaceView: View {
         .contextMenu {
             Button("Open Quickly...") { state.showingSwitcher = true }
             Button("Workspace Manager...") { desktop.showManager() }
+        }
+    }
+
+    /// The switcher drops down from the title, left-aligned with it as in
+    /// JetBrains IDEs; a click outside closes it.
+    @ViewBuilder private var switcherPanel: some View {
+        if state.showingSwitcher {
+            ZStack(alignment: .topLeading) {
+                Color.black.opacity(0.001)
+                    .onTapGesture { state.showingSwitcher = false }
+                WorkspaceSwitcherView(desktop: desktop, currentWorkspaceID: workspace.id, windowID: windowID,
+                                      close: { state.showingSwitcher = false })
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(RunnirTheme.border))
+                    .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+                    .padding(.leading, 82).padding(.top, 34)
+            }
         }
     }
 
@@ -1133,7 +1138,7 @@ private struct LocalWorkflowBrowser: View {
                             Text(model.selected?.relativePath ?? "No workflow selected")
                                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(2)
                             UnavailableFeature(title: "Preview unavailable", detail: "Workflow analysis is not implemented yet.", symbol: "point.3.connected.trianglepath.dotted")
-                                .frame(maxWidth: .infinity, minHeight: 130, alignment: .leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: "shippingbox").foregroundStyle(RunnirTheme.secondaryForeground)
@@ -1283,7 +1288,7 @@ private struct DiagnosticsPanel: View {
             Text(text).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
-            if let action { Button(action, action: validate).buttonStyle(.link).font(.system(size: 12)) }
+            if let action { Button(action, action: validate).buttonStyle(.link).pointerStyle(.link).font(.system(size: 12)) }
         }
     }
 }
@@ -1309,7 +1314,7 @@ private struct DiagnosticRow: View {
             .padding(.vertical, 5).padding(.horizontal, 6).contentShape(Rectangle())
             .background(selected ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.hit)
         .help(diagnostic.line > 0 ? "Show line \(diagnostic.line) in the source" : "actionlint gave no position")
         .accessibilityLabel("\(diagnostic.message), \(position)")
     }
@@ -1329,8 +1334,10 @@ struct DesignDivider: View {
 
 struct DesignButtonStyle: ButtonStyle {
     var primary = false
+    /// 22 points high with 12-point text, for rows and section headers.
+    var compact = false
     func makeBody(configuration: Configuration) -> some View {
-        DesignButtonBody(configuration: configuration, primary: primary)
+        DesignButtonBody(configuration: configuration, primary: primary, compact: compact)
     }
 }
 
@@ -1339,19 +1346,53 @@ struct DesignButtonStyle: ButtonStyle {
 private struct DesignButtonBody: View {
     let configuration: ButtonStyleConfiguration
     let primary: Bool
+    let compact: Bool
     @Environment(\.isEnabled) private var isEnabled
     @State private var hovering = false
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: primary ? 10 : 6)
-        configuration.label.font(.system(size: 13, weight: primary ? .semibold : .regular))
-            .padding(.horizontal, primary ? 16 : 14).frame(height: 30)
+        let shape = RoundedRectangle(cornerRadius: primary && !compact ? 10 : 6)
+        configuration.label.font(.system(size: compact ? 12 : 13, weight: primary ? .semibold : .regular))
+            .padding(.horizontal, compact ? 10 : primary ? 16 : 14).frame(height: compact ? 22 : 30)
             .foregroundStyle(primary ? RunnirTheme.primaryButtonText : RunnirTheme.secondaryContent)
             .background(primary ? RunnirTheme.primary.opacity(hovering && isEnabled ? 0.32 : 0.2) : RunnirTheme.secondary, in: shape)
             .overlay(shape.stroke(primary ? RunnirTheme.primary.opacity(0.45) : RunnirTheme.border))
             .opacity(isEnabled ? (configuration.isPressed ? 0.75 : 1) : 0.4)
             .contentShape(shape)
+            .pointerStyle(isEnabled ? .link : nil)
             .onHover { hovering = $0 }
+    }
+}
+
+/// A button drawn by its label alone (rows, icons, sidebar items): the whole
+/// label takes the click, not only its text, and the pointer is a hand.
+struct HitButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HitButtonBody(configuration: configuration)
+    }
+}
+
+private struct HitButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        configuration.label
+            .contentShape(Rectangle())
+            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
+            .pointerStyle(isEnabled ? .link : nil)
+    }
+}
+
+extension ButtonStyle where Self == HitButtonStyle {
+    static var hit: HitButtonStyle { HitButtonStyle() }
+}
+
+extension View {
+    /// Something clicked that is not a button of ours (a tapped row, a
+    /// native switch or segmented control): the hand pointer over all of it.
+    func clickable() -> some View {
+        contentShape(Rectangle()).pointerStyle(.link)
     }
 }
 
@@ -1361,7 +1402,29 @@ struct WorkflowTabStyle: ButtonStyle {
         configuration.label.font(.system(size: 13)).padding(.horizontal, 11).frame(height: 26)
             .foregroundStyle(selected ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
             .background(selected ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
+            .contentShape(RoundedRectangle(cornerRadius: 6))
             .opacity(configuration.isPressed ? 0.7 : 1)
+            .pointerStyle(.link)
+    }
+}
+
+/// A sidebar row: a 16-point icon column, so the sections, the account and
+/// the items under it line up, and the whole row takes the click.
+struct SidebarItemLabel: View {
+    let title: String
+    let symbol: String
+    var selected = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol).frame(width: 16)
+                .foregroundStyle(selected ? RunnirTheme.primary : RunnirTheme.secondaryForeground)
+            Text(title)
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 13)).padding(.horizontal, 10).frame(height: 30)
+        .foregroundStyle(selected ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
+        .background(selected ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
     }
 }
 
