@@ -178,13 +178,14 @@ struct TestDefaults {
         let workspace = UUID()
         hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
         #expect(await eventually { hub.session(for: workspace)?.phase == .ready && provider.core.activityReads.count == 1 })
-        provider.core.refreshDelayActivity = .milliseconds(400)
+        provider.core.holdActivityRefresh = true
         let reload = Task { await hub.loadGitHubActivity(workspaceID: workspace) }
         #expect(await eventually { provider.core.activityRefreshes.count == 1 })
         provider.core.push(coreEvent(.activityChanged, repository: FakeCore.id(for: "/repo/linked"), sequence: 60))
         #expect(await eventually { provider.core.activityReads.count == 2 })
         try? await Task.sleep(for: .milliseconds(30))
         #expect(hub.session(for: workspace)?.isLoadingGitHub == true, "the Reload is still waiting")
+        provider.core.holdActivityRefresh = false
         await reload.value
         #expect(hub.session(for: workspace)?.isLoadingGitHub == false)
     }

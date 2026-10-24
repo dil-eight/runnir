@@ -363,6 +363,9 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     }
 
     var refreshDelayActivity: Duration?
+    /// While true, a refresh does not answer: a test lets it go when it has
+    /// checked what happens meanwhile, however slow the machine is.
+    var holdActivityRefresh = false
     func refreshWorkspaceActivity(repositoryID: String, wait: Bool, limit: Int) async throws -> CoreWorkspaceActivity {
         let delay = lock.withLock { () -> Duration? in
             _activityRefreshes.append((repositoryID, wait))
@@ -370,6 +373,7 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
             return refreshDelayActivity ?? runsDelay
         }
         if let delay { try? await Task.sleep(for: delay) }
+        while lock.withLock({ holdActivityRefresh }) { try? await Task.sleep(for: .milliseconds(5)) }
         return lock.withLock { activity(for: repositoryID) }
     }
     var storage = CoreStorageUsage(workspaces: [], keepJobLogs: false)
