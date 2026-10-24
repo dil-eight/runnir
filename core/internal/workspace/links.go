@@ -73,15 +73,9 @@ func (r *Runtime) fillGap(client *github.Client, target Target, u *store.RunsUpd
 }
 
 // lookUp asks GitHub for at most maxLookups pull requests the cached runs
-// miss, and stores the answers. A refusal stops pull request reads like a
-// refused list.
+// miss, and stores the answers; a pass calls it once it read the pull
+// request list. A refusal stops pull request reads like a refused list.
 func (r *Runtime) lookUp(target Target) {
-	r.mu.Lock()
-	refused := r.pullsRefused
-	r.mu.Unlock()
-	if refused {
-		return
-	}
 	source := target.Source()
 	a, err := r.cfg.store.Activity(r.ctx, store.MaxRuns)
 	if err != nil || !a.HasSource || a.Source != source {

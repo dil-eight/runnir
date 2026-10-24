@@ -237,7 +237,11 @@ func (r *Runtime) pass() {
 		_, _ = r.cfg.store.ApplySync(r.ctx, p)
 		if p.OK && target != nil {
 			r.branchFor = p.Source
-			r.lookUp(*target)
+			// Only after this pass read the list: a refusal, or a refresh
+			// clearing it meanwhile, never starts lookups GitHub refuses.
+			if p.PullRequests != nil && !p.PullRequests.Refused {
+				r.lookUp(*target)
+			}
 		}
 	}
 	active := false
