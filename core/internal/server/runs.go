@@ -269,6 +269,7 @@ func runMessage(r github.Run) *corev1.WorkflowRun {
 		Id: r.ID, WorkflowId: r.WorkflowID, Name: r.Name, DisplayTitle: r.DisplayTitle, RunNumber: r.RunNumber,
 		RunAttempt: r.RunAttempt, Event: r.Event, Status: r.Status, Conclusion: r.Conclusion, Branch: r.Branch,
 		HeadSha: r.HeadSHA, Actor: r.Actor, HtmlUrl: r.HTMLURL, CreatedAt: timestamp(r.CreatedAt), UpdatedAt: timestamp(r.UpdatedAt),
+		HeadRepository: r.HeadRepository, CommitTitle: r.CommitTitle,
 	}
 }
 

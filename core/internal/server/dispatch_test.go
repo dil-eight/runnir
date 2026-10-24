@@ -257,7 +257,7 @@ func TestARepositoryWithoutALocalCloneIsReadAndRunByName(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/user/installations":
-			_, _ = w.Write([]byte(`{"total_count":1,"installations":[{"id":5,"account":{"login":"o","type":"Organization"},"repository_selection":"selected","html_url":"https://github.com/organizations/o/settings/installations/5","permissions":{"actions":"read","contents":"read","metadata":"read"}}]}`))
+			_, _ = w.Write([]byte(`{"total_count":1,"installations":[{"id":5,"account":{"login":"o","type":"Organization"},"repository_selection":"selected","html_url":"https://github.com/organizations/o/settings/installations/5","permissions":{"actions":"read","contents":"read","metadata":"read","pull_requests":"read"}}]}`))
 		case "/user/installations/5/repositories":
 			_, _ = w.Write([]byte(`{"total_count":1,"repositories":[{"full_name":"o/r","name":"r","owner":{"login":"o"},"private":true,"default_branch":"main","html_url":"https://github.com/o/r","permissions":{"push":true}}]}`))
 		case "/repos/o/r/actions/workflows":

@@ -60,4 +60,24 @@ struct WorkspaceSwitcherTests {
         #expect(WorkspaceSwitcher.abbreviate("/Volumes/Disk/repo") == "/Volumes/Disk/repo")
         #expect(WorkspaceSwitcher.abbreviate("/Users/me") == "/Users/me")
     }
+
+    @Test
+    func actIsInstalledByAScriptThatWaitsForReturn() throws {
+        #expect(ActInstaller.brew(isExecutable: { $0 == "/usr/local/bin/brew" }) == "/usr/local/bin/brew")
+        #expect(ActInstaller.brew(isExecutable: { _ in true }) == "/opt/homebrew/bin/brew", "Apple silicon's Homebrew first")
+        #expect(ActInstaller.brew(isExecutable: { _ in false }) == nil)
+        let script = ActInstaller.script(brew: "/opt/homebrew/bin/brew")
+        let read = try #require(script.range(of: "read \"?Press Return"))
+        let install = try #require(script.range(of: "\"/opt/homebrew/bin/brew\" install act"))
+        #expect(script.hasPrefix("#!/bin/zsh\n"))
+        #expect(read.upperBound < install.lowerBound, "nothing runs before Return")
+    }
+
+    @Test
+    func theSearchFindsActionsToo() {
+        #expect(WorkspaceSwitcherAction.matching("") == [.importRepository, .manager])
+        #expect(WorkspaceSwitcherAction.matching("import repo") == [.importRepository])
+        #expect(WorkspaceSwitcherAction.matching("MANAGER") == [.manager])
+        #expect(WorkspaceSwitcherAction.matching("runnir").isEmpty)
+    }
 }

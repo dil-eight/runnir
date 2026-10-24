@@ -468,6 +468,8 @@ func parse(id string, data []byte) repository.Workflow {
 			workflow.Triggers = triggers(value)
 		case "jobs":
 			workflow.Jobs = jobs(value, &workflow)
+		case "concurrency":
+			workflow.Concurrency = true
 		}
 	}
 	workflow.DispatchInputs = dispatchOf(top).Inputs
@@ -526,6 +528,8 @@ func jobs(node *yaml.Node, workflow *repository.Workflow) []repository.Job {
 					}
 				case "needs":
 					job.Needs = scalarList(value)
+				case "concurrency":
+					workflow.Concurrency = true
 				}
 			}
 		}

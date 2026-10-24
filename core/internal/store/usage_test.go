@@ -29,7 +29,7 @@ func TestClearCacheKeepsLocalRuns(t *testing.T) {
 	if a.HasSource || len(a.Runs) != 0 || len(a.Workflows) != 0 || !a.SyncedAt.IsZero() {
 		t.Fatalf("after clear = %+v", a)
 	}
-	if r, w, _ := s.ETags(ctx, source); r != "" || w != "" {
+	if tags, _ := s.ETags(ctx, source); tags != (Tags{}) {
 		t.Fatal("etags survived")
 	}
 	if u, _ := s.Usage(ctx); u.CachedRuns != 0 || u.LocalRuns != 1 {

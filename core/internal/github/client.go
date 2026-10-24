@@ -119,6 +119,14 @@ type Run struct {
 	HTMLURL      string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	// "owner/name" the head commit came from, lowercased; a fork's differs
+	// from the run's repository. Empty when GitHub does not say (a deleted fork).
+	HeadRepository string
+	// The first line of the head commit's message.
+	CommitTitle string
+	// Pull requests GitHub lists on the run whose base is the run's own
+	// repository; in a fork GitHub also lists the upstream's, which are dropped.
+	PullRequests []int64
 }
 
 type Step struct {
@@ -221,7 +229,7 @@ func (c *Client) Runs(ctx context.Context, owner, name, branch string, limit int
 	}
 	runs := make([]Run, 0, len(body.WorkflowRuns))
 	for _, r := range body.WorkflowRuns {
-		runs = append(runs, r.run())
+		runs = append(runs, r.run(owner, name))
 	}
 	return runs, nil
 }
@@ -241,9 +249,30 @@ func (c *Client) RunsIfChanged(ctx context.Context, owner, name string, limit in
 	}
 	runs := make([]Run, 0, len(body.WorkflowRuns))
 	for _, r := range body.WorkflowRuns {
-		runs = append(runs, r.run())
+		runs = append(runs, r.run(owner, name))
 	}
 	return runs, tag, nil
+}
+
+// OlderRuns reads up to limit runs created at or before `before`, newest
+// first: a page of history older than what the caller holds. Runs created
+// in the same second as `before` come again; callers drop the ones they have.
+func (c *Client) OlderRuns(ctx context.Context, owner, name string, before time.Time, limit int) ([]Run, error) {
+	if limit <= 0 || limit > maxRuns {
+		limit = maxRuns
+	}
+	query := url.Values{"per_page": {strconv.Itoa(limit)}, "created": {"<=" + before.UTC().Format(time.RFC3339)}}
+	var body struct {
+		WorkflowRuns []runJSON `json:"workflow_runs"`
+	}
+	if err := c.get(ctx, repoPath(owner, name, "/actions/runs"), query, &body); err != nil {
+		return nil, err
+	}
+	runs := make([]Run, 0, len(body.WorkflowRuns))
+	for _, r := range body.WorkflowRuns {
+		runs = append(runs, r.run(owner, name))
+	}
+	return runs, nil
 }
 
 // Run reads one workflow run.
@@ -255,7 +284,7 @@ func (c *Client) Run(ctx context.Context, owner, name string, runID int64) (Run,
 	if err := c.get(ctx, repoPath(owner, name, fmt.Sprintf("/actions/runs/%d", runID)), nil, &body); err != nil {
 		return Run{}, err
 	}
-	return body.run(), nil
+	return body.run(owner, name), nil
 }
 
 type runJSON struct {
@@ -276,9 +305,24 @@ type runJSON struct {
 	Actor        *struct {
 		Login string `json:"login"`
 	} `json:"actor"`
+	HeadRepository *struct {
+		FullName string `json:"full_name"`
+	} `json:"head_repository"`
+	HeadCommit *struct {
+		Message string `json:"message"`
+	} `json:"head_commit"`
+	PullRequests []struct {
+		Number int64 `json:"number"`
+		Base   struct {
+			Repo struct {
+				URL string `json:"url"`
+			} `json:"repo"`
+		} `json:"base"`
+	} `json:"pull_requests"`
 }
 
-func (r runJSON) run() Run {
+// run maps a run of owner/name.
+func (r runJSON) run(owner, name string) Run {
 	run := Run{
 		ID: r.ID, WorkflowID: r.WorkflowID, Name: r.Name, DisplayTitle: r.DisplayTitle, RunNumber: r.RunNumber,
 		RunAttempt: r.RunAttempt, Event: r.Event, Status: r.Status, Branch: r.HeadBranch, HeadSHA: r.HeadSHA,
@@ -290,7 +334,25 @@ func (r runJSON) run() Run {
 	if r.Actor != nil {
 		run.Actor = r.Actor.Login
 	}
+	if r.HeadRepository != nil {
+		run.HeadRepository = strings.ToLower(r.HeadRepository.FullName)
+	}
+	if r.HeadCommit != nil {
+		run.CommitTitle = commitTitle(r.HeadCommit.Message)
+	}
+	own := strings.ToLower("/repos/" + owner + "/" + name)
+	for _, pr := range r.PullRequests {
+		if pr.Number > 0 && strings.HasSuffix(strings.ToLower(pr.Base.Repo.URL), own) {
+			run.PullRequests = append(run.PullRequests, pr.Number)
+		}
+	}
 	return run
+}
+
+// commitTitle is a commit message's first line, at most 300 characters.
+func commitTitle(message string) string {
+	title, _, _ := strings.Cut(message, "\n")
+	return truncate(strings.TrimSpace(title), 300)
 }
 
 // Jobs lists the jobs of one run with their steps (up to 100 jobs).

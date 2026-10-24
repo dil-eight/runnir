@@ -125,9 +125,9 @@ func TestInstallationsSayWhichPermissionsWaitForAnOwner(t *testing.T) {
 		switch r.URL.Path {
 		case "/user/installations":
 			_, _ = w.Write([]byte(`{"total_count":3,"installations":[
-				{"id":1,"account":{"login":"Current","type":"Organization"},"permissions":{"actions":"write","contents":"write","metadata":"read"}},
+				{"id":1,"account":{"login":"Current","type":"Organization"},"permissions":{"actions":"write","contents":"write","metadata":"read","pull_requests":"read"}},
 				{"id":2,"account":{"login":"behind","type":"User"},"permissions":{"actions":"read","metadata":"read"}},
-				{"id":3,"account":{"login":"paused","type":"Organization"},"permissions":{"actions":"write","contents":"read","metadata":"read"},"suspended_at":"2026-10-01T00:00:00Z"}]}`))
+				{"id":3,"account":{"login":"paused","type":"Organization"},"permissions":{"actions":"write","contents":"read","metadata":"read","pull_requests":"read"},"suspended_at":"2026-10-01T00:00:00Z"}]}`))
 		case "/user/installations/1/repositories":
 			_, _ = w.Write([]byte(`{"total_count":1,"repositories":[{"full_name":"Current/r","name":"r","owner":{"login":"Current"}}]}`))
 		case "/user/installations/2/repositories":
@@ -143,7 +143,7 @@ func TestInstallationsSayWhichPermissionsWaitForAnOwner(t *testing.T) {
 	if len(installations[0].MissingPermissions) != 0 || installations[0].Suspended {
 		t.Fatalf("current = %+v", installations[0])
 	}
-	if strings.Join(installations[1].MissingPermissions, ",") != "actions: write,contents: read" {
+	if strings.Join(installations[1].MissingPermissions, ",") != "actions: write,contents: read,pull_requests: read" {
 		t.Fatalf("behind = %+v", installations[1])
 	}
 	if !installations[2].Suspended {

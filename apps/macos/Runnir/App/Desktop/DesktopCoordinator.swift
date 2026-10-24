@@ -101,6 +101,8 @@ final class DesktopCoordinator {
     let presets: DispatchPresetLibrary
     /// Favorite workflows of each workspace, kept on this Mac.
     let favorites: WorkflowFavorites
+    /// Workflows whose concurrency suggestion the user turned off, per workspace.
+    let hintDismissals: ConcurrencyHintDismissals
     /// Repositories starred in the Workspace Manager's GitHub tab.
     let repositoryFavorites: RepositoryFavorites
     /// The GitHub tab's list, kept while the Manager is closed.
@@ -115,6 +117,7 @@ final class DesktopCoordinator {
          github: GitHubSession? = nil,
          presets: DispatchPresetLibrary = DispatchPresetLibrary(store: nil),
          favorites: WorkflowFavorites = WorkflowFavorites(store: nil),
+         hintDismissals: ConcurrencyHintDismissals = ConcurrencyHintDismissals(),
          repositoryFavorites: RepositoryFavorites = RepositoryFavorites(store: nil),
          pullRequests: PullRequestsModel = PullRequestsModel(store: nil),
          makeGrant: @escaping (WorkspaceRecord) throws -> any RepositoryGranting = { try RepositoryGrant(record: $0) },
@@ -126,6 +129,7 @@ final class DesktopCoordinator {
         self.github = github
         self.presets = presets
         self.favorites = favorites
+        self.hintDismissals = hintDismissals
         self.repositoryFavorites = repositoryFavorites
         self.pullRequests = pullRequests
         self.makeGrant = makeGrant
@@ -429,6 +433,7 @@ final class DesktopCoordinator {
             try commit(candidate)
             presets.removeAll(workspaceID: workspace.id)
             favorites.removeAll(workspaceID: workspace.id)
+            hintDismissals.removeAll(workspaceID: workspace.id)
             // Its saved activity and local run history go too. A Core that is
             // not running leaves them; Settings › Storage then lists them as
             // a removed workspace to delete.
@@ -509,6 +514,14 @@ final class DesktopCoordinator {
         var candidate = snapshot
         candidate.windows[index].section = section
         do { try commit(candidate); windows[windowID]?.record.section = section }
+        catch { message = "Window navigation could not be saved." }
+    }
+
+    func selectRunsMode(_ mode: RunsMode, windowID: UUID) {
+        guard let index = snapshot.windows.firstIndex(where: { $0.id == windowID }) else { return }
+        var candidate = snapshot
+        candidate.windows[index].runsMode = mode
+        do { try commit(candidate); windows[windowID]?.record.runsMode = mode }
         catch { message = "Window navigation could not be saved." }
     }
 
@@ -726,6 +739,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
         let state = files.map { AppState(files: $0) } ?? AppState()
         self.state = state
         state.selectedSection = record.section.restored
+        state.runsMode = record.runsMode ?? .list
         window?.title = workspace.name + " - Runnir"
         window?.contentViewController = NSHostingController(rootView:
             DesktopWorkspaceView(desktop: desktop, workspace: workspace, windowID: record.id, reader: grant?.reader)

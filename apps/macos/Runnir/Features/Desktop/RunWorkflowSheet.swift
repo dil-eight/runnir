@@ -682,7 +682,7 @@ struct RunWorkflowSheet: View {
             case .boolean:
                 Toggle(isOn: Binding(get: { binding.wrappedValue == "true" }, set: { binding.wrappedValue = $0 ? "true" : "false" })) {
                     Text(input.name)
-                }.toggleStyle(.checkbox)
+                }.toggleStyle(.checkbox).pointerStyle(.link)
             case .choice:
                 Picker(input.name + (input.required ? " *" : ""), selection: binding) {
                     ForEach(input.options, id: \.self) { Text($0).tag($0) }

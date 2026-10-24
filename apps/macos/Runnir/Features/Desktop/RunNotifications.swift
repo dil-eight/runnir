@@ -170,7 +170,7 @@ struct NotificationSettingsSection: View {
                 Text("Failures and successes").tag(false)
                 Text("Failures only").tag(true)
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.segmented).pointerStyle(.link)
             .disabled(!pullRequestChecks && !localRuns)
             if deniedBySystem {
                 HStack(alignment: .top) {

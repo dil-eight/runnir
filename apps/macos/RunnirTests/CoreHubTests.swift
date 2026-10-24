@@ -159,6 +159,8 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     var runActions: [CoreRunAction] { lock.withLock { _runActions } }
     var confirmedActions: [String] { lock.withLock { _confirmedActions } }
     func jobLog(repositoryID: String, jobID: Int64) async throws -> CoreJobLog { lock.withLock { jobLogResult } }
+    var savedJobLog = CoreSavedJobLog(access: .ok, availability: .available, file: URL(fileURLWithPath: "/tmp/runnir-logs/o-r-job-1.log"))
+    func saveJobLog(repositoryID: String, jobID: Int64) async throws -> CoreSavedJobLog { lock.withLock { savedJobLog } }
     func prepareRunAction(repositoryID: String, runID: Int64, action: CoreRunAction) async throws -> CorePreparedRunAction {
         lock.withLock {
             _runActions.append(action)
@@ -329,10 +331,41 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     func workspaceActivity(repositoryID: String, limit: Int) async throws -> CoreWorkspaceActivity {
         lock.withLock {
             _activityReads.append(repositoryID)
+            _activityLimits.append(limit)
             return activity(for: repositoryID)
         }
     }
+    // MARK: Older runs and concurrency
+
+    private var _activityLimits: [Int] = []
+    var activityLimits: [Int] { lock.withLock { _activityLimits } }
+    var olderRunsResult = CoreOlderRuns(access: .ok, added: 0, historyComplete: true, budgetReached: false)
+    private var _olderRunsCalls: [String] = []
+    var olderRunsCalls: [String] { lock.withLock { _olderRunsCalls } }
+    func loadOlderRuns(repositoryID: String) async throws -> CoreOlderRuns {
+        lock.withLock {
+            _olderRunsCalls.append(repositoryID)
+            return olderRunsResult
+        }
+    }
+    var concurrencyInsertion: CoreConcurrencyInsertion = .refused(.alreadyPresent)
+    private var _insertions: [String] = []
+    var insertions: [String] { lock.withLock { _insertions } }
+    /// How long the Core takes to answer an insertion, nil for at once.
+    var insertionDelay: Duration?
+    func insertWorkflowConcurrency(repositoryID: String, content: String) async throws -> CoreConcurrencyInsertion {
+        let delay = lock.withLock { () -> Duration? in
+            _insertions.append(content)
+            return insertionDelay
+        }
+        if let delay { try? await Task.sleep(for: delay) }
+        return lock.withLock { concurrencyInsertion }
+    }
+
     var refreshDelayActivity: Duration?
+    /// While true, a refresh does not answer: a test lets it go when it has
+    /// checked what happens meanwhile, however slow the machine is.
+    var holdActivityRefresh = false
     func refreshWorkspaceActivity(repositoryID: String, wait: Bool, limit: Int) async throws -> CoreWorkspaceActivity {
         let delay = lock.withLock { () -> Duration? in
             _activityRefreshes.append((repositoryID, wait))
@@ -340,6 +373,7 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
             return refreshDelayActivity ?? runsDelay
         }
         if let delay { try? await Task.sleep(for: delay) }
+        while lock.withLock({ holdActivityRefresh }) { try? await Task.sleep(for: .milliseconds(5)) }
         return lock.withLock { activity(for: repositoryID) }
     }
     var storage = CoreStorageUsage(workspaces: [], keepJobLogs: false)

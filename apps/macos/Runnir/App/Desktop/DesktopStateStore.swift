@@ -18,6 +18,8 @@ struct WorkspaceWindowRecord: Codable, Identifiable, Equatable, Sendable {
     let id: UUID
     var workspaceID: UUID
     var section: AppSection = .dashboard
+    /// nil until the user switches the Runs section; reads as List.
+    var runsMode: RunsMode? = nil
     var frame: WindowGeometry?
 }
 

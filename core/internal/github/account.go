@@ -29,7 +29,7 @@ type Installation struct {
 // RequiredPermissions are the repository permissions Runnir Desktop asks
 // for (docs/security/github-authentication.md). An installation granted less
 // has not accepted an update of the app's permissions.
-var RequiredPermissions = map[string]string{"actions": "write", "contents": "read", "metadata": "read"}
+var RequiredPermissions = map[string]string{"actions": "write", "contents": "read", "metadata": "read", "pull_requests": "read"}
 
 // missingPermissions lists what granted lacks of RequiredPermissions; write
 // covers read, and admin covers both.

@@ -146,7 +146,7 @@ func (s *service) ListWorkflows(_ context.Context, request *corev1.ListWorkflows
 	}
 	out := &corev1.ListWorkflowsResponse{Workflows: make([]*corev1.Workflow, 0, len(workflows))}
 	for _, w := range workflows {
-		item := &corev1.Workflow{Id: w.ID, Name: w.Name, Triggers: w.Triggers, ParseError: w.ParseError}
+		item := &corev1.Workflow{Id: w.ID, Name: w.Name, Triggers: w.Triggers, ParseError: w.ParseError, Concurrency: w.Concurrency}
 		for _, j := range w.Jobs {
 			item.Jobs = append(item.Jobs, &corev1.Job{Id: j.ID, Name: j.Name, Needs: j.Needs})
 		}

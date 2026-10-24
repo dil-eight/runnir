@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: Models
 
@@ -193,8 +195,28 @@ final class RunActionModel {
     }
 }
 
-/// What the log viewer shows: one step or the whole job, and search matches.
+/// What the log viewer shows: the end of one step or of the whole job, and
+/// search matches among those lines.
 enum LogFilter {
+    /// The viewer shows this many lines from the end; the whole log opens in
+    /// an editor.
+    static let shownLines = 100
+
+    static func tail(_ lines: [CoreLogLine]) -> [CoreLogLine] {
+        Array(lines.suffix(shownLines))
+    }
+
+    /// "Last 100 of 21,777 lines", "Last 100 lines · Archive"; nil when every
+    /// line of the selection is shown and the log is complete.
+    static func scope(shown: Int, selected: Int, lastNumber: Int64, truncated: Bool, step: String?) -> String? {
+        let hidden = selected > shown || truncated
+        guard hidden else { return nil }
+        if let step {
+            return truncated ? "Last \(shown) lines · \(step)" : "Last \(shown) of \(selected.formatted()) lines · \(step)"
+        }
+        return "Last \(shown) of \(Int(lastNumber).formatted()) lines"
+    }
+
     /// End-of-group markers carry no text and are hidden.
     static func lines(_ log: [CoreLogLine], step: Int64?) -> [CoreLogLine] {
         log.filter { $0.kind != .endGroup && (step == nil || $0.stepNumber == step) }
@@ -246,6 +268,11 @@ struct RunInspectorView: View {
     let hub: CoreHub
     /// For the sign-in sheet an access alert may offer.
     var github: GitHubSession? = nil
+    /// Its pull request, the run that superseded it and a suggestion.
+    let context: RunInspectorContext
+    let select: (Int64) -> Void
+    let addConcurrency: (String) -> Void
+    let dismissHint: (String) -> Void
     @State private var actions: RunActionModel
     @State private var jobs: CoreGitHubResult<CoreRunJob>?
     @State private var jobsStale = false
@@ -253,11 +280,17 @@ struct RunInspectorView: View {
     @State private var selectedStep: Int64?
     @Environment(\.openURL) private var openURL
 
-    init(run: CoreWorkflowRun, workspaceID: UUID, hub: CoreHub, github: GitHubSession? = nil) {
+    init(run: CoreWorkflowRun, workspaceID: UUID, hub: CoreHub, github: GitHubSession? = nil,
+         context: RunInspectorContext = RunInspectorContext(), select: @escaping (Int64) -> Void = { _ in },
+         addConcurrency: @escaping (String) -> Void = { _ in }, dismissHint: @escaping (String) -> Void = { _ in }) {
         self.run = run
         self.workspaceID = workspaceID
         self.hub = hub
         self.github = github
+        self.context = context
+        self.select = select
+        self.addConcurrency = addConcurrency
+        self.dismissHint = dismissHint
         _actions = State(initialValue: RunActionModel(hub: hub, workspaceID: workspaceID))
     }
 
@@ -268,6 +301,7 @@ struct RunInspectorView: View {
             toolbar
             DesignDivider()
             summary
+            links
             if let text = actions.statusText { actionStatus(text) }
             DesignDivider()
             HStack(spacing: 0) {
@@ -387,6 +421,35 @@ struct RunInspectorView: View {
         .padding(.horizontal, 20).frame(height: 40)
     }
 
+    // MARK: Pull request and commit
+
+    private var links: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let pullRequest = context.pullRequest {
+                Button {
+                    if let url = pullRequest.htmlURL { openURL(url) }
+                } label: {
+                    Label(RunPresentation.pullRequestLine(pullRequest), systemImage: "arrow.triangle.pull").lineLimit(1)
+                }
+                .buttonStyle(.link).pointerStyle(.link).disabled(pullRequest.htmlURL == nil).help("Open the pull request on GitHub")
+            }
+            Label(RunPresentation.commitLine(run), systemImage: "smallcircle.filled.circle")
+                .foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
+            if let newer = context.supersededBy {
+                Button("Superseded by \(newer.name) #\(newer.runNumber) on a newer commit") { select(newer.id) }
+                    .buttonStyle(.link).pointerStyle(.link).help("Show the run that replaced this one")
+            }
+            if run.isSuperseded, let hint = context.hint {
+                ConcurrencyHintBanner(hint: hint, workflowName: context.workflowName,
+                                      add: { addConcurrency(hint.path) }, dismiss: { dismissHint(hint.path) })
+                    .padding(.top, 4)
+            }
+        }
+        .font(.system(size: 12))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20).padding(.bottom, 8)
+    }
+
     private var eventLabel: String {
         run.event.replacingOccurrences(of: "_", with: " ").capitalized
     }
@@ -402,7 +465,7 @@ struct RunInspectorView: View {
             }
             Text(text).fixedSize(horizontal: false, vertical: true)
             Spacer()
-            if !actions.isBusy { Button("Dismiss") { actions.dismiss() }.buttonStyle(.link) }
+            if !actions.isBusy { Button("Dismiss") { actions.dismiss() }.buttonStyle(.link).pointerStyle(.link) }
         }
         .font(.system(size: 12)).padding(.horizontal, 20).padding(.vertical, 8)
         .background(RunnirTheme.surface)
@@ -458,7 +521,7 @@ struct RunInspectorView: View {
             .padding(.horizontal, 8).frame(height: 30).contentShape(Rectangle())
             .background(job.id == selectedJobID && selectedStep == nil ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.hit)
         .help(job.id == selectedJobID ? "Show the whole job log" : "Show this job")
     }
 
@@ -474,7 +537,7 @@ struct RunInspectorView: View {
             .padding(.leading, 28).padding(.trailing, 8).frame(height: 26).contentShape(Rectangle())
             .background(step.number == selectedStep ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.hit)
     }
 
     private func timing(_ outcome: CoreRunOutcome, from start: Date?, to end: Date?) -> String {
@@ -495,10 +558,14 @@ private struct JobLogView: View {
     let hub: CoreHub
     let showWholeJob: () -> Void
     @State private var log: CoreJobLog?
-    /// The shown lines, kept so that a render or keystroke does not filter
-    /// up to 50,000 lines again.
+    /// The shown lines (the end of the selection), kept so that a render or
+    /// keystroke does not filter up to 50,000 lines again.
     @State private var visible: [CoreLogLine] = []
+    /// Lines of the selection (job or step) in what the Core sent.
+    @State private var selectedCount = 0
     @State private var totalLines = 0
+    @State private var saving = false
+    @State private var saveProblem: String?
     @State private var query = ""
     @State private var matches: [Int64] = []
     @State private var matchIndex = 0
@@ -547,7 +614,9 @@ private struct JobLogView: View {
     private func refreshLines() {
         let all = LogFilter.lines(log?.lines ?? [], step: nil)
         totalLines = all.count
-        visible = step == nil ? all : all.filter { $0.stepNumber == step }
+        let selection = step == nil ? all : all.filter { $0.stepNumber == step }
+        selectedCount = selection.count
+        visible = LogFilter.tail(selection)
         linesVersion += 1
         updateMatches()
     }
@@ -564,23 +633,23 @@ private struct JobLogView: View {
             Spacer(minLength: 8)
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(RunnirTheme.mutedForeground)
-                TextField("Search log", text: $query).textFieldStyle(.plain).frame(width: 150)
+                TextField(hiddenLines ? "Search shown lines" : "Search log", text: $query).textFieldStyle(.plain).frame(width: 150)
                     .onSubmit { moveMatch(by: 1) }
                 if !query.isEmpty {
                     Text(matches.isEmpty ? "0 of 0" : "\(matchIndex + 1) of \(matches.count)")
                         .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).monospacedDigit()
                     Button { moveMatch(by: -1) } label: { Image(systemName: "chevron.up") }
-                        .buttonStyle(.borderless).disabled(matches.isEmpty)
+                        .buttonStyle(.borderless).pointerStyle(.link).disabled(matches.isEmpty)
                         .help("Previous match").accessibilityLabel("Previous match")
                     Button { moveMatch(by: 1) } label: { Image(systemName: "chevron.down") }
-                        .buttonStyle(.borderless).disabled(matches.isEmpty)
+                        .buttonStyle(.borderless).pointerStyle(.link).disabled(matches.isEmpty)
                         .help("Next match").accessibilityLabel("Next match")
                 }
             }
             .font(.system(size: 12)).padding(.horizontal, 8).frame(height: 26)
             .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
-            Toggle("Wrap", isOn: $wrap).toggleStyle(.checkbox).font(.system(size: 12))
+            Toggle("Wrap", isOn: $wrap).toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12))
         }
         .padding(.horizontal, 14).frame(height: 44)
     }
@@ -623,6 +692,10 @@ private struct JobLogView: View {
         return ScrollViewReader { proxy in
             ScrollView(wrap ? .vertical : [.vertical, .horizontal]) {
                 LazyVStack(alignment: .leading, spacing: 0) {
+                    if hiddenLines {
+                        Text(earlierText).font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground)
+                            .padding(.horizontal, 12).padding(.vertical, 4)
+                    }
                     ForEach(visible) { line in
                         LogLineRow(line: line, numberWidth: width, wrap: wrap,
                                    highlight: line.number == current ? .current : matched.contains(line.number) ? .match : nil)
@@ -638,12 +711,47 @@ private struct JobLogView: View {
         }
     }
 
-    /// Opens on the first error, the way a failing step is usually read.
+    /// Opens on the first error, the way a failing step is usually read,
+    /// else on the last line.
     private func scrollToInterest(_ proxy: ScrollViewProxy) {
         if let error = visible.first(where: { $0.kind == .error }) {
             proxy.scrollTo(error.number, anchor: .center)
-        } else if let first = visible.first {
-            proxy.scrollTo(first.number, anchor: .top)
+        } else if let last = visible.last {
+            proxy.scrollTo(last.number, anchor: .bottom)
+        }
+    }
+
+    /// Lines of the job or step that the viewer leaves to the editor.
+    private var hiddenLines: Bool {
+        guard let log, log.access == .ok, log.availability == .available else { return false }
+        return selectedCount > visible.count || log.truncated
+    }
+
+    private var earlierText: String {
+        let shownFrom = visible.first?.number ?? 1
+        let earlier = step == nil ? Int(shownFrom - 1) : selectedCount - visible.count
+        let lines = earlier == 1 ? "1 earlier line" : "\(earlier.formatted()) earlier lines"
+        return step == nil || log?.truncated != true
+            ? "\(lines) · the whole log opens in \(LogEditor.name)"
+            : "Earlier lines · the whole log opens in \(LogEditor.name)"
+    }
+
+    /// Asks the Core for the whole log as a file and opens it in the editor.
+    private func openInEditor() {
+        guard !saving else { return }
+        saving = true
+        saveProblem = nil
+        Task {
+            let saved = await hub.saveJobLog(workspaceID: workspaceID, jobID: job.id)
+            saving = false
+            switch saved {
+            case let saved where saved.access != .ok:
+                saveProblem = RunActionModel.describeRead(saved.access)
+            case let saved where saved.availability == .expired:
+                saveProblem = "GitHub no longer has this log."
+            case let saved:
+                if let file = saved.file { LogEditor.open(file) } else { saveProblem = "The log could not be saved." }
+            }
         }
     }
 
@@ -667,8 +775,17 @@ private struct JobLogView: View {
         HStack(spacing: 8) {
             footerText
             Spacer()
-            if log?.truncated == true, let url = job.htmlURL {
-                Button("Full log on GitHub") { openURL(url) }.buttonStyle(.link)
+            if let saveProblem {
+                Label(saveProblem, systemImage: "exclamationmark.triangle").lineLimit(1).help(saveProblem)
+            }
+            if hiddenLines {
+                if let url = job.htmlURL {
+                    Button("On GitHub") { openURL(url) }.buttonStyle(.link).pointerStyle(.link)
+                        .help("Open this job's log on GitHub")
+                }
+                Button(saving ? "Saving Log…" : "Open in \(LogEditor.name)", action: openInEditor)
+                    .buttonStyle(DesignButtonStyle(compact: true)).disabled(saving)
+                    .help("Saves the whole log to a temporary file and opens it")
             }
         }
         .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
@@ -686,13 +803,37 @@ private struct JobLogView: View {
         case .some(let log) where log.availability == .expired:
             Label("No log available · expired", systemImage: "clock.arrow.circlepath")
         case .some(let log):
-            let scope = stepName.map { "\(visible.count) of \(totalLines) lines · \($0)" } ?? "\(totalLines) lines"
-            if log.stoppedEarly {
-                Label("Very large log: showing part of it · \(scope)", systemImage: "scissors")
+            if let scope = LogFilter.scope(shown: visible.count, selected: selectedCount, lastNumber: log.lines.last?.number ?? 0,
+                                           truncated: log.truncated, step: stepName) {
+                Label(log.stoppedEarly ? "Very large log · \(scope)" : scope, systemImage: "scissors")
             } else {
-                Label(log.truncated ? "Showing the end of the log · \(scope)" : "Log complete · \(scope)",
-                      systemImage: log.truncated ? "scissors" : "checkmark.circle")
+                let scope = stepName.map { "\(visible.count) of \(totalLines) lines · \($0)" } ?? "\(totalLines) lines"
+                Label("Log complete · \(scope)", systemImage: "checkmark.circle")
             }
+        }
+    }
+}
+
+/// Where a whole log opens: Visual Studio Code when it is installed, else the
+/// app for plain text (TextEdit unless changed).
+enum LogEditor {
+    static let vsCodeBundleID = "com.microsoft.VSCode"
+
+    static var app: URL? {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: vsCodeBundleID)
+            ?? NSWorkspace.shared.urlForApplication(toOpen: .plainText)
+    }
+
+    static var name: String {
+        guard let app else { return "Editor" }
+        return FileManager.default.displayName(atPath: app.path).replacingOccurrences(of: ".app", with: "")
+    }
+
+    static func open(_ file: URL) {
+        if let app {
+            NSWorkspace.shared.open([file], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+        } else {
+            NSWorkspace.shared.open(file)
         }
     }
 }

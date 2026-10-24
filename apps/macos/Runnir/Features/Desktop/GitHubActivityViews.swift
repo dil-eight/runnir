@@ -12,7 +12,9 @@ struct RunOutcomeIcon: View {
             .accessibilityLabel(outcome.label)
     }
 
-    private var color: Color {
+    private var color: Color { Self.color(outcome) }
+
+    static func color(_ outcome: CoreRunOutcome) -> Color {
         switch outcome {
         case .succeeded: RunnirTheme.success
         case .failed: RunnirTheme.destructive
@@ -23,32 +25,48 @@ struct RunOutcomeIcon: View {
 }
 
 
-/// One line per run: status, title, number, branch, event and age.
+/// One line per run: status, title, number, branch, event, what it belongs
+/// to and age. A superseded run shown on request is dimmed; an outdated one
+/// (superseded, still going) says so.
 struct RunRow: View {
     let run: CoreWorkflowRun
     var selected = false
+    /// The pull request the run belongs to, for the help.
+    var pullRequest: CoreChangePullRequest? = nil
+    /// The run that superseded this one, for the outdated label's help.
+    var newer: CoreWorkflowRun? = nil
+
+    private var dimmed: Bool { run.isSuperseded && !run.outcome.isActive }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             RunOutcomeIcon(outcome: run.outcome).padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
-                Text(run.title).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                Text(detail).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            if let created = run.createdAt {
-                Text(created, format: .relative(presentation: .named))
-                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                // The age shares the title's line, so the detail line has
+                // the full width for what the run belongs to.
+                HStack(spacing: 6) {
+                    Text(run.title).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                    if run.isOutdated {
+                        RunTag(text: "outdated", tint: RunnirTheme.info).help(RunPresentation.outdatedHelp(run, newer: newer))
+                    } else if dimmed {
+                        RunTag(text: "older commit", tint: RunnirTheme.secondaryForeground)
+                    }
+                    Spacer(minLength: 8)
+                    if let created = run.createdAt {
+                        Text(created, format: .relative(presentation: .numeric, unitsStyle: .narrow))
+                            .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                            .lineLimit(1).fixedSize()
+                    }
+                }
+                Text(RunPresentation.detail(run)).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
             }
         }
+        .opacity(dimmed ? 0.6 : 1)
         .padding(.horizontal, 10).padding(.vertical, 8)
-        .contentShape(Rectangle())
+        .clickable()
         .background(selected ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .help(RunPresentation.rowHelp(run, pullRequest: pullRequest))
         .accessibilityElement(children: .combine)
-    }
-
-    private var detail: String {
-        "\(run.name) #\(run.runNumber) · \(run.branch) · \(run.event)"
     }
 }
 
@@ -85,74 +103,151 @@ struct RecentRunsList: View {
                     UnavailableFeature(title: "No runs yet", detail: "No workflow has run on GitHub for this repository.", symbol: "play.circle")
                 }
             }
-            ForEach(session.runs.prefix(limit)) { run in
-                Button { open(run) } label: { RunRow(run: run) }.buttonStyle(.plain)
+            let pullRequests = RunPresentation.pullRequests(session.changes)
+            ForEach(RunPresentation.visible(session.runs, showingSuperseded: false).prefix(limit)) { run in
+                Button { open(run) } label: {
+                    RunRow(run: run, pullRequest: run.link.pullRequest.flatMap { pullRequests[$0] })
+                }.buttonStyle(.hit)
             }
         }
     }
 }
 
-/// Runs section: the run list and the selected run's jobs and steps.
+/// Runs section: the runs as a list or by change, and the selected run's
+/// jobs and steps.
 struct WorkspaceRunsView: View {
     let session: RepositorySession
     let hub: CoreHub
     let github: GitHubSession?
     @Binding var selectedRunID: Int64?
+    @Binding var mode: RunsMode
+    var dismissals: ConcurrencyHintDismissals? = nil
+    var addConcurrency: (String) -> Void = { _ in }
     @State private var onlyCurrentBranch = false
+    @State private var showingSuperseded = false
+    @State private var expanded: Set<String> = []
 
-    private var runs: [CoreWorkflowRun] {
-        onlyCurrentBranch && !session.branch.isEmpty ? session.runs.filter { $0.branch == session.branch } : session.runs
+    private var branch: String? { onlyCurrentBranch && !session.branch.isEmpty ? session.branch : nil }
+    private var runsByID: [Int64: CoreWorkflowRun] {
+        Dictionary(session.runs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+    private var branchRuns: [CoreWorkflowRun] {
+        guard let branch else { return session.runs }
+        return session.runs.filter { $0.branch == branch }
+    }
+    private var pullRequests: [Int64: CoreChangePullRequest] { RunPresentation.pullRequests(session.changes) }
+    /// Suggestions the user did not turn off.
+    private var hints: [CoreConcurrencyHint] {
+        session.concurrencyHints.filter { !(dismissals?.isDismissed($0.path, workspaceID: session.workspaceID) ?? false) }
     }
 
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Toggle(isOn: $onlyCurrentBranch) {
-                        Text(session.branch.isEmpty ? "Current branch" : session.branch).lineLimit(1)
-                    }.toggleStyle(.checkbox).disabled(session.branch.isEmpty)
-                    Spacer()
-                    Button {
-                        Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
-                    } label: { Image(systemName: "arrow.clockwise") }
-                    .buttonStyle(.borderless).disabled(session.isLoadingGitHub).help("Reload runs from GitHub")
-                }
-                .font(.system(size: 12)).padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 4)
+                header
                 ActivityFreshnessLine(session: session).lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.bottom, 10)
+                if let help = hub.pullRequestsHelp(workspaceID: session.workspaceID) {
+                    GitHubAccessNotice(help: help, style: .note, github: github).padding(.horizontal, 12).padding(.bottom, 8)
+                }
                 DesignDivider()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 2) {
+                    LazyVStack(alignment: .leading, spacing: 2) {
                         if let access = session.githubAccess,
                            let help = hub.accessHelp(access, workspaceID: session.workspaceID, purpose: .read, details: session.githubDetails) {
                             GitHubAccessNotice(help: help, style: .banner, github: github) {
                                 Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
                             }.padding(8)
                         }
-                        ForEach(runs) { run in
-                            RunRow(run: run, selected: run.id == selectedRunID)
-                                .onTapGesture { selectedRunID = run.id }
+                        switch mode {
+                        case .list: listRows
+                        case .byChange: changeBlocks
                         }
-                        if runs.isEmpty && session.githubAccess == .ok {
-                            Text(onlyCurrentBranch ? "No runs on this branch." : "No runs yet.")
-                                .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(12)
-                        }
+                        OlderRunsFooter(session: session, hub: hub)
                     }.padding(6)
                 }
             }
             .frame(width: 300)
             DesignDivider(vertical: true)
-            Group {
-                if let run = session.runs.first(where: { $0.id == selectedRunID }) {
-                    RunInspectorView(run: run, workspaceID: session.workspaceID, hub: hub, github: github)
-                        .id(run.id)
-                } else {
-                    UnavailableFeature(title: "Select a run", detail: "Choose a run to see its jobs, steps and logs.", symbol: "play.circle")
-                        .padding(24).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                }
-            }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            inspector.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear { if selectedRunID == nil { selectedRunID = session.runs.first?.id } }
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Picker("Show runs", selection: $mode) {
+                Text("List").tag(RunsMode.list)
+                Text("By change").tag(RunsMode.byChange)
+            }
+            .pickerStyle(.segmented).pointerStyle(.link).labelsHidden().fixedSize()
+            .help("List shows runs newest first; By change groups them by pull request and commit")
+            Toggle(isOn: $onlyCurrentBranch) {
+                Text(session.branch.isEmpty ? "Current branch" : session.branch).lineLimit(1)
+            }.toggleStyle(.checkbox).pointerStyle(.link).disabled(session.branch.isEmpty)
+            Spacer()
+            Button {
+                Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
+            } label: { Image(systemName: "arrow.clockwise") }
+            .buttonStyle(.borderless).pointerStyle(.link).disabled(session.isLoadingGitHub).help("Reload runs from GitHub")
+        }
+        .font(.system(size: 12)).padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 4)
+    }
+
+    @ViewBuilder private var listRows: some View {
+        let runs = RunPresentation.visible(branchRuns, showingSuperseded: showingSuperseded)
+        ForEach(runs) { run in
+            RunRow(run: run, selected: run.id == selectedRunID, pullRequest: run.link.pullRequest.flatMap { pullRequests[$0] },
+                   newer: run.supersededBy.flatMap { runsByID[$0] })
+                .onTapGesture { selectedRunID = run.id }
+        }
+        if runs.isEmpty && session.githubAccess == .ok {
+            Text(onlyCurrentBranch ? "No runs on this branch." : "No runs yet.")
+                .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(12)
+        }
+        let hidden = RunPresentation.hiddenCount(branchRuns)
+        if showingSuperseded || hidden > 0 {
+            Button(showingSuperseded ? "Hide superseded runs" : "\(hidden) superseded \(hidden == 1 ? "run" : "runs") hidden · Show") {
+                showingSuperseded.toggle()
+            }
+            .buttonStyle(.link).pointerStyle(.link).font(.system(size: 12)).padding(.horizontal, 10).padding(.vertical, 6)
+            .help("Runs on older commits of a pull request that a newer push replaced")
+        }
+    }
+
+    @ViewBuilder private var changeBlocks: some View {
+        let changes = RunPresentation.changes(session.changes, runs: runsByID, branch: branch)
+        ForEach(changes) { change in
+            RunChangeBlock(change: change, runs: runsByID, selectedRunID: selectedRunID, expanded: $expanded,
+                           hints: hints.filter { hint in change.pullRequest.map { hint.pullRequests.contains($0.number) } ?? false },
+                           workflowName: workflowName, select: { selectedRunID = $0 },
+                           addConcurrency: addConcurrency, dismissHint: dismissHint)
+        }
+        if changes.isEmpty && session.githubAccess == .ok {
+            Text(onlyCurrentBranch ? "No runs on this branch." : "No runs yet.")
+                .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(12)
+        }
+    }
+
+    @ViewBuilder private var inspector: some View {
+        if let run = session.runs.first(where: { $0.id == selectedRunID }) {
+            RunInspectorView(run: run, workspaceID: session.workspaceID, hub: hub, github: github,
+                             context: RunPresentation.context(for: run, runs: runsByID, pullRequests: pullRequests, hints: hints,
+                                                              workflowName: workflowName(run.workflowID)),
+                             select: { selectedRunID = $0 }, addConcurrency: addConcurrency, dismissHint: dismissHint)
+                .id(run.id)
+        } else {
+            UnavailableFeature(title: "Select a run", detail: "Choose a run to see its jobs, steps and logs.", symbol: "play.circle")
+                .padding(24).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+
+    private func workflowName(_ id: Int64) -> String {
+        session.remoteWorkflows.first { $0.id == id }?.name ?? "this workflow"
+    }
+
+    private func dismissHint(_ path: String) {
+        dismissals?.dismiss(path, workspaceID: session.workspaceID)
     }
 }
 
@@ -189,7 +284,7 @@ struct WorkspaceWorkflowsView: View {
                                 Image(systemName: favorite ? "star.fill" : "star")
                                     .foregroundStyle(favorite ? RunnirTheme.warning : RunnirTheme.mutedForeground)
                             }
-                            .buttonStyle(.borderless).disabled(!favorites.isAvailable)
+                            .buttonStyle(.borderless).pointerStyle(.link).disabled(!favorites.isAvailable)
                             .help(favorite ? "Remove from favorites" : "Add to favorites; favorites come first")
                             .accessibilityLabel(favorite ? "Remove \(workflow.name) from favorites" : "Add \(workflow.name) to favorites")
                         }
@@ -206,15 +301,15 @@ struct WorkspaceWorkflowsView: View {
                                 .font(.system(size: 11)).foregroundStyle(RunnirTheme.warning)
                         }
                         if let latest {
-                            Button("Last run") { showRun(latest) }.buttonStyle(.link).font(.system(size: 12))
+                            Button("Last run") { showRun(latest) }.buttonStyle(.link).pointerStyle(.link).font(.system(size: 12))
                         }
                         if workflow.canBeStartedByHand {
-                            Button("Run...") { runWorkflow(workflow) }.buttonStyle(.link).font(.system(size: 12))
+                            Button("Run...") { runWorkflow(workflow) }.buttonStyle(.link).pointerStyle(.link).font(.system(size: 12))
                                 .help("Start this workflow by hand if it has a workflow_dispatch trigger")
                         }
                         if let url = workflow.htmlURL {
                             Button { openURL(url) } label: { Image(systemName: "arrow.up.right.square") }
-                                .buttonStyle(.borderless).help("Open on GitHub")
+                                .buttonStyle(.borderless).pointerStyle(.link).help("Open on GitHub")
                         }
                     }
                     .padding(.horizontal, 12).frame(height: 52)

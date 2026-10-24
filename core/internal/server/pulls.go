@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
@@ -36,6 +37,16 @@ func (s *service) ListPullRequests(ctx context.Context, request *corev1.ListPull
 	}
 	for _, pr := range pulls.Closed {
 		out.Closed = append(out.Closed, pullRequestMessage(pr))
+	}
+	if fetchErr == nil && account.Credential.Kind() == github.TokenAppUser {
+		// Best effort: without the installations the list is still right.
+		if installations, _, err := account.Client.Installations(ctx); err == nil {
+			for _, installation := range installations {
+				if installation.Suspended || slices.Contains(installation.MissingPermissions, "pull_requests: read") {
+					out.PendingInstallations = append(out.PendingInstallations, installationMessage(installation))
+				}
+			}
+		}
 	}
 	return out, nil
 }

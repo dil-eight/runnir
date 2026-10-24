@@ -9,11 +9,14 @@ var migrations = []string{schemaV1}
 // downloaded again and Clear Cache empties them; local_runs exists only on
 // this Mac.
 const schemaV1 = `
--- cache: the GitHub repository the cached activity belongs to.
+-- cache: the GitHub repository the cached activity belongs to, its default
+-- branch, and whether GitHub has no run older than the oldest cached one.
 CREATE TABLE cache_source (
 	id INTEGER PRIMARY KEY CHECK (id = 1),
 	server_id TEXT NOT NULL,
-	repository TEXT NOT NULL
+	repository TEXT NOT NULL,
+	default_branch TEXT NOT NULL DEFAULT '',
+	history_complete INTEGER NOT NULL DEFAULT 0
 );
 -- cache: ETags per read, and the last pass's outcome (scope "activity").
 CREATE TABLE sync_state (
@@ -47,6 +50,8 @@ CREATE TABLE runs (
 	conclusion TEXT NOT NULL,
 	branch TEXT NOT NULL,
 	head_sha TEXT NOT NULL,
+	head_repository TEXT NOT NULL,
+	commit_title TEXT NOT NULL,
 	actor TEXT NOT NULL,
 	html_url TEXT NOT NULL,
 	created_at INTEGER NOT NULL,
@@ -54,6 +59,41 @@ CREATE TABLE runs (
 );
 CREATE INDEX runs_created ON runs (created_at DESC, id DESC);
 CREATE INDEX runs_workflow ON runs (workflow_id);
+CREATE INDEX runs_head ON runs (head_sha);
+-- cache: pull requests GitHub listed on a run, whose base is this
+-- repository. Links only accumulate; they go with the run.
+CREATE TABLE run_pull_requests (
+	run_id INTEGER NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
+	number INTEGER NOT NULL,
+	PRIMARY KEY (run_id, number)
+);
+-- cache
+CREATE TABLE pull_requests (
+	number INTEGER PRIMARY KEY,
+	title TEXT NOT NULL,
+	state TEXT NOT NULL,
+	draft INTEGER NOT NULL,
+	author TEXT NOT NULL,
+	html_url TEXT NOT NULL,
+	head_ref TEXT NOT NULL,
+	head_sha TEXT NOT NULL,
+	head_repository TEXT NOT NULL,
+	base_ref TEXT NOT NULL,
+	merge_commit_sha TEXT NOT NULL,
+	created_at INTEGER NOT NULL,
+	updated_at INTEGER NOT NULL,
+	closed_at INTEGER NOT NULL,
+	merged_at INTEGER NOT NULL
+);
+CREATE INDEX pull_requests_updated ON pull_requests (updated_at DESC);
+-- cache: answers to lookups for pull requests the runs miss, by key
+-- ("pr:<n>", "commit:<sha>", "head:<owner/name>:<branch>"); numbers is a
+-- JSON array, possibly empty.
+CREATE TABLE link_lookups (
+	key TEXT PRIMARY KEY,
+	numbers TEXT NOT NULL,
+	fetched_at INTEGER NOT NULL
+);
 -- cache: the jobs of a run's latest attempt.
 CREATE TABLE run_jobs (
 	id INTEGER PRIMARY KEY,

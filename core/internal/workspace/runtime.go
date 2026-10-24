@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
+	"runnir/core/internal/changes"
 	"runnir/core/internal/events"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
@@ -50,10 +51,17 @@ const (
 
 // Snapshot is a workspace's activity as the app shows it.
 type Snapshot struct {
-	Runs       []github.Run
-	Workflows  []github.Workflow
-	Provenance Provenance
-	Syncing    bool
+	// Runs newest first, at most the limit asked for.
+	Runs      []github.Run
+	Workflows []github.Workflow
+	// Links, superseded runs and overlaps over every cached run.
+	Analysis changes.Analysis
+	// The changes of Runs, newest first.
+	Changes         []changes.Change
+	CachedRuns      int
+	HistoryComplete bool
+	Provenance      Provenance
+	Syncing         bool
 	// Access is the last pass's outcome, or why there is no target;
 	// UNSPECIFIED before the first pass.
 	Access     corev1.GithubAccess
@@ -61,6 +69,9 @@ type Snapshot struct {
 	CheckedAt  time.Time
 	SyncedAt   time.Time
 	ChangedAt  time.Time
+	// PullRequestsAccess is the last pull request read's outcome once a pass
+	// ran in this process; UNSPECIFIED before.
+	PullRequestsAccess corev1.GithubAccess
 }
 
 type config struct {
@@ -81,6 +92,9 @@ type Runtime struct {
 	wake        chan struct{}
 	loopDone    chan struct{}
 	flights     singleflight.Group
+	// branchFor is the target whose default branch a pass read in this
+	// process; only the loop goroutine uses it.
+	branchFor store.Source
 
 	mu           sync.Mutex
 	repositoryID string
@@ -96,6 +110,9 @@ type Runtime struct {
 	lastRetry    time.Time
 	lastServer   string
 	hasServer    bool
+	// pullsRefused: GitHub refused pull requests; they are not read again
+	// until the credential changes or someone asks for a refresh.
+	pullsRefused bool
 }
 
 func newRuntime(workspaceID, repositoryID string, resolve Resolver, cfg config) *Runtime {
@@ -173,6 +190,8 @@ func (r *Runtime) Refresh(ctx context.Context, wait bool) error {
 	// pass drains the wake under, so a request is either answered by that
 	// pass or leaves a wake for the next one, never a stale wake.
 	r.mu.Lock()
+	// Asking for a refresh tries pull requests again after a refusal.
+	r.pullsRefused = false
 	target := r.started + 1
 	select {
 	case r.wake <- struct{}{}:
@@ -213,9 +232,17 @@ func (r *Runtime) pass() {
 	r.mu.Unlock()
 	r.publish()
 
-	p, server, hasServer := r.read(resolve)
+	p, target := r.read(resolve)
 	if r.ctx.Err() == nil {
 		_, _ = r.cfg.store.ApplySync(r.ctx, p)
+		if p.OK && target != nil {
+			r.branchFor = p.Source
+			// Only after this pass read the list: a refusal, or a refresh
+			// clearing it meanwhile, never starts lookups GitHub refuses.
+			if p.PullRequests != nil && !p.PullRequests.Refused {
+				r.lookUp(*target)
+			}
+		}
 	}
 	active := false
 	if a, err := r.cfg.store.Activity(r.ctx, pageSize); err == nil {
@@ -226,7 +253,10 @@ func (r *Runtime) pass() {
 	r.syncing = false
 	r.finished++
 	r.lastAccess, r.lastRetry = corev1.GithubAccess(p.Access), p.RetryAfter
-	r.lastServer, r.hasServer = server, hasServer
+	r.lastServer, r.hasServer = "", false
+	if target != nil {
+		r.lastServer, r.hasServer = target.Account.Server.ID, true
+	}
 	r.active = active
 	switch {
 	case p.OK:
@@ -242,36 +272,76 @@ func (r *Runtime) pass() {
 	r.publish()
 }
 
-// read asks GitHub for the newest runs and the workflows, conditionally.
-func (r *Runtime) read(resolve Resolver) (store.Pass, string, bool) {
+// read asks GitHub, conditionally where it can, for the default branch
+// (once per target), the newest runs (and older pages to reach the cache),
+// the workflows and the pull requests. target is nil when there is none.
+func (r *Runtime) read(resolve Resolver) (store.Pass, *Target) {
 	target, problem := resolve()
 	if problem != corev1.GithubAccess_GITHUB_ACCESS_OK {
-		return store.Pass{At: r.cfg.now(), Access: int32(problem)}, "", false
+		return store.Pass{At: r.cfg.now(), Access: int32(problem)}, nil
 	}
 	source := target.Source()
 	p := store.Pass{Source: source}
-	runsTag, workflowsTag, _ := r.cfg.store.ETags(r.ctx, source)
+	tags, _ := r.cfg.store.ETags(r.ctx, source)
 	client := target.Account.Client
-	runs, tag, err := client.RunsIfChanged(r.ctx, target.Owner, target.Name, pageSize, runsTag)
-	switch {
-	case errors.Is(err, github.ErrNotModified):
-		p.Runs = &store.RunsUpdate{NotModified: true, ETag: runsTag}
-	case err != nil:
-		return r.failed(p, target, err), source.ServerID, true
-	default:
-		p.Runs = &store.RunsUpdate{Runs: runs, Complete: len(runs) < pageSize, ETag: tag}
+	if r.branchFor != source {
+		repository, err := client.Repository(r.ctx, target.Owner, target.Name)
+		if err != nil {
+			return r.failed(p, target, err), &target
+		}
+		p.DefaultBranch = repository.DefaultBranch
 	}
-	workflows, workflowsTagNow, err := client.WorkflowsIfChanged(r.ctx, target.Owner, target.Name, workflowsTag)
+	runs, tag, err := client.RunsIfChanged(r.ctx, target.Owner, target.Name, pageSize, tags.Runs)
 	switch {
 	case errors.Is(err, github.ErrNotModified):
-		p.Workflows = &store.WorkflowsUpdate{NotModified: true, ETag: workflowsTag}
+		p.Runs = &store.RunsUpdate{NotModified: true, ETag: tags.Runs}
 	case err != nil:
-		return r.failed(p, target, err), source.ServerID, true
+		return r.failed(p, target, err), &target
 	default:
-		p.Workflows = &store.WorkflowsUpdate{Workflows: workflows, ETag: workflowsTagNow}
+		update := &store.RunsUpdate{Runs: runs, Complete: len(runs) < pageSize, ETag: tag}
+		if !update.Complete {
+			if err := r.fillGap(client, target, update); err != nil {
+				return r.failed(p, target, err), &target
+			}
+		}
+		p.Runs = update
+	}
+	workflows, workflowsTag, err := client.WorkflowsIfChanged(r.ctx, target.Owner, target.Name, tags.Workflows)
+	switch {
+	case errors.Is(err, github.ErrNotModified):
+		p.Workflows = &store.WorkflowsUpdate{NotModified: true, ETag: tags.Workflows}
+	case err != nil:
+		return r.failed(p, target, err), &target
+	default:
+		p.Workflows = &store.WorkflowsUpdate{Workflows: workflows, ETag: workflowsTag}
+	}
+	r.mu.Lock()
+	refused := r.pullsRefused
+	r.mu.Unlock()
+	if !refused {
+		ok := int32(corev1.GithubAccess_GITHUB_ACCESS_OK)
+		pulls, pullsTag, err := client.PullRequestsIfChanged(r.ctx, target.Owner, target.Name, tags.Pulls)
+		switch {
+		case errors.Is(err, github.ErrNotModified):
+			p.PullRequests = &store.PullRequestsUpdate{NotModified: true, ETag: tags.Pulls, Access: ok}
+		case errors.Is(err, github.ErrPermissionMissing), errors.Is(err, github.ErrNotVisible):
+			access, _, _ := Access(target.Account, err)
+			p.PullRequests = &store.PullRequestsUpdate{Refused: true, ETag: tags.Pulls, Access: int32(access)}
+			r.refusePulls()
+		case err != nil:
+			return r.failed(p, target, err), &target
+		default:
+			p.PullRequests = &store.PullRequestsUpdate{PullRequests: pulls, ETag: pullsTag, Access: ok}
+		}
 	}
 	p.At, p.OK, p.Access = r.cfg.now(), true, int32(corev1.GithubAccess_GITHUB_ACCESS_OK)
-	return p, source.ServerID, true
+	return p, &target
+}
+
+func (r *Runtime) refusePulls() {
+	r.mu.Lock()
+	r.pullsRefused = true
+	r.mu.Unlock()
 }
 
 func (r *Runtime) failed(p store.Pass, target Target, err error) store.Pass {
@@ -290,13 +360,14 @@ func (r *Runtime) publish() {
 	r.cfg.publish(events.Event{Type: corev1.CoreEventType_CORE_EVENT_TYPE_ACTIVITY_CHANGED, RepositoryID: r.RepositoryID()})
 }
 
-// Snapshot reads the cached activity without waiting for GitHub. Data of
-// another repository than the origin's current one is never returned.
+// Snapshot reads the cached activity without waiting for GitHub: every
+// cached run is linked, and the newest limit are returned. Data of another
+// repository than the origin's current one is never returned.
 func (r *Runtime) Snapshot(ctx context.Context, limit int) (Snapshot, error) {
 	r.mu.Lock()
 	resolve, syncing, live, passed := r.resolve, r.syncing, r.live, r.finished > 0
 	r.mu.Unlock()
-	a, err := r.cfg.store.Activity(ctx, limit)
+	a, err := r.cfg.store.Activity(ctx, store.MaxRuns)
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -305,6 +376,7 @@ func (r *Runtime) Snapshot(ctx context.Context, limit int) (Snapshot, error) {
 	// replaced): it is reported only once a pass ran in this process.
 	if passed {
 		snap.Access, snap.RetryAfter = corev1.GithubAccess(a.Access), a.RetryAfter
+		snap.PullRequestsAccess = corev1.GithubAccess(a.PullRequestsAccess)
 	}
 	target, problem := resolve()
 	if problem != corev1.GithubAccess_GITHUB_ACCESS_OK {
@@ -314,7 +386,15 @@ func (r *Runtime) Snapshot(ctx context.Context, limit int) (Snapshot, error) {
 	if !a.HasSource || a.Source != target.Source() {
 		return snap, nil
 	}
-	snap.Runs, snap.Workflows, snap.SyncedAt, snap.ChangedAt = a.Runs, a.Workflows, a.SyncedAt, a.ChangedAt
+	window := a.Runs
+	if limit > 0 && len(window) > limit {
+		window = window[:limit]
+	}
+	in := input(a, target, r.cfg.now())
+	snap.Analysis = changes.Analyze(in)
+	snap.Changes = changes.Group(in, snap.Analysis, window)
+	snap.Runs, snap.Workflows, snap.SyncedAt, snap.ChangedAt = window, a.Workflows, a.SyncedAt, a.ChangedAt
+	snap.CachedRuns, snap.HistoryComplete = a.CachedRuns, a.HistoryComplete
 	switch {
 	case live:
 		snap.Provenance = Live
@@ -344,6 +424,7 @@ func (r *Runtime) credentialChanged(serverID string) {
 	match := !r.hasServer || r.lastServer == serverID
 	if match {
 		r.failures = 0
+		r.pullsRefused = false
 	}
 	r.mu.Unlock()
 	if match {
