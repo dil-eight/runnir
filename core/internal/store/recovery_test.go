@@ -228,3 +228,38 @@ func TestEveryDamageKeepsItsOwnEvidence(t *testing.T) {
 		}
 	}
 }
+
+func TestADatabaseFromAnEarlierBuildIsReplacedAndLocalRunsSurvive(t *testing.T) {
+	dir := t.TempDir()
+	s := openTest(t, dir)
+	record(t, s, "exec_1", LocalSucceeded)
+	record(t, s, "exec_2", LocalFailed)
+	_ = s.Close()
+	// An earlier development build made the same schema version without
+	// the savings table.
+	db, err := openFile(filepath.Join(dir, "state.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("DROP TABLE savings"); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+
+	again := openTest(t, dir)
+	r := again.Report()
+	if r.State != Persistent || !strings.Contains(r.Note, "earlier build") || !strings.Contains(r.Note, "Restored 2 local run records") ||
+		strings.Contains(r.Note, "backup of local data could not be written") {
+		t.Fatalf("report = %+v", r)
+	}
+	if len(recoveryDirs(t, dir)) != 1 {
+		t.Fatal("the earlier database was not kept")
+	}
+	runs, _ := again.LocalRuns(context.Background(), 10)
+	if len(runs) != 2 {
+		t.Fatalf("runs = %v", runs)
+	}
+	if err := again.writeLocalBackup(context.Background()); err != nil {
+		t.Fatalf("backup = %v", err)
+	}
+}

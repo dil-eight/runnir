@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -173,7 +174,21 @@ func (s *Store) openDatabase(ctx context.Context) (string, bool) {
 		if err == nil {
 			err = quickCheck(db)
 		}
+		earlier := err == nil && outdated(db)
 		switch {
+		case earlier:
+			// Schemas change in place before the first release (AGENTS.md),
+			// so a database an earlier development build made can lack a
+			// table. It is set aside like a damaged one and its local data
+			// carried over.
+			_ = db.Close()
+			evidence, rows, moveErr := s.quarantine()
+			if moveErr != nil {
+				return "The workspace database from an earlier build could not be moved aside.", false
+			}
+			salvaged, damaged = rows, true
+			notes = append(notes, fmt.Sprintf("The database was made by an earlier build of Runnir; it was kept in %s and a new one was made.",
+				filepath.Join(recoveryDir, filepath.Base(evidence))))
 		case err == nil:
 			s.db = db
 		case isDamaged(err):
@@ -302,6 +317,24 @@ func configurePool(db *sql.DB) {
 }
 
 var errDamaged = errors.New("database is damaged")
+
+var tableName = regexp.MustCompile(`(?m)^CREATE TABLE (\w+)`)
+
+// outdated reports a database at the current schema version that lacks a
+// table the schema creates.
+func outdated(db *sql.DB) bool {
+	var version int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != len(migrations) {
+		return false
+	}
+	for _, match := range tableName.FindAllStringSubmatch(strings.Join(migrations, "\n"), -1) {
+		var found int
+		if err := db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?", match[1]).Scan(&found); err != nil || found == 0 {
+			return true
+		}
+	}
+	return false
+}
 
 func quickCheck(db *sql.DB) error {
 	var result string
