@@ -584,6 +584,8 @@ struct DesktopWorkspaceView: View {
                     } actions: {
                         Button("Locate / Grant Access...") { desktop.importRepository(relinkID: workspace.id, reuseWindowID: windowID) }
                     }
+                    // Fills the column so the toolbar stays at the top.
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     coreBanner
                     content
