@@ -1,6 +1,6 @@
 # Secrets And Variables For Local Runs (B28)
 
-Status: design approved on 2026-10-25. Backlog: B28 / F5 in the [MVP checklist](../../product/mvp-implementation-checklist.md); it extends B15 (plan and review) and B16 (act runner). Context: [ADR 0006](../../decisions/0006-bundled-act-for-local-runs.md), [workspace persistence](../../architecture/workspace-persistence.md), [gRPC API](../../architecture/grpc-api.md), [GitHub authentication](../../security/github-authentication.md). Designs: `docs/design/runnir.pen`, S16 redrawn as "Secrets and Variables" and S10 with its new section.
+Status: design approved and implemented on 2026-10-25 ([plan](../plans/2026-10-25-local-run-secrets.md)). Changes made while implementing: the Run Locally review reads each saved value once when it prepares, so a value Keychain refuses shows as missing before the run; lines of a multi-line secret are masked only when at least 4 characters long (the whole value always is); a variable keeps its saved value on screen, a secret only after Touch ID until the window loses focus. Backlog: B28 / F5 in the [MVP checklist](../../product/mvp-implementation-checklist.md); it extends B15 (plan and review) and B16 (act runner). Context: [ADR 0006](../../decisions/0006-bundled-act-for-local-runs.md), [workspace persistence](../../architecture/workspace-persistence.md), [gRPC API](../../architecture/grpc-api.md), [GitHub authentication](../../security/github-authentication.md). Designs: `docs/design/runnir.pen`, S16 redrawn as "Secrets and Variables" and S10 with its new section.
 
 ## Goal
 
