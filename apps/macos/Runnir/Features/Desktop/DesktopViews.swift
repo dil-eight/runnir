@@ -1098,6 +1098,12 @@ struct DesktopWorkspaceView: View {
             } else {
                 coreUnavailable
             }
+        case .secrets:
+            if let session, let hub = desktop.core {
+                WorkspaceValuesView(model: state.values, workspaceID: workspace.id, session: session, hub: hub, store: desktop.localRunValues)
+            } else {
+                coreUnavailable
+            }
         case .runs:
             if let session, let hub = desktop.core {
                 WorkspaceRunsView(session: session, hub: hub, github: desktop.github,

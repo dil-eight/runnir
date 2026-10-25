@@ -5,6 +5,7 @@ enum AppSection: String, CaseIterable, Identifiable, Codable, Sendable {
     case repositories
     case workflows
     case runs
+    case secrets
     case artifacts
     case workspace
 
@@ -15,7 +16,7 @@ enum AppSection: String, CaseIterable, Identifiable, Codable, Sendable {
     static let retired: Set<AppSection> = [.repositories, .artifacts]
 
     var restored: AppSection { Self.retired.contains(self) ? .dashboard : self }
-    static let sidebarSections: [AppSection] = [.dashboard, .workflows, .runs, .workspace]
+    static let sidebarSections: [AppSection] = [.dashboard, .workflows, .runs, .secrets, .workspace]
 
     var title: String {
         switch self {
@@ -23,6 +24,7 @@ enum AppSection: String, CaseIterable, Identifiable, Codable, Sendable {
         case .repositories: "Repositories"
         case .workflows: "Workflows"
         case .runs: "Runs"
+        case .secrets: "Secrets and Variables"
         case .artifacts: "Artifacts"
         case .workspace: "Workspace"
         }
@@ -34,6 +36,7 @@ enum AppSection: String, CaseIterable, Identifiable, Codable, Sendable {
         case .repositories: "shippingbox"
         case .workflows: "point.3.connected.trianglepath.dotted"
         case .runs: "play.circle"
+        case .secrets: "key"
         case .artifacts: "archivebox"
         case .workspace: "folder"
         }

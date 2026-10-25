@@ -8,9 +8,9 @@ enum UnsavedChoice: Equatable {
 /// Don't Save (Command-D) or Cancel (Escape).
 enum UnsavedChangesPrompt {
     static func title(for files: [String]) -> String {
-        files.count == 1
-            ? "Do you want to save the changes you made to \(files[0])?"
-            : "Do you want to save the changes you made to \(files.count) workflow files?"
+        if files.count == 1 { return "Do you want to save the changes you made to \(files[0])?" }
+        let workflows = files.allSatisfy { $0.hasSuffix(".yml") || $0.hasSuffix(".yaml") }
+        return "Do you want to save the changes you made to \(files.count) \(workflows ? "workflow files" : "items")?"
     }
 
     static func detail(for files: [String]) -> String {

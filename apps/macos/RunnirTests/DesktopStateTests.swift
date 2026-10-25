@@ -119,8 +119,9 @@ struct ThemeTokenTests {
 
 struct DesktopStateTests {
     @Test func sidebarMatchesPenWithoutRemovingLegacyDestinations() {
-        #expect(AppSection.sidebarSections == [.dashboard, .workflows, .runs, .workspace])
+        #expect(AppSection.sidebarSections == [.dashboard, .workflows, .runs, .secrets, .workspace])
         #expect(AppSection.dashboard.title == "Overview")
+        #expect(AppSection.secrets.title == "Secrets and Variables")
         #expect(AppSection.allCases.contains(.repositories))
         #expect(AppSection.allCases.contains(.artifacts))
     }
@@ -290,6 +291,17 @@ struct DesktopCoordinatorTests {
         coordinator.removeRegistration(fixture.original)
         #expect(coordinator.snapshot.workspaces.isEmpty)
         #expect(await eventually { provider.core.deletedData == [fixture.original.id] })
+    }
+
+    @Test func removingARegistrationForgetsItsLocalRunValues() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let workspaceID = fixture.original.id
+        let values = InMemoryLocalRunValueStore(values: [workspaceID: [LocalRunValueKey(kind: .secret, name: "A"): "x"]])
+        let coordinator = DesktopCoordinator(store: fixture.store, localRunValues: values)
+        await coordinator.loadSession()
+        coordinator.removeRegistration(fixture.original)
+        #expect(await eventuallyAsync { (try? await values.keys(workspaceID: workspaceID))?.isEmpty == true })
     }
 
     @Test func closingAWindowWithUnsavedEditsAsksFirst() async throws {
@@ -597,8 +609,8 @@ private final class TestWorkspaceWindow: WorkspaceWindowManaging {
     var unsaved: String?
     var saveSucceeds = true
     var saveCalls = 0
-    var unsavedWorkflowName: String? { unsaved }
-    func saveUnsavedWorkflow() async -> Bool {
+    var unsavedNames: [String] { unsaved.map { [$0] } ?? [] }
+    func saveUnsavedChanges() async -> Bool {
         saveCalls += 1
         if saveSucceeds { unsaved = nil }
         return saveSucceeds

@@ -10,16 +10,17 @@ protocol WorkspaceWindowManaging: AnyObject {
     func attach(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: any RepositoryGranting)
     func showWindow(_ sender: Any?)
     func showSwitcher()
-    /// The workflow file with edits not on disk, if any.
-    var unsavedWorkflowName: String? { get }
-    /// Saves those edits; false when they could not be saved.
-    func saveUnsavedWorkflow() async -> Bool
+    /// What has edits not saved: the workflow file in the editor and
+    /// Secrets and Variables; empty when nothing does.
+    var unsavedNames: [String] { get }
+    /// Saves those edits; false when any could not be saved.
+    func saveUnsavedChanges() async -> Bool
 }
 
 extension WorkspaceWindowManaging {
     func showSwitcher() {}
-    var unsavedWorkflowName: String? { nil }
-    func saveUnsavedWorkflow() async -> Bool { true }
+    var unsavedNames: [String] { [] }
+    func saveUnsavedChanges() async -> Bool { true }
 }
 
 @MainActor
@@ -111,6 +112,8 @@ final class DesktopCoordinator {
     let pullRequests: PullRequestsModel
     /// The Pull Requests window's global shortcut.
     let shortcuts = GlobalShortcutCenter()
+    /// Secrets and variables for local runs, per workspace.
+    let localRunValues: any LocalRunValueStoring
 
     init(store: (any DesktopStateStoring)? = nil,
          core: CoreHub? = nil,
@@ -120,6 +123,7 @@ final class DesktopCoordinator {
          hintDismissals: ConcurrencyHintDismissals = ConcurrencyHintDismissals(),
          repositoryFavorites: RepositoryFavorites = RepositoryFavorites(store: nil),
          pullRequests: PullRequestsModel = PullRequestsModel(store: nil),
+         localRunValues: any LocalRunValueStoring = InMemoryLocalRunValueStore(),
          makeGrant: @escaping (WorkspaceRecord) throws -> any RepositoryGranting = { try RepositoryGrant(record: $0) },
          makeWorkspaceWindow: @escaping (WorkspaceWindowRecord, WorkspaceRecord, (any RepositoryGranting)?, DesktopCoordinator) -> any WorkspaceWindowManaging = {
              WorkspaceWindowController(record: $0, workspace: $1, grant: $2, desktop: $3)
@@ -132,6 +136,7 @@ final class DesktopCoordinator {
         self.hintDismissals = hintDismissals
         self.repositoryFavorites = repositoryFavorites
         self.pullRequests = pullRequests
+        self.localRunValues = localRunValues
         self.makeGrant = makeGrant
         self.makeWorkspaceWindow = makeWorkspaceWindow
     }
@@ -346,15 +351,15 @@ final class DesktopCoordinator {
             candidate.workspaces[index].lastOpenedAt = Date()
         }
         if let reuseWindowID, let current = windows[reuseWindowID] {
-            if current.record.workspaceID != workspace.id, let name = current.unsavedWorkflowName {
-                switch confirmUnsavedChanges([name]) {
+            if current.record.workspaceID != workspace.id, case let names = current.unsavedNames, !names.isEmpty {
+                switch confirmUnsavedChanges(names) {
                 case .cancel:
                     grant.stop()
                     return
                 case .save:
                     grant.stop()
                     Task {
-                        if await current.saveUnsavedWorkflow() { openRegistered(workspace, reuseWindowID: reuseWindowID) }
+                        if await current.saveUnsavedChanges() { openRegistered(workspace, reuseWindowID: reuseWindowID) }
                     }
                     return
                 case .discard:
@@ -434,6 +439,7 @@ final class DesktopCoordinator {
             presets.removeAll(workspaceID: workspace.id)
             favorites.removeAll(workspaceID: workspace.id)
             hintDismissals.removeAll(workspaceID: workspace.id)
+            Task { [localRunValues] in try? await localRunValues.removeAll(workspaceID: workspace.id) }
             // Its saved activity and local run history go too. A Core that is
             // not running leaves them; Settings › Storage then lists them as
             // a removed workspace to delete.
@@ -527,15 +533,15 @@ final class DesktopCoordinator {
 
     func shouldClose(_ id: UUID) -> Bool {
         if terminationInProgress { return true }
-        if let controller = windows[id], let name = controller.unsavedWorkflowName {
-            switch confirmUnsavedChanges([name]) {
+        if let controller = windows[id], case let names = controller.unsavedNames, !names.isEmpty {
+            switch confirmUnsavedChanges(names) {
             case .cancel:
                 return false
             case .save:
                 // The window closes once the file is saved; a failed save
                 // keeps it open with the reason in the editor.
                 Task {
-                    if await controller.saveUnsavedWorkflow() { controller.window?.performClose(nil) }
+                    if await controller.saveUnsavedChanges() { controller.window?.performClose(nil) }
                 }
                 return false
             case .discard:
@@ -596,7 +602,7 @@ final class DesktopCoordinator {
     /// Whether quitting can go ahead with the unsaved workflow edits of all
     /// windows: asks once for all of them.
     func unsavedEditsQuitDecision() -> QuitDecision {
-        let names = windows.values.compactMap(\.unsavedWorkflowName).sorted()
+        let names = windows.values.flatMap(\.unsavedNames).sorted()
         guard !names.isEmpty else { return .proceed }
         switch confirmUnsavedChanges(names) {
         case .save: return .saveFirst
@@ -608,8 +614,8 @@ final class DesktopCoordinator {
     /// Saves every window's unsaved edits; false when any could not be saved.
     func saveAllUnsavedWorkflows() async -> Bool {
         var saved = true
-        for controller in windows.values where controller.unsavedWorkflowName != nil {
-            if !(await controller.saveUnsavedWorkflow()) { saved = false }
+        for controller in windows.values where !controller.unsavedNames.isEmpty {
+            if !(await controller.saveUnsavedChanges()) { saved = false }
         }
         return saved
     }
@@ -752,16 +758,24 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
         state?.showingSwitcher = true
     }
 
-    var unsavedWorkflowName: String? {
-        guard let files = state?.files, files.isDirty else { return nil }
-        return files.selected?.name
+    var unsavedNames: [String] {
+        var names: [String] = []
+        if let files = state?.files, files.isDirty, let name = files.selected?.name { names.append(name) }
+        if state?.values.isDirty == true { names.append("Secrets and Variables") }
+        return names
     }
 
-    func saveUnsavedWorkflow() async -> Bool {
-        guard let files = state?.files else { return true }
-        guard let core = desktop.core else { return false }
-        let saved = await files.save(hub: core, workspaceID: record.workspaceID)
-        if saved { await files.validate(hub: core, workspaceID: record.workspaceID) }
+    func saveUnsavedChanges() async -> Bool {
+        guard let state else { return true }
+        var saved = true
+        if state.files.isDirty {
+            guard let core = desktop.core else { return false }
+            saved = await state.files.save(hub: core, workspaceID: record.workspaceID)
+            if saved { await state.files.validate(hub: core, workspaceID: record.workspaceID) }
+        }
+        if state.values.isDirty {
+            saved = await state.values.save(workspaceID: record.workspaceID, store: desktop.localRunValues) && saved
+        }
         return saved
     }
 
@@ -802,7 +816,8 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
                                      presets: DispatchPresetLibrary(store: try? FileDispatchPresetStore.live()),
                                      favorites: WorkflowFavorites(store: try? FileWorkflowFavoritesStore.live()),
                                      repositoryFavorites: RepositoryFavorites(store: try? FileRepositoryFavoritesStore.live()),
-                                     pullRequests: PullRequestsModel(store: try? FileDismissedPullRequestsStore.live()))
+                                     pullRequests: PullRequestsModel(store: try? FileDismissedPullRequestsStore.live()),
+                                     localRunValues: KeychainLocalRunValueStore())
         super.init()
         // The Core holds the token only while the user is signed in.
         hub.githubTokenProvider = { [github] in await github.currentToken() }
