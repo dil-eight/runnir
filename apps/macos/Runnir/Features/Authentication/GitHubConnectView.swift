@@ -70,7 +70,7 @@ struct GitHubConnectView: View {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(authorization.userCode, forType: .string)
                         copied = true
-                    }
+                    }.handPointer()
                 }
                 Text("The page \(authorization.verificationURL.host() ?? "github.com")\(authorization.verificationURL.path()) opened in your browser.")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
@@ -95,11 +95,11 @@ struct GitHubConnectView: View {
     @ViewBuilder private var actions: some View {
         switch session.connection {
         case .restoring, .requestingCode:
-            Button("Close") { dismiss() }
+            Button("Close") { dismiss() }.handPointer()
         case .signedOut where usingToken:
-            Button("Back") { usingToken = false; token = ""; tokenCheck = nil }
+            Button("Back") { usingToken = false; token = ""; tokenCheck = nil }.handPointer()
             if let tokenCheck, tokenCheck.access == .ok {
-                Button(tokenCheck.suitable ? "Use This Token" : "Use Anyway") { useToken() }
+                Button(tokenCheck.suitable ? "Use This Token" : "Use Anyway") { useToken() }.handPointer()
                     .keyboardShortcut(tokenCheck.suitable ? .defaultAction : nil)
                     .help(tokenCheck.suitable ? "Sign in with this token" : "Sign in with it; what it lacks shows up where it is needed")
             }
@@ -109,20 +109,20 @@ struct GitHubConnectView: View {
                     .disabled(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || checkingToken)
             }
         case .signedOut:
-            Button("Close") { dismiss() }
+            Button("Close") { dismiss() }.handPointer()
             if session.tokenChecker != nil {
-                Button("Use a Token Instead...") { usingToken = true }
+                Button("Use a Token Instead...") { usingToken = true }.handPointer()
                     .help("Sign in with a personal access token: Runnir checks what it can do first")
             }
             Button("Connect") { copied = false; session.signIn() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .waiting:
-            Button("Cancel") { session.cancelSignIn() }
+            Button("Cancel") { session.cancelSignIn() }.handPointer()
             Button("Open GitHub Again") { session.reopenVerificationPage() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .signedIn:
-            Button("Install on Repositories...") { openURL(installationURL) }
+            Button("Install on Repositories...") { openURL(installationURL) }.handPointer()
             Button("Done") { dismiss() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .offline:
-            Button("Close") { dismiss() }
+            Button("Close") { dismiss() }.handPointer()
             Button("Retry") { Task { await session.restore() } }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         }
     }
@@ -312,7 +312,7 @@ struct GitHubAccountRow: View {
         Button { showingConnect = true } label: {
             // The icon column matches the sidebar items' (16 points, 10 apart).
             HStack(spacing: 10) {
-                Image(systemName: symbol).font(.system(size: 16)).frame(width: 16).foregroundStyle(RunnirTheme.secondaryForeground)
+                SidebarIcon(symbol: symbol).foregroundStyle(RunnirTheme.secondaryForeground)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("GitHub").font(.system(size: 12))
                     Text(status).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
@@ -357,8 +357,8 @@ struct GitHubAccountSettings: View {
                 if let credentialKind, credentialKind.isPersonal {
                     Text("Signed in as \(user.login) with a \(GitHubTokenCheckView.kindName(credentialKind).lowercased())")
                     HStack {
-                        Button("Sign Out") { Task { await session.signOut() } }
-                        Button("Token Settings on GitHub...") { openURL(GitHubAccessHelp.tokenSettingsURL(credentialKind)) }
+                        Button("Sign Out") { Task { await session.signOut() } }.handPointer()
+                        Button("Token Settings on GitHub...") { openURL(GitHubAccessHelp.tokenSettingsURL(credentialKind)) }.handPointer()
                     }
                     Text("Runnir sees the repositories this token reaches, with the permissions it has. Change them, or revoke the token, in its settings on GitHub.")
                         .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
@@ -382,7 +382,7 @@ struct GitHubAccountSettings: View {
                 }
             case .offline:
                 Text("Signed in; GitHub is unreachable right now.")
-                Button("Sign Out") { Task { await session.signOut() } }
+                Button("Sign Out") { Task { await session.signOut() } }.handPointer()
             case .restoring:
                 // The Keychain may be asking whether Runnir can read the sign-in.
                 HStack(spacing: 8) {
@@ -391,21 +391,21 @@ struct GitHubAccountSettings: View {
                 }
             default:
                 Text("Not connected").foregroundStyle(RunnirTheme.secondaryForeground)
-                Button("Connect GitHub...") { showingConnect = true }
+                Button("Connect GitHub...") { showingConnect = true }.handPointer()
             }
         }
         .sheet(isPresented: $showingConnect) { GitHubConnectView(session: session) }
     }
 
     private var signOut: some View {
-        Button("Sign Out") { Task { await session.signOut() } }
+        Button("Sign Out") { Task { await session.signOut() } }.handPointer()
     }
 
     private var manageAccess: some View {
-        Button("Manage Repository Access...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }
+        Button("Manage Repository Access...") { openURL(GitHubAppConfiguration.runnirDesktop.installationURL) }.handPointer()
     }
 
     private var manageAuthorization: some View {
-        Button("Manage Authorization on GitHub...") { openURL(GitHubSession.authorizationsURL) }
+        Button("Manage Authorization on GitHub...") { openURL(GitHubSession.authorizationsURL) }.handPointer()
     }
 }

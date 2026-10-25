@@ -235,16 +235,16 @@ struct PullRequestShortcutSettingsSection: View {
 
     var body: some View {
         Section("Pull Requests") {
-            Toggle("Open the Pull Requests window with a shortcut", isOn: $enabled)
+            Toggle("Open the Pull Requests window with a shortcut", isOn: $enabled).handPointer()
                 .onChange(of: enabled) { center.apply(enabled: enabled, shortcut: shortcut) }
             HStack {
                 Text("Shortcut")
                 Spacer()
-                Button(recording ? "Type a shortcut…" : shortcut.display) { recording ? stopRecording() : startRecording() }
+                Button(recording ? "Type a shortcut…" : shortcut.display) { recording ? stopRecording() : startRecording() }.handPointer()
                     .font(.system(size: 12, design: .monospaced))
                     .help(recording ? "Press the keys, or Escape to keep the current shortcut" : "Click, then press the new shortcut")
                     .accessibilityIdentifier("pull-requests-shortcut")
-                Button("Reset") { save(.pullRequestsDefault) }
+                Button("Reset") { save(.pullRequestsDefault) }.handPointer()
                     .disabled(shortcut == .pullRequestsDefault)
             }
             .disabled(!enabled)

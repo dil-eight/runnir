@@ -437,7 +437,7 @@ struct GitHubRepositoriesView: View {
                     ForEach(model.owners, id: \.self) { owner in
                         Text(owner).tag(Optional(owner))
                     }
-                }.labelsHidden().fixedSize()
+                }.handPointer().labelsHidden().fixedSize()
                 Toggle("Starred", isOn: $model.starredOnly).toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12))
                 if accounts.count > 1 {
                     Toggle("By Server", isOn: $groupByServer).toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12))

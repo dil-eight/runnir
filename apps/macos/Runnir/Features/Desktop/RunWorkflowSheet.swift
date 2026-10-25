@@ -576,6 +576,7 @@ struct RunWorkflowSheet: View {
                     Label(presetTitle, systemImage: "bookmark")
                 }
                 .fixedSize()
+                .handPointer()
                 .disabled(!model.canChoosePreset)
             }
             if let problem = presets.problem {
@@ -588,6 +589,7 @@ struct RunWorkflowSheet: View {
     }
 
     private func presetButton(_ preset: DispatchPreset) -> some View {
+        // No hand pointer: an item of the preset menu.
         Button { model.apply(preset) } label: {
             if preset.id == model.appliedPresetID { Label(preset.name, systemImage: "checkmark") } else { Text(preset.name) }
         }
@@ -630,13 +632,13 @@ struct RunWorkflowSheet: View {
             }
             Picker("Workflow", selection: Binding(get: { model.selectedWorkflowID ?? -1 }, set: { model.select(workflowID: $0) })) {
                 ForEach(model.workflows) { workflow in Text(workflow.name).tag(workflow.id) }
-            }.disabled(model.workflows.isEmpty)
+            }.handPointer().disabled(model.workflows.isEmpty)
             if let refs = model.refs {
                 if refs.access == .ok {
                     Picker("Branch or tag", selection: Binding(get: { model.ref }, set: { model.select(ref: $0) })) {
                         Section("Branches") { ForEach(refs.branches, id: \.self) { Text($0).tag($0) } }
                         if !refs.tags.isEmpty { Section("Tags") { ForEach(refs.tags, id: \.self) { Text($0).tag($0) } } }
-                    }
+                    }.handPointer()
                 } else {
                     Text(DispatchFormModel.describe(refs.access)).foregroundStyle(RunnirTheme.warning)
                 }
@@ -686,7 +688,7 @@ struct RunWorkflowSheet: View {
             case .choice:
                 Picker(input.name + (input.required ? " *" : ""), selection: binding) {
                     ForEach(input.options, id: \.self) { Text($0).tag($0) }
-                }
+                }.handPointer()
             default:
                 LabeledContent(input.name + (input.required ? " *" : "")) {
                     TextField(input.defaultValue.isEmpty ? (input.kind == .number ? "Number" : "Value") : input.defaultValue, text: binding)
@@ -723,24 +725,24 @@ struct RunWorkflowSheet: View {
     @ViewBuilder private var footer: some View {
         switch model.step {
         case .editing, .preparing:
-            Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+            Button("Cancel") { dismiss() }.handPointer().keyboardShortcut(.cancelAction)
             Button("Review...") { Task { await model.review() } }
                 .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
                 .disabled(!model.canReview)
         case .review:
-            Button("Back") { model.backToEditing() }
+            Button("Back") { model.backToEditing() }.handPointer()
             Button("Run Workflow") { Task { await model.confirm() } }.disabled(model.isAskingOwner)
                 .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .sending, .waitingForRun:
-            Button("Close") { dismiss() }
+            Button("Close") { dismiss() }.handPointer()
         case .found(let run):
-            Button("Close") { dismiss() }
+            Button("Close") { dismiss() }.handPointer()
             Button("Show Run") { showRun(run); dismiss() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .notFoundYet:
             Button("Close") { dismiss() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .failed:
-            Button("Close") { dismiss() }
-            Button("Back") { model.backToEditing() }
+            Button("Close") { dismiss() }.handPointer()
+            Button("Back") { model.backToEditing() }.handPointer()
         }
     }
 

@@ -73,10 +73,10 @@ struct ActInstallButton: View {
         if let brew = ActInstaller.brew() {
             Button("Install with Homebrew…") {
                 if !ActInstaller.openTerminal(brew: brew) { openURL(ActInstaller.instructions) }
-            }
+            }.handPointer()
             .help("Opens Terminal with brew install act; it runs when you press Return there. Then press Recheck.")
         } else {
-            Button("Install…") { openURL(ActInstaller.instructions) }
+            Button("Install…") { openURL(ActInstaller.instructions) }.handPointer()
                 .help("Opens act's official installation instructions")
         }
     }
@@ -203,19 +203,19 @@ struct EngineSetupButton: View {
 
     var body: some View {
         if engine.state == .found {
-            Button("Recheck", action: recheck)
+            Button("Recheck", action: recheck).handPointer()
         } else if engine.state == .stopped, let app = ContainerEngineApp.installedURL(for: engine.name) {
             Button("Open \(engine.name)") {
                 NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
-            }.help("Start \(engine.name), then press Recheck")
+            }.handPointer().help("Start \(engine.name), then press Recheck")
         } else if engine.state == .missing {
             Menu("Install...") {
                 ForEach(ContainerEngineApp.instructions, id: \.name) { item in
                     Button(item.name) { openURL(item.url) }
                 }
-            }.fixedSize().help("Opens the vendor's official instructions")
+            }.handPointer().fixedSize().help("Opens the vendor's official instructions")
         } else {
-            Button("Recheck", action: recheck)
+            Button("Recheck", action: recheck).handPointer()
         }
     }
 }
@@ -386,7 +386,7 @@ struct LocalRunSheet: View {
                     Button("Manage in Secrets and Variables") {
                         manageValues()
                         dismiss()
-                    }.buttonStyle(.link).font(.system(size: 12))
+                    }.handPointer().buttonStyle(.link).font(.system(size: 12))
                 }
             }
         }

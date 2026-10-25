@@ -339,7 +339,7 @@ struct GitHubAccessNotice: View {
 
     @ViewBuilder private var button: some View {
         if let title = help.fix.buttonTitle {
-            Button(title) { perform(help.fix) }
+            Button(title) { perform(help.fix) }.handPointer()
         }
     }
 

@@ -159,10 +159,10 @@ private struct WorkspaceValueRow: View {
             .overlay(RoundedRectangle(cornerRadius: 5).stroke(missing ? RunnirTheme.warning : edited ? RunnirTheme.primary : .clear))
             if key.kind == .secret && row.saved && !edited {
                 if model.shown[key] == nil {
-                    Button(action: reveal) { Image(systemName: "eye") }.buttonStyle(.borderless)
+                    Button(action: reveal) { Image(systemName: "eye") }.handPointer().buttonStyle(.borderless)
                         .help("Show the saved value (Touch ID or your password)")
                 } else {
-                    Button { model.hideSecrets() } label: { Image(systemName: "eye.slash") }.buttonStyle(.borderless)
+                    Button { model.hideSecrets() } label: { Image(systemName: "eye.slash") }.handPointer().buttonStyle(.borderless)
                         .help("Hide the value")
                 }
             }

@@ -59,6 +59,29 @@ enum PipelineLayout {
         return max(0, end.timeIntervalSince(start))
     }
 
+    /// What hovering a job of the pipeline says: its status in the latest
+    /// run, and the jobs it needs.
+    static func hint(for job: CoreJob, matched: [CoreRunJob], readFailed: Bool, now: Date) -> String {
+        var lines: [String] = []
+        if let outcome = outcome(matched) {
+            switch outcome {
+            case .skipped:
+                lines.append("Skipped in the latest run: its condition was not met, or a job it needs did not succeed")
+            case .queued:
+                lines.append("Queued")
+            default:
+                let time = duration(matched, now: now).map { " · \(format($0))" } ?? ""
+                lines.append(outcome.label + time)
+            }
+        } else if readFailed {
+            lines.append("Status unknown: the latest run's jobs could not be read from GitHub")
+        } else {
+            lines.append("Not in the latest run")
+        }
+        if !job.needs.isEmpty { lines.append("Needs \(job.needs.joined(separator: ", "))") }
+        return lines.joined(separator: "\n")
+    }
+
     static func format(_ seconds: TimeInterval) -> String {
         let total = Int(seconds.rounded())
         if total < 60 { return "\(total)s" }
@@ -291,7 +314,7 @@ struct WorkspaceOverview: View {
         .padding(.horizontal, 12).frame(width: 190, height: 36)
         .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(outcome == .failed ? RunnirTheme.destructive : RunnirTheme.border))
-        .help(job.needs.isEmpty ? job.id : "\(job.id) needs \(job.needs.joined(separator: ", "))")
+        .help(PipelineLayout.hint(for: job, matched: matched, readFailed: runJobs.map { $0.access != .ok } ?? false, now: Date()))
     }
 
     @ViewBuilder private func pipelineNote(run: CoreWorkflowRun?) -> some View {

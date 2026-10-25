@@ -113,7 +113,7 @@ struct RunChangeBlock: View {
     @ViewBuilder private func rows(_ ids: [Int64]) -> some View {
         ForEach(ids.compactMap { runs[$0] }) { run in
             RunChangeRow(run: run, selected: run.id == selectedRunID, pullRequest: change.pullRequest, newer: newer(run))
-                .onTapGesture { select(run.id) }
+                .clickable().onTapGesture { select(run.id) }
         }
     }
 

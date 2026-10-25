@@ -388,7 +388,7 @@ struct RunInspectorView: View {
             } primaryAction: {
                 Task { await actions.prepare(.rerunFailed, for: run) }
             }
-            .menuStyle(.borderedButton).fixedSize().disabled(actions.isBusy)
+            .menuStyle(.borderedButton).fixedSize().handPointer().disabled(actions.isBusy)
             .help("Re-run the failed and cancelled jobs; the menu re-runs every job")
         } else {
             Button { Task { await actions.prepare(.rerun, for: run) } } label: {

@@ -104,7 +104,7 @@ struct StorageSettingsSection: View {
         Section("Job Logs") {
             Toggle("Keep job logs on this Mac", isOn: Binding(
                 get: { model.keepJobLogs },
-                set: { keep in if keep { Task { await model.setKeepJobLogs(true) } } else { confirming = .stopKeepingLogs } }))
+                set: { keep in if keep { Task { await model.setKeepJobLogs(true) } } else { confirming = .stopKeepingLogs } })).handPointer()
             Text("Logs of finished jobs open offline and are not downloaded again. They can contain output your workflows print; they stay in Runnir's folder on this Mac, up to 100 MB per workspace.")
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
         }
@@ -120,9 +120,9 @@ struct StorageSettingsSection: View {
                     }
                     Spacer()
                     if row.isRegistered {
-                        Button("Clear Cache…") { confirming = .clear(row) }.disabled(row.storage == nil)
+                        Button("Clear Cache…") { confirming = .clear(row) }.handPointer().disabled(row.storage == nil)
                     } else {
-                        Button("Delete…", role: .destructive) { confirming = .delete(row) }
+                        Button("Delete…", role: .destructive) { confirming = .delete(row) }.handPointer()
                     }
                 }
             }
@@ -130,7 +130,7 @@ struct StorageSettingsSection: View {
                 Text("Clearing keeps local run history, presets, favorites and your sign-in. Saved activity downloads again when a workspace opens.")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                 Spacer()
-                Button("Clear All Caches…") { confirming = .clearAll }.disabled(model.rows.allSatisfy { $0.storage == nil })
+                Button("Clear All Caches…") { confirming = .clearAll }.handPointer().disabled(model.rows.allSatisfy { $0.storage == nil })
             }
         }
         .task { await model.load() }

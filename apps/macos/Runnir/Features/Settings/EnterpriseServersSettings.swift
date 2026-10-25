@@ -104,14 +104,14 @@ struct EnterpriseServersSection: View {
                             .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                     }
                     Spacer()
-                    Button("Remove...") { removing = server }
+                    Button("Remove...") { removing = server }.handPointer()
                 }
             }
             if let problem = servers.problem {
                 Label(problem, systemImage: "exclamationmark.triangle").font(.system(size: 11)).foregroundStyle(RunnirTheme.warning)
             }
             HStack {
-                Button("Add Enterprise Server...") { adding = true }
+                Button("Add Enterprise Server...") { adding = true }.handPointer()
                     .disabled(hub == nil || servers.servers.count >= EnterpriseServers.maxServers)
                 Spacer()
             }
@@ -176,8 +176,8 @@ struct AddEnterpriseServerSheet: View {
             .frame(maxHeight: 260)
             HStack {
                 Spacer()
-                Button("Cancel") { dismiss() }
-                Button(form.isChecking ? "Checking..." : "Check Token") { Task { await form.runCheck(hub: hub) } }
+                Button("Cancel") { dismiss() }.handPointer()
+                Button(form.isChecking ? "Checking..." : "Check Token") { Task { await form.runCheck(hub: hub) } }.handPointer()
                     .disabled(!form.canCheck)
                 Button("Add") { Task { await add() } }
                     .buttonStyle(DesignButtonStyle(primary: true))

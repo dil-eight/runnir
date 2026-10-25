@@ -129,8 +129,8 @@ struct WorkspaceManagerView: View {
             .frame(height: 51).padding(.bottom, 16)
 
             HStack(spacing: 4) {
-                Button("Workspaces") { tab = .workspaces }.buttonStyle(WorkflowTabStyle(selected: tab == .workspaces))
-                Button("GitHub") { tab = .github }.buttonStyle(WorkflowTabStyle(selected: tab == .github))
+                Button("Workspaces") { tab = .workspaces }.handPointer().buttonStyle(WorkflowTabStyle(selected: tab == .workspaces))
+                Button("GitHub") { tab = .github }.handPointer().buttonStyle(WorkflowTabStyle(selected: tab == .github))
                     .accessibilityIdentifier("manager-github-tab")
                 Spacer()
             }.padding(.bottom, 14)
@@ -140,7 +140,7 @@ struct WorkspaceManagerView: View {
                     Image(systemName: "exclamationmark.triangle").foregroundStyle(RunnirTheme.warning)
                     Text(message).font(.callout).frame(maxWidth: .infinity, alignment: .leading)
                     if desktop.persistenceBlocked {
-                        Button("Back Up and Reset...") { desktop.resetUnreadableSession() }
+                        Button("Back Up and Reset...") { desktop.resetUnreadableSession() }.handPointer()
                     } else {
                         Button { desktop.message = nil } label: { Image(systemName: "xmark") }
                             .buttonStyle(.hit).help("Dismiss message")
@@ -996,7 +996,7 @@ struct DesktopWorkspaceView: View {
                     GitHubAccountRow(session: github)
                 } else {
                     HStack(spacing: 10) {
-                        Image(systemName: "person.crop.circle").font(.system(size: 16)).frame(width: 16)
+                        SidebarIcon(symbol: "person.crop.circle")
                             .foregroundStyle(RunnirTheme.secondaryForeground)
                         VStack(alignment: .leading, spacing: 1) {
                             Text("GitHub").font(.system(size: 12))
@@ -1403,6 +1403,19 @@ extension View {
     func clickable() -> some View {
         contentShape(Rectangle()).pointerStyle(.link)
     }
+
+    /// A native control (a bordered or link button, toggle, picker or menu):
+    /// the hand pointer while it is enabled. Apply it before `.disabled`.
+    func handPointer() -> some View {
+        modifier(HandPointer())
+    }
+}
+
+private struct HandPointer: ViewModifier {
+    @Environment(\.isEnabled) private var isEnabled
+    func body(content: Content) -> some View {
+        content.pointerStyle(isEnabled ? .link : nil)
+    }
 }
 
 struct WorkflowTabStyle: ButtonStyle {
@@ -1417,6 +1430,17 @@ struct WorkflowTabStyle: ButtonStyle {
     }
 }
 
+/// A sidebar icon fitted into a 16-point square. SF Symbols differ in width
+/// (`ladybug` is 17.5 points at 13-point text, `key` 11.5), so centring
+/// them in a column still leaves their edges apart; a square they all fill
+/// lines them up.
+struct SidebarIcon: View {
+    let symbol: String
+    var body: some View {
+        Image(systemName: symbol).resizable().scaledToFit().frame(width: 16, height: 16)
+    }
+}
+
 /// A sidebar row: a 16-point icon column, so the sections, the account and
 /// the items under it line up, and the whole row takes the click.
 struct SidebarItemLabel: View {
@@ -1426,7 +1450,7 @@ struct SidebarItemLabel: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: symbol).frame(width: 16)
+            SidebarIcon(symbol: symbol)
                 .foregroundStyle(selected ? RunnirTheme.primary : RunnirTheme.secondaryForeground)
             Text(title)
             Spacer(minLength: 0)
