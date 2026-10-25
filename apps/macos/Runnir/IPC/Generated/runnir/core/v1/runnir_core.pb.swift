@@ -805,6 +805,44 @@ nonisolated enum Runnir_Core_V1_LocalJobState: SwiftProtobuf.Enum, Swift.CaseIte
 
 }
 
+nonisolated enum Runnir_Core_V1_SavingKind: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+
+  /// Local runs that ended with a result (succeeded or failed). Each job
+  /// that ran counts its time rounded up to a whole minute, as GitHub bills
+  /// hosted runners.
+  case localRuns // = 1
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .localRuns
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .localRuns: return 1
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_SavingKind] = [
+    .unspecified,
+    .localRuns,
+  ]
+
+}
+
 nonisolated enum Runnir_Core_V1_ActivitySource: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
   case unspecified // = 0
@@ -3581,11 +3619,47 @@ nonisolated struct Runnir_Core_V1_WorkspaceActivity: @unchecked Sendable {
     set {_uniqueStorage()._historyComplete = newValue}
   }
 
+  /// What this Mac saved the workspace, one total per kind; a kind with
+  /// nothing counted yet is absent.
+  var savings: [Runnir_Core_V1_Saving] {
+    get {_storage._savings}
+    set {_uniqueStorage()._savings = newValue}
+  }
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
 
   fileprivate var _storage = _StorageClass.defaultInstance
+}
+
+nonisolated struct Runnir_Core_V1_Saving: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var kind: Runnir_Core_V1_SavingKind = .unspecified
+
+  var minutes: UInt64 = 0
+
+  /// How many were counted: runs for LOCAL_RUNS.
+  var count: UInt32 = 0
+
+  /// When the first one was counted.
+  var since: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {_since ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_since = newValue}
+  }
+  /// Returns true if `since` has been explicitly set.
+  var hasSince: Bool {self._since != nil}
+  /// Clears the value of `since`. Subsequent reads from it will return its default value.
+  mutating func clearSince() {self._since = nil}
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _since: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
 }
 
 nonisolated struct Runnir_Core_V1_ActivityFreshness: Sendable {
@@ -4077,6 +4151,10 @@ nonisolated extension Runnir_Core_V1_LocalRunPhase: SwiftProtobuf._ProtoNameProv
 
 nonisolated extension Runnir_Core_V1_LocalJobState: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0LOCAL_JOB_STATE_UNSPECIFIED\0\u{1}LOCAL_JOB_STATE_WAITING\0\u{1}LOCAL_JOB_STATE_RUNNING\0\u{1}LOCAL_JOB_STATE_SUCCEEDED\0\u{1}LOCAL_JOB_STATE_FAILED\0\u{1}LOCAL_JOB_STATE_SKIPPED\0\u{1}LOCAL_JOB_STATE_UNSUPPORTED\0\u{1}LOCAL_JOB_STATE_CANCELLED\0\u{1}LOCAL_JOB_STATE_NOT_RUN\0")
+}
+
+nonisolated extension Runnir_Core_V1_SavingKind: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0SAVING_KIND_UNSPECIFIED\0\u{1}SAVING_KIND_LOCAL_RUNS\0")
 }
 
 nonisolated extension Runnir_Core_V1_ActivitySource: SwiftProtobuf._ProtoNameProviding {
@@ -8747,7 +8825,7 @@ nonisolated extension Runnir_Core_V1_RefreshWorkspaceActivityRequest: SwiftProto
 
 nonisolated extension Runnir_Core_V1_WorkspaceActivity: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".WorkspaceActivity"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}runs\0\u{1}workflows\0\u{1}freshness\0\u{1}changes\0\u{3}concurrency_hints\0\u{3}cached_runs\0\u{3}history_complete\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}runs\0\u{1}workflows\0\u{1}freshness\0\u{1}changes\0\u{3}concurrency_hints\0\u{3}cached_runs\0\u{3}history_complete\0\u{1}savings\0")
 
   fileprivate class _StorageClass {
     var _runs: [Runnir_Core_V1_WorkflowRun] = []
@@ -8757,6 +8835,7 @@ nonisolated extension Runnir_Core_V1_WorkspaceActivity: SwiftProtobuf.Message, S
     var _concurrencyHints: [Runnir_Core_V1_ConcurrencyHint] = []
     var _cachedRuns: UInt32 = 0
     var _historyComplete: Bool = false
+    var _savings: [Runnir_Core_V1_Saving] = []
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -8774,6 +8853,7 @@ nonisolated extension Runnir_Core_V1_WorkspaceActivity: SwiftProtobuf.Message, S
       _concurrencyHints = source._concurrencyHints
       _cachedRuns = source._cachedRuns
       _historyComplete = source._historyComplete
+      _savings = source._savings
     }
   }
 
@@ -8799,6 +8879,7 @@ nonisolated extension Runnir_Core_V1_WorkspaceActivity: SwiftProtobuf.Message, S
         case 5: try { try decoder.decodeRepeatedMessageField(value: &_storage._concurrencyHints) }()
         case 6: try { try decoder.decodeSingularUInt32Field(value: &_storage._cachedRuns) }()
         case 7: try { try decoder.decodeSingularBoolField(value: &_storage._historyComplete) }()
+        case 8: try { try decoder.decodeRepeatedMessageField(value: &_storage._savings) }()
         default: break
         }
       }
@@ -8832,6 +8913,9 @@ nonisolated extension Runnir_Core_V1_WorkspaceActivity: SwiftProtobuf.Message, S
       if _storage._historyComplete != false {
         try visitor.visitSingularBoolField(value: _storage._historyComplete, fieldNumber: 7)
       }
+      if !_storage._savings.isEmpty {
+        try visitor.visitRepeatedMessageField(value: _storage._savings, fieldNumber: 8)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -8848,10 +8932,60 @@ nonisolated extension Runnir_Core_V1_WorkspaceActivity: SwiftProtobuf.Message, S
         if _storage._concurrencyHints != rhs_storage._concurrencyHints {return false}
         if _storage._cachedRuns != rhs_storage._cachedRuns {return false}
         if _storage._historyComplete != rhs_storage._historyComplete {return false}
+        if _storage._savings != rhs_storage._savings {return false}
         return true
       }
       if !storagesAreEqual {return false}
     }
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_Saving: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".Saving"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}kind\0\u{1}minutes\0\u{1}count\0\u{1}since\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.kind) }()
+      case 2: try { try decoder.decodeSingularUInt64Field(value: &self.minutes) }()
+      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.count) }()
+      case 4: try { try decoder.decodeSingularMessageField(value: &self._since) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if self.kind != .unspecified {
+      try visitor.visitSingularEnumField(value: self.kind, fieldNumber: 1)
+    }
+    if self.minutes != 0 {
+      try visitor.visitSingularUInt64Field(value: self.minutes, fieldNumber: 2)
+    }
+    if self.count != 0 {
+      try visitor.visitSingularUInt32Field(value: self.count, fieldNumber: 3)
+    }
+    try { if let v = self._since {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 4)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_Saving, rhs: Runnir_Core_V1_Saving) -> Bool {
+    if lhs.kind != rhs.kind {return false}
+    if lhs.minutes != rhs.minutes {return false}
+    if lhs.count != rhs.count {return false}
+    if lhs._since != rhs._since {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

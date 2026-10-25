@@ -60,8 +60,10 @@ type Snapshot struct {
 	Changes         []changes.Change
 	CachedRuns      int
 	HistoryComplete bool
-	Provenance      Provenance
-	Syncing         bool
+	// Savings are this Mac's and shown whatever GitHub answers.
+	Savings    []store.Saving
+	Provenance Provenance
+	Syncing    bool
 	// Access is the last pass's outcome, or why there is no target;
 	// UNSPECIFIED before the first pass.
 	Access     corev1.GithubAccess
@@ -371,7 +373,11 @@ func (r *Runtime) Snapshot(ctx context.Context, limit int) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, err
 	}
-	snap := Snapshot{Syncing: syncing, CheckedAt: a.CheckedAt}
+	savings, err := r.cfg.store.Savings(ctx)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	snap := Snapshot{Syncing: syncing, CheckedAt: a.CheckedAt, Savings: savings}
 	// The saved outcome may be from a session long ago (a token since
 	// replaced): it is reported only once a pass ran in this process.
 	if passed {

@@ -184,6 +184,32 @@ func (o *Outputs) Observe(e events.Event) {
 	}
 }
 
+// BilledMinutes is what GitHub would have billed for a finished run's jobs:
+// each job that ended with a result counts its time rounded up to a whole
+// minute, at least one, as GitHub bills hosted runners. It is 0 for a run
+// that is unknown or still going.
+func (o *Outputs) BilledMinutes(executionID string) int64 {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	r := o.runs[executionID]
+	if r == nil || r.snap.Phase != PhaseFinished {
+		return 0
+	}
+	return billedMinutes(r.snap.Jobs)
+}
+
+func billedMinutes(jobs []JobStatus) int64 {
+	var total int64
+	for _, job := range jobs {
+		if (job.State != JobSucceeded && job.State != JobFailed) || job.StartedAt.IsZero() || job.FinishedAt.IsZero() {
+			continue
+		}
+		d := max(job.FinishedAt.Sub(job.StartedAt), 0)
+		total += max(int64((d+time.Minute-1)/time.Minute), 1)
+	}
+	return total
+}
+
 // Since returns the lines after a sequence number and the run's state.
 func (o *Outputs) Since(executionID string, after uint64) (Snapshot, bool) {
 	o.mu.Lock()
