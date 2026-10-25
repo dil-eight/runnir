@@ -222,6 +222,22 @@ struct LocalRunTests {
         #expect(review.missing.contains(token))
     }
 
+    @Test func savedValuesAreReadOncePerReview() async throws {
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
+        let token = LocalRunValueKey(kind: .secret, name: "NPM_TOKEN")
+        let region = LocalRunValueKey(kind: .variable, name: "REGION")
+        let store = InMemoryLocalRunValueStore(values: [workspace: [token: "saved", region: "eu"]])
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        await review.prepare()
+        await review.prepare()
+        review.trusted = true
+        fake.localOutputs = [output(lines: nil, phase: .finished, state: .succeeded)]
+        _ = try #require(await review.run())
+        #expect(await store.reads == 2)
+        #expect(fake.confirmedValues.first?.secrets == ["NPM_TOKEN": "saved"])
+        #expect(fake.confirmedValues.first?.variables == ["REGION": "eu"])
+    }
+
     @Test func runWithoutNamesSaysNothingIsRead() async {
         let (hub, workspace, _) = await hub { $0.preparedLocalRun = prepared() }
         let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)

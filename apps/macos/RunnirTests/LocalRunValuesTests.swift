@@ -2,6 +2,13 @@ import Foundation
 import Testing
 @testable import Runnir
 
+private final class Announcements: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [UUID] = []
+    var ids: [UUID] { lock.withLock { recorded } }
+    func append(_ id: UUID) { lock.withLock { recorded.append(id) } }
+}
+
 @Suite struct LocalRunValueStoreTests {
     @Test func inMemoryStoreKeepsValuesPerWorkspace() async throws {
         let store = InMemoryLocalRunValueStore()
@@ -30,6 +37,20 @@ import Testing
         let workspace = UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF")!
         #expect(KeychainLocalRunValueStore.service(prefix: "dev.runnir.local-run", workspaceID: workspace)
                 == "dev.runnir.local-run.6f9619ff-8b86-d011-b42d-00c04fc964ff")
+    }
+
+    @Test func changesAreAnnounced() async throws {
+        let store = InMemoryLocalRunValueStore()
+        let workspace = UUID()
+        let seen = Announcements()
+        let observer = NotificationCenter.default.addObserver(forName: .localRunValuesChanged, object: nil, queue: nil) { note in
+            // Other tests announce their own workspaces at the same time.
+            if let id = note.userInfo?["workspaceID"] as? UUID, id == workspace { seen.append(id) }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        try await store.save(workspaceID: workspace, key: LocalRunValueKey(kind: .secret, name: "A"), value: "x")
+        try await store.removeAll(workspaceID: workspace)
+        #expect(seen.ids == [workspace, workspace])
     }
 
     @Test func keysSortByNameThenKind() {
@@ -124,6 +145,42 @@ import Testing
         #expect(model.refused == [region])
         await model.reveal(token, workspaceID: workspace, store: store) { _ in .confirmed }
         #expect(model.refused == [region, token])
+    }
+
+    @Test func editsOfNamesNoLongerReadAreDropped() async {
+        let store = InMemoryLocalRunValueStore()
+        let model = WorkspaceValuesModel()
+        await model.load(workspaceID: workspace, workflows: workflows(), store: store)
+        model.setText("typed", for: region)
+        #expect(model.isDirty)
+        let withoutRegion = [CoreWorkflow(id: ".github/workflows/ci.yml", name: "CI", triggers: ["push"], jobs: [], parseError: nil, secrets: ["NPM_TOKEN"])]
+        await model.load(workspaceID: workspace, workflows: withoutRegion, store: store)
+        #expect(!model.isDirty)
+    }
+
+    @Test func clearingAShownValueForgetsIt() async {
+        let store = InMemoryLocalRunValueStore(values: [workspace: [token: "s3cr3t", region: "eu"]])
+        let model = WorkspaceValuesModel()
+        await model.load(workspaceID: workspace, workflows: workflows(), store: store)
+        // A hidden saved secret: an empty field changes nothing.
+        model.setText("", for: token)
+        #expect(!model.isDirty)
+        model.setText("", for: region)
+        #expect(model.removals == [region])
+        #expect(model.text(for: region) == "")
+        model.setText("us", for: region)
+        #expect(model.removals.isEmpty)
+        #expect(model.edits == [region: "us"])
+    }
+
+    @Test func importCountsOnlyValuesItChanged() async {
+        let store = InMemoryLocalRunValueStore(values: [workspace: [region: "eu"]])
+        let model = WorkspaceValuesModel()
+        await model.load(workspaceID: workspace, workflows: workflows(), store: store)
+        model.apply(CoreEnvFile(entries: [CoreEnvEntry(name: "REGION", value: "eu", encrypted: false, line: 1),
+                                          CoreEnvEntry(name: "NPM_TOKEN", value: "", encrypted: false, line: 2)], problems: []))
+        #expect(model.importSummary == "Filled 0 values.")
+        #expect(!model.isDirty)
     }
 
     @Test func importFillsMatchingNamesAndCountsTheRest() async {

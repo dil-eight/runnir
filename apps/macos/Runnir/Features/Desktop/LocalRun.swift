@@ -228,6 +228,8 @@ final class LocalRunReviewModel {
     @ObservationIgnored private let hub: CoreHub
     @ObservationIgnored private let useInstalledAct: () -> Bool
     @ObservationIgnored private let values: any LocalRunValueStoring
+    /// Saved values read for this review, each once; dropped with the sheet.
+    @ObservationIgnored private var savedValues: [LocalRunValueKey: String] = [:]
     @ObservationIgnored private var generation = 0
 
     init(workspaceID: UUID, workflowID: String, jobs: [CoreJob], jobID: String? = nil, hub: CoreHub,
@@ -265,17 +267,20 @@ final class LocalRunReviewModel {
         entered[key].flatMap { $0.isEmpty ? nil : $0 }
     }
 
-    /// Which of the plan's names have a saved value; each is read once, so a
-    /// refused read shows before the run.
+    /// Which of the plan's names have a saved value. Each value is read once
+    /// per review and kept for the run, so a refused read shows before it;
+    /// a refused one is tried again when the plan is prepared again.
     private func loadSaved() async {
-        let keys = runKeys
         let stored = (try? await values.keys(workspaceID: workspaceID)) ?? []
-        var readable: Set<LocalRunValueKey> = []
         var refusedNow: Set<LocalRunValueKey> = []
-        for key in keys where stored.contains(key) {
-            if (try? await values.value(workspaceID: workspaceID, key: key)) != nil { readable.insert(key) } else { refusedNow.insert(key) }
+        for key in runKeys where stored.contains(key) && savedValues[key] == nil {
+            if let value = try? await values.value(workspaceID: workspaceID, key: key) {
+                savedValues[key] = value
+            } else {
+                refusedNow.insert(key)
+            }
         }
-        saved = readable.union(refusedNow)
+        saved = Set(runKeys.filter { stored.contains($0) })
         refused = refusedNow
     }
 
@@ -309,9 +314,7 @@ final class LocalRunReviewModel {
         defer { isStarting = false }
         var secrets: [String: String] = [:], variables: [String: String] = [:]
         for key in runKeys {
-            var value = typed(key)
-            if value == nil, saved.contains(key) { value = try? await values.value(workspaceID: workspaceID, key: key) }
-            guard let value else { continue }
+            guard let value = typed(key) ?? savedValues[key] else { continue }
             if key.kind == .secret { secrets[key.name] = value } else { variables[key.name] = value }
         }
         if saveEntered {

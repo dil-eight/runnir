@@ -43,6 +43,11 @@ struct WorkspaceValuesView: View {
             }
         }
         .task(id: session.workflows) { await model.load(workspaceID: workspaceID, workflows: session.workflows, store: store) }
+        // Values saved from Run Locally or another window of this workspace.
+        .onReceive(NotificationCenter.default.publisher(for: .localRunValuesChanged).receive(on: RunLoop.main)) { note in
+            guard note.userInfo?["workspaceID"] as? UUID == workspaceID else { return }
+            Task { await model.load(workspaceID: workspaceID, workflows: session.workflows, store: store) }
+        }
         .onDisappear { model.hideSecrets() }
         .onChange(of: activeState) { _, state in
             if state != .key { model.hideSecrets() }

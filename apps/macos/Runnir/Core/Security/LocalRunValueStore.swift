@@ -26,6 +26,16 @@ protocol LocalRunValueStoring: Sendable {
     func removeAll(workspaceID: UUID) async throws
 }
 
+extension Notification.Name {
+    /// Values of a workspace changed; `userInfo["workspaceID"]` names it.
+    static let localRunValuesChanged = Notification.Name("dev.runnir.localRunValuesChanged")
+}
+
+/// Tells open views that a workspace's values changed.
+private func announceChange(_ workspaceID: UUID) {
+    NotificationCenter.default.post(name: .localRunValuesChanged, object: nil, userInfo: ["workspaceID": workspaceID])
+}
+
 /// Keychain items, one service per workspace, so its names list in one
 /// query without reading values and go in one delete.
 actor KeychainLocalRunValueStore: LocalRunValueStoring {
@@ -56,64 +66,32 @@ actor KeychainLocalRunValueStore: LocalRunValueStoring {
     }
 
     func keys(workspaceID: UUID) async throws -> Set<LocalRunValueKey> {
-        var query = base(workspaceID)
-        query[kSecReturnAttributes as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitAll
-        var items: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &items)
-        if status == errSecItemNotFound { return [] }
-        guard status == errSecSuccess else { throw KeychainError.unhandledStatus(status) }
-        let attributes = items as? [[String: Any]] ?? []
-        return Set(attributes.compactMap { ($0[kSecAttrAccount as String] as? String).flatMap(Self.key(fromAccount:)) })
+        Set(try GenericPassword.accounts(service: service(workspaceID)).compactMap(Self.key(fromAccount:)))
     }
 
     func value(workspaceID: UUID, key: LocalRunValueKey) async throws -> String? {
-        var query = item(workspaceID, key)
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var data: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &data)
-        if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess else { throw KeychainError.unhandledStatus(status) }
-        guard let data = data as? Data, let value = String(data: data, encoding: .utf8) else { throw KeychainError.invalidData }
+        guard let data = try GenericPassword.read(service: service(workspaceID), account: Self.account(for: key)) else { return nil }
+        guard let value = String(data: data, encoding: .utf8) else { throw KeychainError.invalidData }
         return value
     }
 
     func save(workspaceID: UUID, key: LocalRunValueKey, value: String) async throws {
-        let data = Data(value.utf8)
-        var query = item(workspaceID, key)
-        query[kSecValueData as String] = data
-        query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        query[kSecAttrLabel as String] = "Runnir local run \(key.kind.rawValue) \(key.name)"
-        let status = SecItemAdd(query as CFDictionary, nil)
-        if status == errSecDuplicateItem {
-            let update = SecItemUpdate(item(workspaceID, key) as CFDictionary, [kSecValueData as String: data] as CFDictionary)
-            guard update == errSecSuccess else { throw KeychainError.unhandledStatus(update) }
-            return
-        }
-        guard status == errSecSuccess else { throw KeychainError.unhandledStatus(status) }
+        try GenericPassword.write(Data(value.utf8), service: service(workspaceID), account: Self.account(for: key),
+                                  label: "Runnir local run \(key.kind.rawValue) \(key.name)")
+        announceChange(workspaceID)
     }
 
     func remove(workspaceID: UUID, key: LocalRunValueKey) async throws {
-        let status = SecItemDelete(item(workspaceID, key) as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else { throw KeychainError.unhandledStatus(status) }
+        try GenericPassword.delete(service: service(workspaceID), account: Self.account(for: key))
+        announceChange(workspaceID)
     }
 
     func removeAll(workspaceID: UUID) async throws {
-        let status = SecItemDelete(base(workspaceID) as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else { throw KeychainError.unhandledStatus(status) }
+        try GenericPassword.delete(service: service(workspaceID), account: nil)
+        announceChange(workspaceID)
     }
 
-    private func base(_ workspaceID: UUID) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: Self.service(prefix: prefix, workspaceID: workspaceID)]
-    }
-
-    private func item(_ workspaceID: UUID, _ key: LocalRunValueKey) -> [String: Any] {
-        var query = base(workspaceID)
-        query[kSecAttrAccount as String] = Self.account(for: key)
-        return query
-    }
+    private func service(_ workspaceID: UUID) -> String { Self.service(prefix: prefix, workspaceID: workspaceID) }
 }
 
 /// Values in memory, for tests and previews.
@@ -121,16 +99,28 @@ actor InMemoryLocalRunValueStore: LocalRunValueStoring {
     private var values: [UUID: [LocalRunValueKey: String]]
     /// Makes `value` throw, as a Keychain that refuses access would.
     private var failReads = false
+    /// How many values were read, for tests.
+    private(set) var reads = 0
 
     init(values: [UUID: [LocalRunValueKey: String]] = [:]) { self.values = values }
 
     func setFailReads(_ fail: Bool) { failReads = fail }
     func keys(workspaceID: UUID) async throws -> Set<LocalRunValueKey> { Set(values[workspaceID, default: [:]].keys) }
     func value(workspaceID: UUID, key: LocalRunValueKey) async throws -> String? {
+        reads += 1
         if failReads { throw KeychainError.unhandledStatus(errSecAuthFailed) }
         return values[workspaceID]?[key]
     }
-    func save(workspaceID: UUID, key: LocalRunValueKey, value: String) async throws { values[workspaceID, default: [:]][key] = value }
-    func remove(workspaceID: UUID, key: LocalRunValueKey) async throws { values[workspaceID]?[key] = nil }
-    func removeAll(workspaceID: UUID) async throws { values[workspaceID] = nil }
+    func save(workspaceID: UUID, key: LocalRunValueKey, value: String) async throws {
+        values[workspaceID, default: [:]][key] = value
+        announceChange(workspaceID)
+    }
+    func remove(workspaceID: UUID, key: LocalRunValueKey) async throws {
+        values[workspaceID]?[key] = nil
+        announceChange(workspaceID)
+    }
+    func removeAll(workspaceID: UUID) async throws {
+        values[workspaceID] = nil
+        announceChange(workspaceID)
+    }
 }

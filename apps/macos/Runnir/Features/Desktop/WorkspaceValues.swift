@@ -49,6 +49,10 @@ final class WorkspaceValuesModel {
         secrets = rows.filter { $0.key.kind == .secret }
         variables = rows.filter { $0.key.kind == .variable }
         unused = saved.subtracting(readers.keys).sorted().map { Row(key: $0, workflows: [], saved: true) }
+        // Edits of names no row shows any more would be saved unseen.
+        let known = Set(readers.keys).union(saved)
+        edits = edits.filter { known.contains($0.key) }
+        removals = removals.intersection(known)
         shown = shown.filter { $0.key.kind == .secret && saved.contains($0.key) }
         refused = []
         error = nil
@@ -64,9 +68,16 @@ final class WorkspaceValuesModel {
         return edits[key] ?? shown[key] ?? ""
     }
 
+    /// Clearing a value that is on screen forgets it; an empty field over a
+    /// hidden saved secret changes nothing.
     func setText(_ text: String, for key: LocalRunValueKey) {
+        if text.isEmpty {
+            edits[key] = nil
+            if shown[key] != nil { removals.insert(key) }
+            return
+        }
         removals.remove(key)
-        if text == (shown[key] ?? "") { edits[key] = nil } else { edits[key] = text }
+        if text == shown[key] { edits[key] = nil } else { edits[key] = text }
     }
 
     func forget(_ key: LocalRunValueKey) {
@@ -132,7 +143,8 @@ final class WorkspaceValuesModel {
             let keys = known.filter { $0.name == entry.name }
             if keys.isEmpty { notUsed += 1; continue }
             if entry.encrypted { encrypted += 1; continue }
-            for key in keys {
+            // An empty value or the one already there changes nothing.
+            for key in keys where !entry.value.isEmpty && text(for: key) != entry.value {
                 setText(entry.value, for: key)
                 filled += 1
             }
