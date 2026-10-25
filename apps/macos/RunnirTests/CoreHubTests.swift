@@ -484,9 +484,11 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     var confirmedLocalRuns: [String] { lock.withLock { _confirmedLocalRuns } }
     private var _confirmedValues: [(secrets: [String: String], variables: [String: String])] = []
     var confirmedValues: [(secrets: [String: String], variables: [String: String])] { lock.withLock { _confirmedValues } }
-    /// What ReadEnvFile answers; nil throws `.notFound`.
+    /// What ParseEnvFile answers; nil throws `.notFound`.
     var envFile: CoreEnvFile?
     var envFileError: CoreServiceError?
+    private var _parsedContents: [Data] = []
+    var parsedContents: [Data] { lock.withLock { _parsedContents } }
     /// Answers to GetLocalRunOutput in order; the last one repeats.
     var localOutputs: [CoreLocalRunOutput] = []
     var localOutputError: CoreServiceError?
@@ -529,8 +531,9 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     func cancelExecution(executionID: String) async throws {
         lock.withLock { _cancelledExecutions.append(executionID) }
     }
-    func readEnvFile(path: String) async throws -> CoreEnvFile {
+    func parseEnvFile(content: Data) async throws -> CoreEnvFile {
         try lock.withLock {
+            _parsedContents.append(content)
             if let envFileError { throw envFileError }
             guard let envFile else { throw CoreServiceError.notFound }
             return envFile

@@ -9434,28 +9434,28 @@ func (*SetStoragePreferencesResponse) Descriptor() ([]byte, []int) {
 	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{118}
 }
 
-type ReadEnvFileRequest struct {
+type ParseEnvFileRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// An absolute path.
-	Path          string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// The file's bytes; the Core reads no path for this.
+	Content       []byte `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ReadEnvFileRequest) Reset() {
-	*x = ReadEnvFileRequest{}
+func (x *ParseEnvFileRequest) Reset() {
+	*x = ParseEnvFileRequest{}
 	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ReadEnvFileRequest) String() string {
+func (x *ParseEnvFileRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReadEnvFileRequest) ProtoMessage() {}
+func (*ParseEnvFileRequest) ProtoMessage() {}
 
-func (x *ReadEnvFileRequest) ProtoReflect() protoreflect.Message {
+func (x *ParseEnvFileRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -9467,16 +9467,16 @@ func (x *ReadEnvFileRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReadEnvFileRequest.ProtoReflect.Descriptor instead.
-func (*ReadEnvFileRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ParseEnvFileRequest.ProtoReflect.Descriptor instead.
+func (*ParseEnvFileRequest) Descriptor() ([]byte, []int) {
 	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{119}
 }
 
-func (x *ReadEnvFileRequest) GetPath() string {
+func (x *ParseEnvFileRequest) GetContent() []byte {
 	if x != nil {
-		return x.Path
+		return x.Content
 	}
-	return ""
+	return nil
 }
 
 type EnvEntry struct {
@@ -9601,7 +9601,7 @@ func (x *EnvProblem) GetMessage() string {
 	return ""
 }
 
-type ReadEnvFileResponse struct {
+type ParseEnvFileResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// In file order; a later entry for a name replaced an earlier one.
 	Entries       []*EnvEntry   `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
@@ -9610,20 +9610,20 @@ type ReadEnvFileResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ReadEnvFileResponse) Reset() {
-	*x = ReadEnvFileResponse{}
+func (x *ParseEnvFileResponse) Reset() {
+	*x = ParseEnvFileResponse{}
 	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ReadEnvFileResponse) String() string {
+func (x *ParseEnvFileResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReadEnvFileResponse) ProtoMessage() {}
+func (*ParseEnvFileResponse) ProtoMessage() {}
 
-func (x *ReadEnvFileResponse) ProtoReflect() protoreflect.Message {
+func (x *ParseEnvFileResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -9635,19 +9635,19 @@ func (x *ReadEnvFileResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReadEnvFileResponse.ProtoReflect.Descriptor instead.
-func (*ReadEnvFileResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ParseEnvFileResponse.ProtoReflect.Descriptor instead.
+func (*ParseEnvFileResponse) Descriptor() ([]byte, []int) {
 	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{122}
 }
 
-func (x *ReadEnvFileResponse) GetEntries() []*EnvEntry {
+func (x *ParseEnvFileResponse) GetEntries() []*EnvEntry {
 	if x != nil {
 		return x.Entries
 	}
 	return nil
 }
 
-func (x *ReadEnvFileResponse) GetProblems() []*EnvProblem {
+func (x *ParseEnvFileResponse) GetProblems() []*EnvProblem {
 	if x != nil {
 		return x.Problems
 	}
@@ -10332,9 +10332,9 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x1cSetStoragePreferencesRequest\x12\"\n" +
 	"\rkeep_job_logs\x18\x01 \x01(\bR\vkeepJobLogs\x12(\n" +
 	"\x10delete_kept_logs\x18\x02 \x01(\bR\x0edeleteKeptLogs\"\x1f\n" +
-	"\x1dSetStoragePreferencesResponse\"(\n" +
-	"\x12ReadEnvFileRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"f\n" +
+	"\x1dSetStoragePreferencesResponse\"/\n" +
+	"\x13ParseEnvFileRequest\x12\x18\n" +
+	"\acontent\x18\x01 \x01(\fR\acontent\"f\n" +
 	"\bEnvEntry\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\x12\x1c\n" +
@@ -10343,8 +10343,8 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\n" +
 	"EnvProblem\x12\x12\n" +
 	"\x04line\x18\x01 \x01(\rR\x04line\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\x81\x01\n" +
-	"\x13ReadEnvFileResponse\x122\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x82\x01\n" +
+	"\x14ParseEnvFileResponse\x122\n" +
 	"\aentries\x18\x01 \x03(\v2\x18.runnir.core.v1.EnvEntryR\aentries\x126\n" +
 	"\bproblems\x18\x02 \x03(\v2\x1a.runnir.core.v1.EnvProblemR\bproblems*\xc4\x01\n" +
 	"\x0eExecutionState\x12\x1f\n" +
@@ -10484,7 +10484,7 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x19STORAGE_STATE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18STORAGE_STATE_PERSISTENT\x10\x01\x12\x1d\n" +
 	"\x19STORAGE_STATE_MEMORY_ONLY\x10\x02\x12\x18\n" +
-	"\x14STORAGE_STATE_ABSENT\x10\x032\xf5#\n" +
+	"\x14STORAGE_STATE_ABSENT\x10\x032\xf8#\n" +
 	"\n" +
 	"RunnirCore\x12V\n" +
 	"\vHealthCheck\x12\".runnir.core.v1.HealthCheckRequest\x1a#.runnir.core.v1.HealthCheckResponse\x12[\n" +
@@ -10530,8 +10530,8 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x0fPrepareLocalRun\x12&.runnir.core.v1.PrepareLocalRunRequest\x1a'.runnir.core.v1.PrepareLocalRunResponse\x12b\n" +
 	"\x0fConfirmLocalRun\x12&.runnir.core.v1.ConfirmLocalRunRequest\x1a'.runnir.core.v1.ConfirmLocalRunResponse\x12h\n" +
 	"\x11GetLocalRunOutput\x12(.runnir.core.v1.GetLocalRunOutputRequest\x1a).runnir.core.v1.GetLocalRunOutputResponse\x12b\n" +
-	"\x0fCancelExecution\x12&.runnir.core.v1.CancelExecutionRequest\x1a'.runnir.core.v1.CancelExecutionResponse\x12V\n" +
-	"\vReadEnvFile\x12\".runnir.core.v1.ReadEnvFileRequest\x1a#.runnir.core.v1.ReadEnvFileResponseB0Z.runnir/core/internal/gen/runnir/core/v1;corev1b\x06proto3"
+	"\x0fCancelExecution\x12&.runnir.core.v1.CancelExecutionRequest\x1a'.runnir.core.v1.CancelExecutionResponse\x12Y\n" +
+	"\fParseEnvFile\x12#.runnir.core.v1.ParseEnvFileRequest\x1a$.runnir.core.v1.ParseEnvFileResponseB0Z.runnir/core/internal/gen/runnir/core/v1;corev1b\x06proto3"
 
 var (
 	file_runnir_core_v1_runnir_core_proto_rawDescOnce sync.Once
@@ -10687,10 +10687,10 @@ var file_runnir_core_v1_runnir_core_proto_goTypes = []any{
 	(*DeleteWorkspaceDataResponse)(nil),       // 136: runnir.core.v1.DeleteWorkspaceDataResponse
 	(*SetStoragePreferencesRequest)(nil),      // 137: runnir.core.v1.SetStoragePreferencesRequest
 	(*SetStoragePreferencesResponse)(nil),     // 138: runnir.core.v1.SetStoragePreferencesResponse
-	(*ReadEnvFileRequest)(nil),                // 139: runnir.core.v1.ReadEnvFileRequest
+	(*ParseEnvFileRequest)(nil),               // 139: runnir.core.v1.ParseEnvFileRequest
 	(*EnvEntry)(nil),                          // 140: runnir.core.v1.EnvEntry
 	(*EnvProblem)(nil),                        // 141: runnir.core.v1.EnvProblem
-	(*ReadEnvFileResponse)(nil),               // 142: runnir.core.v1.ReadEnvFileResponse
+	(*ParseEnvFileResponse)(nil),              // 142: runnir.core.v1.ParseEnvFileResponse
 	nil,                                       // 143: runnir.core.v1.LaunchPreset.InputsEntry
 	nil,                                       // 144: runnir.core.v1.PrepareWorkflowDispatchRequest.InputsEntry
 	nil,                                       // 145: runnir.core.v1.ConfirmLocalRunRequest.SecretsEntry
@@ -10825,8 +10825,8 @@ var file_runnir_core_v1_runnir_core_proto_depIdxs = []int32{
 	19,  // 124: runnir.core.v1.WorkspaceStorage.state:type_name -> runnir.core.v1.StorageState
 	130, // 125: runnir.core.v1.GetStorageUsageResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
 	130, // 126: runnir.core.v1.ClearWorkspaceCacheResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
-	140, // 127: runnir.core.v1.ReadEnvFileResponse.entries:type_name -> runnir.core.v1.EnvEntry
-	141, // 128: runnir.core.v1.ReadEnvFileResponse.problems:type_name -> runnir.core.v1.EnvProblem
+	140, // 127: runnir.core.v1.ParseEnvFileResponse.entries:type_name -> runnir.core.v1.EnvEntry
+	141, // 128: runnir.core.v1.ParseEnvFileResponse.problems:type_name -> runnir.core.v1.EnvProblem
 	20,  // 129: runnir.core.v1.RunnirCore.HealthCheck:input_type -> runnir.core.v1.HealthCheckRequest
 	22,  // 130: runnir.core.v1.RunnirCore.OpenRepository:input_type -> runnir.core.v1.OpenRepositoryRequest
 	23,  // 131: runnir.core.v1.RunnirCore.CloseRepository:input_type -> runnir.core.v1.CloseRepositoryRequest
@@ -10870,7 +10870,7 @@ var file_runnir_core_v1_runnir_core_proto_depIdxs = []int32{
 	102, // 169: runnir.core.v1.RunnirCore.ConfirmLocalRun:input_type -> runnir.core.v1.ConfirmLocalRunRequest
 	106, // 170: runnir.core.v1.RunnirCore.GetLocalRunOutput:input_type -> runnir.core.v1.GetLocalRunOutputRequest
 	108, // 171: runnir.core.v1.RunnirCore.CancelExecution:input_type -> runnir.core.v1.CancelExecutionRequest
-	139, // 172: runnir.core.v1.RunnirCore.ReadEnvFile:input_type -> runnir.core.v1.ReadEnvFileRequest
+	139, // 172: runnir.core.v1.RunnirCore.ParseEnvFile:input_type -> runnir.core.v1.ParseEnvFileRequest
 	21,  // 173: runnir.core.v1.RunnirCore.HealthCheck:output_type -> runnir.core.v1.HealthCheckResponse
 	26,  // 174: runnir.core.v1.RunnirCore.OpenRepository:output_type -> runnir.core.v1.RepositoryResponse
 	24,  // 175: runnir.core.v1.RunnirCore.CloseRepository:output_type -> runnir.core.v1.CloseRepositoryResponse
@@ -10914,7 +10914,7 @@ var file_runnir_core_v1_runnir_core_proto_depIdxs = []int32{
 	103, // 213: runnir.core.v1.RunnirCore.ConfirmLocalRun:output_type -> runnir.core.v1.ConfirmLocalRunResponse
 	107, // 214: runnir.core.v1.RunnirCore.GetLocalRunOutput:output_type -> runnir.core.v1.GetLocalRunOutputResponse
 	109, // 215: runnir.core.v1.RunnirCore.CancelExecution:output_type -> runnir.core.v1.CancelExecutionResponse
-	142, // 216: runnir.core.v1.RunnirCore.ReadEnvFile:output_type -> runnir.core.v1.ReadEnvFileResponse
+	142, // 216: runnir.core.v1.RunnirCore.ParseEnvFile:output_type -> runnir.core.v1.ParseEnvFileResponse
 	173, // [173:217] is the sub-list for method output_type
 	129, // [129:173] is the sub-list for method input_type
 	129, // [129:129] is the sub-list for extension type_name

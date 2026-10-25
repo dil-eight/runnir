@@ -146,11 +146,11 @@ service RunnirCore {
   // Stops a queued or running execution; a local run's containers are
   // removed afterwards.
   rpc CancelExecution(CancelExecutionRequest) returns (CancelExecutionResponse);
-  // Reads a .env file the user chose, to import values into Secrets and
-  // Variables. Nothing is expanded or run; values encrypted by dotenvx are
-  // flagged, not decrypted. INVALID_ARGUMENT for a file that is not a
-  // regular file, is larger than 1 MiB or is not UTF-8.
-  rpc ReadEnvFile(ReadEnvFileRequest) returns (ReadEnvFileResponse);
+  // Parses a .env file the user chose, read by the app, to import values
+  // into Secrets and Variables. Nothing is expanded or run; values
+  // encrypted by dotenvx are flagged, not decrypted. INVALID_ARGUMENT for
+  // content larger than 1 MiB or not UTF-8.
+  rpc ParseEnvFile(ParseEnvFileRequest) returns (ParseEnvFileResponse);
 }
 
 message HealthCheckRequest {}
@@ -1413,9 +1413,9 @@ message SetStoragePreferencesRequest {
 
 message SetStoragePreferencesResponse {}
 
-message ReadEnvFileRequest {
-  // An absolute path.
-  string path = 1;
+message ParseEnvFileRequest {
+  // The file's bytes; the Core reads no path for this.
+  bytes content = 1;
 }
 
 message EnvEntry {
@@ -1432,7 +1432,7 @@ message EnvProblem {
   string message = 2;
 }
 
-message ReadEnvFileResponse {
+message ParseEnvFileResponse {
   // In file order; a later entry for a name replaced an earlier one.
   repeated EnvEntry entries = 1;
   repeated EnvProblem problems = 2;

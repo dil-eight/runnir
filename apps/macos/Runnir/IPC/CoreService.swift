@@ -243,8 +243,9 @@ protocol CoreServicing: Sendable {
     /// confirmation expired or was used, or the file changed after the
     /// review, and `.invalidArgument` for a name the plan does not read.
     func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String]) async throws -> CoreExecution
-    /// Reads a .env file the user chose; values encrypted by dotenvx are flagged.
-    func readEnvFile(path: String) async throws -> CoreEnvFile
+    /// Parses the bytes of a .env file the user chose; values encrypted by
+    /// dotenvx are flagged. The Core reads no path for this.
+    func parseEnvFile(content: Data) async throws -> CoreEnvFile
     /// A local run's state and the output lines after `after`.
     func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput
     func cancelExecution(executionID: String) async throws

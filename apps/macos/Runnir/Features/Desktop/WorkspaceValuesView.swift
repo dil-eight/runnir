@@ -94,7 +94,7 @@ struct WorkspaceValuesView: View {
         panel.directoryURL = URL(fileURLWithPath: session.path)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         Task {
-            switch await hub.readEnvFile(path: url.path) {
+            switch await hub.readEnvFile(url: url) {
             case .read(let file): model.apply(file)
             case .failed(let reason): model.showImportFailure(reason)
             }

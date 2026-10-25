@@ -791,9 +791,9 @@ struct GRPCCoreService: CoreServicing {
                              state: Self.map(response.execution.state))
     }
 
-    func readEnvFile(path: String) async throws -> CoreEnvFile {
+    func parseEnvFile(content: Data) async throws -> CoreEnvFile {
         let response = try await call {
-            try await client.readEnvFile(.with { $0.path = path }, options: Self.options(Self.callTimeout))
+            try await client.parseEnvFile(.with { $0.content = content }, options: Self.options(Self.callTimeout))
         }
         return CoreEnvFile(entries: response.entries.map { CoreEnvEntry(name: $0.name, value: $0.value, encrypted: $0.encrypted, line: Int($0.line)) },
                            problems: response.problems.map { CoreEnvProblem(line: Int($0.line), message: $0.message) })

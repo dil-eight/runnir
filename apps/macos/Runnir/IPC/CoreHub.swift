@@ -881,18 +881,42 @@ final class CoreHub {
         case failed(String)
     }
 
-    /// Reads a .env file the user chose, for Secrets and Variables.
-    func readEnvFile(path: String) async -> EnvFileRead {
+    /// The largest .env file read, as the Core parses it.
+    nonisolated static let maxEnvFileBytes = 1 << 20
+
+    /// Reads a .env file the user chose (a regular file of at most 1 MiB)
+    /// and has the Core parse it, for Secrets and Variables.
+    func readEnvFile(url: URL) async -> EnvFileRead {
+        let content: Data
+        do {
+            content = try await Task.detached { try Self.readBounded(url) }.value
+        } catch EnvFileError.tooLarge {
+            return .failed("The file is larger than 1 MiB.")
+        } catch {
+            return .failed("Runnir can't read this file.")
+        }
         guard isReady, let service = try? await provider.service() else {
             return .failed("Runnir Core is not ready. Try again in a moment.")
         }
         do {
-            return .read(try await service.readEnvFile(path: path))
+            return .read(try await service.parseEnvFile(content: content))
         } catch CoreServiceError.invalidArgument(let message) {
             return .failed(Self.sentence(message))
         } catch {
             return .failed(Self.describe(error))
         }
+    }
+
+    private enum EnvFileError: Error { case tooLarge, notAFile }
+
+    nonisolated private static func readBounded(_ url: URL) throws -> Data {
+        let values = try url.resourceValues(forKeys: [.isRegularFileKey])
+        guard values.isRegularFile == true else { throw EnvFileError.notAFile }
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        let data = try handle.read(upToCount: maxEnvFileBytes + 1) ?? Data()
+        guard data.count <= maxEnvFileBytes else { throw EnvFileError.tooLarge }
+        return data
     }
 
     /// act, the Docker CLI and the container engine as the Core finds them;

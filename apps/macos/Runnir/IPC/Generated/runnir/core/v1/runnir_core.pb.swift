@@ -14,6 +14,11 @@
 /// tag the contract changes in place (AGENTS.md); from then on additive changes
 /// keep this package and breaking changes require a new package version.
 
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
+import Foundation
+#endif
 import SwiftProtobuf
 
 // If the compiler emits an error on this type, it is because this file
@@ -4119,13 +4124,13 @@ nonisolated struct Runnir_Core_V1_SetStoragePreferencesResponse: Sendable {
   init() {}
 }
 
-nonisolated struct Runnir_Core_V1_ReadEnvFileRequest: Sendable {
+nonisolated struct Runnir_Core_V1_ParseEnvFileRequest: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  /// An absolute path.
-  var path: String = String()
+  /// The file's bytes; the Core reads no path for this.
+  var content: Data = Data()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -4166,7 +4171,7 @@ nonisolated struct Runnir_Core_V1_EnvProblem: Sendable {
   init() {}
 }
 
-nonisolated struct Runnir_Core_V1_ReadEnvFileResponse: Sendable {
+nonisolated struct Runnir_Core_V1_ParseEnvFileResponse: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -9965,9 +9970,9 @@ nonisolated extension Runnir_Core_V1_SetStoragePreferencesResponse: SwiftProtobu
   }
 }
 
-nonisolated extension Runnir_Core_V1_ReadEnvFileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  static let protoMessageName: String = _protobuf_package + ".ReadEnvFileRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}path\0")
+nonisolated extension Runnir_Core_V1_ParseEnvFileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ParseEnvFileRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}content\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -9975,21 +9980,21 @@ nonisolated extension Runnir_Core_V1_ReadEnvFileRequest: SwiftProtobuf.Message, 
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularStringField(value: &self.path) }()
+      case 1: try { try decoder.decodeSingularBytesField(value: &self.content) }()
       default: break
       }
     }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if !self.path.isEmpty {
-      try visitor.visitSingularStringField(value: self.path, fieldNumber: 1)
+    if !self.content.isEmpty {
+      try visitor.visitSingularBytesField(value: self.content, fieldNumber: 1)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: Runnir_Core_V1_ReadEnvFileRequest, rhs: Runnir_Core_V1_ReadEnvFileRequest) -> Bool {
-    if lhs.path != rhs.path {return false}
+  static func ==(lhs: Runnir_Core_V1_ParseEnvFileRequest, rhs: Runnir_Core_V1_ParseEnvFileRequest) -> Bool {
+    if lhs.content != rhs.content {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -10075,8 +10080,8 @@ nonisolated extension Runnir_Core_V1_EnvProblem: SwiftProtobuf.Message, SwiftPro
   }
 }
 
-nonisolated extension Runnir_Core_V1_ReadEnvFileResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  static let protoMessageName: String = _protobuf_package + ".ReadEnvFileResponse"
+nonisolated extension Runnir_Core_V1_ParseEnvFileResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ParseEnvFileResponse"
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}entries\0\u{1}problems\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -10102,7 +10107,7 @@ nonisolated extension Runnir_Core_V1_ReadEnvFileResponse: SwiftProtobuf.Message,
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: Runnir_Core_V1_ReadEnvFileResponse, rhs: Runnir_Core_V1_ReadEnvFileResponse) -> Bool {
+  static func ==(lhs: Runnir_Core_V1_ParseEnvFileResponse, rhs: Runnir_Core_V1_ParseEnvFileResponse) -> Bool {
     if lhs.entries != rhs.entries {return false}
     if lhs.problems != rhs.problems {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}

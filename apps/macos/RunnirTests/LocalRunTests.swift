@@ -148,12 +148,25 @@ struct LocalRunTests {
         #expect(fake.confirmedValues.first?.variables == ["REGION": "eu"])
     }
 
-    @Test func envFileIsReadThroughTheCore() async {
+    @Test func envFileIsReadByTheAppAndParsedByTheCore() async throws {
         let file = CoreEnvFile(entries: [CoreEnvEntry(name: "A", value: "1", encrypted: false, line: 1)], problems: [])
         let (hub, _, fake) = await hub { $0.envFile = file }
-        #expect(await hub.readEnvFile(path: "/tmp/.env") == .read(file))
-        fake.envFileError = .invalidArgument("the file is larger than 1 MiB")
-        #expect(await hub.readEnvFile(path: "/tmp/.env") == .failed("The file is larger than 1 MiB."))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let env = directory.appendingPathComponent(".env")
+        try Data("A=1\n".utf8).write(to: env)
+        #expect(await hub.readEnvFile(url: env) == .read(file))
+        #expect(fake.parsedContents == [Data("A=1\n".utf8)])
+
+        fake.envFileError = .invalidArgument("the file is not UTF-8 text")
+        #expect(await hub.readEnvFile(url: env) == .failed("The file is not UTF-8 text."))
+
+        let large = directory.appendingPathComponent("large.env")
+        try Data(repeating: 65, count: 1 << 20 + 1).write(to: large)
+        #expect(await hub.readEnvFile(url: large) == .failed("The file is larger than 1 MiB."))
+        #expect(await hub.readEnvFile(url: directory) == .failed("Runnir can't read this file."))
+        #expect(fake.parsedContents.count == 2)
     }
 
     private func valuesPlan() -> CorePreparedLocalRun {
