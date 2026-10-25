@@ -240,11 +240,11 @@ struct PullRequestShortcutSettingsSection: View {
             HStack {
                 Text("Shortcut")
                 Spacer()
-                Button(recording ? "Type a shortcut…" : shortcut.display) { recording ? stopRecording() : startRecording() }.handPointer()
+                Button(recording ? "Type a shortcut…" : shortcut.display) { recording ? stopRecording() : startRecording() }
                     .font(.system(size: 12, design: .monospaced))
                     .help(recording ? "Press the keys, or Escape to keep the current shortcut" : "Click, then press the new shortcut")
                     .accessibilityIdentifier("pull-requests-shortcut")
-                Button("Reset") { save(.pullRequestsDefault) }.handPointer()
+                Button("Reset") { save(.pullRequestsDefault) }
                     .disabled(shortcut == .pullRequestsDefault)
             }
             .disabled(!enabled)

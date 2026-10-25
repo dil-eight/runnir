@@ -120,9 +120,9 @@ struct StorageSettingsSection: View {
                     }
                     Spacer()
                     if row.isRegistered {
-                        Button("Clear Cache…") { confirming = .clear(row) }.handPointer().disabled(row.storage == nil)
+                        Button("Clear Cache…") { confirming = .clear(row) }.disabled(row.storage == nil)
                     } else {
-                        Button("Delete…", role: .destructive) { confirming = .delete(row) }.handPointer()
+                        Button("Delete…", role: .destructive) { confirming = .delete(row) }
                     }
                 }
             }
@@ -130,7 +130,7 @@ struct StorageSettingsSection: View {
                 Text("Clearing keeps local run history, presets, favorites and your sign-in. Saved activity downloads again when a workspace opens.")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                 Spacer()
-                Button("Clear All Caches…") { confirming = .clearAll }.handPointer().disabled(model.rows.allSatisfy { $0.storage == nil })
+                Button("Clear All Caches…") { confirming = .clearAll }.disabled(model.rows.allSatisfy { $0.storage == nil })
             }
         }
         .task { await model.load() }

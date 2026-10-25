@@ -140,7 +140,7 @@ struct WorkspaceManagerView: View {
                     Image(systemName: "exclamationmark.triangle").foregroundStyle(RunnirTheme.warning)
                     Text(message).font(.callout).frame(maxWidth: .infinity, alignment: .leading)
                     if desktop.persistenceBlocked {
-                        Button("Back Up and Reset...") { desktop.resetUnreadableSession() }.handPointer()
+                        Button("Back Up and Reset...") { desktop.resetUnreadableSession() }
                     } else {
                         Button { desktop.message = nil } label: { Image(systemName: "xmark") }
                             .buttonStyle(.hit).help("Dismiss message")
@@ -1048,6 +1048,7 @@ struct DesktopWorkspaceView: View {
         if state.showingSwitcher {
             ZStack(alignment: .topLeading) {
                 Color.black.opacity(0.001)
+                    // No hand pointer: a click outside the switcher closes it.
                     .onTapGesture { state.showingSwitcher = false }
                 WorkspaceSwitcherView(desktop: desktop, currentWorkspaceID: workspace.id, windowID: windowID,
                                       close: { state.showingSwitcher = false })
@@ -1404,10 +1405,26 @@ extension View {
         contentShape(Rectangle()).pointerStyle(.link)
     }
 
-    /// A native control (a bordered or link button, toggle, picker or menu):
-    /// the hand pointer while it is enabled. Apply it before `.disabled`.
+    /// A native control that is not a button of the default style (a toggle,
+    /// picker, menu, or a link or borderless button): the hand pointer while
+    /// it is enabled. Apply it before `.disabled`.
     func handPointer() -> some View {
         modifier(HandPointer())
+    }
+
+    /// Every button below that keeps the default style gets the hand pointer,
+    /// in its own look. Applied at the root of each window.
+    func handPointerButtons() -> some View {
+        buttonStyle(HandPointerButtonStyle())
+    }
+}
+
+/// Draws a button as the style around it would and adds the hand pointer.
+/// `Button(configuration)` takes the style outside this one, so a button
+/// with a style of its own keeps it.
+struct HandPointerButtonStyle: PrimitiveButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button(configuration).modifier(HandPointer())
     }
 }
 

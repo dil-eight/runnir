@@ -11,7 +11,8 @@ export PATH="$PATH:/opt/homebrew/bin:/usr/local/go/bin:/usr/local/bin"
 # it in the module cache; otherwise say how to update.
 required=$(sed -n 's/^go \([0-9][0-9.]*\)$/\1/p' "${SRCROOT}/../../core/go.mod")
 current=$(go version | sed -n 's/^go version go\([0-9][0-9.]*\).*/\1/p')
-if [ "$(printf '%s\n%s\n' "$required" "$current" | sort -V | head -n 1)" != "$required" ]; then
+# A Go whose version does not read as X.Y.Z (a devel build) is left to go.
+if [ -n "$current" ] && [ "$(printf '%s\n%s\n' "$required" "$current" | sort -V | head -n 1)" != "$required" ]; then
     case "$(uname -m)" in
         arm64) host=arm64 ;;
         *) host=amd64 ;;

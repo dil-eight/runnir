@@ -1,8 +1,11 @@
 import Foundation
 import Testing
 
-/// Every control that takes a click shows the hand pointer: a button styled
-/// by `DesignButtonStyle`, `.hit` or `WorkflowTabStyle`, or a control with
+/// Every control that takes a click shows the hand pointer. A button without
+/// a style of its own gets it from `HandPointerButtonStyle` at the root of
+/// its window; one styled by `DesignButtonStyle`, `.hit` or
+/// `WorkflowTabStyle` has it in the style; any other control (a toggle,
+/// picker, menu, link, tap gesture, or a button in another style) needs
 /// `.handPointer()`, `.clickable()` or `.pointerStyle(.link)` in its own
 /// modifiers. Items of menus, alerts and confirmation dialogs are drawn by
 /// the system and are left out, as is a control marked with a
@@ -25,10 +28,24 @@ import Testing
         #expect(missing.isEmpty, "Controls without the hand pointer: \(missing.sorted().joined(separator: ", "))")
     }
 
+    @Test func everyWindowRootGivesButtonsTheHand() throws {
+        let app = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Runnir/App")
+        let coordinator = try String(contentsOf: app.appendingPathComponent("Desktop/DesktopCoordinator.swift"), encoding: .utf8)
+        let roots = coordinator.components(separatedBy: "NSHostingController(rootView:").dropFirst()
+        #expect(roots.count >= 4)
+        for root in roots where !root.hasPrefix(" StartupSplashView()") {
+            // The root view's expression: its modifiers follow within a few lines.
+            #expect(root.prefix(400).contains(".handPointerButtons()"), "A window root without handPointerButtons(): \(root.prefix(60))")
+        }
+        let appFile = try String(contentsOf: app.appendingPathComponent("RunnirApp.swift"), encoding: .utf8)
+        #expect(appFile.contains(".handPointerButtons()"), "The menu bar window does not apply handPointerButtons()")
+    }
+
     @Test func auditFindsControlsWithoutTheHand() {
-        let source = """
+        let source = ##"""
         VStack {
-            Button("Plain") { go() }
+            Button("Default style") { go() }
             Button("Styled") { go() }.buttonStyle(DesignButtonStyle())
             Toggle("Switch", isOn: $on).handPointer()
             Picker("Pick", selection: $value) { Text("A") }
@@ -40,8 +57,11 @@ import Testing
         .alert("Title", isPresented: $shown) { Button("OK") {} }
         HStack { Button("Inherited") { go() } }.buttonStyle(.hit)
         Menu { Button("Item") { go() } } label: { Text("Menu") }.handPointer()
-        """
-        #expect(PointerAudit.controlsWithoutHand(in: source) == [2, 5, 6])
+        let pattern = #"(?<q>"[^"(]*)"#
+        Button("Link") { go() }.buttonStyle(.link)
+        HStack { Button("Plain") { go() } }.buttonStyle(.plain)
+        """##
+        #expect(PointerAudit.controlsWithoutHand(in: source) == [5, 6, 15, 16])
     }
 }
 
@@ -76,7 +96,7 @@ enum PointerAudit {
             if enclosing.contains(where: { contains(systemDrawn, owner(of: $0, in: text)) }) { continue }
             let end = expressionEnd(from: start, in: text)
             if contains(ownHand, slice(text, start, end)) { continue }
-            if string[Range(match.range(at: 1), in: string)!] == "Button", inheritsHandStyle(enclosing, in: text) { continue }
+            if string[Range(match.range(at: 1), in: string)!] == "Button", buttonGetsHand(own: slice(text, start, end), enclosing, in: text) { continue }
             lines.append(line)
         }
         return lines
@@ -90,14 +110,16 @@ enum PointerAudit {
         String(utf16CodeUnits: Array(text[max(0, from)..<min(text.count, to)]), count: min(text.count, to) - max(0, from))
     }
 
-    /// The nearest `.buttonStyle` set on a view around the button gives the hand.
-    private static func inheritsHandStyle(_ enclosing: [Int], in text: [UInt16]) -> Bool {
+    /// A button gets the hand from the nearest `.buttonStyle` around it when
+    /// that style gives it, or from the root style when no style is set.
+    private static func buttonGetsHand(own: String, _ enclosing: [Int], in text: [UInt16]) -> Bool {
+        if contains(anyStyle, own) { return false }
         for open in enclosing {
             let modifiers = slice(text, closing(open, in: text) + 1, modifiersEnd(after: closing(open, in: text) + 1, in: text))
             guard let style = anyStyle.firstMatch(in: modifiers, range: NSRange(location: 0, length: (modifiers as NSString).length)) else { continue }
             return contains(handStyle, (modifiers as NSString).substring(from: style.range.location))
         }
-        return false
+        return true
     }
 
     private static func blankCommentsAndStrings(_ source: String) -> String {
@@ -109,6 +131,23 @@ enum PointerAudit {
             let u = Array(p.utf16); return at + u.count <= s.count && Array(s[at..<at + u.count]) == u
         }
         while i < s.count {
+            if s[i] == 35 {
+                // A raw string, #"..."# or #"""..."""#, with any number of #.
+                var hashes = 0
+                while i + hashes < s.count && s[i + hashes] == 35 { hashes += 1 }
+                let open = i + hashes
+                if open < s.count && s[open] == 34 {
+                    let quotes = starts("\"\"\"", open) ? 3 : 1
+                    let terminator = String(repeating: "\"", count: quotes) + String(repeating: "#", count: hashes)
+                    var j = open + quotes
+                    while j < s.count && !starts(terminator, j) { j += 1 }
+                    blank(open + quotes, j)
+                    i = j + terminator.utf16.count
+                    continue
+                }
+                i += hashes
+                continue
+            }
             if starts("//", i) {
                 var j = i; while j < s.count && s[j] != 10 { j += 1 }
                 blank(i, j); i = j

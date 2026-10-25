@@ -195,7 +195,7 @@ final class DesktopCoordinator {
             // Wide enough for the GitHub tab's list next to a repository.
             let window = makeWindow(size: NSSize(width: 1000, height: 660), title: "Workspaces")
             window.minSize = NSSize(width: 820, height: 520)
-            window.contentViewController = NSHostingController(rootView: WorkspaceManagerView(desktop: self))
+            window.contentViewController = NSHostingController(rootView: WorkspaceManagerView(desktop: self).handPointerButtons())
             window.setContentSize(NSSize(width: 1000, height: 660))
             window.identifier = NSUserInterfaceItemIdentifier("workspace-manager")
             // Only the close button: the Manager is not minimized or zoomed.
@@ -215,7 +215,8 @@ final class DesktopCoordinator {
             let window = makeWindow(size: NSSize(width: 560, height: 640), title: "Pull Requests")
             window.minSize = NSSize(width: 480, height: 360)
             window.contentViewController = NSHostingController(rootView: PullRequestsWindowView(model: pullRequests, desktop: self)
-                .environment(\.openRunnirSettings) { [weak self] section in self?.showSettingsInFrontWindow(section: section) })
+                .environment(\.openRunnirSettings) { [weak self] section in self?.showSettingsInFrontWindow(section: section) }
+                .handPointerButtons())
             window.setContentSize(NSSize(width: 560, height: 640))
             window.identifier = NSUserInterfaceItemIdentifier("pull-requests")
             // The shortcut works from any app: the window comes to the Space
@@ -771,7 +772,8 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
         window?.title = workspace.name + " - Runnir"
         window?.contentViewController = NSHostingController(rootView:
             DesktopWorkspaceView(desktop: desktop, workspace: workspace, windowID: record.id, reader: grant?.reader)
-                .environment(state))
+                .environment(state)
+                .handPointerButtons())
         if let frame { window?.setFrame(frame, display: false) }
     }
 

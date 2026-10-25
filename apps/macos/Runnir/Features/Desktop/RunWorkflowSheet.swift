@@ -725,24 +725,24 @@ struct RunWorkflowSheet: View {
     @ViewBuilder private var footer: some View {
         switch model.step {
         case .editing, .preparing:
-            Button("Cancel") { dismiss() }.handPointer().keyboardShortcut(.cancelAction)
+            Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
             Button("Review...") { Task { await model.review() } }
                 .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
                 .disabled(!model.canReview)
         case .review:
-            Button("Back") { model.backToEditing() }.handPointer()
+            Button("Back") { model.backToEditing() }
             Button("Run Workflow") { Task { await model.confirm() } }.disabled(model.isAskingOwner)
                 .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .sending, .waitingForRun:
-            Button("Close") { dismiss() }.handPointer()
+            Button("Close") { dismiss() }
         case .found(let run):
-            Button("Close") { dismiss() }.handPointer()
+            Button("Close") { dismiss() }
             Button("Show Run") { showRun(run); dismiss() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .notFoundYet:
             Button("Close") { dismiss() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .failed:
-            Button("Close") { dismiss() }.handPointer()
-            Button("Back") { model.backToEditing() }.handPointer()
+            Button("Close") { dismiss() }
+            Button("Back") { model.backToEditing() }
         }
     }
 

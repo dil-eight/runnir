@@ -32,6 +32,7 @@ struct RunnirApp: App {
                 .environment(\.openRunnirSettings) { [desktop = delegate.desktop] section in
                     desktop.showSettingsInFrontWindow(section: section)
                 }
+                .handPointerButtons()
         } label: {
             Image(nsImage: menuBarImage).accessibilityLabel(menuBarLabel)
         }

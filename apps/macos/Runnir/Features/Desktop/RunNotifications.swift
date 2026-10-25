@@ -179,7 +179,7 @@ struct NotificationSettingsSection: View {
                     Spacer()
                     Button("Open System Settings…") {
                         if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") { NSWorkspace.shared.open(url) }
-                    }.handPointer()
+                    }
                 }
             }
             Text("Notifications are sent by this Mac only — nothing goes through a server. macOS asks once whether Runnir may show them.")
