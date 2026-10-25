@@ -4,6 +4,27 @@ set -eu
 # The Go on PATH (for example from setup-go or the developer's shell) wins;
 # the usual install locations are only fallbacks for Xcode's minimal PATH.
 export PATH="$PATH:/opt/homebrew/bin:/usr/local/go/bin:/usr/local/bin"
+
+# GOTOOLCHAIN=local (below) keeps the build offline, so an older Go cannot
+# switch to the version core/go.mod asks for, as it does in a shell. When the
+# Go on PATH is older, use that exact toolchain if a `go` command already put
+# it in the module cache; otherwise say how to update.
+required=$(sed -n 's/^go \([0-9][0-9.]*\)$/\1/p' "${SRCROOT}/../../core/go.mod")
+current=$(go version | sed -n 's/^go version go\([0-9][0-9.]*\).*/\1/p')
+if [ "$(printf '%s\n%s\n' "$required" "$current" | sort -V | head -n 1)" != "$required" ]; then
+    case "$(uname -m)" in
+        arm64) host=arm64 ;;
+        *) host=amd64 ;;
+    esac
+    toolchain="$(cd / && go env GOMODCACHE)/golang.org/toolchain@v0.0.1-go${required}.darwin-${host}/bin"
+    if [ -x "${toolchain}/go" ]; then
+        export PATH="${toolchain}:$PATH"
+    else
+        echo "error: Runnir Core needs Go ${required}; the Go on PATH is ${current}. Update it, for example: brew upgrade go" >&2
+        exit 1
+    fi
+fi
+
 export CGO_ENABLED=0
 export GOOS=darwin
 export GOTOOLCHAIN=local
