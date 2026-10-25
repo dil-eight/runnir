@@ -297,6 +297,7 @@ func TestLocalRunTakesValuesForPlanNamesOnly(t *testing.T) {
 		{Secrets: map[string]string{"OTHER": "x"}},
 		{Variables: map[string]string{"NPM_TOKEN": "x"}},
 		{Secrets: map[string]string{"NPM_TOKEN": strings.Repeat("x", 48<<10+1)}},
+		{Secrets: map[string]string{"npm_token": "a", "NPM_TOKEN": "b"}},
 	} {
 		bad.ConfirmationId = prepare().ConfirmationId
 		if _, err := client.ConfirmLocalRun(ctx, bad); status.Code(err) != codes.InvalidArgument {

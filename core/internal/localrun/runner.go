@@ -153,9 +153,9 @@ func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 		}
 	}
 
-	// act has exited, so a write it never read has failed by now.
+	// act has exited; a write it never read is ended here.
 	for _, feed := range feeds {
-		<-feed.done
+		feed.finish()
 	}
 
 	exitCode := -1
@@ -266,8 +266,10 @@ func Args(spec *Spec, executionID, scratch string) []string {
 }
 
 // valueFile is the pipe link where values are passed, else the empty file.
-func valueFile(scratch, name string) string {
-	if PassesValues {
+func valueFile(scratch, name string) string { return valueFileFor(PassesValues, scratch, name) }
+
+func valueFileFor(passesValues bool, scratch, name string) string {
+	if passesValues {
 		return filepath.Join(scratch, name)
 	}
 	return filepath.Join(scratch, "empty")

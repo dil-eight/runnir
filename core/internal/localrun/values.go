@@ -75,6 +75,13 @@ func (f *valueFeed) send() {
 	}()
 }
 
+// finish runs once act has exited: closing the write end ends a write still
+// blocked on a full pipe, whose read end a process act left behind may hold.
+func (f *valueFeed) finish() {
+	_ = f.write.Close()
+	<-f.done
+}
+
 func closeFeeds(feeds []*valueFeed) {
 	for _, f := range feeds {
 		_ = f.read.Close()

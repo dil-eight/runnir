@@ -140,6 +140,9 @@ func runValues(kind string, values map[string]string, names []string) (map[strin
 		if !allowed[upper] {
 			return nil, fmt.Errorf("the workflow does not read the %s %s", kind, upper)
 		}
+		if _, twice := out[upper]; twice {
+			return nil, fmt.Errorf("the %s %s is given twice", kind, upper)
+		}
 		if len(value) > maxRunValueSize {
 			return nil, fmt.Errorf("the value of %s is larger than 48 KiB", upper)
 		}
@@ -148,9 +151,17 @@ func runValues(kind string, values map[string]string, names []string) (map[strin
 	return out, nil
 }
 
+// valuesSupported refuses values where act cannot get them (Windows).
+func valuesSupported(passesValues bool, request *corev1.ConfirmLocalRunRequest) error {
+	if !passesValues && (len(request.GetSecrets()) > 0 || len(request.GetVariables()) > 0) {
+		return status.Error(codes.FailedPrecondition, "secrets and variables reach act only on macOS and Linux")
+	}
+	return nil
+}
+
 func (s *service) ConfirmLocalRun(_ context.Context, request *corev1.ConfirmLocalRunRequest) (*corev1.ConfirmLocalRunResponse, error) {
-	if !localrun.PassesValues && (len(request.GetSecrets()) > 0 || len(request.GetVariables()) > 0) {
-		return nil, status.Error(codes.FailedPrecondition, "secrets and variables reach act only on macOS and Linux")
+	if err := valuesSupported(localrun.PassesValues, request); err != nil {
+		return nil, err
 	}
 	approved, err := s.localRuns.Confirm(request.GetConfirmationId())
 	if err != nil {
