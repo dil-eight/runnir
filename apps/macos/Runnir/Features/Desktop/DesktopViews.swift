@@ -629,9 +629,10 @@ struct DesktopWorkspaceView: View {
             if let session, let hub = desktop.core {
                 LocalRunSheet(model: LocalRunReviewModel(workspaceID: workspace.id, workflowID: request.workflowID,
                                                          jobs: session.workflows.first { $0.id == request.workflowID }?.jobs ?? [],
-                                                         jobID: request.jobID, hub: hub),
+                                                         jobID: request.jobID, hub: hub, values: desktop.localRunValues),
                               repositoryPath: session.path,
-                              unsavedFile: files.isDirty && files.selected?.relativePath == request.workflowID ? files.selected?.name : nil) { _ in
+                              unsavedFile: files.isDirty && files.selected?.relativePath == request.workflowID ? files.selected?.name : nil,
+                              manageValues: { state.selectedSection = .secrets }) { _ in
                     state.selectedSection = .workspace
                     state.workspaceTab = .localRun
                 }

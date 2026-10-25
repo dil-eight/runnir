@@ -156,6 +156,67 @@ struct LocalRunTests {
         #expect(await hub.readEnvFile(path: "/tmp/.env") == .failed("The file is larger than 1 MiB."))
     }
 
+    private func valuesPlan() -> CorePreparedLocalRun {
+        var plan = plan()
+        plan.secrets = ["NPM_TOKEN", "OTHER"]
+        plan.variables = ["REGION"]
+        return CorePreparedLocalRun(readiness: FakeCore.readyTools, plan: plan, confirmationID: "local_1", expiresAt: Date())
+    }
+
+    @Test func runSendsSavedAndEnteredValuesForPlanNames() async throws {
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
+        let token = LocalRunValueKey(kind: .secret, name: "NPM_TOKEN")
+        let region = LocalRunValueKey(kind: .variable, name: "REGION")
+        let store = InMemoryLocalRunValueStore(values: [workspace: [token: "saved", region: "eu",
+                                                                     LocalRunValueKey(kind: .secret, name: "UNRELATED"): "x"]])
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        await review.prepare()
+        #expect(review.saved == [token, region])
+        #expect(review.missing == [LocalRunValueKey(kind: .secret, name: "OTHER")])
+        #expect(review.accessSummary == "2 passed, 1 empty. Workflow steps can read these values and send them over the network")
+        review.entered[region] = "us"
+        review.trusted = true
+        fake.localOutputs = [output(lines: nil, phase: .finished, state: .succeeded)]
+        _ = try #require(await review.run())
+        #expect(fake.confirmedValues.first?.secrets == ["NPM_TOKEN": "saved"])
+        #expect(fake.confirmedValues.first?.variables == ["REGION": "us"])
+        #expect(try await store.value(workspaceID: workspace, key: region) == "eu")
+    }
+
+    @Test func enteredValuesAreSavedWhenAsked() async throws {
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
+        let store = InMemoryLocalRunValueStore()
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        await review.prepare()
+        let other = LocalRunValueKey(kind: .secret, name: "OTHER")
+        review.entered[other] = "typed"
+        review.saveEntered = true
+        review.trusted = true
+        fake.localOutputs = [output(lines: nil, phase: .finished, state: .succeeded)]
+        _ = try #require(await review.run())
+        #expect(try await store.value(workspaceID: workspace, key: other) == "typed")
+        #expect(fake.confirmedValues.first?.secrets == ["OTHER": "typed"])
+    }
+
+    @Test func refusedKeychainReadCountsAsMissing() async {
+        let (hub, workspace, _) = await hub { $0.preparedLocalRun = valuesPlan() }
+        let token = LocalRunValueKey(kind: .secret, name: "NPM_TOKEN")
+        let store = InMemoryLocalRunValueStore(values: [workspace: [token: "saved"]])
+        await store.setFailReads(true)
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        await review.prepare()
+        #expect(review.refused == [token])
+        #expect(review.missing.contains(token))
+    }
+
+    @Test func runWithoutNamesSaysNothingIsRead() async {
+        let (hub, workspace, _) = await hub { $0.preparedLocalRun = prepared() }
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        await review.prepare()
+        #expect(review.runKeys.isEmpty)
+        #expect(review.accessSummary == "None read by this workflow. GitHub token and host environment are not passed")
+    }
+
     @Test func blockedPlanCannotRun() async {
         let (hub, workspace, fake) = await hub { $0.preparedLocalRun = prepared(confirmation: nil, blockers: ["OrbStack is not running or does not answer."]) }
         let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)

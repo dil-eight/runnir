@@ -227,6 +227,8 @@ struct LocalRunSheet: View {
     let repositoryPath: String
     /// The workflow's name when the editor holds changes that are not saved.
     var unsavedFile: String?
+    /// Opens Secrets and Variables for this workspace.
+    var manageValues: () -> Void = {}
     let onStarted: (LocalRunModel) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -245,6 +247,7 @@ struct LocalRunSheet: View {
                     }
                     tools
                     compatibility
+                    values
                     access
                     sandboxWarning
                 }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
@@ -355,11 +358,67 @@ struct LocalRunSheet: View {
                 SectionLabel(title: "WHAT THIS RUN CAN ACCESS")
                 accessRow("folder", "Workspace", "Copy of \(LocalRunText.abbreviated(repositoryPath)) made by actions/checkout, with uncommitted changes and without .gitignore'd files; not mounted live")
                 accessRow("globe", "Network", "On (bridge network): downloads images and actions; workflow steps may send data")
-                accessRow("key.slash", "Secrets", "None injected. GitHub token and host environment are not passed")
+                accessRow(model.runKeys.isEmpty ? "key.slash" : "key", "Secrets", model.accessSummary)
                 accessRow("gauge.with.dots.needle.33percent", "Limits", LocalRunText.limits(plan))
                 accessRow("nosign", "Never mounted", "Docker socket · home directory")
             }
         }
+    }
+
+    /// The secrets and variables the run reads: saved values stay hidden,
+    /// a typed value is used for this run.
+    @ViewBuilder private var values: some View {
+        if !model.runKeys.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionLabel(title: "SECRETS AND VARIABLES")
+                VStack(spacing: 0) {
+                    ForEach(model.runKeys, id: \.self) { key in
+                        valueRow(key)
+                        if key != model.runKeys.last { Divider() }
+                    }
+                }
+                .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
+                HStack {
+                    Toggle("Save entered values to this workspace", isOn: $model.saveEntered)
+                        .toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12))
+                    Spacer()
+                    Button("Manage in Secrets and Variables") {
+                        manageValues()
+                        dismiss()
+                    }.buttonStyle(.link).font(.system(size: 12))
+                }
+            }
+        }
+    }
+
+    private func valueRow(_ key: LocalRunValueKey) -> some View {
+        let missing = model.missing.contains(key)
+        let entered = !(model.entered[key] ?? "").isEmpty
+        let caption = model.refused.contains(key) ? "Keychain refused access · empty in this run"
+            : entered ? "Entered for this run" : missing ? "Missing · empty in this run"
+            : key.kind == .secret ? "Saved secret" : "Saved variable"
+        let binding = Binding(get: { model.entered[key] ?? "" }, set: { model.entered[key] = $0 })
+        let placeholder = model.saved.contains(key) && !model.refused.contains(key)
+            ? (key.kind == .secret ? "••••••••••••" : "Saved value") : "Value for this run"
+        return HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(key.name).font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
+                Text(caption).font(.system(size: 11))
+                    .foregroundStyle(missing ? RunnirTheme.warning : entered ? RunnirTheme.primary : RunnirTheme.secondaryForeground)
+            }
+            .frame(width: 220, alignment: .leading)
+            Group {
+                if key.kind == .secret {
+                    SecureField(placeholder, text: binding)
+                } else {
+                    TextField(placeholder, text: binding)
+                }
+            }
+            .textFieldStyle(.roundedBorder).font(.system(size: 12, design: .monospaced))
+            .overlay(RoundedRectangle(cornerRadius: 5).stroke(missing ? RunnirTheme.warning : entered ? RunnirTheme.primary : .clear))
+        }
+        .padding(.horizontal, 12).padding(.vertical, 7)
     }
 
     private var sandboxWarning: some View {

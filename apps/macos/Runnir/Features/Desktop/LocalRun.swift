@@ -213,22 +213,70 @@ final class LocalRunReviewModel {
     var jobID: String?
     var event: String?
     var trusted = false
+    /// Values typed for this run, by name.
+    var entered: [LocalRunValueKey: String] = [:]
+    /// Save the typed values to the workspace when the run starts.
+    var saveEntered = false
+    /// The plan's names with a saved value.
+    private(set) var saved: Set<LocalRunValueKey> = []
+    /// Saved names whose value Keychain would not give.
+    private(set) var refused: Set<LocalRunValueKey> = []
     private(set) var prepared: CorePreparedLocalRun?
     private(set) var error: String?
     private(set) var isPreparing = false
     private(set) var isStarting = false
     @ObservationIgnored private let hub: CoreHub
     @ObservationIgnored private let useInstalledAct: () -> Bool
+    @ObservationIgnored private let values: any LocalRunValueStoring
     @ObservationIgnored private var generation = 0
 
     init(workspaceID: UUID, workflowID: String, jobs: [CoreJob], jobID: String? = nil, hub: CoreHub,
+         values: any LocalRunValueStoring = InMemoryLocalRunValueStore(),
          useInstalledAct: @escaping () -> Bool = { LocalRunSettings.useInstalledAct }) {
         self.workspaceID = workspaceID
         self.workflowID = workflowID
         self.jobs = jobs
         self.jobID = jobID
         self.hub = hub
+        self.values = values
         self.useInstalledAct = useInstalledAct
+    }
+
+    /// The plan's names: secrets, then variables.
+    var runKeys: [LocalRunValueKey] {
+        guard let plan = prepared?.plan else { return [] }
+        return plan.secrets.map { LocalRunValueKey(kind: .secret, name: $0) } + plan.variables.map { LocalRunValueKey(kind: .variable, name: $0) }
+    }
+
+    /// Names the run gets no value for: nothing typed and nothing saved
+    /// that Keychain gives.
+    var missing: [LocalRunValueKey] {
+        runKeys.filter { typed($0) == nil && (!saved.contains($0) || refused.contains($0)) }
+    }
+
+    var accessSummary: String {
+        let keys = runKeys
+        if keys.isEmpty { return "None read by this workflow. GitHub token and host environment are not passed" }
+        let empty = missing.count
+        return "\(keys.count - empty) passed, \(empty) empty. Workflow steps can read these values and send them over the network"
+    }
+
+    private func typed(_ key: LocalRunValueKey) -> String? {
+        entered[key].flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// Which of the plan's names have a saved value; each is read once, so a
+    /// refused read shows before the run.
+    private func loadSaved() async {
+        let keys = runKeys
+        let stored = (try? await values.keys(workspaceID: workspaceID)) ?? []
+        var readable: Set<LocalRunValueKey> = []
+        var refusedNow: Set<LocalRunValueKey> = []
+        for key in keys where stored.contains(key) {
+            if (try? await values.value(workspaceID: workspaceID, key: key)) != nil { readable.insert(key) } else { refusedNow.insert(key) }
+        }
+        saved = readable.union(refusedNow)
+        refused = refusedNow
     }
 
     var canRun: Bool { prepared?.confirmationID != nil && trusted && !isPreparing && !isStarting }
@@ -247,6 +295,7 @@ final class LocalRunReviewModel {
             self.prepared = prepared
             error = nil
             if event == nil { event = prepared.plan.event.isEmpty ? nil : prepared.plan.event }
+            await loadSaved()
         case .failed(let message):
             prepared = nil
             error = message
@@ -258,7 +307,19 @@ final class LocalRunReviewModel {
         guard canRun, let prepared else { return nil }
         isStarting = true
         defer { isStarting = false }
-        switch await hub.startLocalRun(workspaceID: workspaceID, prepared: prepared) {
+        var secrets: [String: String] = [:], variables: [String: String] = [:]
+        for key in runKeys {
+            var value = typed(key)
+            if value == nil, saved.contains(key) { value = try? await values.value(workspaceID: workspaceID, key: key) }
+            guard let value else { continue }
+            if key.kind == .secret { secrets[key.name] = value } else { variables[key.name] = value }
+        }
+        if saveEntered {
+            for key in runKeys {
+                if let text = typed(key) { try? await values.save(workspaceID: workspaceID, key: key, value: text) }
+            }
+        }
+        switch await hub.startLocalRun(workspaceID: workspaceID, prepared: prepared, secrets: secrets, variables: variables) {
         case .started(let model):
             return model
         case .failed(let message):
