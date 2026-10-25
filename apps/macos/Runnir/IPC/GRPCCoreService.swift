@@ -288,7 +288,9 @@ struct GRPCCoreService: CoreServicing {
                 jobs: workflow.jobs.map { CoreJob(id: $0.id, name: $0.name, needs: $0.needs) },
                 parseError: workflow.parseError.isEmpty ? nil : workflow.parseError,
                 dispatchInputs: workflow.dispatchInputs.map(Self.dispatchInput),
-                concurrency: workflow.concurrency
+                concurrency: workflow.concurrency,
+                secrets: workflow.secrets,
+                variables: workflow.variables
             )
         }
     }
@@ -777,12 +779,24 @@ struct GRPCCoreService: CoreServicing {
         )
     }
 
-    func confirmLocalRun(confirmationID: String) async throws -> CoreExecution {
+    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String]) async throws -> CoreExecution {
         let response = try await call {
-            try await client.confirmLocalRun(.with { $0.confirmationID = confirmationID }, options: Self.options(Self.callTimeout))
+            try await client.confirmLocalRun(.with {
+                $0.confirmationID = confirmationID
+                $0.secrets = secrets
+                $0.variables = variables
+            }, options: Self.options(Self.callTimeout))
         }
         return CoreExecution(id: response.execution.executionID, repositoryID: response.execution.repositoryID,
                              state: Self.map(response.execution.state))
+    }
+
+    func readEnvFile(path: String) async throws -> CoreEnvFile {
+        let response = try await call {
+            try await client.readEnvFile(.with { $0.path = path }, options: Self.options(Self.callTimeout))
+        }
+        return CoreEnvFile(entries: response.entries.map { CoreEnvEntry(name: $0.name, value: $0.value, encrypted: $0.encrypted, line: Int($0.line)) },
+                           problems: response.problems.map { CoreEnvProblem(line: Int($0.line), message: $0.message) })
     }
 
     func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput {
@@ -878,7 +892,8 @@ struct GRPCCoreService: CoreServicing {
                 return CoreLocalRunJob(id: job.id, name: job.name, runsOn: job.runsOn, image: job.image, support: support, reason: job.reason)
             },
             images: plan.images.map { CoreLocalRunImage(reference: $0.reference, present: $0.present) },
-            secrets: plan.secrets, notes: plan.notes, blockers: plan.blockers,
+            secrets: plan.secrets, variables: plan.variables, unnamedSecrets: plan.unnamedSecrets,
+            notes: plan.notes, blockers: plan.blockers,
             cpus: Int(plan.cpus), memoryBytes: plan.memoryBytes, timeoutSeconds: Int(plan.timeoutSeconds),
             actVersion: plan.actVersion, installedAct: plan.installedAct, engineName: plan.engineName, engineContext: plan.engineContext
         )

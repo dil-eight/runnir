@@ -138,6 +138,24 @@ struct LocalRunTests {
         #expect(run.lines.count == 2)
     }
 
+    @Test func startPassesValuesToTheCore() async throws {
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = prepared() }
+        fake.localOutputs = [output(lines: nil, phase: .finished, state: .succeeded)]
+        let result = await hub.startLocalRun(workspaceID: workspace, prepared: prepared(),
+                                             secrets: ["NPM_TOKEN": "s3cr3t"], variables: ["REGION": "eu"])
+        guard case .started = result else { Issue.record("not started"); return }
+        #expect(fake.confirmedValues.first?.secrets == ["NPM_TOKEN": "s3cr3t"])
+        #expect(fake.confirmedValues.first?.variables == ["REGION": "eu"])
+    }
+
+    @Test func envFileIsReadThroughTheCore() async {
+        let file = CoreEnvFile(entries: [CoreEnvEntry(name: "A", value: "1", encrypted: false, line: 1)], problems: [])
+        let (hub, _, fake) = await hub { $0.envFile = file }
+        #expect(await hub.readEnvFile(path: "/tmp/.env") == .read(file))
+        fake.envFileError = .invalidArgument("the file is larger than 1 MiB")
+        #expect(await hub.readEnvFile(path: "/tmp/.env") == .failed("The file is larger than 1 MiB."))
+    }
+
     @Test func blockedPlanCannotRun() async {
         let (hub, workspace, fake) = await hub { $0.preparedLocalRun = prepared(confirmation: nil, blockers: ["OrbStack is not running or does not answer."]) }
         let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)

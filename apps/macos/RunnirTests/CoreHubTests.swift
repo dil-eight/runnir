@@ -482,6 +482,11 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     var confirmLocalRunError: CoreServiceError?
     private var _confirmedLocalRuns: [String] = []
     var confirmedLocalRuns: [String] { lock.withLock { _confirmedLocalRuns } }
+    private var _confirmedValues: [(secrets: [String: String], variables: [String: String])] = []
+    var confirmedValues: [(secrets: [String: String], variables: [String: String])] { lock.withLock { _confirmedValues } }
+    /// What ReadEnvFile answers; nil throws `.notFound`.
+    var envFile: CoreEnvFile?
+    var envFileError: CoreServiceError?
     /// Answers to GetLocalRunOutput in order; the last one repeats.
     var localOutputs: [CoreLocalRunOutput] = []
     var localOutputError: CoreServiceError?
@@ -504,11 +509,12 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
             return preparedLocalRun
         }
     }
-    func confirmLocalRun(confirmationID: String) async throws -> CoreExecution {
+    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String]) async throws -> CoreExecution {
         try lock.withLock {
             if let confirmLocalRunError { throw confirmLocalRunError }
             guard !_confirmedLocalRuns.contains(confirmationID) else { throw CoreServiceError.failedPrecondition("used") }
             _confirmedLocalRuns.append(confirmationID)
+            _confirmedValues.append((secrets, variables))
             return CoreExecution(id: "exec_1", repositoryID: "repo", state: .running)
         }
     }
@@ -522,6 +528,13 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     }
     func cancelExecution(executionID: String) async throws {
         lock.withLock { _cancelledExecutions.append(executionID) }
+    }
+    func readEnvFile(path: String) async throws -> CoreEnvFile {
+        try lock.withLock {
+            if let envFileError { throw envFileError }
+            guard let envFile else { throw CoreServiceError.notFound }
+            return envFile
+        }
     }
 
     func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error> {

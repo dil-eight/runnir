@@ -876,6 +876,25 @@ final class CoreHub {
 
     // MARK: Local runs
 
+    enum EnvFileRead: Equatable {
+        case read(CoreEnvFile)
+        case failed(String)
+    }
+
+    /// Reads a .env file the user chose, for Secrets and Variables.
+    func readEnvFile(path: String) async -> EnvFileRead {
+        guard isReady, let service = try? await provider.service() else {
+            return .failed("Runnir Core is not ready. Try again in a moment.")
+        }
+        do {
+            return .read(try await service.readEnvFile(path: path))
+        } catch CoreServiceError.invalidArgument(let message) {
+            return .failed(Self.sentence(message))
+        } catch {
+            return .failed(Self.describe(error))
+        }
+    }
+
     /// act, the Docker CLI and the container engine as the Core finds them;
     /// nil when the Core is not ready.
     func toolReadiness(refresh: Bool) async -> CoreToolReadiness? {
@@ -911,8 +930,10 @@ final class CoreHub {
         case failed(String)
     }
 
-    /// Starts a reviewed run once and makes it the workspace's local run.
-    func startLocalRun(workspaceID: UUID, prepared: CorePreparedLocalRun) async -> LocalRunStart {
+    /// Starts a reviewed run once with the values for its secrets and
+    /// variables, and makes it the workspace's local run.
+    func startLocalRun(workspaceID: UUID, prepared: CorePreparedLocalRun,
+                       secrets: [String: String] = [:], variables: [String: String] = [:]) async -> LocalRunStart {
         guard let confirmationID = prepared.confirmationID else { return .failed("This run can't start yet.") }
         // Another window of this workspace may have started one meanwhile;
         // replacing it would hide a run that keeps going.
@@ -923,7 +944,7 @@ final class CoreHub {
             return .failed("Runnir Core is not ready. Nothing was started.")
         }
         do {
-            let execution = try await service.confirmLocalRun(confirmationID: confirmationID)
+            let execution = try await service.confirmLocalRun(confirmationID: confirmationID, secrets: secrets, variables: variables)
             guard let session = sessions[workspaceID] else { return .failed("The workspace was closed.") }
             let model = LocalRunModel(executionID: execution.id, workspaceID: workspaceID, plan: prepared.plan)
             let name = (session.path as NSString).lastPathComponent
@@ -932,7 +953,7 @@ final class CoreHub {
             session.localRun = model
             model.follow(hub: self)
             return .started(model)
-        } catch CoreServiceError.failedPrecondition(let message) {
+        } catch CoreServiceError.failedPrecondition(let message), CoreServiceError.invalidArgument(let message) {
             return .failed(Self.sentence(message))
         } catch CoreServiceError.resourceExhausted {
             return .failed("Runnir Core has too many runs waiting. Try again when one finishes.")
