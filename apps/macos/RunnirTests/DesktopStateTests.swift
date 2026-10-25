@@ -293,6 +293,16 @@ struct DesktopCoordinatorTests {
         #expect(await eventually { provider.core.deletedData == [fixture.original.id] })
     }
 
+    @Test func aNewWindowOpensDownAndRightOfTheOneInFront() {
+        let screen = NSRect(x: 0, y: 0, width: 2560, height: 1415)
+        let size = NSSize(width: 1280, height: 800)
+        let front = NSRect(x: 600, y: 400, width: 1280, height: 800)
+        #expect(DesktopCoordinator.cascadedFrame(size: size, after: front, in: screen) == NSRect(x: 626, y: 374, width: 1280, height: 800))
+        // At the bottom right edge it starts again at the screen's top left.
+        let corner = NSRect(x: 1270, y: 10, width: 1280, height: 800)
+        #expect(DesktopCoordinator.cascadedFrame(size: size, after: corner, in: screen) == NSRect(x: 26, y: 589, width: 1280, height: 800))
+    }
+
     @Test func removingARegistrationForgetsItsLocalRunValues() async throws {
         let fixture = try CoordinatorFixture()
         defer { fixture.remove() }

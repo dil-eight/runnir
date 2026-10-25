@@ -386,13 +386,35 @@ final class DesktopCoordinator {
             let record = WorkspaceWindowRecord(id: UUID(), workspaceID: workspace.id)
             candidate.windows.append(record)
             do { try commit(candidate) } catch { grant.stop(); throw error }
+            let reference = frontWorkspaceWindow?.frame
             let controller = makeWorkspaceWindow(record, workspace, grant, self)
+            // A new window opens down and to the right of the one in front,
+            // not on top of it.
+            if let reference, let window = controller.window {
+                let screen = NSScreen.screens.first { $0.frame.intersects(reference) }?.visibleFrame ?? reference
+                window.setFrame(Self.cascadedFrame(size: window.frame.size, after: reference, in: screen), display: false)
+            }
             windows[record.id] = controller
             core?.attach(windowID: record.id, workspaceID: workspace.id, path: workspace.path)
             controller.showWindow(nil)
         }
         manager?.orderOut(nil)
         message = nil
+    }
+
+    /// The workspace window nearest the front.
+    private var frontWorkspaceWindow: NSWindow? {
+        NSApp?.orderedWindows.first { window in windows.values.contains { $0.window === window } && window.isVisible }
+    }
+
+    /// Where a new window goes: its top left 26 points right of and below
+    /// `reference`'s, back to the top left of `screen` when it would not fit.
+    static func cascadedFrame(size: NSSize, after reference: NSRect, in screen: NSRect, step: CGFloat = 26) -> NSRect {
+        var frame = NSRect(x: reference.minX + step, y: reference.maxY - step - size.height, width: size.width, height: size.height)
+        if frame.maxX > screen.maxX || frame.minY < screen.minY {
+            frame.origin = NSPoint(x: screen.minX + step, y: screen.maxY - step - size.height)
+        }
+        return frame
     }
 
     private func restore(_ record: WorkspaceWindowRecord) {
