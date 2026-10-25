@@ -4,6 +4,10 @@ package localrun
 
 import "os/exec"
 
+// PassesValues is false: Go cannot hand a Windows child extra descriptors,
+// so act gets empty secret and variable files there.
+const PassesValues = false
+
 func setProcessGroup(*exec.Cmd) {}
 
 // Windows has no process-group interrupt for console programs started this
