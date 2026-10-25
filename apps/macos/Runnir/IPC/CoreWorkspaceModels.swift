@@ -39,6 +39,25 @@ struct CoreWorkspaceActivity: Equatable, Sendable {
     var cachedRuns = 0
     /// GitHub has no run older than the oldest kept.
     var historyComplete = false
+    /// What this Mac saved the workspace, one total per kind.
+    var savings: [CoreSaving] = []
+}
+
+/// What a saving total counts.
+enum CoreSavingKind: Equatable, Sendable {
+    /// Local runs that ended with a result, in the minutes GitHub would have
+    /// billed for their jobs (each rounded up to a whole minute).
+    case localRuns
+}
+
+/// One running total of what this Mac saved the workspace.
+struct CoreSaving: Equatable, Sendable {
+    let kind: CoreSavingKind
+    let minutes: Int
+    /// Runs, for `.localRuns`.
+    let count: Int
+    /// When the first one was counted.
+    let since: Date?
 }
 
 /// What a change shows of its pull request.

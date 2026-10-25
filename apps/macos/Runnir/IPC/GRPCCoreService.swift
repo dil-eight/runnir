@@ -196,7 +196,19 @@ struct GRPCCoreService: CoreServicing {
                 checkedAt: f.hasCheckedAt ? f.checkedAt.date : nil, syncedAt: f.hasSyncedAt ? f.syncedAt.date : nil,
                 changedAt: f.hasChangedAt ? f.changedAt.date : nil, pullRequestsAccess: pullRequestsAccess),
             changes: activity.changes.map(map), concurrencyHints: activity.concurrencyHints.map(map),
-            cachedRuns: Int(activity.cachedRuns), historyComplete: activity.historyComplete)
+            cachedRuns: Int(activity.cachedRuns), historyComplete: activity.historyComplete,
+            savings: activity.savings.compactMap(map))
+    }
+
+    /// Nil for a kind this app does not know.
+    static func map(_ saving: Runnir_Core_V1_Saving) -> CoreSaving? {
+        let kind: CoreSavingKind
+        switch saving.kind {
+        case .localRuns: kind = .localRuns
+        default: return nil
+        }
+        return CoreSaving(kind: kind, minutes: Int(clamping: saving.minutes), count: Int(saving.count),
+                          since: saving.hasSince ? saving.since.date : nil)
     }
 
     static func map(_ change: Runnir_Core_V1_RunChange) -> CoreRunChange {

@@ -137,3 +137,21 @@ struct PipelineLayoutTests {
         #expect(PipelineLayout.format(3720) == "1h 2m")
     }
 }
+
+struct SavingTextTests {
+    @Test func minutesReadAsHoursOnceThereAreSixty() {
+        #expect(SavingText.amount(minutes: 0) == "0 min")
+        #expect(SavingText.amount(minutes: 42) == "42 min")
+        #expect(SavingText.amount(minutes: 120) == "2 h")
+        #expect(SavingText.amount(minutes: 192) == "3 h 12 min")
+    }
+
+    @Test func localRunsSayWhatWasCounted() {
+        let one = CoreSaving(kind: .localRuns, minutes: 3, count: 1, since: nil)
+        #expect(SavingText.title(one) == "Local runs")
+        #expect(SavingText.detail(one) == "GitHub Actions minutes · 1 run")
+        #expect(SavingText.detail(CoreSaving(kind: .localRuns, minutes: 9, count: 4, since: nil)) == "GitHub Actions minutes · 4 runs")
+        #expect(SavingText.help(one).contains("rounded up to a whole minute") && !SavingText.help(one).contains("Counted since"))
+        #expect(SavingText.help(CoreSaving(kind: .localRuns, minutes: 3, count: 1, since: Date())).contains("Counted since"))
+    }
+}
