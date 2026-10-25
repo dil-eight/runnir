@@ -408,17 +408,10 @@ struct LocalRunSheet: View {
                     .foregroundStyle(missing ? RunnirTheme.warning : entered ? RunnirTheme.primary : RunnirTheme.secondaryForeground)
             }
             .frame(width: 220, alignment: .leading)
-            Group {
-                if key.kind == .secret {
-                    SecureField(placeholder, text: binding)
-                } else {
-                    TextField(placeholder, text: binding)
-                }
-            }
-            .textFieldStyle(.roundedBorder).font(.system(size: 12, design: .monospaced))
-            .overlay(RoundedRectangle(cornerRadius: 5).stroke(missing ? RunnirTheme.warning : entered ? RunnirTheme.primary : .clear))
+            ValueField(placeholder: placeholder, text: binding, secure: key.kind == .secret,
+                       border: missing ? RunnirTheme.warning : entered ? RunnirTheme.primary : nil)
         }
-        .padding(.horizontal, 12).padding(.vertical, 7)
+        .padding(.horizontal, 12).padding(.vertical, 8)
     }
 
     private var sandboxWarning: some View {

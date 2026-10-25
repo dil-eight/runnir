@@ -51,8 +51,7 @@ struct WorkspaceValuesView: View {
 
     private var toolbar: some View {
         HStack(spacing: 10) {
-            Text("Secrets and Variables").font(.system(size: 15, weight: .semibold))
-            Text("for local runs").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+            Text("Values for local runs, kept in Keychain on this Mac").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
             Spacer()
             Button("Import .env…", action: importFile)
                 .help("Fill values from a .env file you choose; nothing is saved until you press Save")
@@ -148,15 +147,8 @@ private struct WorkspaceValueRow: View {
         let binding = Binding(get: { model.text(for: key) }, set: { model.setText($0, for: key) })
         let concealed = key.kind == .secret && model.shown[key] == nil
         HStack(spacing: 6) {
-            Group {
-                if concealed {
-                    SecureField(row.saved ? "••••••••••••" : "Value", text: binding)
-                } else {
-                    TextField("Value", text: binding)
-                }
-            }
-            .textFieldStyle(.roundedBorder).font(.system(size: 13, design: .monospaced))
-            .overlay(RoundedRectangle(cornerRadius: 5).stroke(missing ? RunnirTheme.warning : edited ? RunnirTheme.primary : .clear))
+            ValueField(placeholder: concealed && row.saved ? "••••••••••••" : "Value", text: binding, secure: concealed,
+                       border: missing ? RunnirTheme.warning : edited ? RunnirTheme.primary : nil)
             if key.kind == .secret && row.saved && !edited {
                 if model.shown[key] == nil {
                     Button(action: reveal) { Image(systemName: "eye") }.handPointer().buttonStyle(.borderless)
@@ -176,5 +168,30 @@ private struct WorkspaceValueRow: View {
         let readers = row.workflows.joined(separator: ", ")
         if edited { return "Edited · \(readers)" }
         return missing ? "Missing · \(readers)" : readers
+    }
+}
+
+/// A value input of Secrets and Variables and the Run Locally review: 32
+/// points high and monospaced, its border saying missing or edited.
+struct ValueField: View {
+    let placeholder: String
+    @Binding var text: String
+    var secure = false
+    var border: Color?
+
+    var body: some View {
+        Group {
+            if secure {
+                SecureField(placeholder, text: $text)
+            } else {
+                TextField(placeholder, text: $text)
+            }
+        }
+        .textFieldStyle(.plain)
+        .font(.system(size: 13, design: .monospaced))
+        .padding(.horizontal, 10)
+        .frame(height: 32)
+        .background(RunnirTheme.editor, in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(border ?? RunnirTheme.border))
     }
 }
