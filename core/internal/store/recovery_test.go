@@ -32,9 +32,13 @@ func TestEveryLocalChangeIsBackedUp(t *testing.T) {
 	dir := t.TempDir()
 	s := openTest(t, dir)
 	record(t, s, "exec_1", LocalSucceeded)
-	runs, err := readLocalBackup(filepath.Join(dir, "backups", "local-data.sqlite"))
-	if err != nil || len(runs) != 1 || runs[0].ExecutionID != "exec_1" {
-		t.Fatalf("backup = %v, %v", runs, err)
+	if err := s.AddSaving(context.Background(), SavingLocalRuns, 3, fixedNow()); err != nil {
+		t.Fatal(err)
+	}
+	data, err := readLocalBackup(filepath.Join(dir, "backups", "local-data.sqlite"))
+	if err != nil || len(data.runs) != 1 || data.runs[0].ExecutionID != "exec_1" ||
+		len(data.savings) != 1 || data.savings[0].Minutes != 3 {
+		t.Fatalf("backup = %+v, %v", data, err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "backups", "local-data.sqlite.tmp")); !os.IsNotExist(err) {
 		t.Fatal("temporary backup left behind")
@@ -170,7 +174,7 @@ func TestAnEmptyDatabaseFileIsRebuiltFromTheBackup(t *testing.T) {
 	if runs, _ := again.LocalRuns(context.Background(), 10); len(runs) != 1 {
 		t.Fatalf("runs = %v", runs)
 	}
-	if backup, _ := readLocalBackup(filepath.Join(dir, "backups", "local-data.sqlite")); len(backup) != 1 {
+	if backup, _ := readLocalBackup(filepath.Join(dir, "backups", "local-data.sqlite")); len(backup.runs) != 1 {
 		t.Fatalf("backup replaced: %v", backup)
 	}
 }
@@ -192,7 +196,7 @@ func TestBackupsWrittenAtOnceAllSucceed(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if backup, err := readLocalBackup(filepath.Join(dir, "backups", "local-data.sqlite")); err != nil || len(backup) != 1 {
+	if backup, err := readLocalBackup(filepath.Join(dir, "backups", "local-data.sqlite")); err != nil || len(backup.runs) != 1 {
 		t.Fatalf("backup = %v, %v", backup, err)
 	}
 }

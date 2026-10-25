@@ -1178,6 +1178,26 @@ message WorkspaceActivity {
   uint32 cached_runs = 6;
   // GitHub has no run older than the oldest cached one.
   bool history_complete = 7;
+  // What this Mac saved the workspace, one total per kind; a kind with
+  // nothing counted yet is absent.
+  repeated Saving savings = 8;
+}
+
+enum SavingKind {
+  SAVING_KIND_UNSPECIFIED = 0;
+  // Local runs that ended with a result (succeeded or failed). Each job
+  // that ran counts its time rounded up to a whole minute, as GitHub bills
+  // hosted runners.
+  SAVING_KIND_LOCAL_RUNS = 1;
+}
+
+message Saving {
+  SavingKind kind = 1;
+  uint64 minutes = 2;
+  // How many were counted: runs for LOCAL_RUNS.
+  uint32 count = 3;
+  // When the first one was counted.
+  google.protobuf.Timestamp since = 4;
 }
 
 enum ActivitySource {

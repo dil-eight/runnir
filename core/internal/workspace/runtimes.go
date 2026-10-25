@@ -26,6 +26,9 @@ type Options struct {
 	Publish   func(events.Event)
 	Now       func() time.Time
 	Intervals Intervals
+	// BilledMinutes says what GitHub would have billed for a finished local
+	// run's jobs; nil counts nothing.
+	BilledMinutes func(executionID string) int64
 }
 
 // Usage is what one workspace keeps; State 0 means nothing on disk.
@@ -419,7 +422,18 @@ func (m *Runtimes) ObserveExecution(e events.Event) {
 	if at.IsZero() {
 		at = m.now()
 	}
-	m.recorder.add(func() { _ = rt.cfg.store.UpdateLocalRun(context.Background(), e.ExecutionID, state, at, e.Message) })
+	// Read now: the run's output is forgotten after later runs.
+	var minutes int64
+	if (state == store.LocalSucceeded || state == store.LocalFailed) && m.opts.BilledMinutes != nil {
+		minutes = m.opts.BilledMinutes(e.ExecutionID)
+	}
+	m.recorder.add(func() {
+		ctx := context.Background()
+		_ = rt.cfg.store.UpdateLocalRun(ctx, e.ExecutionID, state, at, e.Message)
+		if minutes > 0 && rt.cfg.store.AddSaving(ctx, store.SavingLocalRuns, minutes, at) == nil {
+			rt.publish()
+		}
+	})
 }
 
 func localState(state corev1.ExecutionState) (string, bool) {

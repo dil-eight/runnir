@@ -17,6 +17,12 @@ const keptMigrationCopies = 3
 
 const localColumns = "execution_id, workflow_path, job_id, event, started_at, finished_at, state, message, act_version, engine"
 
+// localData is what exists only on this Mac.
+type localData struct {
+	runs    []LocalRun
+	savings []Saving
+}
+
 // writeLocalBackup copies the local tables to backups/local-data.sqlite:
 // a temporary file is written, synced and renamed, then the folder synced.
 func (s *Store) writeLocalBackup(ctx context.Context) error {
@@ -40,6 +46,9 @@ func (s *Store) writeLocalBackup(ctx context.Context) error {
 		return err
 	}
 	_, copyErr := conn.ExecContext(ctx, "CREATE TABLE backup.local_runs AS SELECT "+localColumns+" FROM main.local_runs")
+	if copyErr == nil {
+		_, copyErr = conn.ExecContext(ctx, "CREATE TABLE backup.savings AS SELECT "+savingColumns+" FROM main.savings")
+	}
 	_, detachErr := conn.ExecContext(context.Background(), "DETACH DATABASE backup")
 	if err := errors.Join(copyErr, detachErr); err != nil {
 		_ = os.Remove(temporary)
@@ -65,14 +74,22 @@ func syncFile(path string) error {
 	return errors.Join(syncErr, f.Close())
 }
 
-// readLocalBackup reads the local runs of a backup or of a salvage copy.
-func readLocalBackup(path string) ([]LocalRun, error) {
+// readLocalBackup reads the local data of a backup.
+func readLocalBackup(path string) (localData, error) {
 	db, err := openDSN(fileURI(path, "mode=ro&_busy_timeout=1000"))
 	if err != nil {
-		return nil, err
+		return localData{}, err
 	}
 	defer db.Close()
-	return scanLocalRuns(db, "SELECT "+localColumns+" FROM local_runs")
+	return scanLocal(db)
+}
+
+// scanLocal reads both local tables; a table that fails still gives the
+// rows read before the error, and the other table is read anyway.
+func scanLocal(db *sql.DB) (localData, error) {
+	runs, runsErr := scanLocalRuns(db, "SELECT "+localColumns+" FROM local_runs")
+	savings, savingsErr := scanSavings(db, "SELECT "+savingColumns+" FROM savings")
+	return localData{runs: runs, savings: savings}, errors.Join(runsErr, savingsErr)
 }
 
 // scanLocalRuns keeps the rows read before an error: a damaged file may
@@ -97,11 +114,11 @@ func scanLocalRuns(db *sql.DB, query string) ([]LocalRun, error) {
 }
 
 // quarantine moves the database files to recovery/<stamp>/, never deleting
-// them, and salvages local runs from a copy so the evidence stays as found.
-func (s *Store) quarantine() (string, []LocalRun, error) {
+// them, and salvages local data from a copy so the evidence stays as found.
+func (s *Store) quarantine() (string, localData, error) {
 	stamp := s.now().UTC().Format("20060102T150405.000000000Z")
 	if err := os.MkdirAll(filepath.Join(s.dir, recoveryDir), 0o700); err != nil {
-		return "", nil, err
+		return "", localData{}, err
 	}
 	// A new folder every time: earlier evidence is never replaced, even
 	// when two damages get the same stamp.
@@ -112,7 +129,7 @@ func (s *Store) quarantine() (string, []LocalRun, error) {
 			break
 		}
 		if !errors.Is(err, os.ErrExist) || n > 1000 {
-			return "", nil, err
+			return "", localData{}, err
 		}
 		target = filepath.Join(s.dir, recoveryDir, fmt.Sprintf("%s-%d", stamp, n))
 	}
@@ -123,7 +140,7 @@ func (s *Store) quarantine() (string, []LocalRun, error) {
 			continue
 		}
 		if err := os.Rename(from, filepath.Join(target, name)); err != nil {
-			return "", nil, err
+			return "", localData{}, err
 		}
 		moved = true
 	}
@@ -131,29 +148,29 @@ func (s *Store) quarantine() (string, []LocalRun, error) {
 	syncDir(s.dir)
 	if !moved {
 		_ = os.Remove(target)
-		return "", nil, nil
+		return "", localData{}, nil
 	}
 	return target, s.salvage(target), nil
 }
 
-func (s *Store) salvage(evidence string) []LocalRun {
+func (s *Store) salvage(evidence string) localData {
 	scratch, err := os.MkdirTemp(s.dir, ".salvage-")
 	if err != nil {
-		return nil
+		return localData{}
 	}
 	defer os.RemoveAll(scratch)
 	for _, name := range []string{databaseName, databaseName + "-wal"} {
 		if err := copyFile(filepath.Join(evidence, name), filepath.Join(scratch, name)); err != nil && name == databaseName {
-			return nil
+			return localData{}
 		}
 	}
 	db, err := openDSN(fileURI(filepath.Join(scratch, databaseName), "_busy_timeout=1000"))
 	if err != nil {
-		return nil
+		return localData{}
 	}
 	defer db.Close()
-	runs, _ := scanLocalRuns(db, "SELECT "+localColumns+" FROM local_runs")
-	return runs
+	data, _ := scanLocal(db)
+	return data
 }
 
 func copyFile(from, to string) error {
@@ -170,16 +187,23 @@ func copyFile(from, to string) error {
 	return errors.Join(copyErr, out.Close())
 }
 
-// restoreLocal puts local runs back into a new database: the backup first,
-// then rows salvaged from the damaged file, which are newer.
-func (s *Store) restoreLocal(ctx context.Context, salvaged []LocalRun) (int, error) {
+// restoreLocal puts local data back into a new database and returns how
+// many local run records it restored. Runs come from the backup first, then
+// from rows salvaged from the damaged file, which are newer. A saving total
+// only grows, so of the two the one with the higher count is kept.
+func (s *Store) restoreLocal(ctx context.Context, salvaged localData) (int, error) {
 	byID := map[string]LocalRun{}
+	byKind := map[string]Saving{}
 	backup, _ := readLocalBackup(filepath.Join(s.dir, backupsDir, localBackupName))
-	for _, r := range backup {
-		byID[r.ExecutionID] = r
-	}
-	for _, r := range salvaged {
-		byID[r.ExecutionID] = r
+	for _, data := range []localData{backup, salvaged} {
+		for _, r := range data.runs {
+			byID[r.ExecutionID] = r
+		}
+		for _, v := range data.savings {
+			if kept, ok := byKind[v.Kind]; !ok || v.Count >= kept.Count {
+				byKind[v.Kind] = v
+			}
+		}
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -188,6 +212,13 @@ func (s *Store) restoreLocal(ctx context.Context, salvaged []LocalRun) (int, err
 	for _, r := range byID {
 		if _, err := tx.ExecContext(ctx, "INSERT OR REPLACE INTO local_runs ("+localColumns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			r.ExecutionID, r.WorkflowPath, r.JobID, r.Event, millis(r.StartedAt), millis(r.FinishedAt), r.State, r.Message, r.ActVersion, r.Engine); err != nil {
+			_ = tx.Rollback()
+			return 0, err
+		}
+	}
+	for _, v := range byKind {
+		if _, err := tx.ExecContext(ctx, "INSERT OR REPLACE INTO savings ("+savingColumns+") VALUES (?, ?, ?, ?)",
+			v.Kind, v.Minutes, v.Count, millis(v.Since)); err != nil {
 			_ = tx.Rollback()
 			return 0, err
 		}

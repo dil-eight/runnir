@@ -102,7 +102,7 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 
 	bus := events.New(options.EventBuffer)
 	outputs := localrun.NewOutputs()
-	workspaces := workspace.New(workspace.Options{DataDir: options.DataDir, Publish: bus.Publish})
+	workspaces := workspace.New(workspace.Options{DataDir: options.DataDir, Publish: bus.Publish, BilledMinutes: outputs.BilledMinutes})
 	// Registered before repositories.Shutdown, so it runs after it: closing
 	// the repositories detaches their runtimes first.
 	defer workspaces.Shutdown()

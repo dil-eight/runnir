@@ -128,3 +128,30 @@ func TestOnlyErrorLinesOnStandardErrorAreErrors(t *testing.T) {
 		t.Fatalf("lines = %+v", snap.Lines)
 	}
 }
+
+func TestBilledMinutesRoundEachJobUp(t *testing.T) {
+	o := NewOutputs()
+	o.Create("e1", "repo", Plan{Jobs: []JobPlan{{ID: "lint", Support: Supported}, {ID: "test", Support: Supported},
+		{ID: "quick", Support: Supported}, {ID: "macos", Support: Unsupported}, {ID: "never", Support: Supported}}}, "0.2.89", false, "OrbStack")
+	start := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
+	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_RUNNING})
+	o.update("e1", func(r *run) {
+		r.consume(`{"jobID":"lint","msg":"start"}`, start, false)
+		r.consume(`{"jobID":"test","msg":"start"}`, start, false)
+		r.consume(`{"jobID":"quick","msg":"start"}`, start, false)
+		r.consume(`{"jobID":"lint","jobResult":"success","msg":"done"}`, start.Add(61*time.Second), false)
+		r.consume(`{"jobID":"test","jobResult":"failure","msg":"done"}`, start.Add(3*time.Minute), false)
+		r.consume(`{"jobID":"quick","jobResult":"success","msg":"done"}`, start, false)
+	})
+	if got := o.BilledMinutes("e1"); got != 0 {
+		t.Fatalf("a run still going counted %d", got)
+	}
+	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_FAILED})
+	// lint 1m 1s → 2, test 3m → 3, quick → at least 1; macos and never did not run.
+	if got := o.BilledMinutes("e1"); got != 6 {
+		t.Fatalf("billed = %d, want 6", got)
+	}
+	if got := o.BilledMinutes("unknown"); got != 0 {
+		t.Fatalf("unknown run billed %d", got)
+	}
+}

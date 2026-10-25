@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -148,6 +149,52 @@ func TestLocalRunsAreRecordedFromExecutionEvents(t *testing.T) {
 	runs, _ := r.Store().LocalRuns(context.Background(), 10)
 	if len(runs) != 1 || runs[0].State != store.LocalFailed || runs[0].Message != "act exited with 1" || !runs[0].FinishedAt.Equal(at.Add(time.Minute)) {
 		t.Fatalf("runs = %+v", runs)
+	}
+}
+
+func TestFinishedLocalRunsAddTheirBilledMinutes(t *testing.T) {
+	_, accounts := newFake(t)
+	billed := map[string]int64{"exec_1": 4, "exec_2": 9, "exec_3": 0, "exec_4": 2}
+	var mu sync.Mutex
+	published := 0
+	m := New(Options{DataDir: t.TempDir(), Intervals: testIntervals(),
+		BilledMinutes: func(id string) int64 { return billed[id] },
+		Publish: func(e events.Event) {
+			if e.Type == corev1.CoreEventType_CORE_EVENT_TYPE_ACTIVITY_CHANGED && e.RepositoryID == "repo_1" {
+				mu.Lock()
+				published++
+				mu.Unlock()
+			}
+		}})
+	t.Cleanup(m.Shutdown)
+	r, _ := m.Attach(wsA, "repo_1", fixedResolver(accounts, "o", "r"))
+	at := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
+	ends := map[string]corev1.ExecutionState{
+		"exec_1": corev1.ExecutionState_EXECUTION_STATE_SUCCEEDED,
+		// A cancelled run would not have run on GitHub to the end either.
+		"exec_2": corev1.ExecutionState_EXECUTION_STATE_CANCELLED,
+		// act failed before any job ran.
+		"exec_3": corev1.ExecutionState_EXECUTION_STATE_FAILED,
+		"exec_4": corev1.ExecutionState_EXECUTION_STATE_FAILED,
+	}
+	for _, id := range []string{"exec_1", "exec_2", "exec_3", "exec_4"} {
+		m.RecordLocalRun("repo_1", store.LocalRun{ExecutionID: id, StartedAt: at, State: store.LocalQueued})
+		m.ObserveExecution(events.Event{ExecutionID: id, ExecutionState: ends[id], At: at.Add(time.Hour)})
+	}
+	// A second end for the same run is not counted again.
+	m.ObserveExecution(events.Event{ExecutionID: "exec_1", ExecutionState: ends["exec_1"], At: at.Add(2 * time.Hour)})
+	m.recorder.flush()
+	snap, err := r.Snapshot(context.Background(), 10)
+	if err != nil || len(snap.Savings) != 1 {
+		t.Fatalf("savings = %+v, %v", snap.Savings, err)
+	}
+	if v := snap.Savings[0]; v.Kind != store.SavingLocalRuns || v.Minutes != 6 || v.Count != 2 || !v.Since.Equal(at.Add(time.Hour)) {
+		t.Fatalf("saving = %+v", v)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if published == 0 {
+		t.Fatal("no ACTIVITY_CHANGED after a saving")
 	}
 }
 

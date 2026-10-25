@@ -77,6 +77,8 @@ final class RepositorySession: Identifiable {
     /// Every run the Core keeps, and whether GitHub has none older.
     fileprivate(set) var cachedRuns = 0
     fileprivate(set) var historyComplete = false
+    /// What this Mac saved the workspace, as the Core counted it.
+    fileprivate(set) var savings: [CoreSaving] = []
     /// How many of the newest runs the session reads; grows as lists scroll.
     fileprivate(set) var activityLimit = CoreHub.activityPage
     fileprivate(set) var olderRuns: OlderRunsState = .idle
@@ -413,6 +415,7 @@ final class CoreHub {
         session.concurrencyHints = activity.concurrencyHints
         session.cachedRuns = activity.cachedRuns
         session.historyComplete = activity.historyComplete
+        session.savings = activity.savings
         // Whether an owner has to accept the pull request permission decides
         // what the note asks for.
         if activity.freshness.pullRequestsAccess == .permissionMissing, previousPullRequests != .permissionMissing {

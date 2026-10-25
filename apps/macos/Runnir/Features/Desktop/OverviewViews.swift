@@ -69,7 +69,7 @@ enum PipelineLayout {
 
 /// The Overview (S03): the workspace's workflows with favorites first and
 /// each one's latest GitHub run, the selected workflow's last run as a
-/// pipeline, recent runs, and presets to run by hand.
+/// pipeline, recent runs, presets to run by hand, and what this Mac saved.
 struct WorkspaceOverview: View {
     let workspaceID: UUID
     let session: RepositorySession?
@@ -137,6 +137,7 @@ struct WorkspaceOverview: View {
                     recentRuns.frame(maxWidth: .infinity, alignment: .leading)
                     runManually.frame(maxWidth: .infinity, alignment: .leading)
                 }
+                if let savings = session?.savings, !savings.isEmpty { SavingsSection(savings: savings) }
                 if let problem = favorites.problem {
                     Label(problem, systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(RunnirTheme.warning)
                 }
@@ -438,5 +439,66 @@ struct WorkspaceOverview: View {
             Button("Try Again") { Task { await hub?.loadGitHubActivity(workspaceID: workspaceID) } }.buttonStyle(DesignButtonStyle())
         }
         .padding(14).background(RunnirTheme.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+/// What this Mac saved the workspace: one tile per kind the Core counted, so
+/// a new kind adds a tile.
+struct SavingsSection: View {
+    let savings: [CoreSaving]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel(title: "SAVED")
+            DesignDivider()
+            HStack(alignment: .top, spacing: 12) {
+                ForEach(savings, id: \.kind) { tile($0) }
+                Spacer(minLength: 0)
+            }.padding(.top, 4)
+        }
+    }
+
+    private func tile(_ saving: CoreSaving) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(SavingText.title(saving)).font(.system(size: 11, weight: .medium)).foregroundStyle(RunnirTheme.secondaryForeground)
+            Text(SavingText.amount(minutes: saving.minutes)).font(.system(size: 22, weight: .semibold)).monospacedDigit()
+            Text(SavingText.detail(saving)).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
+        }
+        .padding(12).frame(width: 220, alignment: .leading)
+        .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
+        .accessibilityElement(children: .combine)
+        .help(SavingText.help(saving))
+    }
+}
+
+/// The words for one saving total on the Overview.
+enum SavingText {
+    static func title(_ saving: CoreSaving) -> String {
+        switch saving.kind {
+        case .localRuns: "Local runs"
+        }
+    }
+
+    /// "42 min", "2 h", "3 h 12 min".
+    static func amount(minutes: Int) -> String {
+        guard minutes >= 60 else { return "\(minutes) min" }
+        let rest = minutes % 60
+        return rest == 0 ? "\(minutes / 60) h" : "\(minutes / 60) h \(rest) min"
+    }
+
+    static func detail(_ saving: CoreSaving) -> String {
+        switch saving.kind {
+        case .localRuns: "GitHub Actions minutes · \(saving.count) \(saving.count == 1 ? "run" : "runs")"
+        }
+    }
+
+    static func help(_ saving: CoreSaving) -> String {
+        let since = saving.since.map { " Counted since \($0.formatted(date: .abbreviated, time: .omitted))." } ?? ""
+        switch saving.kind {
+        case .localRuns:
+            return "What GitHub would have billed for the jobs of local runs that succeeded or failed on this Mac: "
+                + "each job's time rounded up to a whole minute. Cancelled runs are not counted." + since
+        }
     }
 }

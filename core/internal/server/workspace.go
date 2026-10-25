@@ -109,7 +109,24 @@ func (s *service) snapshotMessage(ctx context.Context, rt *workspace.Runtime, li
 	}
 	out.Changes = changeMessages(snap.Changes)
 	out.ConcurrencyHints = hintMessages(changes.Hints(snap.Analysis, snap.Workflows, s.localWorkflows(repositoryID)))
+	out.Savings = savingMessages(snap.Savings)
 	return out, nil
+}
+
+// savingMessages leaves out kinds this Core does not know.
+func savingMessages(savings []store.Saving) []*corev1.Saving {
+	var out []*corev1.Saving
+	for _, v := range savings {
+		var kind corev1.SavingKind
+		switch v.Kind {
+		case store.SavingLocalRuns:
+			kind = corev1.SavingKind_SAVING_KIND_LOCAL_RUNS
+		default:
+			continue
+		}
+		out = append(out, &corev1.Saving{Kind: kind, Minutes: uint64(max(v.Minutes, 0)), Count: uint32(max(v.Count, 0)), Since: timestamp(v.Since)})
+	}
+	return out
 }
 
 func activitySource(p workspace.Provenance) corev1.ActivitySource {

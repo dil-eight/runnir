@@ -159,7 +159,7 @@ func (s *Store) openDatabase(ctx context.Context) (string, bool) {
 	}
 	missing := errors.Is(statErr, os.ErrNotExist)
 	var notes []string
-	var salvaged []LocalRun
+	var salvaged localData
 	damaged := false
 	if missing {
 		// A WAL without its database cannot be applied; keep it as evidence.
@@ -208,7 +208,7 @@ func (s *Store) openDatabase(ctx context.Context) (string, bool) {
 		return "The workspace database could not be read.", false
 	}
 	// A file without Runnir's schema (left empty by a crash or a full disk)
-	// gets its local runs back from the backup, like a missing one;
+	// gets its local data back from the backup, like a missing one;
 	// otherwise the backup would be replaced by an empty copy below.
 	empty := !fresh && version == 0
 	if version > len(migrations) {

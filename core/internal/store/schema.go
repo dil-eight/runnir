@@ -6,7 +6,7 @@ package store
 var migrations = []string{schemaV1}
 
 // Times are Unix milliseconds, 0 for none. Tables marked cache can be
-// downloaded again and Clear Cache empties them; local_runs exists only on
+// downloaded again and Clear Cache empties them; local tables exist only on
 // this Mac.
 const schemaV1 = `
 -- cache: the GitHub repository the cached activity belongs to, its default
@@ -147,4 +147,12 @@ CREATE TABLE local_runs (
 	engine TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX local_runs_started ON local_runs (started_at DESC);
+-- local: running totals of what this Mac saved, one per kind ("local_runs").
+-- They outlive local_runs, which keeps only the newest records.
+CREATE TABLE savings (
+	kind TEXT PRIMARY KEY,
+	minutes INTEGER NOT NULL,
+	count INTEGER NOT NULL,
+	since INTEGER NOT NULL
+);
 `

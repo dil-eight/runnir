@@ -40,6 +40,17 @@ import Testing
         #expect(activity.freshness.pullRequestsAccess == .permissionMissing)
     }
 
+    @Test func savingsOfKindsThisAppDoesNotKnowAreLeftOut() {
+        let since = Date(timeIntervalSince1970: 1_790_000_000)
+        let activity = GRPCCoreService.map(Runnir_Core_V1_WorkspaceActivity.with {
+            $0.savings = [
+                .with { $0.kind = .localRuns; $0.minutes = 42; $0.count = 17; $0.since = .init(date: since) },
+                .with { $0.kind = .unspecified; $0.minutes = 5; $0.count = 1 },
+            ]
+        })
+        #expect(activity.savings == [CoreSaving(kind: .localRuns, minutes: 42, count: 17, since: since)])
+    }
+
     @Test func insertionAnswersMapToEditsOrReasons() {
         let inserted = GRPCCoreService.map(Runnir_Core_V1_InsertWorkflowConcurrencyResponse.with {
             $0.refusal = .none; $0.content = "x"; $0.firstLine = 3; $0.lastLine = 6
