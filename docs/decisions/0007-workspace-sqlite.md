@@ -13,7 +13,7 @@ ADR 0003 asks for one embedded SQLite database per workspace, owned by the porta
 - Single writer: each store is one `*sql.DB` limited to one long-lived connection, so every read and write in the process is serialized. An exclusive `flock` on `lock` next to the database keeps a second process (another copy of Runnir with its own Core) out; that process falls back to an in-memory store and says so.
 - WAL with `synchronous=FULL`, foreign keys on, immediate write transactions. Closing a store runs `wal_checkpoint(TRUNCATE)`. The store opens when a workspace's first window opens and closes with its last.
 - Schema versions are `PRAGMA user_version`; migrations are embedded and each runs in one transaction. A copy (`VACUUM INTO`) precedes every migration of an existing database; the newest three copies are kept.
-- Data classes: cache tables (runs, jobs, steps, workflows, sync state, kept logs) can be downloaded again and Clear Cache empties them; `local_runs` exists only on this Mac, is copied to `backups/local-data.sqlite` after every change, and survives Clear Cache and recovery.
+- Data classes: cache tables (runs, jobs, steps, workflows, sync state, kept logs) can be downloaded again and Clear Cache empties them; `local_runs` and `savings` exist only on this Mac, are copied to `backups/local-data.sqlite` after every change, and survive Clear Cache and recovery.
 - Large data (kept job logs) lives in files under `blobs/`, with size, checksum and last use in the database.
 
 ## Alternatives
