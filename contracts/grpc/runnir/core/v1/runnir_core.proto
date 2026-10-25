@@ -1042,6 +1042,12 @@ message PrepareLocalRunResponse {
 
 message ConfirmLocalRunRequest {
   string confirmation_id = 1;
+  // Values for the plan's secrets and variables, by name (any case). Only
+  // names in the plan are accepted: at most 100 of each, each value at most
+  // 48 KiB. They reach act through pipes, never a file, its command line or
+  // its environment, and are not logged or stored.
+  map<string, string> secrets = 2;
+  map<string, string> variables = 3;
 }
 
 message ConfirmLocalRunResponse {

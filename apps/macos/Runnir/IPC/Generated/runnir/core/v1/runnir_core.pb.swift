@@ -3265,6 +3265,14 @@ nonisolated struct Runnir_Core_V1_ConfirmLocalRunRequest: Sendable {
 
   var confirmationID: String = String()
 
+  /// Values for the plan's secrets and variables, by name (any case). Only
+  /// names in the plan are accepted: at most 100 of each, each value at most
+  /// 48 KiB. They reach act through pipes, never a file, its command line or
+  /// its environment, and are not logged or stored.
+  var secrets: Dictionary<String,String> = [:]
+
+  var variables: Dictionary<String,String> = [:]
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -8278,7 +8286,7 @@ nonisolated extension Runnir_Core_V1_PrepareLocalRunResponse: SwiftProtobuf.Mess
 
 nonisolated extension Runnir_Core_V1_ConfirmLocalRunRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ConfirmLocalRunRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}confirmation_id\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}confirmation_id\0\u{1}secrets\0\u{1}variables\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -8287,6 +8295,8 @@ nonisolated extension Runnir_Core_V1_ConfirmLocalRunRequest: SwiftProtobuf.Messa
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.confirmationID) }()
+      case 2: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.secrets) }()
+      case 3: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.variables) }()
       default: break
       }
     }
@@ -8296,11 +8306,19 @@ nonisolated extension Runnir_Core_V1_ConfirmLocalRunRequest: SwiftProtobuf.Messa
     if !self.confirmationID.isEmpty {
       try visitor.visitSingularStringField(value: self.confirmationID, fieldNumber: 1)
     }
+    if !self.secrets.isEmpty {
+      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.secrets, fieldNumber: 2)
+    }
+    if !self.variables.isEmpty {
+      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.variables, fieldNumber: 3)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_ConfirmLocalRunRequest, rhs: Runnir_Core_V1_ConfirmLocalRunRequest) -> Bool {
     if lhs.confirmationID != rhs.confirmationID {return false}
+    if lhs.secrets != rhs.secrets {return false}
+    if lhs.variables != rhs.variables {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
