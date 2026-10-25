@@ -1277,6 +1277,11 @@ nonisolated struct Runnir_Core_V1_Workflow: Sendable {
   /// The file sets concurrency at the top level or in a job.
   var concurrency: Bool = false
 
+  /// Names of the secrets.X and vars.X the file reads, upper-cased.
+  var secrets: [String] = []
+
+  var variables: [String] = []
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -3110,7 +3115,7 @@ nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
     set {_uniqueStorage()._images = newValue}
   }
 
-  /// Secrets the workflow reads. Local runs get none.
+  /// Secrets the run reads, upper-cased; the values the user sets are passed.
   var secrets: [String] {
     get {_storage._secrets}
     set {_uniqueStorage()._secrets = newValue}
@@ -3162,6 +3167,19 @@ nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
   var engineContext: String {
     get {_storage._engineContext}
     set {_uniqueStorage()._engineContext = newValue}
+  }
+
+  /// Variables (vars.X) the run reads, upper-cased.
+  var variables: [String] {
+    get {_storage._variables}
+    set {_uniqueStorage()._variables = newValue}
+  }
+
+  /// The workflow reads secrets it does not name (toJSON(secrets), secrets:
+  /// inherit); only the listed ones can be passed.
+  var unnamedSecrets: Bool {
+    get {_storage._unnamedSecrets}
+    set {_uniqueStorage()._unnamedSecrets = newValue}
   }
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
@@ -4530,7 +4548,7 @@ nonisolated extension Runnir_Core_V1_ListWorkflowsResponse: SwiftProtobuf.Messag
 
 nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".Workflow"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}triggers\0\u{1}jobs\0\u{3}parse_error\0\u{3}dispatch_inputs\0\u{1}concurrency\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}triggers\0\u{1}jobs\0\u{3}parse_error\0\u{3}dispatch_inputs\0\u{1}concurrency\0\u{1}secrets\0\u{1}variables\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -4545,6 +4563,8 @@ nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProto
       case 5: try { try decoder.decodeSingularStringField(value: &self.parseError) }()
       case 6: try { try decoder.decodeRepeatedMessageField(value: &self.dispatchInputs) }()
       case 7: try { try decoder.decodeSingularBoolField(value: &self.concurrency) }()
+      case 8: try { try decoder.decodeRepeatedStringField(value: &self.secrets) }()
+      case 9: try { try decoder.decodeRepeatedStringField(value: &self.variables) }()
       default: break
       }
     }
@@ -4572,6 +4592,12 @@ nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProto
     if self.concurrency != false {
       try visitor.visitSingularBoolField(value: self.concurrency, fieldNumber: 7)
     }
+    if !self.secrets.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.secrets, fieldNumber: 8)
+    }
+    if !self.variables.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.variables, fieldNumber: 9)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -4583,6 +4609,8 @@ nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProto
     if lhs.parseError != rhs.parseError {return false}
     if lhs.dispatchInputs != rhs.dispatchInputs {return false}
     if lhs.concurrency != rhs.concurrency {return false}
+    if lhs.secrets != rhs.secrets {return false}
+    if lhs.variables != rhs.variables {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -7897,7 +7925,7 @@ nonisolated extension Runnir_Core_V1_LocalRunImage: SwiftProtobuf.Message, Swift
 
 nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".LocalRunPlan"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}workflow_name\0\u{1}events\0\u{1}event\0\u{3}job_id\0\u{1}jobs\0\u{1}images\0\u{1}secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}workflow_name\0\u{1}events\0\u{1}event\0\u{3}job_id\0\u{1}jobs\0\u{1}images\0\u{1}secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0\u{1}variables\0\u{3}unnamed_secrets\0")
 
   fileprivate class _StorageClass {
     var _workflowID: String = String()
@@ -7917,6 +7945,8 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
     var _installedAct: Bool = false
     var _engineName: String = String()
     var _engineContext: String = String()
+    var _variables: [String] = []
+    var _unnamedSecrets: Bool = false
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -7944,6 +7974,8 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       _installedAct = source._installedAct
       _engineName = source._engineName
       _engineContext = source._engineContext
+      _variables = source._variables
+      _unnamedSecrets = source._unnamedSecrets
     }
   }
 
@@ -7979,6 +8011,8 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         case 15: try { try decoder.decodeSingularBoolField(value: &_storage._installedAct) }()
         case 16: try { try decoder.decodeSingularStringField(value: &_storage._engineName) }()
         case 17: try { try decoder.decodeSingularStringField(value: &_storage._engineContext) }()
+        case 18: try { try decoder.decodeRepeatedStringField(value: &_storage._variables) }()
+        case 19: try { try decoder.decodeSingularBoolField(value: &_storage._unnamedSecrets) }()
         default: break
         }
       }
@@ -8038,6 +8072,12 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       if !_storage._engineContext.isEmpty {
         try visitor.visitSingularStringField(value: _storage._engineContext, fieldNumber: 17)
       }
+      if !_storage._variables.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._variables, fieldNumber: 18)
+      }
+      if _storage._unnamedSecrets != false {
+        try visitor.visitSingularBoolField(value: _storage._unnamedSecrets, fieldNumber: 19)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -8064,6 +8104,8 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         if _storage._installedAct != rhs_storage._installedAct {return false}
         if _storage._engineName != rhs_storage._engineName {return false}
         if _storage._engineContext != rhs_storage._engineContext {return false}
+        if _storage._variables != rhs_storage._variables {return false}
+        if _storage._unnamedSecrets != rhs_storage._unnamedSecrets {return false}
         return true
       }
       if !storagesAreEqual {return false}

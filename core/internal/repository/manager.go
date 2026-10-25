@@ -56,6 +56,10 @@ type Workflow struct {
 	DispatchInputs []DispatchInput
 	// Concurrency: the file sets concurrency at the top level or in a job.
 	Concurrency bool
+	// Secrets and Variables are the secrets.X and vars.X names the file
+	// reads, upper-cased and sorted.
+	Secrets   []string
+	Variables []string
 }
 
 // DispatchInput is one `on.workflow_dispatch.inputs` entry.

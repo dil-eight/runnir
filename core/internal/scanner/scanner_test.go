@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -473,5 +474,19 @@ func TestScanReadsTheDispatchInputsOfEachWorkflow(t *testing.T) {
 	}
 	if ci := byID(snapshot, ".github/workflows/ci.yml"); ci == nil || len(ci.DispatchInputs) != 0 {
 		t.Fatalf("ci = %+v", ci)
+	}
+}
+
+func TestScanListsSecretsAndVariables(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, ".github/workflows/ci.yml", "name: CI\non: push\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ${{ secrets.npm_token }} ${{ vars.REGION }}\n")
+	write(t, root, ".github/workflows/broken.yml", "name: [\n  ${{ secrets.STILL_FOUND }}\n")
+	snapshot := scan(t, root)
+	w := byID(snapshot, ".github/workflows/ci.yml")
+	if w == nil || !slices.Equal(w.Secrets, []string{"NPM_TOKEN"}) || !slices.Equal(w.Variables, []string{"REGION"}) {
+		t.Fatalf("workflow = %+v", w)
+	}
+	if broken := byID(snapshot, ".github/workflows/broken.yml"); broken == nil || broken.ParseError == "" || !slices.Equal(broken.Secrets, []string{"STILL_FOUND"}) {
+		t.Fatalf("broken = %+v", broken)
 	}
 }

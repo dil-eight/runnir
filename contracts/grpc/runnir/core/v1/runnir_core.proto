@@ -224,6 +224,9 @@ message Workflow {
   repeated DispatchInput dispatch_inputs = 6;
   // The file sets concurrency at the top level or in a job.
   bool concurrency = 7;
+  // Names of the secrets.X and vars.X the file reads, upper-cased.
+  repeated string secrets = 8;
+  repeated string variables = 9;
 }
 
 message Job {
@@ -990,7 +993,7 @@ message LocalRunPlan {
   string job_id = 5;
   repeated LocalRunJob jobs = 6;
   repeated LocalRunImage images = 7;
-  // Secrets the workflow reads. Local runs get none.
+  // Secrets the run reads, upper-cased; the values the user sets are passed.
   repeated string secrets = 8;
   // Differences from a GitHub run worth knowing before starting.
   repeated string notes = 9;
@@ -1004,6 +1007,11 @@ message LocalRunPlan {
   bool installed_act = 15;
   string engine_name = 16;
   string engine_context = 17;
+  // Variables (vars.X) the run reads, upper-cased.
+  repeated string variables = 18;
+  // The workflow reads secrets it does not name (toJSON(secrets), secrets:
+  // inherit); only the listed ones can be passed.
+  bool unnamed_secrets = 19;
 }
 
 message PrepareLocalRunRequest {

@@ -1770,7 +1770,10 @@ type Workflow struct {
 	// The workflow_dispatch inputs the local file declares.
 	DispatchInputs []*DispatchInput `protobuf:"bytes,6,rep,name=dispatch_inputs,json=dispatchInputs,proto3" json:"dispatch_inputs,omitempty"`
 	// The file sets concurrency at the top level or in a job.
-	Concurrency   bool `protobuf:"varint,7,opt,name=concurrency,proto3" json:"concurrency,omitempty"`
+	Concurrency bool `protobuf:"varint,7,opt,name=concurrency,proto3" json:"concurrency,omitempty"`
+	// Names of the secrets.X and vars.X the file reads, upper-cased.
+	Secrets       []string `protobuf:"bytes,8,rep,name=secrets,proto3" json:"secrets,omitempty"`
+	Variables     []string `protobuf:"bytes,9,rep,name=variables,proto3" json:"variables,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1852,6 +1855,20 @@ func (x *Workflow) GetConcurrency() bool {
 		return x.Concurrency
 	}
 	return false
+}
+
+func (x *Workflow) GetSecrets() []string {
+	if x != nil {
+		return x.Secrets
+	}
+	return nil
+}
+
+func (x *Workflow) GetVariables() []string {
+	if x != nil {
+		return x.Variables
+	}
+	return nil
 }
 
 type Job struct {
@@ -6662,7 +6679,7 @@ type LocalRunPlan struct {
 	JobId  string           `protobuf:"bytes,5,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
 	Jobs   []*LocalRunJob   `protobuf:"bytes,6,rep,name=jobs,proto3" json:"jobs,omitempty"`
 	Images []*LocalRunImage `protobuf:"bytes,7,rep,name=images,proto3" json:"images,omitempty"`
-	// Secrets the workflow reads. Local runs get none.
+	// Secrets the run reads, upper-cased; the values the user sets are passed.
 	Secrets []string `protobuf:"bytes,8,rep,name=secrets,proto3" json:"secrets,omitempty"`
 	// Differences from a GitHub run worth knowing before starting.
 	Notes []string `protobuf:"bytes,9,rep,name=notes,proto3" json:"notes,omitempty"`
@@ -6676,8 +6693,13 @@ type LocalRunPlan struct {
 	InstalledAct  bool   `protobuf:"varint,15,opt,name=installed_act,json=installedAct,proto3" json:"installed_act,omitempty"`
 	EngineName    string `protobuf:"bytes,16,opt,name=engine_name,json=engineName,proto3" json:"engine_name,omitempty"`
 	EngineContext string `protobuf:"bytes,17,opt,name=engine_context,json=engineContext,proto3" json:"engine_context,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Variables (vars.X) the run reads, upper-cased.
+	Variables []string `protobuf:"bytes,18,rep,name=variables,proto3" json:"variables,omitempty"`
+	// The workflow reads secrets it does not name (toJSON(secrets), secrets:
+	// inherit); only the listed ones can be passed.
+	UnnamedSecrets bool `protobuf:"varint,19,opt,name=unnamed_secrets,json=unnamedSecrets,proto3" json:"unnamed_secrets,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *LocalRunPlan) Reset() {
@@ -6827,6 +6849,20 @@ func (x *LocalRunPlan) GetEngineContext() string {
 		return x.EngineContext
 	}
 	return ""
+}
+
+func (x *LocalRunPlan) GetVariables() []string {
+	if x != nil {
+		return x.Variables
+	}
+	return nil
+}
+
+func (x *LocalRunPlan) GetUnnamedSecrets() bool {
+	if x != nil {
+		return x.UnnamedSecrets
+	}
+	return false
 }
 
 type PrepareLocalRunRequest struct {
@@ -9418,7 +9454,7 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x14ListWorkflowsRequest\x12#\n" +
 	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\"O\n" +
 	"\x15ListWorkflowsResponse\x126\n" +
-	"\tworkflows\x18\x01 \x03(\v2\x18.runnir.core.v1.WorkflowR\tworkflows\"\xfe\x01\n" +
+	"\tworkflows\x18\x01 \x03(\v2\x18.runnir.core.v1.WorkflowR\tworkflows\"\xb6\x02\n" +
 	"\bWorkflow\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -9427,7 +9463,9 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\vparse_error\x18\x05 \x01(\tR\n" +
 	"parseError\x12F\n" +
 	"\x0fdispatch_inputs\x18\x06 \x03(\v2\x1d.runnir.core.v1.DispatchInputR\x0edispatchInputs\x12 \n" +
-	"\vconcurrency\x18\a \x01(\bR\vconcurrency\"?\n" +
+	"\vconcurrency\x18\a \x01(\bR\vconcurrency\x12\x18\n" +
+	"\asecrets\x18\b \x03(\tR\asecrets\x12\x1c\n" +
+	"\tvariables\x18\t \x03(\tR\tvariables\"?\n" +
 	"\x03Job\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -9823,7 +9861,7 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x06reason\x18\x06 \x01(\tR\x06reason\"G\n" +
 	"\rLocalRunImage\x12\x1c\n" +
 	"\treference\x18\x01 \x01(\tR\treference\x12\x18\n" +
-	"\apresent\x18\x02 \x01(\bR\apresent\"\xbb\x04\n" +
+	"\apresent\x18\x02 \x01(\bR\apresent\"\x82\x05\n" +
 	"\fLocalRunPlan\x12\x1f\n" +
 	"\vworkflow_id\x18\x01 \x01(\tR\n" +
 	"workflowId\x12#\n" +
@@ -9845,7 +9883,9 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\rinstalled_act\x18\x0f \x01(\bR\finstalledAct\x12\x1f\n" +
 	"\vengine_name\x18\x10 \x01(\tR\n" +
 	"engineName\x12%\n" +
-	"\x0eengine_context\x18\x11 \x01(\tR\rengineContext\"\xb7\x01\n" +
+	"\x0eengine_context\x18\x11 \x01(\tR\rengineContext\x12\x1c\n" +
+	"\tvariables\x18\x12 \x03(\tR\tvariables\x12'\n" +
+	"\x0funnamed_secrets\x18\x13 \x01(\bR\x0eunnamedSecrets\"\xb7\x01\n" +
 	"\x16PrepareLocalRunRequest\x12#\n" +
 	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\x12\x1f\n" +
 	"\vworkflow_id\x18\x02 \x01(\tR\n" +

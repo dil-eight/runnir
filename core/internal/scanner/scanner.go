@@ -25,6 +25,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"runnir/core/internal/references"
 	"runnir/core/internal/repository"
 )
 
@@ -437,6 +438,8 @@ func readBounded(file string, limit int64) ([]byte, error) {
 
 func parse(id string, data []byte) repository.Workflow {
 	workflow := repository.Workflow{ID: id, Name: id}
+	names := references.Find(data)
+	workflow.Secrets, workflow.Variables = names.Secrets, names.Variables
 	fail := func(message string) repository.Workflow {
 		workflow.ParseError = message
 		return workflow

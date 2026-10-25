@@ -249,7 +249,8 @@ func planMessage(approved localRunApproval) *corev1.LocalRunPlan {
 	plan := approved.Spec.Plan
 	out := &corev1.LocalRunPlan{
 		WorkflowId: plan.WorkflowID, WorkflowName: plan.WorkflowName, Events: plan.Events, Event: plan.Event,
-		JobId: plan.JobID, Secrets: plan.Secrets, Notes: plan.Notes, Blockers: plan.Blockers,
+		JobId: plan.JobID, Secrets: plan.Secrets, Variables: plan.Variables, UnnamedSecrets: plan.UnnamedSecrets,
+		Notes: plan.Notes, Blockers: plan.Blockers,
 		Cpus: uint32(max(plan.Limits.CPUs, 0)), MemoryBytes: plan.Limits.MemoryBytes,
 		TimeoutSeconds: uint32(plan.Limits.Timeout / time.Second),
 		ActVersion:     approved.ActVersion, InstalledAct: approved.Installed,
