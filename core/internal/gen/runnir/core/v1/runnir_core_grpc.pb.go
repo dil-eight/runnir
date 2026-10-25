@@ -68,6 +68,7 @@ const (
 	RunnirCore_ConfirmLocalRun_FullMethodName           = "/runnir.core.v1.RunnirCore/ConfirmLocalRun"
 	RunnirCore_GetLocalRunOutput_FullMethodName         = "/runnir.core.v1.RunnirCore/GetLocalRunOutput"
 	RunnirCore_CancelExecution_FullMethodName           = "/runnir.core.v1.RunnirCore/CancelExecution"
+	RunnirCore_ReadEnvFile_FullMethodName               = "/runnir.core.v1.RunnirCore/ReadEnvFile"
 )
 
 // RunnirCoreClient is the client API for RunnirCore service.
@@ -195,6 +196,11 @@ type RunnirCoreClient interface {
 	// Stops a queued or running execution; a local run's containers are
 	// removed afterwards.
 	CancelExecution(ctx context.Context, in *CancelExecutionRequest, opts ...grpc.CallOption) (*CancelExecutionResponse, error)
+	// Reads a .env file the user chose, to import values into Secrets and
+	// Variables. Nothing is expanded or run; values encrypted by dotenvx are
+	// flagged, not decrypted. INVALID_ARGUMENT for a file that is not a
+	// regular file, is larger than 1 MiB or is not UTF-8.
+	ReadEnvFile(ctx context.Context, in *ReadEnvFileRequest, opts ...grpc.CallOption) (*ReadEnvFileResponse, error)
 }
 
 type runnirCoreClient struct {
@@ -644,6 +650,16 @@ func (c *runnirCoreClient) CancelExecution(ctx context.Context, in *CancelExecut
 	return out, nil
 }
 
+func (c *runnirCoreClient) ReadEnvFile(ctx context.Context, in *ReadEnvFileRequest, opts ...grpc.CallOption) (*ReadEnvFileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReadEnvFileResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ReadEnvFile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnirCoreServer is the server API for RunnirCore service.
 // All implementations must embed UnimplementedRunnirCoreServer
 // for forward compatibility.
@@ -769,6 +785,11 @@ type RunnirCoreServer interface {
 	// Stops a queued or running execution; a local run's containers are
 	// removed afterwards.
 	CancelExecution(context.Context, *CancelExecutionRequest) (*CancelExecutionResponse, error)
+	// Reads a .env file the user chose, to import values into Secrets and
+	// Variables. Nothing is expanded or run; values encrypted by dotenvx are
+	// flagged, not decrypted. INVALID_ARGUMENT for a file that is not a
+	// regular file, is larger than 1 MiB or is not UTF-8.
+	ReadEnvFile(context.Context, *ReadEnvFileRequest) (*ReadEnvFileResponse, error)
 	mustEmbedUnimplementedRunnirCoreServer()
 }
 
@@ -907,6 +928,9 @@ func (UnimplementedRunnirCoreServer) GetLocalRunOutput(context.Context, *GetLoca
 }
 func (UnimplementedRunnirCoreServer) CancelExecution(context.Context, *CancelExecutionRequest) (*CancelExecutionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CancelExecution not implemented")
+}
+func (UnimplementedRunnirCoreServer) ReadEnvFile(context.Context, *ReadEnvFileRequest) (*ReadEnvFileResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReadEnvFile not implemented")
 }
 func (UnimplementedRunnirCoreServer) mustEmbedUnimplementedRunnirCoreServer() {}
 func (UnimplementedRunnirCoreServer) testEmbeddedByValue()                    {}
@@ -1696,6 +1720,24 @@ func _RunnirCore_CancelExecution_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_ReadEnvFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReadEnvFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ReadEnvFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ReadEnvFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ReadEnvFile(ctx, req.(*ReadEnvFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnirCore_ServiceDesc is the grpc.ServiceDesc for RunnirCore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1870,6 +1912,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelExecution",
 			Handler:    _RunnirCore_CancelExecution_Handler,
+		},
+		{
+			MethodName: "ReadEnvFile",
+			Handler:    _RunnirCore_ReadEnvFile_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
