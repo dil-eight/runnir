@@ -8,7 +8,6 @@ struct GitHubConnectView: View {
     var installationURL: URL = GitHubAppConfiguration.runnirDesktop.installationURL
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
-    @State private var copied = false
     /// Signing in with a personal access token instead of the Device Flow.
     @State private var usingToken = false
     @State private var token = ""
@@ -66,14 +65,20 @@ struct GitHubConnectView: View {
                     Text(authorization.userCode)
                         .font(.system(size: 28, weight: .semibold, design: .monospaced))
                         .accessibilityLabel("Code \(authorization.userCode)")
-                    Button(copied ? "Copied" : "Copy") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(authorization.userCode, forType: .string)
-                        copied = true
-                    }.handPointer()
+                    Button(session.codeCopied ? "Copy Again" : "Copy") { session.copyCode() }.handPointer()
                 }
-                Text("The page \(authorization.verificationURL.host() ?? "github.com")\(authorization.verificationURL.path()) opened in your browser.")
-                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                let page = "\(authorization.verificationURL.host() ?? "github.com")\(authorization.verificationURL.path())"
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    if let opensAt = session.verificationOpensAt {
+                        let seconds = max(1, Int(opensAt.timeIntervalSince(context.date).rounded(.up)))
+                        Label("Copied to the clipboard. Opening \(page) in \(seconds)…", systemImage: "doc.on.clipboard")
+                            .foregroundStyle(RunnirTheme.primary)
+                    } else {
+                        Text(session.codeCopied ? "\(page) opened in your browser. Paste the code there." : "\(page) opened in your browser.")
+                            .foregroundStyle(RunnirTheme.secondaryForeground)
+                    }
+                }
+                .font(.system(size: 12))
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
                     Text(slower ? "Waiting for approval (GitHub asked Runnir to check less often)..." : "Waiting for approval...")
@@ -114,10 +119,11 @@ struct GitHubConnectView: View {
                 Button("Use a Token Instead...") { usingToken = true }.handPointer()
                     .help("Sign in with a personal access token: Runnir checks what it can do first")
             }
-            Button("Connect") { copied = false; session.signIn() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
+            Button("Connect") { session.signIn() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .waiting:
             Button("Cancel") { session.cancelSignIn() }.handPointer()
-            Button("Open GitHub Again") { session.reopenVerificationPage() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
+            Button(session.verificationOpensAt == nil ? "Open GitHub Again" : "Open GitHub Now") { session.openVerificationPage() }
+                .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
         case .signedIn:
             Button("Install on Repositories...") { openURL(installationURL) }.handPointer()
             Button("Done") { dismiss() }.buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)

@@ -49,9 +49,16 @@ private actor FailingCredentialStore: CredentialStoring {
 private final class SleepRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var recorded: [Duration] = []
+    private var holding = false
     var sleeps: [Duration] { lock.withLock { recorded } }
+    /// Keeps every sleep going until it is set back to false.
+    var hold: Bool {
+        get { lock.withLock { holding } }
+        set { lock.withLock { holding = newValue } }
+    }
     func sleep(_ duration: Duration) async throws {
         lock.withLock { recorded.append(duration) }
+        while hold { try await Task.sleep(for: .milliseconds(5)) }
         await Task.yield()
     }
 }
@@ -64,20 +71,26 @@ private struct Rig {
     let sleeper = SleepRecorder()
     let opened = OpenedURLs()
     let session: GitHubSession
+    /// What was copied and opened, in order.
+    var events: [String] { opened.events }
 
     init(credentials: any CredentialStoring = InMemoryCredentialStore(), offlineRetry: [Duration] = []) {
         self.credentials = credentials
         let opened = opened
         let sleeper = sleeper
         session = GitHubSession(deviceFlow: flow, credentials: credentials, api: api,
-                                openURL: { opened.urls.append($0) },
+                                openURL: { opened.urls.append($0); opened.events.append("open \($0.absoluteString)") },
+                                copyToClipboard: { opened.events.append("copy \($0)") },
                                 sleep: { try await sleeper.sleep($0) },
                                 offlineRetryDelays: offlineRetry)
     }
 }
 
 @MainActor
-private final class OpenedURLs { var urls: [URL] = [] }
+private final class OpenedURLs {
+    var urls: [URL] = []
+    var events: [String] = []
+}
 
 @MainActor
 @Suite(.timeLimit(.minutes(1)))
@@ -91,7 +104,7 @@ struct GitHubSessionTests {
         #expect(await eventually { rig.session.user?.login == "octocat" })
         #expect(try await rig.credentials.token() == "ghu_secret")
         #expect(rig.opened.urls == [URL(string: "https://github.com/login/device")!])
-        #expect(rig.sleeper.sleeps == [.seconds(5), .seconds(5)])
+        #expect(rig.sleeper.sleeps == [GitHubSession.verificationDelay, .seconds(5), .seconds(5)])
         #expect(!String(describing: rig.session.connection).contains("ghu_secret"))
     }
 
@@ -114,6 +127,34 @@ struct GitHubSessionTests {
     }
 
     @Test
+    func theCodeIsCopiedBeforeGitHubOpens() async throws {
+        let rig = Rig()
+        await rig.flow.set(answers: Array(repeating: .success(.pending), count: 50))
+        rig.session.signIn()
+        #expect(await eventually { rig.opened.urls.count == 1 })
+        #expect(rig.events == ["copy ABCD-1234", "open https://github.com/login/device"])
+        #expect(rig.sleeper.sleeps.first == GitHubSession.verificationDelay)
+        #expect(rig.session.codeCopied)
+        #expect(rig.session.verificationOpensAt == nil)
+        rig.session.cancelSignIn()
+        #expect(!rig.session.codeCopied)
+    }
+
+    @Test
+    func openingGitHubEarlySkipsTheAutomaticOpen() async throws {
+        let rig = Rig()
+        rig.sleeper.hold = true
+        await rig.flow.set(answers: Array(repeating: .success(.pending), count: 50))
+        rig.session.signIn()
+        #expect(await eventually { rig.session.verificationOpensAt != nil })
+        rig.session.openVerificationPage()
+        rig.sleeper.hold = false
+        #expect(await eventually { rig.sleeper.sleeps.count >= 2 })
+        #expect(rig.opened.urls.count == 1)
+        rig.session.cancelSignIn()
+    }
+
+    @Test
     func showsTheCodeWhileWaiting() async throws {
         let rig = Rig()
         await rig.flow.set(answers: Array(repeating: .success(.pending), count: 50))
@@ -133,7 +174,7 @@ struct GitHubSessionTests {
                                      .success(.authorized(token: "t"))])
         rig.session.signIn()
         #expect(await eventually { rig.session.user != nil })
-        #expect(rig.sleeper.sleeps == [.seconds(5), .seconds(10), .seconds(20)])
+        #expect(rig.sleeper.sleeps == [GitHubSession.verificationDelay, .seconds(5), .seconds(10), .seconds(20)])
     }
 
     @Test
