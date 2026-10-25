@@ -7,15 +7,13 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"runnir/core/internal/changes"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/store"
 	"runnir/core/internal/workspace"
 )
 
-const (
-	defaultActivityRuns = 50
-	maxActivityRuns     = 200
-)
+const defaultActivityRuns = 200
 
 // workspaceResolver gives a workspace's runtime the GitHub repository its
 // open repository's origin points at now.
@@ -47,8 +45,8 @@ func activityLimit(limit uint32) (int, error) {
 	switch {
 	case limit == 0:
 		return defaultActivityRuns, nil
-	case limit > maxActivityRuns:
-		return 0, status.Errorf(codes.InvalidArgument, "limit must be %d or less", maxActivityRuns)
+	case int(limit) > store.MaxRuns:
+		return 0, status.Errorf(codes.InvalidArgument, "limit must be %d or less", store.MaxRuns)
 	default:
 		return int(limit), nil
 	}
@@ -63,7 +61,7 @@ func (s *service) GetWorkspaceActivity(ctx context.Context, request *corev1.GetW
 	if err != nil {
 		return nil, err
 	}
-	return snapshotMessage(ctx, rt, limit)
+	return s.snapshotMessage(ctx, rt, limit, request.GetRepositoryId())
 }
 
 func (s *service) RefreshWorkspaceActivity(ctx context.Context, request *corev1.RefreshWorkspaceActivityRequest) (*corev1.WorkspaceActivity, error) {
@@ -80,10 +78,10 @@ func (s *service) RefreshWorkspaceActivity(ctx context.Context, request *corev1.
 	} else if err != nil {
 		return nil, status.FromContextError(err).Err()
 	}
-	return snapshotMessage(ctx, rt, limit)
+	return s.snapshotMessage(ctx, rt, limit, request.GetRepositoryId())
 }
 
-func snapshotMessage(ctx context.Context, rt *workspace.Runtime, limit int) (*corev1.WorkspaceActivity, error) {
+func (s *service) snapshotMessage(ctx context.Context, rt *workspace.Runtime, limit int, repositoryID string) (*corev1.WorkspaceActivity, error) {
 	snap, err := rt.Snapshot(ctx, limit)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -94,17 +92,23 @@ func snapshotMessage(ctx context.Context, rt *workspace.Runtime, limit int) (*co
 	freshness := &corev1.ActivityFreshness{
 		Source: activitySource(snap.Provenance), Syncing: snap.Syncing,
 		CheckedAt: timestamp(snap.CheckedAt), SyncedAt: timestamp(snap.SyncedAt), ChangedAt: timestamp(snap.ChangedAt),
+		PullRequestsAccess: snap.PullRequestsAccess,
 	}
 	if snap.Access != corev1.GithubAccess_GITHUB_ACCESS_UNSPECIFIED {
 		freshness.Status = statusMessage(snap.Access, snap.RetryAfter)
 	}
-	out := &corev1.WorkspaceActivity{Freshness: freshness}
+	out := &corev1.WorkspaceActivity{Freshness: freshness, CachedRuns: uint32(snap.CachedRuns), HistoryComplete: snap.HistoryComplete}
 	for _, r := range snap.Runs {
-		out.Runs = append(out.Runs, runMessage(r))
+		message := runMessage(r)
+		message.Link = linkMessage(snap.Analysis.Links[r.ID])
+		message.SupersededBy = snap.Analysis.SupersededBy[r.ID]
+		out.Runs = append(out.Runs, message)
 	}
 	for _, w := range snap.Workflows {
 		out.Workflows = append(out.Workflows, &corev1.GitHubWorkflow{Id: w.ID, Name: w.Name, Path: w.Path, State: w.State, HtmlUrl: w.HTMLURL})
 	}
+	out.Changes = changeMessages(snap.Changes)
+	out.ConcurrencyHints = hintMessages(changes.Hints(snap.Analysis, snap.Workflows, s.localWorkflows(repositoryID)))
 	return out, nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -227,6 +228,10 @@ func TestPullRequestsOverGRPC(t *testing.T) {
 			_, _ = w.Write([]byte(`{"head":{"sha":"abc","ref":"fix"}}`))
 		case r.URL.Path == "/repos/o/r/actions/runs":
 			_, _ = w.Write([]byte(`{"workflow_runs":[{"id":1,"workflow_id":9,"status":"in_progress","html_url":"https://github.com/o/r/actions/runs/1"}]}`))
+		case r.URL.Path == "/user/installations":
+			_, _ = w.Write([]byte(`{"total_count":2,"installations":[
+				{"id":1,"account":{"login":"me","type":"User"},"repository_selection":"all","permissions":{"actions":"write","contents":"read","metadata":"read","pull_requests":"read"}},
+				{"id":2,"account":{"login":"team","type":"Organization"},"repository_selection":"all","html_url":"https://github.com/organizations/team/settings/installations/2","permissions":{"actions":"write","contents":"read","metadata":"read"}}]}`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -250,6 +255,12 @@ func TestPullRequestsOverGRPC(t *testing.T) {
 	if err != nil || listed.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_OK || len(listed.Open) != 1 ||
 		listed.Open[0].Ci != corev1.PullRequestCi_PULL_REQUEST_CI_RUNNING || listed.Open[0].CiRunning != 1 {
 		t.Fatalf("listed = %v, %v", listed, err)
+	}
+	// An installation that has not accepted Pull requests read hides its
+	// private repositories' pull requests from the search: the list says so.
+	if pending := listed.PendingInstallations; len(pending) != 1 || pending[0].Account != "team" ||
+		!slices.Contains(pending[0].MissingPermissions, "pull_requests: read") {
+		t.Fatalf("pending installations = %v", pending)
 	}
 	// Closed ones default to the last day.
 	query, _ := closedQuery.Load().(string)

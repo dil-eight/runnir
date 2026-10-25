@@ -142,6 +142,26 @@ struct PullRequestsTests {
         #expect(PullRequestsList.scopeNote(credential: nil).text == "Only repositories your token reaches are listed.")
     }
 
+    @Test func anAccountThatHasNotAcceptedPullRequestsIsNamed() async {
+        let (hub, provider) = await readyHub()
+        let team = CoreGitHubInstallation(id: 2, account: "dil-eight", accountType: "Organization", repositorySelection: "all",
+                                          htmlURL: URL(string: "https://github.com/organizations/dil-eight/settings/installations/2"),
+                                          missingPermissions: ["pull_requests: read"])
+        provider.core.pullRequestsResult = CorePullRequests(access: .ok, open: [pr(1)], closed: [], headsUnreadable: false,
+                                                            pendingInstallations: [team])
+        let model = PullRequestsModel(store: nil)
+        await model.refresh(hub: hub)
+        #expect(model.pendingInstallations == [team])
+        #expect(PullRequestsList.pendingText(team) == "dil-eight hasn't accepted Pull requests (read) for Runnir Desktop, so pull requests in its private repositories are not listed.")
+        var suspended = team
+        suspended.suspended = true
+        #expect(PullRequestsList.pendingText(suspended).hasPrefix("Runnir Desktop is suspended on dil-eight"))
+
+        provider.core.pullRequestsResult = .failed(.signedOut)
+        await model.refresh(hub: hub)
+        #expect(model.pendingInstallations.isEmpty)
+    }
+
     @Test func pullRequestsWithoutALinkStayApartAcrossServers() {
         func pr(server: String) -> CorePullRequest {
             var pr = CorePullRequest(repository: "org/app", number: 3, title: "t", htmlURL: nil, state: "open", draft: false, headBranch: "b",

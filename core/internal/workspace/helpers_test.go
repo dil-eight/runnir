@@ -5,6 +5,7 @@ package workspace
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -16,20 +17,28 @@ import (
 	"runnir/core/internal/store"
 )
 
-// fakeGitHub serves o/r: runs with an ETag, workflows, jobs and logs, and
-// counts requests per path. gate, when set, blocks runs reads until closed.
+// fakeGitHub serves o/r: the repository, runs with an ETag (and older runs
+// for created=… reads), workflows, pull requests with an ETag, jobs and any
+// extra paths, and counts requests per path ("?created" is added for older
+// runs). gate, when set, blocks newest-runs reads until closed.
 type fakeGitHub struct {
-	mu       sync.Mutex
-	runs     string // JSON body for /actions/runs
-	etag     string
-	status   int // non-zero: answer every request with it
-	gate     chan struct{}
-	requests map[string]int
+	mu          sync.Mutex
+	runs        string // JSON body for /actions/runs
+	etag        string
+	older       string // JSON body for /actions/runs?created=…
+	pulls       string // JSON body for /pulls
+	pullsTag    string
+	pullsStatus int               // non-zero: /pulls, /pulls/… and /commits/… answer it
+	extra       map[string]string // more paths and their JSON bodies
+	status      int               // non-zero: answer every request with it
+	gate        chan struct{}
+	requests    map[string]int
 }
 
 func newFake(t *testing.T) (*fakeGitHub, *github.Accounts) {
 	t.Helper()
-	f := &fakeGitHub{etag: `"v1"`, requests: map[string]int{},
+	f := &fakeGitHub{etag: `"v1"`, older: `{"workflow_runs":[]}`, pulls: `[]`, pullsTag: `"p1"`,
+		extra: map[string]string{}, requests: map[string]int{},
 		runs: `{"workflow_runs":[{"id":7,"workflow_id":3,"name":"CI","run_number":1,"run_attempt":1,"status":"completed","conclusion":"success","created_at":"2026-10-18T10:00:00Z","updated_at":"2026-10-18T10:04:00Z"}]}`}
 	server := httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(server.Close)
@@ -41,16 +50,29 @@ func newFake(t *testing.T) (*fakeGitHub, *github.Accounts) {
 }
 
 func (f *fakeGitHub) serve(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	older := r.URL.Query().Get("created") != ""
 	f.mu.Lock()
-	f.requests[r.URL.Path]++
+	if older {
+		f.requests[path+"?created"]++
+	} else {
+		f.requests[path]++
+	}
 	status, body, etag, gate := f.status, f.runs, f.etag, f.gate
+	olderBody, pulls, pullsTag, pullsStatus := f.older, f.pulls, f.pullsTag, f.pullsStatus
+	extra, hasExtra := f.extra[path]
 	f.mu.Unlock()
 	if status != 0 {
 		w.WriteHeader(status)
 		return
 	}
-	switch r.URL.Path {
-	case "/repos/o/r/actions/runs":
+	pullRead := path == "/repos/o/r/pulls" || strings.HasPrefix(path, "/repos/o/r/pulls/") || strings.HasPrefix(path, "/repos/o/r/commits/")
+	switch {
+	case path == "/repos/o/r":
+		_, _ = w.Write([]byte(`{"full_name":"o/r","default_branch":"main"}`))
+	case path == "/repos/o/r/actions/runs" && older:
+		_, _ = w.Write([]byte(olderBody))
+	case path == "/repos/o/r/actions/runs":
 		if gate != nil {
 			<-gate
 		}
@@ -60,10 +82,22 @@ func (f *fakeGitHub) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("ETag", etag)
 		_, _ = w.Write([]byte(body))
-	case "/repos/o/r/actions/workflows":
+	case path == "/repos/o/r/actions/workflows":
 		_, _ = w.Write([]byte(`{"total_count":1,"workflows":[{"id":3,"name":"CI","path":".github/workflows/ci.yml","state":"active"}]}`))
-	case "/repos/o/r/actions/runs/7/jobs":
+	case path == "/repos/o/r/actions/runs/7/jobs":
 		_, _ = w.Write([]byte(`{"jobs":[{"id":11,"name":"build","status":"completed","conclusion":"success","steps":[{"number":1,"name":"Checkout","status":"completed","conclusion":"success"}]}]}`))
+	case pullRead && pullsStatus != 0:
+		w.WriteHeader(pullsStatus)
+		_, _ = w.Write([]byte(`{"message":"Resource not accessible by integration"}`))
+	case path == "/repos/o/r/pulls" && r.URL.Query().Get("head") == "":
+		if r.Header.Get("If-None-Match") == pullsTag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("ETag", pullsTag)
+		_, _ = w.Write([]byte(pulls))
+	case hasExtra:
+		_, _ = w.Write([]byte(extra))
 	default:
 		w.WriteHeader(http.StatusNotFound)
 	}

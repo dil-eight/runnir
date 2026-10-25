@@ -28,6 +28,60 @@ enum ContainerEngineApp {
     ]
 }
 
+/// Installing act stays the user's step: Runnir writes the Homebrew command
+/// to a Terminal script that runs it only after Return, or opens act's
+/// instructions when Homebrew is missing.
+enum ActInstaller {
+    static let instructions = URL(string: "https://nektosact.com/installation/index.html")!
+    static let brewPaths = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+
+    static func brew(isExecutable: (String) -> Bool = FileManager.default.isExecutableFile(atPath:)) -> String? {
+        brewPaths.first(where: isExecutable)
+    }
+
+    /// Shows the command, waits for Return, then runs it.
+    static func script(brew: String) -> String {
+        """
+        #!/bin/zsh
+        echo "Runnir prepared this command to install act with Homebrew:"
+        echo
+        echo "    \(brew) install act"
+        echo
+        read "?Press Return to run it, or close this window to cancel. "
+        "\(brew)" install act && echo && echo "act is installed. In Runnir, press Recheck."
+        """
+    }
+
+    /// Opens the script with the app for .command files (Terminal unless
+    /// changed); false when it could not be written.
+    @MainActor static func openTerminal(brew: String) -> Bool {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Install act.command")
+        do {
+            try script(brew: brew).write(to: url, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
+        } catch { return false }
+        return NSWorkspace.shared.open(url)
+    }
+}
+
+/// The installed act's action: install it with Homebrew in Terminal, or open
+/// act's instructions without Homebrew.
+struct ActInstallButton: View {
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        if let brew = ActInstaller.brew() {
+            Button("Install with Homebrew…") {
+                if !ActInstaller.openTerminal(brew: brew) { openURL(ActInstaller.instructions) }
+            }
+            .help("Opens Terminal with brew install act; it runs when you press Return there. Then press Recheck.")
+        } else {
+            Button("Install…") { openURL(ActInstaller.instructions) }
+                .help("Opens act's official installation instructions")
+        }
+    }
+}
+
 enum LocalRunText {
     static func tool(_ status: CoreToolStatus) -> String {
         switch status.state {
@@ -215,12 +269,12 @@ struct LocalRunSheet: View {
                     Divider()
                     ForEach(model.jobs, id: \.id) { job in Button(job.id) { choose(job: job.id) } }
                 } label: { Text("job: \(model.jobID ?? "all")") }
-                    .menuStyle(.button).buttonStyle(.plain).fixedSize()
+                    .menuStyle(.button).buttonStyle(.plain).pointerStyle(.link).fixedSize()
                 Image(systemName: "chevron.right").font(.system(size: 9)).foregroundStyle(RunnirTheme.mutedForeground)
                 Menu {
                     ForEach(model.prepared?.plan.events ?? [], id: \.self) { event in Button(event) { choose(event: event) } }
                 } label: { Text("event: \(model.event ?? model.prepared?.plan.event ?? "—")") }
-                    .menuStyle(.button).buttonStyle(.plain).fixedSize()
+                    .menuStyle(.button).buttonStyle(.plain).pointerStyle(.link).fixedSize()
                     .disabled((model.prepared?.plan.events.count ?? 0) < 2)
                 if model.isPreparing { ProgressView().controlSize(.small) }
             }
@@ -323,7 +377,7 @@ struct LocalRunSheet: View {
 
     private var footer: some View {
         HStack(spacing: 10) {
-            Toggle("I trust this workflow and repository", isOn: $model.trusted).toggleStyle(.checkbox).font(.system(size: 13))
+            Toggle("I trust this workflow and repository", isOn: $model.trusted).toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 13))
             Spacer()
             Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
             Button {
@@ -440,13 +494,13 @@ struct LocalRunView: View {
                         }
                         .padding(.horizontal, 12).padding(.vertical, 8).contentShape(Rectangle())
                         .background(run.selectedJobID == job.id ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(.hit)
                 }
                 Button { run.selectedJobID = nil } label: {
                     Label("All output", systemImage: "text.alignleft").font(.system(size: 12))
                         .padding(.horizontal, 12).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                         .background(run.selectedJobID == nil ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
-                }.buttonStyle(.plain).foregroundStyle(RunnirTheme.secondaryForeground)
+                }.buttonStyle(.hit).foregroundStyle(RunnirTheme.secondaryForeground)
             }.padding(8)
         }
     }
@@ -457,7 +511,7 @@ struct LocalRunView: View {
                 Text("\(run.selectedJobID ?? "All") · output").font(.system(size: 13, weight: .semibold))
                 statusChip
                 Spacer()
-                Toggle("Follow output", isOn: $follow).toggleStyle(.checkbox).font(.system(size: 12))
+                Toggle("Follow output", isOn: $follow).toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12))
             }.padding(.horizontal, 16).frame(height: 40)
             DesignDivider()
             if run.discarded {

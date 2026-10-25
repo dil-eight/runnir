@@ -73,7 +73,7 @@ struct ProjectLink: View {
                 .background(hovering ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.hit)
         .onHover { hovering = $0 }
         .help("Open Runnir on GitHub")
         .accessibilityLabel("Open Runnir on GitHub")
@@ -117,7 +117,7 @@ struct WorkspaceManagerView: View {
             HStack {
                 BrandLogo(height: 51, width: 140)
                 Spacer()
-                ProjectLink().buttonStyle(.plain)
+                ProjectLink().buttonStyle(.hit)
                 if !desktop.snapshot.workspaces.isEmpty {
                     Button { desktop.importRepository() } label: {
                         Label("Import Repository...", systemImage: "folder.badge.plus")
@@ -143,7 +143,7 @@ struct WorkspaceManagerView: View {
                         Button("Back Up and Reset...") { desktop.resetUnreadableSession() }
                     } else {
                         Button { desktop.message = nil } label: { Image(systemName: "xmark") }
-                            .buttonStyle(.plain).help("Dismiss message")
+                            .buttonStyle(.hit).help("Dismiss message")
                     }
                 }
                 .padding(12).background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
@@ -226,7 +226,7 @@ private struct WorkspaceRegistryRow: View {
                 Button("Remove Registration", role: .destructive) { desktop.removeRegistration(workspace) }.disabled(count > 0)
                     .help("Forget this workspace in Runnir and delete its saved activity and local run history on this Mac. The repository's files stay.")
             } label: { Image(systemName: "ellipsis") }
-            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize().help("Workspace actions")
+            .menuStyle(.button).buttonStyle(.plain).pointerStyle(.link).menuIndicator(.hidden).fixedSize().help("Workspace actions")
         }
         .buttonStyle(DesignButtonStyle()).padding(.horizontal, 12).frame(height: 62)
     }
@@ -289,8 +289,12 @@ final class WorkspaceFilesModel {
 
     var files: [LocalWorkflowFile] = []
     var selected: LocalWorkflowFile?
-    /// The text in the editor.
-    var source = ""
+    /// The text in the editor. Once it moves away from the text an edit was
+    /// made for, the edit is done (applied, or typed over), so an editor shown
+    /// again later does not apply it a second time after an undo.
+    var source = "" {
+        didSet { if let pendingEdit, source != pendingEdit.before { self.pendingEdit = nil } }
+    }
     /// The file as loaded from or last saved to disk.
     private(set) var savedSource = ""
     /// SHA-256 of `savedSource`'s bytes, which a save must still find on disk.
@@ -307,6 +311,11 @@ final class WorkspaceFilesModel {
     /// Changes whenever another file or version is loaded, so a save that
     /// finishes afterwards does not overwrite what is shown now.
     private var loadGeneration = 0
+    /// An edit the editor applies as one undoable change (the concurrency block).
+    private(set) var pendingEdit: CodeEditorEdit?
+    /// Why the last suggested edit was not made, shown over the editor.
+    private(set) var editNotice: String?
+    private var editCount = 0
 
     /// The editor holds changes that are not on disk.
     var isDirty: Bool { selected != nil && savedDigest != nil && source != savedSource }
@@ -358,8 +367,9 @@ final class WorkspaceFilesModel {
         return result.diagnostics.count + (result.problem == nil ? 0 : 1)
     }
 
-    /// Lists the files again and reloads the open one, unless it has edits:
-    /// then only a change on disk is noted, and the edits stay.
+    /// Lists the files again and reloads the open one when it changed on
+    /// disk, unless it has edits: then only the change is noted, and the
+    /// edits stay.
     func load(_ reader: RepositoryReader) async {
         guard !isLoading else { return }
         isLoading = true
@@ -368,7 +378,7 @@ final class WorkspaceFilesModel {
             files = try await Task.detached { try reader.workflows() }.value
             error = nil
             if let selected, files.contains(selected) {
-                if isDirty { await noticeDiskChange(selected, reader: reader) } else { select(selected, reader: reader) }
+                if isDirty { await noticeDiskChange(selected, reader: reader) } else { await reloadIfChanged(selected, reader: reader) }
             } else if !isDirty {
                 selected = files.first
                 if let selected { select(selected, reader: reader) }
@@ -387,6 +397,8 @@ final class WorkspaceFilesModel {
         savedDigest = nil
         diskChange = nil
         saveError = nil
+        pendingEdit = nil
+        editNotice = nil
         sourceTask?.cancel()
         isLoadingSource = true
         sourceTask = Task {
@@ -413,6 +425,46 @@ final class WorkspaceFilesModel {
         guard let selected else { return }
         select(selected, reader: reader)
     }
+
+    /// Waits until `file` is loaded in the editor, through loads started
+    /// meanwhile; false when another file is open or it could not be read.
+    func waitUntilLoaded(_ file: LocalWorkflowFile) async -> Bool {
+        while let task = sourceTask {
+            await task.value
+            if sourceTask == task { break }
+        }
+        return selected == file && savedDigest != nil
+    }
+
+    /// Asks the Core for the open file's text with the concurrency block and
+    /// hands it to the editor as one undoable edit. Nothing is saved.
+    func insertConcurrency(hub: CoreHub, workspaceID: UUID) async {
+        guard selected != nil, savedDigest != nil else { return }
+        guard isWritable else {
+            editNotice = "This workflow file is read-only, so the concurrency block can't be added."
+            return
+        }
+        let before = source
+        switch await hub.insertWorkflowConcurrency(workspaceID: workspaceID, content: before) {
+        case .inserted(let content, let firstLine, _)?:
+            // Typing or a reload while the Core answered: the answer is for older text.
+            guard source == before else {
+                editNotice = "The file changed while the block was prepared, so it was not added. Try again."
+                return
+            }
+            guard let edit = CodeEditorEdit(from: before, to: content, id: editCount + 1) else { return }
+            editCount += 1
+            editNotice = nil
+            pendingEdit = edit
+            reveal(line: firstLine)
+        case .refused(let refusal)?:
+            editNotice = refusal.message
+        case nil:
+            editNotice = "Runnir Core could not add the block. Try again once it is ready."
+        }
+    }
+
+    func dismissEditNotice() { editNotice = nil }
 
     /// Saves the editor's text through the Core. A file that changed on disk
     /// since it was loaded is only replaced with `overwrite`.
@@ -477,6 +529,24 @@ final class WorkspaceFilesModel {
         } catch { self.error = "Workflow files could not be read. Check access and keep files inside this repository." }
     }
 
+    /// Loads the open, unedited file again only when its bytes on disk
+    /// changed, so a check that reloads files leaves an edit being prepared
+    /// for it (the concurrency block) alone.
+    private func reloadIfChanged(_ file: LocalWorkflowFile, reader: RepositoryReader) async {
+        // A load in progress reads the file as it is now.
+        guard !isLoadingSource else { return }
+        if savedDigest != nil {
+            let read = try? await Task.detached(operation: { (try reader.loadSource(for: file), reader.isWritable(file)) }).value
+            // Another file, edits or a new load since: that state wins.
+            guard selected == file, !isDirty, !isLoadingSource else { return }
+            if let read, read.0.sha256 == savedDigest {
+                isWritable = read.1
+                return
+            }
+        }
+        select(file, reader: reader)
+    }
+
     private func noticeDiskChange(_ file: LocalWorkflowFile, reader: RepositoryReader) async {
         guard let loaded = try? await Task.detached(operation: { try reader.loadSource(for: file) }).value else { return }
         if loaded.sha256 != savedDigest, diskChange == nil { diskChange = .changedOnDisk }
@@ -521,6 +591,7 @@ struct DesktopWorkspaceView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(RunnirTheme.background).foregroundStyle(RunnirTheme.foreground).tint(RunnirTheme.primary)
+        .overlay(alignment: .topLeading) { switcherPanel }
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: windowID)
         .sheet(isPresented: $reportingBug) {
@@ -528,6 +599,7 @@ struct DesktopWorkspaceView: View {
         }
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
+        .onChange(of: state.runsMode) { _, value in desktop.selectRunsMode(value, windowID: windowID) }
         // Once the Core has opened the working tree: its origin's GitHub
         // repository key, or none ("") when the origin is on no GitHub server.
         .onChange(of: session?.phase == .ready ? (session?.githubRef?.key ?? "") : nil, initial: true) { _, value in
@@ -591,9 +663,6 @@ struct DesktopWorkspaceView: View {
         .task(id: "\(session?.githubAccess == .ok)|\(desktop.core?.credentialGeneration ?? 0)") {
             if session?.githubAccess == .ok { await desktop.core?.githubRepository(workspaceID: workspace.id) }
         }
-        .sheet(isPresented: Binding(get: { state.showingSwitcher }, set: { state.showingSwitcher = $0 })) {
-            WorkspaceSwitcherView(desktop: desktop, currentWorkspaceID: workspace.id, windowID: windowID)
-        }
     }
 
     private var session: RepositorySession? { desktop.core?.session(for: workspace.id) }
@@ -608,26 +677,43 @@ struct DesktopWorkspaceView: View {
         Task { await files.validate(hub: hub, workspaceID: workspace.id) }
     }
 
-    /// Opens another file in the editor, asking first, in a sheet on this
-    /// window, when the open one has edits that are not saved.
-    private func open(_ file: LocalWorkflowFile) {
-        guard let reader, file != files.selected else { return }
-        guard files.isDirty, let current = files.selected else {
-            files.select(file, reader: reader)
-            return
-        }
-        Task {
-            let choice = await UnsavedChangesPrompt.ask(fileName: current.name, sheetOn: desktop.window(windowID))
-            // Answered for the file that was open when asked.
-            guard files.selected == current else { return }
-            switch choice {
-            case .save:
-                if await saveAndRevalidate() { files.select(file, reader: reader) }
-            case .discard:
-                files.select(file, reader: reader)
-            case .cancel:
-                break
+    /// Opens a file in the editor, asking first, in a sheet on this window,
+    /// when the open one has unsaved edits; true once that file is loaded.
+    private func openAndLoad(_ file: LocalWorkflowFile) async -> Bool {
+        guard let reader else { return false }
+        if file != files.selected {
+            if files.isDirty, let current = files.selected {
+                let choice = await UnsavedChangesPrompt.ask(fileName: current.name, sheetOn: desktop.window(windowID))
+                // Answered for the file that was open when asked.
+                guard files.selected == current else { return false }
+                switch choice {
+                case .save:
+                    guard await saveAndRevalidate() else { return false }
+                case .discard:
+                    break
+                case .cancel:
+                    return false
+                }
             }
+            files.select(file, reader: reader)
+        }
+        return await files.waitUntilLoaded(file)
+    }
+
+    private func open(_ file: LocalWorkflowFile) {
+        Task { _ = await openAndLoad(file) }
+    }
+
+    /// Opens a workflow file in the editor with the suggested concurrency
+    /// block as an unsaved edit; the user reviews, saves and commits it.
+    private func addConcurrency(path: String) {
+        guard let hub = desktop.core else { return }
+        let file = LocalWorkflowFile(relativePath: path)
+        state.selectedSection = .workspace
+        state.workspaceTab = .editor
+        Task {
+            guard await openAndLoad(file) else { return }
+            await files.insertConcurrency(hub: hub, workspaceID: workspace.id)
         }
     }
 
@@ -794,7 +880,7 @@ struct DesktopWorkspaceView: View {
                     }.font(.system(size: 12)).frame(maxWidth: 150)
                         .padding(.horizontal, 10).frame(height: 26)
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
-                }.menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize().disabled(reader == nil)
+                }.menuStyle(.button).buttonStyle(.plain).pointerStyle(.link).menuIndicator(.hidden).fixedSize().disabled(reader == nil)
                 editorStatus
             }
             Spacer(minLength: 4)
@@ -825,7 +911,7 @@ struct DesktopWorkspaceView: View {
                     .disabled(session?.githubRepository == nil)
                     .help(runWorkflowHelp)
             }
-            ProjectLink().buttonStyle(.plain)
+            ProjectLink().buttonStyle(.hit)
         }
         .buttonStyle(DesignButtonStyle()).padding(.horizontal, 20).frame(height: 52)
     }
@@ -897,18 +983,8 @@ struct DesktopWorkspaceView: View {
             VStack(spacing: 2) {
                 ForEach(AppSection.sidebarSections) { section in
                     Button { state.selectedSection = section } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: section.symbolName).frame(width: 16)
-                                .foregroundStyle(state.selectedSection == section ? RunnirTheme.primary : RunnirTheme.secondaryForeground)
-                            Text(section.title)
-                            Spacer()
-                        }
-                        .font(.system(size: 13)).padding(.horizontal, 10).frame(height: 30)
-                        .contentShape(Rectangle())
-                        .foregroundStyle(state.selectedSection == section ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
-                        .background(state.selectedSection == section ? RunnirTheme.selected : .clear,
-                                    in: RoundedRectangle(cornerRadius: 6))
-                    }.buttonStyle(.plain).accessibilityAddTraits(state.selectedSection == section ? .isSelected : [])
+                        SidebarItemLabel(title: section.title, symbol: section.symbolName, selected: state.selectedSection == section)
+                    }.buttonStyle(.hit).accessibilityAddTraits(state.selectedSection == section ? .isSelected : [])
                 }
             }
             Spacer()
@@ -916,29 +992,29 @@ struct DesktopWorkspaceView: View {
                 if let github = desktop.github {
                     GitHubAccountRow(session: github)
                 } else {
-                    HStack(spacing: 8) {
-                        Image(systemName: "person.crop.circle").font(.system(size: 18)).foregroundStyle(RunnirTheme.secondaryForeground)
+                    HStack(spacing: 10) {
+                        Image(systemName: "person.crop.circle").font(.system(size: 16)).frame(width: 16)
+                            .foregroundStyle(RunnirTheme.secondaryForeground)
                         VStack(alignment: .leading, spacing: 1) {
                             Text("GitHub").font(.system(size: 12))
                             Text("Not connected").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                         }
+                        Spacer(minLength: 0)
                     }
                 }
             }.padding(.horizontal, 10).frame(height: 45)
-            Button { reportingBug = true } label: { Label("Report a Bug...", systemImage: "ladybug") }
-                .buttonStyle(.plain).font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
-                .padding(.horizontal, 10).frame(height: 30)
+            Button { reportingBug = true } label: { SidebarItemLabel(title: "Report a Bug...", symbol: "ladybug") }
+                .buttonStyle(.hit)
                 .help("Open a bug report for Runnir on GitHub")
                 .accessibilityIdentifier("report-bug")
-            Button { desktop.showSettings(in: windowID) } label: { Label("Settings...", systemImage: "gearshape") }
-                .buttonStyle(.plain).font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
-                .padding(.horizontal, 10).frame(height: 30)
+            Button { desktop.showSettings(in: windowID) } label: { SidebarItemLabel(title: "Settings...", symbol: "gearshape") }
+                .buttonStyle(.hit)
         }
         .padding(.horizontal, 12).padding(.bottom, 14).frame(width: 220)
         .frame(maxHeight: .infinity).background(RunnirTheme.sidebar)
     }
 
-    /// The workspace's name in the title bar; opens Open Quickly to switch.
+    /// The workspace's name in the title bar; opens the switcher under it.
     private var workspaceSwitcherButton: some View {
         Button { state.showingSwitcher = true } label: {
             HStack(spacing: 6) {
@@ -950,7 +1026,7 @@ struct DesktopWorkspaceView: View {
             .background(hoveringSwitcher ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.hit)
         .onHover { hoveringSwitcher = $0 }
         .frame(maxWidth: 140, alignment: .leading)
         .help(WorkspaceSwitcher.abbreviate(workspace.path))
@@ -960,6 +1036,23 @@ struct DesktopWorkspaceView: View {
         .contextMenu {
             Button("Open Quickly...") { state.showingSwitcher = true }
             Button("Workspace Manager...") { desktop.showManager() }
+        }
+    }
+
+    /// The switcher drops down from the title, left-aligned with it as in
+    /// JetBrains IDEs; a click outside closes it.
+    @ViewBuilder private var switcherPanel: some View {
+        if state.showingSwitcher {
+            ZStack(alignment: .topLeading) {
+                Color.black.opacity(0.001)
+                    .onTapGesture { state.showingSwitcher = false }
+                WorkspaceSwitcherView(desktop: desktop, currentWorkspaceID: workspace.id, windowID: windowID,
+                                      close: { state.showingSwitcher = false })
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(RunnirTheme.border))
+                    .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+                    .padding(.leading, 82).padding(.top, 34)
+            }
         }
     }
 
@@ -1008,7 +1101,10 @@ struct DesktopWorkspaceView: View {
         case .runs:
             if let session, let hub = desktop.core {
                 WorkspaceRunsView(session: session, hub: hub, github: desktop.github,
-                                  selectedRunID: Binding(get: { state.selectedRunID }, set: { state.selectedRunID = $0 }))
+                                  selectedRunID: Binding(get: { state.selectedRunID }, set: { state.selectedRunID = $0 }),
+                                  mode: Binding(get: { state.runsMode }, set: { state.runsMode = $0 }),
+                                  dismissals: desktop.hintDismissals,
+                                  addConcurrency: { path in addConcurrency(path: path) })
             } else {
                 coreUnavailable
             }
@@ -1042,7 +1138,7 @@ private struct LocalWorkflowBrowser: View {
                             Text(model.selected?.relativePath ?? "No workflow selected")
                                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(2)
                             UnavailableFeature(title: "Preview unavailable", detail: "Workflow analysis is not implemented yet.", symbol: "point.3.connected.trianglepath.dotted")
-                                .frame(maxWidth: .infinity, minHeight: 130, alignment: .leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: "shippingbox").foregroundStyle(RunnirTheme.secondaryForeground)
@@ -1089,7 +1185,7 @@ private struct LocalWorkflowBrowser: View {
             } else {
                 editorBanner
                 CodeEditor(text: $model.source, flaggedLines: model.isDirty ? [] : flagged, highlightedLine: model.highlightedLine,
-                           revealCount: model.revealCount, isEditable: model.isWritable && model.savedDigest != nil)
+                           revealCount: model.revealCount, isEditable: model.isWritable && model.savedDigest != nil, edit: model.pendingEdit)
             }
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).background(RunnirTheme.editor)
     }
@@ -1107,6 +1203,10 @@ private struct LocalWorkflowBrowser: View {
             }
         } else if let error = model.saveError {
             banner(error, symbol: "exclamationmark.triangle", tint: RunnirTheme.warning) { EmptyView() }
+        } else if let notice = model.editNotice {
+            banner(notice, symbol: "info.circle", tint: RunnirTheme.info) {
+                Button("Dismiss") { model.dismissEditNotice() }
+            }
         } else if !model.isWritable {
             banner("This file is read-only. Change its permissions to edit it here.", symbol: "lock", tint: RunnirTheme.secondaryForeground) { EmptyView() }
         }
@@ -1188,7 +1288,7 @@ private struct DiagnosticsPanel: View {
             Text(text).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
-            if let action { Button(action, action: validate).buttonStyle(.link).font(.system(size: 12)) }
+            if let action { Button(action, action: validate).buttonStyle(.link).pointerStyle(.link).font(.system(size: 12)) }
         }
     }
 }
@@ -1214,7 +1314,7 @@ private struct DiagnosticRow: View {
             .padding(.vertical, 5).padding(.horizontal, 6).contentShape(Rectangle())
             .background(selected ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.hit)
         .help(diagnostic.line > 0 ? "Show line \(diagnostic.line) in the source" : "actionlint gave no position")
         .accessibilityLabel("\(diagnostic.message), \(position)")
     }
@@ -1234,8 +1334,10 @@ struct DesignDivider: View {
 
 struct DesignButtonStyle: ButtonStyle {
     var primary = false
+    /// 22 points high with 12-point text, for rows and section headers.
+    var compact = false
     func makeBody(configuration: Configuration) -> some View {
-        DesignButtonBody(configuration: configuration, primary: primary)
+        DesignButtonBody(configuration: configuration, primary: primary, compact: compact)
     }
 }
 
@@ -1244,19 +1346,53 @@ struct DesignButtonStyle: ButtonStyle {
 private struct DesignButtonBody: View {
     let configuration: ButtonStyleConfiguration
     let primary: Bool
+    let compact: Bool
     @Environment(\.isEnabled) private var isEnabled
     @State private var hovering = false
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: primary ? 10 : 6)
-        configuration.label.font(.system(size: 13, weight: primary ? .semibold : .regular))
-            .padding(.horizontal, primary ? 16 : 14).frame(height: 30)
+        let shape = RoundedRectangle(cornerRadius: primary && !compact ? 10 : 6)
+        configuration.label.font(.system(size: compact ? 12 : 13, weight: primary ? .semibold : .regular))
+            .padding(.horizontal, compact ? 10 : primary ? 16 : 14).frame(height: compact ? 22 : 30)
             .foregroundStyle(primary ? RunnirTheme.primaryButtonText : RunnirTheme.secondaryContent)
             .background(primary ? RunnirTheme.primary.opacity(hovering && isEnabled ? 0.32 : 0.2) : RunnirTheme.secondary, in: shape)
             .overlay(shape.stroke(primary ? RunnirTheme.primary.opacity(0.45) : RunnirTheme.border))
             .opacity(isEnabled ? (configuration.isPressed ? 0.75 : 1) : 0.4)
             .contentShape(shape)
+            .pointerStyle(isEnabled ? .link : nil)
             .onHover { hovering = $0 }
+    }
+}
+
+/// A button drawn by its label alone (rows, icons, sidebar items): the whole
+/// label takes the click, not only its text, and the pointer is a hand.
+struct HitButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HitButtonBody(configuration: configuration)
+    }
+}
+
+private struct HitButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        configuration.label
+            .contentShape(Rectangle())
+            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
+            .pointerStyle(isEnabled ? .link : nil)
+    }
+}
+
+extension ButtonStyle where Self == HitButtonStyle {
+    static var hit: HitButtonStyle { HitButtonStyle() }
+}
+
+extension View {
+    /// Something clicked that is not a button of ours (a tapped row, a
+    /// native switch or segmented control): the hand pointer over all of it.
+    func clickable() -> some View {
+        contentShape(Rectangle()).pointerStyle(.link)
     }
 }
 
@@ -1266,7 +1402,29 @@ struct WorkflowTabStyle: ButtonStyle {
         configuration.label.font(.system(size: 13)).padding(.horizontal, 11).frame(height: 26)
             .foregroundStyle(selected ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
             .background(selected ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
+            .contentShape(RoundedRectangle(cornerRadius: 6))
             .opacity(configuration.isPressed ? 0.7 : 1)
+            .pointerStyle(.link)
+    }
+}
+
+/// A sidebar row: a 16-point icon column, so the sections, the account and
+/// the items under it line up, and the whole row takes the click.
+struct SidebarItemLabel: View {
+    let title: String
+    let symbol: String
+    var selected = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol).frame(width: 16)
+                .foregroundStyle(selected ? RunnirTheme.primary : RunnirTheme.secondaryForeground)
+            Text(title)
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 13)).padding(.horizontal, 10).frame(height: 30)
+        .foregroundStyle(selected ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
+        .background(selected ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
     }
 }
 

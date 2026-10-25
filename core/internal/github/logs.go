@@ -36,23 +36,60 @@ type JobLog struct {
 }
 
 // JobLog downloads a job's log and keeps at most tail bytes from its end.
-// GitHub answers with a redirect to short-lived storage; the token is sent
-// only to the API, never to the redirect target.
 func (c *Client) JobLog(ctx context.Context, owner, name string, jobID int64, tail int) (JobLog, error) {
-	if jobID <= 0 {
-		return JobLog{}, ErrInvalid
-	}
 	if tail <= 0 {
 		tail = DefaultLogTail
 	}
+	body, err := c.openJobLog(ctx, owner, name, jobID)
+	if err != nil {
+		return JobLog{}, err
+	}
+	defer body.Close()
+	return readTail(body, tail)
+}
+
+// SavedLog is a whole job log written out by SaveJobLog.
+type SavedLog struct {
+	Bytes int64
+	// The log is larger than maxLogDownload; the first part was written.
+	StoppedEarly bool
+}
+
+// SaveJobLog writes a job's whole log to w, at most maxLogDownload bytes.
+func (c *Client) SaveJobLog(ctx context.Context, owner, name string, jobID int64, w io.Writer) (SavedLog, error) {
+	body, err := c.openJobLog(ctx, owner, name, jobID)
+	if err != nil {
+		return SavedLog{}, err
+	}
+	defer body.Close()
+	written, err := io.Copy(w, io.LimitReader(body, maxLogDownload))
+	if err != nil {
+		return SavedLog{}, transportError(ctx)
+	}
+	saved := SavedLog{Bytes: written}
+	if written == maxLogDownload {
+		if n, _ := body.Read(make([]byte, 1)); n > 0 {
+			saved.StoppedEarly = true
+		}
+	}
+	return saved, nil
+}
+
+// openJobLog answers a job's log as a body to read. GitHub answers with a
+// redirect to short-lived storage; the token is sent only to the API, never
+// to the redirect target.
+func (c *Client) openJobLog(ctx context.Context, owner, name string, jobID int64) (io.ReadCloser, error) {
+	if jobID <= 0 {
+		return nil, ErrInvalid
+	}
 	token, ok := c.credential.Token()
 	if !ok {
-		return JobLog{}, ErrNoCredential
+		return nil, ErrNoCredential
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		c.baseURL+repoPath(owner, name, fmt.Sprintf("/actions/jobs/%d/logs", jobID)), nil)
 	if err != nil {
-		return JobLog{}, ErrInvalid
+		return nil, ErrInvalid
 	}
 	request.Header.Set("Accept", "application/vnd.github+json")
 	request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
@@ -66,60 +103,62 @@ func (c *Client) JobLog(ctx context.Context, owner, name string, jobID int64, ta
 	}
 	response, err := noRedirects.Do(request)
 	if err != nil {
-		return JobLog{}, transportError(ctx)
+		return nil, transportError(ctx)
 	}
 	status := response.StatusCode
 	if location, err := response.Location(); status >= 300 && status < 400 && err == nil {
 		response.Body.Close()
-		return c.downloadLog(ctx, location, tail)
+		return c.openLogTarget(ctx, location)
+	}
+	if status == http.StatusOK {
+		return response.Body, nil
 	}
 	defer response.Body.Close()
 	switch {
-	case status == http.StatusOK:
-		return readTail(response.Body, tail)
 	case status == http.StatusNotFound, status == http.StatusGone:
-		return JobLog{}, ErrLogUnavailable
+		return nil, ErrLogUnavailable
 	case status == http.StatusUnauthorized:
-		return JobLog{}, ErrUnauthorized
+		return nil, ErrUnauthorized
 	case status == http.StatusTooManyRequests, status == http.StatusForbidden && isRateLimited(response):
-		return JobLog{}, &RateLimitError{Reset: rateLimitReset(response)}
+		return nil, &RateLimitError{Reset: rateLimitReset(response)}
 	case status == http.StatusForbidden:
-		return JobLog{}, ErrNotVisible
+		return nil, ErrNotVisible
 	case status >= 500:
-		return JobLog{}, ErrUnavailable
+		return nil, ErrUnavailable
 	default:
-		return JobLog{}, ErrInvalid
+		return nil, ErrInvalid
 	}
 }
 
-// downloadLog fetches the redirect target without credentials. Only https
+// openLogTarget fetches the redirect target without credentials. Only https
 // targets are followed, or the API's own host when tests run it over http.
-func (c *Client) downloadLog(ctx context.Context, target *url.URL, tail int) (JobLog, error) {
+func (c *Client) openLogTarget(ctx context.Context, target *url.URL) (io.ReadCloser, error) {
 	api, _ := url.Parse(c.baseURL)
 	if target.Scheme != "https" && (api == nil || target.Host != api.Host) {
-		return JobLog{}, ErrInvalid
+		return nil, ErrInvalid
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 	if err != nil {
-		return JobLog{}, ErrInvalid
+		return nil, ErrInvalid
 	}
 	request.Header.Set("User-Agent", c.userAgent)
 	download := &http.Client{Timeout: 2 * time.Minute, Transport: c.http.Transport}
 	response, err := download.Do(request)
 	if err != nil {
-		return JobLog{}, transportError(ctx)
+		return nil, transportError(ctx)
 	}
-	defer response.Body.Close()
+	if response.StatusCode == http.StatusOK {
+		return response.Body, nil
+	}
+	response.Body.Close()
 	switch status := response.StatusCode; {
-	case status == http.StatusOK:
-		return readTail(response.Body, tail)
 	case status == http.StatusNotFound, status == http.StatusGone, status == http.StatusForbidden:
 		// Storage answers 403 or 404 for an expired or removed blob.
-		return JobLog{}, ErrLogUnavailable
+		return nil, ErrLogUnavailable
 	case status >= 500:
-		return JobLog{}, ErrUnavailable
+		return nil, ErrUnavailable
 	default:
-		return JobLog{}, ErrInvalid
+		return nil, ErrInvalid
 	}
 }
 

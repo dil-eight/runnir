@@ -38,6 +38,45 @@ struct TestDefaults {
                         htmlURL: nil, createdAt: Date(), updatedAt: Date())
     }
 
+    @Test func moreRunsComeFromTheCacheThenFromGitHub() async {
+        let (hub, provider) = await readyHub()
+        let runs = (1...200).map { run(Int64($0)) }
+        let fresh = CoreActivityFreshness(source: .live, access: .ok)
+        provider.core.setActivity(CoreWorkspaceActivity(runs: runs, workflows: [], freshness: fresh, cachedRuns: 250), for: "/repo/linked")
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        #expect(await eventually { hub.session(for: workspace)?.cachedRuns == 250 })
+        #expect(provider.core.activityLimits.allSatisfy { $0 == 200 })
+        // 250 are cached: the next read asks for 400, and nothing goes to GitHub.
+        await hub.showMoreRuns(workspaceID: workspace)
+        #expect(provider.core.activityLimits.last == 400)
+        #expect(provider.core.olderRunsCalls.isEmpty)
+        // Every cached run is shown and GitHub has older ones: one page from GitHub.
+        provider.core.setActivity(CoreWorkspaceActivity(runs: runs, workflows: [], freshness: fresh, cachedRuns: 200), for: "/repo/linked")
+        provider.core.olderRunsResult = CoreOlderRuns(access: .ok, added: 100, historyComplete: false, budgetReached: false)
+        await hub.showMoreRuns(workspaceID: workspace) // reads again from the cache: 200 cached
+        await hub.showMoreRuns(workspaceID: workspace)
+        #expect(provider.core.olderRunsCalls.count == 1)
+        #expect(hub.session(for: workspace)?.olderRuns == .idle)
+    }
+
+    @Test func olderRunsSayWhenGitHubFailsAndWhenTheBudgetIsReached() async {
+        let (hub, provider) = await readyHub()
+        provider.core.setActivity(CoreWorkspaceActivity(runs: [run(1)], workflows: [], freshness: CoreActivityFreshness(source: .live, access: .ok),
+                                                        cachedRuns: 1), for: "/repo/linked")
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        #expect(await eventually { hub.session(for: workspace)?.runs.count == 1 })
+        provider.core.olderRunsResult = CoreOlderRuns(access: .unavailable, added: 0, historyComplete: false, budgetReached: false)
+        await hub.showMoreRuns(workspaceID: workspace)
+        #expect(hub.session(for: workspace)?.olderRuns == .failed(.unavailable))
+        provider.core.olderRunsResult = CoreOlderRuns(access: .ok, added: 0, historyComplete: false, budgetReached: true)
+        await hub.showMoreRuns(workspaceID: workspace) // Retry
+        #expect(hub.session(for: workspace)?.olderRuns == .budgetReached)
+        await hub.showMoreRuns(workspaceID: workspace)
+        #expect(provider.core.olderRunsCalls.count == 2, "nothing more is asked once the budget is reached")
+    }
+
     @Test func savedActivityShowsWithoutWaitingForGitHub() async {
         let (hub, provider) = await readyHub()
         provider.core.setActivity(CoreWorkspaceActivity(runs: [run(7)], workflows: [],
@@ -139,13 +178,14 @@ struct TestDefaults {
         let workspace = UUID()
         hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
         #expect(await eventually { hub.session(for: workspace)?.phase == .ready && provider.core.activityReads.count == 1 })
-        provider.core.refreshDelayActivity = .milliseconds(400)
+        provider.core.holdActivityRefresh = true
         let reload = Task { await hub.loadGitHubActivity(workspaceID: workspace) }
         #expect(await eventually { provider.core.activityRefreshes.count == 1 })
         provider.core.push(coreEvent(.activityChanged, repository: FakeCore.id(for: "/repo/linked"), sequence: 60))
         #expect(await eventually { provider.core.activityReads.count == 2 })
         try? await Task.sleep(for: .milliseconds(30))
         #expect(hub.session(for: workspace)?.isLoadingGitHub == true, "the Reload is still waiting")
+        provider.core.holdActivityRefresh = false
         await reload.value
         #expect(hub.session(for: workspace)?.isLoadingGitHub == false)
     }

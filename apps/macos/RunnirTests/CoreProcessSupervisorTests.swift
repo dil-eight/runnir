@@ -38,6 +38,8 @@ private struct FakeService: CoreServicing {
     func openRepository(path: String, workspaceID: UUID?) async throws -> CoreRepository { throw CoreServiceError.unavailable }
     func workspaceActivity(repositoryID: String, limit: Int) async throws -> CoreWorkspaceActivity { throw CoreServiceError.unavailable }
     func refreshWorkspaceActivity(repositoryID: String, wait: Bool, limit: Int) async throws -> CoreWorkspaceActivity { throw CoreServiceError.unavailable }
+    func loadOlderRuns(repositoryID: String) async throws -> CoreOlderRuns { throw CoreServiceError.unavailable }
+    func insertWorkflowConcurrency(repositoryID: String, content: String) async throws -> CoreConcurrencyInsertion { throw CoreServiceError.unavailable }
     func storageUsage(workspaceIDs: [UUID]) async throws -> CoreStorageUsage { throw CoreServiceError.unavailable }
     func clearWorkspaceCache(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] { throw CoreServiceError.unavailable }
     func deleteWorkspaceData(workspaceID: UUID) async throws { throw CoreServiceError.unavailable }
@@ -69,6 +71,7 @@ private struct FakeService: CoreServicing {
     }
     func confirmWorkflowDispatch(dispatchID: String) async throws -> CoreDispatchResult { throw CoreServiceError.unavailable }
     func jobLog(repositoryID: String, jobID: Int64) async throws -> CoreJobLog { throw CoreServiceError.unavailable }
+    func saveJobLog(repositoryID: String, jobID: Int64) async throws -> CoreSavedJobLog { throw CoreServiceError.unavailable }
     func prepareRunAction(repositoryID: String, runID: Int64, action: CoreRunAction) async throws -> CorePreparedRunAction { throw CoreServiceError.unavailable }
     func confirmRunAction(actionID: String) async throws -> CoreRunActionResult { throw CoreServiceError.unavailable }
     func toolReadiness(refresh: Bool) async throws -> CoreToolReadiness { throw CoreServiceError.unavailable }

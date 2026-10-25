@@ -104,6 +104,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "LoadOlderRuns" metadata.
+        internal enum LoadOlderRuns: Sendable {
+            /// Request type for "LoadOlderRuns".
+            internal typealias Input = Runnir_Core_V1_LoadOlderRunsRequest
+            /// Response type for "LoadOlderRuns".
+            internal typealias Output = Runnir_Core_V1_LoadOlderRunsResponse
+            /// Descriptor for "LoadOlderRuns".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "LoadOlderRuns",
+                type: .unary
+            )
+        }
         /// Namespace for "GetStorageUsage" metadata.
         internal enum GetStorageUsage: Sendable {
             /// Request type for "GetStorageUsage".
@@ -231,6 +244,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             internal static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
                 method: "RenameWorkflowFile",
+                type: .unary
+            )
+        }
+        /// Namespace for "InsertWorkflowConcurrency" metadata.
+        internal enum InsertWorkflowConcurrency: Sendable {
+            /// Request type for "InsertWorkflowConcurrency".
+            internal typealias Input = Runnir_Core_V1_InsertWorkflowConcurrencyRequest
+            /// Response type for "InsertWorkflowConcurrency".
+            internal typealias Output = Runnir_Core_V1_InsertWorkflowConcurrencyResponse
+            /// Descriptor for "InsertWorkflowConcurrency".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "InsertWorkflowConcurrency",
                 type: .unary
             )
         }
@@ -455,6 +481,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "SaveJobLog" metadata.
+        internal enum SaveJobLog: Sendable {
+            /// Request type for "SaveJobLog".
+            internal typealias Input = Runnir_Core_V1_SaveJobLogRequest
+            /// Response type for "SaveJobLog".
+            internal typealias Output = Runnir_Core_V1_SaveJobLogResponse
+            /// Descriptor for "SaveJobLog".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "SaveJobLog",
+                type: .unary
+            )
+        }
         /// Namespace for "PrepareRunAction" metadata.
         internal enum PrepareRunAction: Sendable {
             /// Request type for "PrepareRunAction".
@@ -554,6 +593,7 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             RefreshRepository.descriptor,
             GetWorkspaceActivity.descriptor,
             RefreshWorkspaceActivity.descriptor,
+            LoadOlderRuns.descriptor,
             GetStorageUsage.descriptor,
             ClearWorkspaceCache.descriptor,
             DeleteWorkspaceData.descriptor,
@@ -564,6 +604,7 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             SaveWorkflowFile.descriptor,
             CreateWorkflowFile.descriptor,
             RenameWorkflowFile.descriptor,
+            InsertWorkflowConcurrency.descriptor,
             StartWorkflow.descriptor,
             SubscribeEvents.descriptor,
             SetGitHubCredential.descriptor,
@@ -581,6 +622,7 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             PrepareWorkflowDispatch.descriptor,
             ConfirmWorkflowDispatch.descriptor,
             GetJobLog.descriptor,
+            SaveJobLog.descriptor,
             PrepareRunAction.descriptor,
             ConfirmRunAction.descriptor,
             GetToolReadiness.descriptor,
@@ -713,6 +755,26 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_RefreshWorkspaceActivityRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_WorkspaceActivity>
+
+        /// Handle the "LoadOlderRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Reads one page of runs older than the oldest cached one from GitHub and
+        /// > stores it; nothing is read when the cache holds 5000 runs or the whole
+        /// > history. Concurrent calls for one workspace share one request.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_LoadOlderRunsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_LoadOlderRunsResponse` messages.
+        func loadOlderRuns(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_LoadOlderRunsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_LoadOlderRunsResponse>
 
         /// Handle the "GetStorageUsage" method.
         ///
@@ -900,6 +962,25 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_RenameWorkflowFileRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_RenameWorkflowFileResponse>
+
+        /// Handle the "InsertWorkflowConcurrency" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The editor's text with the suggested concurrency block before the
+        /// > top-level jobs key, or why it was not added. Writes nothing.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_InsertWorkflowConcurrencyRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_InsertWorkflowConcurrencyResponse` messages.
+        func insertWorkflowConcurrency(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_InsertWorkflowConcurrencyRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_InsertWorkflowConcurrencyResponse>
 
         /// Handle the "StartWorkflow" method.
         ///
@@ -1205,6 +1286,25 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetJobLogResponse>
 
+        /// Handle the "SaveJobLog" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The whole log of one job (at most 256 MiB) written to a file in the
+        /// > user's temporary folder, for an editor; the path is in the answer.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_SaveJobLogRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_SaveJobLogResponse` messages.
+        func saveJobLog(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SaveJobLogRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SaveJobLogResponse>
+
         /// Handle the "PrepareRunAction" method.
         ///
         /// > Source IDL Documentation:
@@ -1441,6 +1541,26 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_WorkspaceActivity>
 
+        /// Handle the "LoadOlderRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Reads one page of runs older than the oldest cached one from GitHub and
+        /// > stores it; nothing is read when the cache holds 5000 runs or the whole
+        /// > history. Concurrent calls for one workspace share one request.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_LoadOlderRunsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_LoadOlderRunsResponse` message.
+        func loadOlderRuns(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_LoadOlderRunsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_LoadOlderRunsResponse>
+
         /// Handle the "GetStorageUsage" method.
         ///
         /// > Source IDL Documentation:
@@ -1627,6 +1747,25 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.ServerRequest<Runnir_Core_V1_RenameWorkflowFileRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_RenameWorkflowFileResponse>
+
+        /// Handle the "InsertWorkflowConcurrency" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The editor's text with the suggested concurrency block before the
+        /// > top-level jobs key, or why it was not added. Writes nothing.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_InsertWorkflowConcurrencyRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_InsertWorkflowConcurrencyResponse` message.
+        func insertWorkflowConcurrency(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_InsertWorkflowConcurrencyRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_InsertWorkflowConcurrencyResponse>
 
         /// Handle the "StartWorkflow" method.
         ///
@@ -1932,6 +2071,25 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetJobLogResponse>
 
+        /// Handle the "SaveJobLog" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The whole log of one job (at most 256 MiB) written to a file in the
+        /// > user's temporary folder, for an editor; the path is in the answer.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SaveJobLogRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_SaveJobLogResponse` message.
+        func saveJobLog(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_SaveJobLogRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SaveJobLogResponse>
+
         /// Handle the "PrepareRunAction" method.
         ///
         /// > Source IDL Documentation:
@@ -2166,6 +2324,26 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_WorkspaceActivity
 
+        /// Handle the "LoadOlderRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Reads one page of runs older than the oldest cached one from GitHub and
+        /// > stores it; nothing is read when the cache holds 5000 runs or the whole
+        /// > history. Concurrent calls for one workspace share one request.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_LoadOlderRunsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_LoadOlderRunsResponse` to respond with.
+        func loadOlderRuns(
+            request: Runnir_Core_V1_LoadOlderRunsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_LoadOlderRunsResponse
+
         /// Handle the "GetStorageUsage" method.
         ///
         /// > Source IDL Documentation:
@@ -2352,6 +2530,25 @@ extension Runnir_Core_V1_RunnirCore {
             request: Runnir_Core_V1_RenameWorkflowFileRequest,
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_RenameWorkflowFileResponse
+
+        /// Handle the "InsertWorkflowConcurrency" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The editor's text with the suggested concurrency block before the
+        /// > top-level jobs key, or why it was not added. Writes nothing.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_InsertWorkflowConcurrencyRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_InsertWorkflowConcurrencyResponse` to respond with.
+        func insertWorkflowConcurrency(
+            request: Runnir_Core_V1_InsertWorkflowConcurrencyRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_InsertWorkflowConcurrencyResponse
 
         /// Handle the "StartWorkflow" method.
         ///
@@ -2658,6 +2855,25 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_GetJobLogResponse
 
+        /// Handle the "SaveJobLog" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The whole log of one job (at most 256 MiB) written to a file in the
+        /// > user's temporary folder, for an editor; the path is in the answer.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_SaveJobLogRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_SaveJobLogResponse` to respond with.
+        func saveJobLog(
+            request: Runnir_Core_V1_SaveJobLogRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_SaveJobLogResponse
+
         /// Handle the "PrepareRunAction" method.
         ///
         /// > Source IDL Documentation:
@@ -2858,6 +3074,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.LoadOlderRuns.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_LoadOlderRunsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_LoadOlderRunsResponse>(),
+            handler: { request, context in
+                try await self.loadOlderRuns(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.GetStorageUsage.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetStorageUsageRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetStorageUsageResponse>(),
@@ -2962,6 +3189,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_RenameWorkflowFileResponse>(),
             handler: { request, context in
                 try await self.renameWorkflowFile(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.InsertWorkflowConcurrency.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_InsertWorkflowConcurrencyRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_InsertWorkflowConcurrencyResponse>(),
+            handler: { request, context in
+                try await self.insertWorkflowConcurrency(
                     request: request,
                     context: context
                 )
@@ -3155,6 +3393,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.SaveJobLog.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SaveJobLogRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SaveJobLogResponse>(),
+            handler: { request, context in
+                try await self.saveJobLog(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.PrepareRunAction.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_PrepareRunActionRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_PrepareRunActionResponse>(),
@@ -3303,6 +3552,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
+    internal func loadOlderRuns(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_LoadOlderRunsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_LoadOlderRunsResponse> {
+        let response = try await self.loadOlderRuns(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
     internal func getStorageUsage(
         request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetStorageUsageRequest>,
         context: GRPCCore.ServerContext
@@ -3407,6 +3667,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_RenameWorkflowFileResponse> {
         let response = try await self.renameWorkflowFile(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func insertWorkflowConcurrency(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_InsertWorkflowConcurrencyRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_InsertWorkflowConcurrencyResponse> {
+        let response = try await self.insertWorkflowConcurrency(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -3600,6 +3871,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
+    internal func saveJobLog(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SaveJobLogRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SaveJobLogResponse> {
+        let response = try await self.saveJobLog(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
     internal func prepareRunAction(
         request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_PrepareRunActionRequest>,
         context: GRPCCore.ServerContext
@@ -3759,6 +4041,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
         )
     }
 
+    internal func loadOlderRuns(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_LoadOlderRunsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_LoadOlderRunsResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_LoadOlderRunsResponse>(
+            message: try await self.loadOlderRuns(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
     internal func getStorageUsage(
         request: GRPCCore.ServerRequest<Runnir_Core_V1_GetStorageUsageRequest>,
         context: GRPCCore.ServerContext
@@ -3882,6 +4177,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_RenameWorkflowFileResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_RenameWorkflowFileResponse>(
             message: try await self.renameWorkflowFile(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func insertWorkflowConcurrency(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_InsertWorkflowConcurrencyRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_InsertWorkflowConcurrencyResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_InsertWorkflowConcurrencyResponse>(
+            message: try await self.insertWorkflowConcurrency(
                 request: request.message,
                 context: context
             ),
@@ -4107,6 +4415,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetJobLogResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_GetJobLogResponse>(
             message: try await self.getJobLog(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func saveJobLog(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_SaveJobLogRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SaveJobLogResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_SaveJobLogResponse>(
+            message: try await self.saveJobLog(
                 request: request.message,
                 context: context
             ),
@@ -4345,6 +4666,31 @@ extension Runnir_Core_V1_RunnirCore {
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_WorkspaceActivity>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
+        /// Call the "LoadOlderRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Reads one page of runs older than the oldest cached one from GitHub and
+        /// > stores it; nothing is read when the cache holds 5000 runs or the whole
+        /// > history. Concurrent calls for one workspace share one request.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_LoadOlderRunsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_LoadOlderRunsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_LoadOlderRunsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func loadOlderRuns<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_LoadOlderRunsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_LoadOlderRunsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_LoadOlderRunsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_LoadOlderRunsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
         /// Call the "GetStorageUsage" method.
         ///
         /// > Source IDL Documentation:
@@ -4580,6 +4926,30 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_RenameWorkflowFileResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_RenameWorkflowFileResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "InsertWorkflowConcurrency" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The editor's text with the suggested concurrency block before the
+        /// > top-level jobs key, or why it was not added. Writes nothing.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_InsertWorkflowConcurrencyRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_InsertWorkflowConcurrencyRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_InsertWorkflowConcurrencyResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func insertWorkflowConcurrency<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_InsertWorkflowConcurrencyRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_InsertWorkflowConcurrencyRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_InsertWorkflowConcurrencyResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_InsertWorkflowConcurrencyResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "StartWorkflow" method.
@@ -4971,6 +5341,30 @@ extension Runnir_Core_V1_RunnirCore {
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetJobLogResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
+        /// Call the "SaveJobLog" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The whole log of one job (at most 256 MiB) written to a file in the
+        /// > user's temporary folder, for an editor; the path is in the answer.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SaveJobLogRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SaveJobLogRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_SaveJobLogResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func saveJobLog<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SaveJobLogRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SaveJobLogRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SaveJobLogResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SaveJobLogResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
         /// Call the "PrepareRunAction" method.
         ///
         /// > Source IDL Documentation:
@@ -5346,6 +5740,42 @@ extension Runnir_Core_V1_RunnirCore {
             )
         }
 
+        /// Call the "LoadOlderRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Reads one page of runs older than the oldest cached one from GitHub and
+        /// > stores it; nothing is read when the cache holds 5000 runs or the whole
+        /// > history. Concurrent calls for one workspace share one request.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_LoadOlderRunsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_LoadOlderRunsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_LoadOlderRunsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func loadOlderRuns<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_LoadOlderRunsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_LoadOlderRunsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_LoadOlderRunsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_LoadOlderRunsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.LoadOlderRuns.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
         /// Call the "GetStorageUsage" method.
         ///
         /// > Source IDL Documentation:
@@ -5686,6 +6116,41 @@ extension Runnir_Core_V1_RunnirCore {
             try await self.client.unary(
                 request: request,
                 descriptor: Runnir_Core_V1_RunnirCore.Method.RenameWorkflowFile.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "InsertWorkflowConcurrency" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The editor's text with the suggested concurrency block before the
+        /// > top-level jobs key, or why it was not added. Writes nothing.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_InsertWorkflowConcurrencyRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_InsertWorkflowConcurrencyRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_InsertWorkflowConcurrencyResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func insertWorkflowConcurrency<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_InsertWorkflowConcurrencyRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_InsertWorkflowConcurrencyRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_InsertWorkflowConcurrencyResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_InsertWorkflowConcurrencyResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.InsertWorkflowConcurrency.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -6267,6 +6732,41 @@ extension Runnir_Core_V1_RunnirCore {
             )
         }
 
+        /// Call the "SaveJobLog" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The whole log of one job (at most 256 MiB) written to a file in the
+        /// > user's temporary folder, for an editor; the path is in the answer.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SaveJobLogRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SaveJobLogRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_SaveJobLogResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func saveJobLog<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SaveJobLogRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SaveJobLogRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SaveJobLogResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SaveJobLogResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.SaveJobLog.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
         /// Call the "PrepareRunAction" method.
         ///
         /// > Source IDL Documentation:
@@ -6677,6 +7177,37 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "LoadOlderRuns" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Reads one page of runs older than the oldest cached one from GitHub and
+    /// > stores it; nothing is read when the cache holds 5000 runs or the whole
+    /// > history. Concurrent calls for one workspace share one request.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_LoadOlderRunsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func loadOlderRuns<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_LoadOlderRunsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_LoadOlderRunsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.loadOlderRuns(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_LoadOlderRunsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_LoadOlderRunsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "GetStorageUsage" method.
     ///
     /// > Source IDL Documentation:
@@ -6969,6 +7500,36 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_RenameWorkflowFileRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_RenameWorkflowFileResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "InsertWorkflowConcurrency" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The editor's text with the suggested concurrency block before the
+    /// > top-level jobs key, or why it was not added. Writes nothing.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_InsertWorkflowConcurrencyRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func insertWorkflowConcurrency<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_InsertWorkflowConcurrencyRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_InsertWorkflowConcurrencyResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.insertWorkflowConcurrency(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_InsertWorkflowConcurrencyRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_InsertWorkflowConcurrencyResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -7463,6 +8024,36 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "SaveJobLog" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The whole log of one job (at most 256 MiB) written to a file in the
+    /// > user's temporary folder, for an editor; the path is in the answer.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_SaveJobLogRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func saveJobLog<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_SaveJobLogRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SaveJobLogResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.saveJobLog(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SaveJobLogRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SaveJobLogResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "PrepareRunAction" method.
     ///
     /// > Source IDL Documentation:
@@ -7861,6 +8452,41 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "LoadOlderRuns" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Reads one page of runs older than the oldest cached one from GitHub and
+    /// > stores it; nothing is read when the cache holds 5000 runs or the whole
+    /// > history. Concurrent calls for one workspace share one request.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func loadOlderRuns<Result>(
+        _ message: Runnir_Core_V1_LoadOlderRunsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_LoadOlderRunsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_LoadOlderRunsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.loadOlderRuns(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "GetStorageUsage" method.
     ///
     /// > Source IDL Documentation:
@@ -8192,6 +8818,40 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.renameWorkflowFile(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "InsertWorkflowConcurrency" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The editor's text with the suggested concurrency block before the
+    /// > top-level jobs key, or why it was not added. Writes nothing.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func insertWorkflowConcurrency<Result>(
+        _ message: Runnir_Core_V1_InsertWorkflowConcurrencyRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_InsertWorkflowConcurrencyResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_InsertWorkflowConcurrencyRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.insertWorkflowConcurrency(
             request: request,
             options: options,
             onResponse: handleResponse
@@ -8749,6 +9409,40 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.getJobLog(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SaveJobLog" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The whole log of one job (at most 256 MiB) written to a file in the
+    /// > user's temporary folder, for an editor; the path is in the answer.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func saveJobLog<Result>(
+        _ message: Runnir_Core_V1_SaveJobLogRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SaveJobLogResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_SaveJobLogRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.saveJobLog(
             request: request,
             options: options,
             onResponse: handleResponse

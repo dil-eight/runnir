@@ -1,6 +1,12 @@
 import Foundation
 import Observation
 
+/// How the Runs section lists runs.
+enum RunsMode: String, Codable, Sendable {
+    case list
+    case byChange
+}
+
 @MainActor
 @Observable
 final class AppState {
@@ -9,6 +15,8 @@ final class AppState {
     var showingSwitcher = false
     /// The run shown in the Runs section.
     var selectedRunID: Int64?
+    /// The Runs section's list or changes; List until the user switches.
+    var runsMode: RunsMode = .list
     /// Shows the Run Workflow sheet.
     var runWorkflowRequest: RunWorkflowRequest?
     /// The Workspace section shows the editor or the local run.

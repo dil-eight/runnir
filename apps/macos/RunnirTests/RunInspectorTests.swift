@@ -202,6 +202,18 @@ struct RunInspectorTests {
     }
 
     @Test
+    func theViewerShowsTheLast100LinesAndSaysHowManyThereAre() {
+        let log = (19_204...21_776).map { line(Int64($0), "line \($0)", step: 2) }
+        let shown = LogFilter.tail(log)
+        #expect(shown.count == 100 && shown.first?.number == 21_677 && shown.last?.number == 21_776)
+        #expect(LogFilter.scope(shown: 100, selected: log.count, lastNumber: 21_776, truncated: true, step: nil) == "Last 100 of \(21_776.formatted()) lines")
+        #expect(LogFilter.scope(shown: 100, selected: 340, lastNumber: 21_776, truncated: false, step: "Archive") == "Last 100 of 340 lines · Archive")
+        #expect(LogFilter.scope(shown: 100, selected: 340, lastNumber: 21_776, truncated: true, step: "Archive") == "Last 100 lines · Archive",
+                "a step's earlier lines may be before what the Core read")
+        #expect(LogFilter.scope(shown: 40, selected: 40, lastNumber: 40, truncated: false, step: nil) == nil, "a short log is shown whole")
+    }
+
+    @Test
     func theFirstFailedJobAndStepOpenFirst() {
         let steps = [
             CoreRunStep(number: 1, name: "Set up job", status: "completed", conclusion: "success"),

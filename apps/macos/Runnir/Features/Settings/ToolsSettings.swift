@@ -53,10 +53,10 @@ struct ToolsSettingsSection: View {
                 Text("Tools")
                 Spacer()
                 Button(model.isChecking ? "Checking..." : "Recheck") { Task { await model.check(refresh: true) } }
-                    .disabled(model.isChecking).controlSize(.small)
+                    .buttonStyle(DesignButtonStyle(compact: true)).disabled(model.isChecking)
             }
         } footer: {
-            Label("Runnir never installs tools, starts an engine or switches your Docker context. Setup opens the vendor's official instructions.",
+            Label("Runnir never installs tools by itself, starts an engine or switches your Docker context. Install with Homebrew opens Terminal with the command for you to run; Setup opens the vendor's official instructions.",
                   systemImage: "info.circle")
                 .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
         }
@@ -73,10 +73,15 @@ struct ToolsSettingsSection: View {
     @ViewBuilder private func rows(_ readiness: CoreToolReadiness) -> some View {
         ToolReadinessRow(title: "act (bundled)", state: readiness.bundledAct.state, detail: LocalRunText.tool(readiness.bundledAct)) { EmptyView() }
         ToolReadinessRow(title: "act (installed)", state: readiness.installedAct.state == .missing && !useInstalledAct ? .unknown : readiness.installedAct.state,
-                         untested: readiness.installedAct.untested, detail: installedDetail(readiness.installedAct)) { EmptyView() }
+                         untested: readiness.installedAct.untested, detail: installedDetail(readiness.installedAct)) {
+            if readiness.installedAct.state != .found {
+                ActInstallButton().buttonStyle(DesignButtonStyle(compact: true))
+            }
+        }
         ToolReadinessRow(title: "Docker CLI", state: readiness.dockerCLI.state, detail: LocalRunText.tool(readiness.dockerCLI)) { EmptyView() }
         ToolReadinessRow(title: "Container engine", state: readiness.engine.state, detail: LocalRunText.engine(readiness.engine)) {
-            EngineSetupButton(engine: readiness.engine) { Task { await model.check(refresh: true) } }.controlSize(.small)
+            EngineSetupButton(engine: readiness.engine) { Task { await model.check(refresh: true) } }
+                .buttonStyle(DesignButtonStyle(compact: true))
         }
     }
 

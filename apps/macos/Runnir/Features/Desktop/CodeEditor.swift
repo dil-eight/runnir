@@ -1,6 +1,32 @@
 import AppKit
 import SwiftUI
 
+/// One replacement the editor applies as a single undoable change, as
+/// typing would, when its text is still `before`.
+struct CodeEditorEdit: Equatable, Sendable {
+    let id: Int
+    let before: String
+    /// UTF-16 range in `before`.
+    let range: NSRange
+    let replacement: String
+
+    /// The replacement that turns `before` into `after`: what lies between
+    /// their common start and common end. nil when they are equal.
+    init?(from before: String, to after: String, id: Int) {
+        guard before != after else { return nil }
+        let old = Array(before.utf16), new = Array(after.utf16)
+        var prefix = 0
+        while prefix < old.count, prefix < new.count, old[prefix] == new[prefix] { prefix += 1 }
+        var suffix = 0
+        while suffix < old.count - prefix, suffix < new.count - prefix,
+              old[old.count - 1 - suffix] == new[new.count - 1 - suffix] { suffix += 1 }
+        self.id = id
+        self.before = before
+        range = NSRange(location: prefix, length: old.count - prefix - suffix)
+        replacement = String(decoding: new[prefix..<(new.count - suffix)], as: UTF16.self)
+    }
+}
+
 /// The workflow editor: an AppKit text view with line numbers, YAML colors,
 /// lines with diagnostics marked, and the usual Mac editing (undo, find).
 struct CodeEditor: NSViewRepresentable {
@@ -12,6 +38,8 @@ struct CodeEditor: NSViewRepresentable {
     var highlightedLine: Int?
     var revealCount: Int
     var isEditable: Bool
+    /// An edit to apply once, undoable (the concurrency block).
+    var edit: CodeEditorEdit? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
 
@@ -89,7 +117,11 @@ struct CodeEditor: NSViewRepresentable {
         coordinator.text = $text
         guard let textView = coordinator.textView else { return }
         textView.isEditable = isEditable
-        if textView.string != text {
+        if let edit, edit.id != coordinator.appliedEdit, textView.string == edit.before {
+            coordinator.appliedEdit = edit.id
+            // After this update: the change sets the binding.
+            Task { @MainActor in coordinator.apply(edit) }
+        } else if textView.string != text {
             // A new file or a reload from disk, not an edit.
             coordinator.load(text)
         }
@@ -116,6 +148,19 @@ struct CodeEditor: NSViewRepresentable {
         private(set) var flagged: Set<Int> = []
         private var highlighted: Int?
         private var loading = false
+
+        /// The last edit applied, so each one is applied once.
+        var appliedEdit = 0
+
+        /// Replaces text as one undoable change, as typing would; the
+        /// delegate then updates the binding.
+        func apply(_ edit: CodeEditorEdit) {
+            guard let textView, textView.string == edit.before,
+                  textView.shouldChangeText(in: edit.range, replacementString: edit.replacement) else { return }
+            textView.textStorage?.replaceCharacters(in: edit.range, with: NSAttributedString(string: edit.replacement, attributes: Self.plainAttributes))
+            textView.didChangeText()
+            textView.undoManager?.setActionName("Add Concurrency")
+        }
 
         init(text: Binding<String>) { self.text = text }
 

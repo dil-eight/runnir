@@ -97,7 +97,7 @@ struct SettingsOverlay: View {
                     .frame(width: 28, height: 28)
                     .background(Circle().fill(RunnirTheme.selected))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.hit)
             .keyboardShortcut(.cancelAction)
             .help("Close Settings")
             .accessibilityLabel("Close Settings")
@@ -122,7 +122,7 @@ struct SettingsOverlay: View {
             .background(RoundedRectangle(cornerRadius: 6).fill(selected ? RunnirTheme.selected : .clear))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.hit)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("settings-section-\(item.rawValue)")
     }

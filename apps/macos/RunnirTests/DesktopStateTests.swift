@@ -384,6 +384,23 @@ struct DesktopCoordinatorTests {
         #expect(try fixture.store.load().windows.count == DesktopSnapshot.maxWindows)
     }
 
+    @Test func theRunsModeIsKeptPerWindow() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant,
+                                             makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        coordinator.openRegistered(fixture.original)
+        let first = try #require(factory.windows.first)
+        let second = try #require(factory.windows.last)
+        coordinator.selectRunsMode(.byChange, windowID: first.record.id)
+        let saved = try fixture.store.load().windows
+        #expect(saved.first { $0.id == first.record.id }?.runsMode == .byChange)
+        #expect(saved.first { $0.id == second.record.id }?.runsMode == nil, "a window that never switched shows the list")
+    }
+
     @Test func relinkRebindsEveryOpenWindowAndPreservesIdentityAndNavigation() async throws {
         let fixture = try CoordinatorFixture()
         defer { fixture.remove() }

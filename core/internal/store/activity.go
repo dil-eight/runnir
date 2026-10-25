@@ -10,7 +10,9 @@ import (
 	"runnir/core/internal/github"
 )
 
-const maxRuns = 200
+// MaxRuns is how many runs a workspace keeps, newest first; their jobs and
+// steps go with them. A variable so tests can lower it.
+var MaxRuns = 5000
 
 // Source is the GitHub repository cached activity belongs to.
 type Source struct {
@@ -21,11 +23,16 @@ type Source struct {
 // RunsUpdate is one read of the newest runs.
 type RunsUpdate struct {
 	NotModified bool
-	Runs        []github.Run // newest first; empty when NotModified
-	// Complete means the page held every run of the repository, so any
-	// cached run missing from it was deleted.
+	// Newest first, one unbroken stretch of history; empty when NotModified.
+	Runs []github.Run
+	// Complete means the runs are every run of the repository: any cached
+	// run missing from them was deleted, and the history is complete.
 	Complete bool
-	ETag     string
+	// Restart means the runs never reached the cached ones (a gap the pass
+	// could not fill): cached runs older than them are dropped, so the
+	// cache stays one unbroken stretch of history.
+	Restart bool
+	ETag    string
 }
 
 // WorkflowsUpdate is one read of the repository's workflows.
@@ -44,8 +51,14 @@ type Pass struct {
 	OK         bool
 	Access     int32
 	RetryAfter time.Time
-	Runs       *RunsUpdate
-	Workflows  *WorkflowsUpdate
+	// DefaultBranch of the repository when the pass read it; "" keeps the
+	// stored one.
+	DefaultBranch string
+	Runs          *RunsUpdate
+	Workflows     *WorkflowsUpdate
+	// PullRequests is the pull request list's read; nil when the pass did
+	// not read it.
+	PullRequests *PullRequestsUpdate
 }
 
 // Activity is the cached activity and what the last passes said.
@@ -54,9 +67,20 @@ type Activity struct {
 	HasSource bool
 	Runs      []github.Run
 	Workflows []github.Workflow
-	CheckedAt time.Time
-	SyncedAt  time.Time
-	ChangedAt time.Time
+	// DefaultBranch of the cached repository; "" until a pass read it.
+	DefaultBranch string
+	// CachedRuns counts every cached run, also those beyond the limit read.
+	CachedRuns int
+	// HistoryComplete: GitHub has no run older than the oldest cached one.
+	HistoryComplete bool
+	// PullRequests most recently updated first; Lookups by key.
+	PullRequests []github.RepositoryPullRequest
+	Lookups      map[string][]int64
+	// PullRequestsAccess is the last read's outcome; 0 before one.
+	PullRequestsAccess int32
+	CheckedAt          time.Time
+	SyncedAt           time.Time
+	ChangedAt          time.Time
 	// Access and RetryAfter are the last pass's; Access is 0 before one.
 	Access     int32
 	RetryAfter time.Time
@@ -78,7 +102,8 @@ func (s *Store) ApplySync(ctx context.Context, p Pass) (bool, error) {
 	}
 	defer tx.Rollback()
 	changed := false
-	hasData := (p.Runs != nil && !p.Runs.NotModified) || (p.Workflows != nil && !p.Workflows.NotModified)
+	hasData := (p.Runs != nil && !p.Runs.NotModified) || (p.Workflows != nil && !p.Workflows.NotModified) ||
+		(p.PullRequests != nil && !p.PullRequests.NotModified && !p.PullRequests.Refused)
 	if hasData {
 		current, has, err := readSource(ctx, tx)
 		if err != nil {
@@ -94,9 +119,22 @@ func (s *Store) ApplySync(ctx context.Context, p Pass) (bool, error) {
 			changed = true
 		}
 	}
+	if p.DefaultBranch != "" {
+		if current, has, err := readSource(ctx, tx); err != nil {
+			return false, err
+		} else if has && current == p.Source {
+			result, err := tx.ExecContext(ctx, "UPDATE cache_source SET default_branch = ? WHERE id = 1 AND default_branch <> ?", p.DefaultBranch, p.DefaultBranch)
+			if err != nil {
+				return false, err
+			}
+			if n, _ := result.RowsAffected(); n > 0 {
+				changed = true
+			}
+		}
+	}
 	if p.Runs != nil {
 		if !p.Runs.NotModified {
-			c, err := applyRuns(ctx, tx, p.Runs.Runs, p.Runs.Complete)
+			c, err := applyRuns(ctx, tx, p.Runs)
 			if err != nil {
 				return false, err
 			}
@@ -117,6 +155,20 @@ func (s *Store) ApplySync(ctx context.Context, p Pass) (bool, error) {
 		if err := setETag(ctx, tx, scopeWorkflows, p.Workflows.ETag); err != nil {
 			return false, err
 		}
+	}
+	if p.PullRequests != nil {
+		c, err := applyPulls(ctx, tx, p.PullRequests)
+		if err != nil {
+			return false, err
+		}
+		changed = changed || c
+	}
+	if hasData {
+		c, err := trimLinks(ctx, tx)
+		if err != nil {
+			return false, err
+		}
+		changed = changed || c
 	}
 	at := millis(p.At)
 	if _, err := tx.ExecContext(ctx, `
@@ -165,25 +217,51 @@ func idsJSON[T any](items []T, id func(T) int64) string {
 	return string(data)
 }
 
-func applyRuns(ctx context.Context, tx *sql.Tx, runs []github.Run, complete bool) (bool, error) {
-	changed := false
-	for _, r := range runs {
-		result, err := tx.ExecContext(ctx, `
-INSERT INTO runs (id, workflow_id, name, display_title, run_number, run_attempt, event, status, conclusion, branch, head_sha, actor, html_url, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+// statement is one SQL statement with its arguments.
+type statement struct {
+	query string
+	args  []any
+}
+
+func oldestCreated(runs []github.Run) time.Time {
+	oldest := runs[0].CreatedAt
+	for _, r := range runs[1:] {
+		if r.CreatedAt.Before(oldest) {
+			oldest = r.CreatedAt
+		}
+	}
+	return oldest
+}
+
+// upsertRun stores a run and adds its pull request links; true when a row
+// changed.
+func upsertRun(ctx context.Context, tx *sql.Tx, r github.Run) (bool, error) {
+	result, err := tx.ExecContext(ctx, `
+INSERT INTO runs (id, workflow_id, name, display_title, run_number, run_attempt, event, status, conclusion, branch, head_sha,
+	head_repository, commit_title, actor, html_url, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO UPDATE SET
 	workflow_id = excluded.workflow_id, name = excluded.name, display_title = excluded.display_title,
 	run_number = excluded.run_number, run_attempt = excluded.run_attempt, event = excluded.event,
 	status = excluded.status, conclusion = excluded.conclusion, branch = excluded.branch,
-	head_sha = excluded.head_sha, actor = excluded.actor, html_url = excluded.html_url,
+	head_sha = excluded.head_sha, head_repository = excluded.head_repository, commit_title = excluded.commit_title,
+	actor = excluded.actor, html_url = excluded.html_url,
 	created_at = excluded.created_at, updated_at = excluded.updated_at
 WHERE (runs.workflow_id, runs.name, runs.display_title, runs.run_number, runs.run_attempt, runs.event, runs.status,
-	runs.conclusion, runs.branch, runs.head_sha, runs.actor, runs.html_url, runs.created_at, runs.updated_at)
+	runs.conclusion, runs.branch, runs.head_sha, runs.head_repository, runs.commit_title, runs.actor, runs.html_url,
+	runs.created_at, runs.updated_at)
 	<> (excluded.workflow_id, excluded.name, excluded.display_title, excluded.run_number, excluded.run_attempt, excluded.event,
-	excluded.status, excluded.conclusion, excluded.branch, excluded.head_sha, excluded.actor, excluded.html_url,
-	excluded.created_at, excluded.updated_at)`,
-			r.ID, r.WorkflowID, r.Name, r.DisplayTitle, r.RunNumber, r.RunAttempt, r.Event, r.Status, r.Conclusion,
-			r.Branch, r.HeadSHA, r.Actor, r.HTMLURL, millis(r.CreatedAt), millis(r.UpdatedAt))
+	excluded.status, excluded.conclusion, excluded.branch, excluded.head_sha, excluded.head_repository, excluded.commit_title,
+	excluded.actor, excluded.html_url, excluded.created_at, excluded.updated_at)`,
+		r.ID, r.WorkflowID, r.Name, r.DisplayTitle, r.RunNumber, r.RunAttempt, r.Event, r.Status, r.Conclusion,
+		r.Branch, r.HeadSHA, r.HeadRepository, r.CommitTitle, r.Actor, r.HTMLURL, millis(r.CreatedAt), millis(r.UpdatedAt))
+	if err != nil {
+		return false, err
+	}
+	n, _ := result.RowsAffected()
+	changed := n > 0
+	for _, number := range r.PullRequests {
+		result, err := tx.ExecContext(ctx, "INSERT OR IGNORE INTO run_pull_requests (run_id, number) VALUES (?, ?)", r.ID, number)
 		if err != nil {
 			return false, err
 		}
@@ -191,32 +269,78 @@ WHERE (runs.workflow_id, runs.name, runs.display_title, runs.run_number, runs.ru
 			changed = true
 		}
 	}
-	ids := idsJSON(runs, func(r github.Run) int64 { return r.ID })
-	var result sql.Result
-	var err error
-	switch {
-	case complete:
-		result, err = tx.ExecContext(ctx, "DELETE FROM runs WHERE id NOT IN (SELECT value FROM json_each(?))", ids)
-	case len(runs) > 0:
-		oldest := runs[0].CreatedAt
-		for _, r := range runs {
-			if r.CreatedAt.Before(oldest) {
-				oldest = r.CreatedAt
-			}
-		}
-		result, err = tx.ExecContext(ctx, "DELETE FROM runs WHERE created_at > ? AND id NOT IN (SELECT value FROM json_each(?))", millis(oldest), ids)
-	}
+	return changed, nil
+}
+
+// trimRuns keeps the newest MaxRuns runs; true when some were deleted.
+func trimRuns(ctx context.Context, tx *sql.Tx) (bool, error) {
+	result, err := tx.ExecContext(ctx, `DELETE FROM runs WHERE id IN (
+	SELECT id FROM runs ORDER BY created_at DESC, id DESC LIMIT -1 OFFSET ?)`, MaxRuns)
 	if err != nil {
 		return false, err
 	}
-	if result != nil {
+	n, _ := result.RowsAffected()
+	return n > 0, nil
+}
+
+// setHistory records whether the cache holds the whole history; true when
+// that changed.
+func setHistory(ctx context.Context, tx *sql.Tx, complete bool) (bool, error) {
+	result, err := tx.ExecContext(ctx, "UPDATE cache_source SET history_complete = ? WHERE id = 1 AND history_complete <> ?", complete, complete)
+	if err != nil {
+		return false, err
+	}
+	n, _ := result.RowsAffected()
+	return n > 0, nil
+}
+
+func applyRuns(ctx context.Context, tx *sql.Tx, u *RunsUpdate) (bool, error) {
+	runs := u.Runs
+	changed := false
+	for _, r := range runs {
+		c, err := upsertRun(ctx, tx, r)
+		if err != nil {
+			return false, err
+		}
+		changed = changed || c
+	}
+	ids := idsJSON(runs, func(r github.Run) int64 { return r.ID })
+	var statements []statement
+	switch {
+	case u.Complete:
+		statements = append(statements, statement{"DELETE FROM runs WHERE id NOT IN (SELECT value FROM json_each(?))", []any{ids}})
+	case len(runs) > 0:
+		oldest := millis(oldestCreated(runs))
+		statements = append(statements, statement{"DELETE FROM runs WHERE created_at > ? AND id NOT IN (SELECT value FROM json_each(?))", []any{oldest, ids}})
+		if u.Restart {
+			statements = append(statements, statement{"DELETE FROM runs WHERE created_at < ?", []any{oldest}})
+		}
+	}
+	for _, statement := range statements {
+		result, err := tx.ExecContext(ctx, statement.query, statement.args...)
+		if err != nil {
+			return false, err
+		}
 		if n, _ := result.RowsAffected(); n > 0 {
 			changed = true
 		}
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM runs WHERE id IN (
-	SELECT id FROM runs ORDER BY created_at DESC, id DESC LIMIT -1 OFFSET ?)`, maxRuns); err != nil {
+	if u.Complete || u.Restart {
+		c, err := setHistory(ctx, tx, u.Complete)
+		if err != nil {
+			return false, err
+		}
+		changed = changed || c
+	}
+	trimmed, err := trimRuns(ctx, tx)
+	if err != nil {
 		return false, err
+	}
+	if trimmed {
+		changed = true
+		if _, err := setHistory(ctx, tx, false); err != nil {
+			return false, err
+		}
 	}
 	return changed, nil
 }
@@ -256,6 +380,15 @@ func (s *Store) Activity(ctx context.Context, limit int) (Activity, error) {
 	if a.Source, a.HasSource, err = readSource(ctx, s.db); err != nil {
 		return Activity{}, err
 	}
+	if a.HasSource {
+		if err := s.db.QueryRowContext(ctx, "SELECT default_branch, history_complete FROM cache_source WHERE id = 1").
+			Scan(&a.DefaultBranch, &a.HistoryComplete); err != nil {
+			return Activity{}, err
+		}
+	}
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM runs").Scan(&a.CachedRuns); err != nil {
+		return Activity{}, err
+	}
 	if a.Runs, err = s.runs(ctx, "ORDER BY created_at DESC, id DESC LIMIT ?", limit); err != nil {
 		return Activity{}, err
 	}
@@ -274,6 +407,17 @@ func (s *Store) Activity(ctx context.Context, limit int) (Activity, error) {
 	if err := rows.Err(); err != nil {
 		return Activity{}, err
 	}
+	rows.Close()
+	if a.PullRequests, err = s.pullRequests(ctx); err != nil {
+		return Activity{}, err
+	}
+	if a.Lookups, err = s.lookups(ctx); err != nil {
+		return Activity{}, err
+	}
+	err = s.db.QueryRowContext(ctx, "SELECT access FROM sync_state WHERE scope = ?", scopePulls).Scan(&a.PullRequestsAccess)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return Activity{}, err
+	}
 	var checked, synced, changed, retry int64
 	err = s.db.QueryRowContext(ctx, "SELECT checked_at, synced_at, changed_at, access, retry_after FROM sync_state WHERE scope = ?", scopeActivity).
 		Scan(&checked, &synced, &changed, &a.Access, &retry)
@@ -284,9 +428,25 @@ func (s *Store) Activity(ctx context.Context, limit int) (Activity, error) {
 	return a, nil
 }
 
-const runColumns = "id, workflow_id, name, display_title, run_number, run_attempt, event, status, conclusion, branch, head_sha, actor, html_url, created_at, updated_at"
+const runColumns = "id, workflow_id, name, display_title, run_number, run_attempt, event, status, conclusion, branch, head_sha, head_repository, commit_title, actor, html_url, created_at, updated_at"
 
 func (s *Store) runs(ctx context.Context, tail string, args ...any) ([]github.Run, error) {
+	out, err := s.scanRuns(ctx, tail, args...)
+	if err != nil || len(out) == 0 {
+		return out, err
+	}
+	// Read once the runs' rows are closed: the store has one connection.
+	links, err := s.links(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].PullRequests = links[out[i].ID]
+	}
+	return out, nil
+}
+
+func (s *Store) scanRuns(ctx context.Context, tail string, args ...any) ([]github.Run, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT "+runColumns+" FROM runs "+tail, args...)
 	if err != nil {
 		return nil, err
@@ -297,7 +457,7 @@ func (s *Store) runs(ctx context.Context, tail string, args ...any) ([]github.Ru
 		var r github.Run
 		var created, updated int64
 		if err := rows.Scan(&r.ID, &r.WorkflowID, &r.Name, &r.DisplayTitle, &r.RunNumber, &r.RunAttempt, &r.Event, &r.Status,
-			&r.Conclusion, &r.Branch, &r.HeadSHA, &r.Actor, &r.HTMLURL, &created, &updated); err != nil {
+			&r.Conclusion, &r.Branch, &r.HeadSHA, &r.HeadRepository, &r.CommitTitle, &r.Actor, &r.HTMLURL, &created, &updated); err != nil {
 			return nil, err
 		}
 		r.CreatedAt, r.UpdatedAt = fromMillis(created), fromMillis(updated)
@@ -306,31 +466,74 @@ func (s *Store) runs(ctx context.Context, tail string, args ...any) ([]github.Ru
 	return out, rows.Err()
 }
 
-// ETags returns the stored ETags when the cache holds this repository's
-// data, otherwise empty strings, so another repository's never match.
-func (s *Store) ETags(ctx context.Context, src Source) (string, string, error) {
-	current, has, err := readSource(ctx, s.db)
-	if err != nil || !has || current != src {
-		return "", "", err
-	}
-	tags := map[string]string{}
-	rows, err := s.db.QueryContext(ctx, "SELECT scope, etag FROM sync_state WHERE scope IN (?, ?)", scopeRuns, scopeWorkflows)
+// links are the cached pull request numbers of every run, ascending.
+func (s *Store) links(ctx context.Context) (map[int64][]int64, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT run_id, number FROM run_pull_requests ORDER BY run_id, number")
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 	defer rows.Close()
+	out := map[int64][]int64{}
+	for rows.Next() {
+		var run, number int64
+		if err := rows.Scan(&run, &number); err != nil {
+			return nil, err
+		}
+		out[run] = append(out[run], number)
+	}
+	return out, rows.Err()
+}
+
+// Newest returns the created_at of the newest cached run of src; false when
+// none is cached for it.
+func (s *Store) Newest(ctx context.Context, src Source) (time.Time, bool, error) {
+	current, has, err := readSource(ctx, s.db)
+	if err != nil || !has || current != src {
+		return time.Time{}, false, err
+	}
+	var newest sql.NullInt64
+	if err := s.db.QueryRowContext(ctx, "SELECT MAX(created_at) FROM runs").Scan(&newest); err != nil {
+		return time.Time{}, false, err
+	}
+	if !newest.Valid {
+		return time.Time{}, false, nil
+	}
+	return fromMillis(newest.Int64), true, nil
+}
+
+// ETags returns the stored ETags when the cache holds this repository's
+// data, otherwise empty strings, so another repository's never match.
+func (s *Store) ETags(ctx context.Context, src Source) (Tags, error) {
+	current, has, err := readSource(ctx, s.db)
+	if err != nil || !has || current != src {
+		return Tags{}, err
+	}
+	rows, err := s.db.QueryContext(ctx, "SELECT scope, etag FROM sync_state WHERE scope IN (?, ?, ?)", scopeRuns, scopeWorkflows, scopePulls)
+	if err != nil {
+		return Tags{}, err
+	}
+	defer rows.Close()
+	var tags Tags
 	for rows.Next() {
 		var scope, etag string
 		if err := rows.Scan(&scope, &etag); err != nil {
-			return "", "", err
+			return Tags{}, err
 		}
-		tags[scope] = etag
+		switch scope {
+		case scopeRuns:
+			tags.Runs = etag
+		case scopeWorkflows:
+			tags.Workflows = etag
+		case scopePulls:
+			tags.Pulls = etag
+		}
 	}
-	return tags[scopeRuns], tags[scopeWorkflows], rows.Err()
+	return tags, rows.Err()
 }
 
 func clearCache(ctx context.Context, tx *sql.Tx) error {
-	for _, statement := range []string{"DELETE FROM runs", "DELETE FROM remote_workflows", "DELETE FROM sync_state", "DELETE FROM cache_source"} {
+	for _, statement := range []string{"DELETE FROM runs", "DELETE FROM remote_workflows", "DELETE FROM pull_requests",
+		"DELETE FROM link_lookups", "DELETE FROM sync_state", "DELETE FROM cache_source"} {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
 			return err
 		}

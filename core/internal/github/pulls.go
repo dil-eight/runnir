@@ -174,32 +174,33 @@ func (c *Client) fillCI(ctx context.Context, pr *PullRequest) error {
 	}
 	list := make([]Run, 0, len(runs.WorkflowRuns))
 	for _, r := range runs.WorkflowRuns {
-		list = append(list, r.run())
+		list = append(list, r.run(owner, name))
 	}
 	summarizeCI(pr, list)
 	return nil
 }
 
-// summarizeCI keeps the newest run of each workflow (a re-run replaces the
-// one before) and sums them up: any failure fails, then anything still
-// going is running, then all cancelled is cancelled, else passed.
-func summarizeCI(pr *PullRequest, runs []Run) {
-	latest := map[int64]Run{}
-	for _, run := range runs {
-		if current, ok := latest[run.WorkflowID]; !ok || run.CreatedAt.After(current.CreatedAt) {
-			latest[run.WorkflowID] = run
-		}
+// CISummary sums up a set of runs: any failure fails, then anything still
+// going (or waiting for a maintainer's approval) is running, then all
+// cancelled is cancelled, else passed. URL is the first failed run, else
+// the first running one.
+type CISummary struct {
+	State   CIState
+	Runs    int
+	Failed  int
+	Running int
+	URL     string
+}
+
+// SummarizeRuns sums up the runs as given; callers pick the runs that count
+// (the newest of each workflow, say).
+func SummarizeRuns(runs []Run) CISummary {
+	s := CISummary{State: CINone, Runs: len(runs)}
+	if len(runs) == 0 {
+		return s
 	}
-	pr.CIRuns, pr.CIFailed, pr.CIRunning = len(latest), 0, 0
-	pr.CI = CINone
-	if len(latest) == 0 {
-		return
-	}
-	ordered := make([]Run, 0, len(latest))
-	for _, run := range latest {
-		ordered = append(ordered, run)
-	}
-	sort.Slice(ordered, func(i, j int) bool { return ordered[i].CreatedAt.Before(ordered[j].CreatedAt) })
+	ordered := append([]Run(nil), runs...)
+	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].CreatedAt.Before(ordered[j].CreatedAt) })
 	cancelled := 0
 	var failedURL, runningURL string
 	for _, run := range ordered {
@@ -207,12 +208,12 @@ func summarizeCI(pr *PullRequest, runs []Run) {
 		// A run waiting for a maintainer's approval (a fork's pull request)
 		// has not run yet, so it counts as still going, not as a pass.
 		case run.Status != "completed" || run.Conclusion == "action_required":
-			pr.CIRunning++
+			s.Running++
 			if runningURL == "" {
 				runningURL = run.HTMLURL
 			}
 		case run.Conclusion == "failure" || run.Conclusion == "timed_out" || run.Conclusion == "startup_failure":
-			pr.CIFailed++
+			s.Failed++
 			if failedURL == "" {
 				failedURL = run.HTMLURL
 			}
@@ -221,13 +222,31 @@ func summarizeCI(pr *PullRequest, runs []Run) {
 		}
 	}
 	switch {
-	case pr.CIFailed > 0:
-		pr.CI, pr.CIURL = CIFailed, failedURL
-	case pr.CIRunning > 0:
-		pr.CI, pr.CIURL = CIRunning, runningURL
+	case s.Failed > 0:
+		s.State, s.URL = CIFailed, failedURL
+	case s.Running > 0:
+		s.State, s.URL = CIRunning, runningURL
 	case cancelled == len(ordered):
-		pr.CI = CICancelled
+		s.State = CICancelled
 	default:
-		pr.CI = CIPassed
+		s.State = CIPassed
 	}
+	return s
+}
+
+// summarizeCI keeps the newest run of each workflow (a re-run replaces the
+// one before) and sums them up.
+func summarizeCI(pr *PullRequest, runs []Run) {
+	latest := map[int64]Run{}
+	for _, run := range runs {
+		if current, ok := latest[run.WorkflowID]; !ok || run.CreatedAt.After(current.CreatedAt) {
+			latest[run.WorkflowID] = run
+		}
+	}
+	chosen := make([]Run, 0, len(latest))
+	for _, run := range latest {
+		chosen = append(chosen, run)
+	}
+	s := SummarizeRuns(chosen)
+	pr.CI, pr.CIRuns, pr.CIFailed, pr.CIRunning, pr.CIURL = s.State, s.Runs, s.Failed, s.Running, s.URL
 }

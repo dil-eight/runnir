@@ -40,6 +40,8 @@ struct CoreWorkflow: Equatable, Identifiable, Sendable {
     let parseError: String?
     /// The workflow_dispatch inputs the local file declares.
     var dispatchInputs: [CoreDispatchInput] = []
+    /// The file sets concurrency at the top level or in a job.
+    var concurrency = false
 }
 
 /// A Run Workflow preset the repository shares in .runnir/launches, or, with
@@ -155,6 +157,8 @@ protocol CoreServicing: Sendable {
     func workspaceActivity(repositoryID: String, limit: Int) async throws -> CoreWorkspaceActivity
     /// Asks the workspace's sync for a pass; with `wait`, answers after it.
     func refreshWorkspaceActivity(repositoryID: String, wait: Bool, limit: Int) async throws -> CoreWorkspaceActivity
+    /// Reads one page of older runs from GitHub into the workspace's cache.
+    func loadOlderRuns(repositoryID: String) async throws -> CoreOlderRuns
     /// What workspaces keep on this Mac; empty ids: all with data and all open.
     func storageUsage(workspaceIDs: [UUID]) async throws -> CoreStorageUsage
     /// Deletes what can be downloaded again; empty ids: every workspace.
@@ -183,6 +187,9 @@ protocol CoreServicing: Sendable {
     func createWorkflowFile(repositoryID: String, fileName: String, content: String) async throws -> String
     /// Renames a workflow file within its folder; returns the new workflow id.
     func renameWorkflowFile(repositoryID: String, workflowID: String, newFileName: String) async throws -> String
+    /// The editor's text with the suggested concurrency block, or why not;
+    /// nothing is written.
+    func insertWorkflowConcurrency(repositoryID: String, content: String) async throws -> CoreConcurrencyInsertion
     /// Hands a server's GitHub token to the Core's memory; nil clears it
     /// (for an Enterprise server, forgets the server). The kind of the
     /// token now held, nil when cleared.
@@ -215,6 +222,8 @@ protocol CoreServicing: Sendable {
     func confirmWorkflowDispatch(dispatchID: String) async throws -> CoreDispatchResult
     /// The end of one job's log, split into lines tagged with kind and step.
     func jobLog(repositoryID: String, jobID: Int64) async throws -> CoreJobLog
+    /// Writes one job's whole log to a file for an editor.
+    func saveJobLog(repositoryID: String, jobID: Int64) async throws -> CoreSavedJobLog
     /// Checks a cancel or re-run against the run's state; nothing is sent yet.
     func prepareRunAction(repositoryID: String, runID: Int64, action: CoreRunAction) async throws -> CorePreparedRunAction
     /// Sends a prepared run action once. Throws when the confirmation expired or was used.

@@ -175,7 +175,7 @@ struct GitHubAccessHelp: Equatable, Identifiable {
         case .permissionMissing:
             if purpose != .read, details?.canPush == false { return noWriteAccess(name, purpose: purpose) }
             let message = credential == .fineGrained
-                ? "To \(purpose.phrase) in \(name), a fine-grained token needs Actions: Read and write and Contents: Read-only for it."
+                ? "To \(purpose.phrase) in \(name), a fine-grained token needs Actions: Read and write, Contents: Read-only and Pull requests: Read-only for it."
                 : "To \(purpose.phrase) in \(name), the token needs the repo scope."
             return GitHubAccessHelp(title: "The token lacks a permission", message: message, fix: .editToken(settings))
         default:
@@ -241,11 +241,37 @@ struct GitHubAccessHelp: Equatable, Identifiable {
                          fix: .askForWriteAccess)
     }
 
-    /// "actions: write" reads as "Actions (write)".
+    /// "actions: write" reads as "Actions (write)", "pull_requests: read" as
+    /// "Pull requests (read)".
     static func permissionName(_ permission: String) -> String {
         let parts = permission.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
         guard parts.count == 2 else { return permission }
-        return "\(parts[0].capitalized) (\(parts[1]))"
+        let name = parts[0].replacingOccurrences(of: "_", with: " ")
+        return "\(name.prefix(1).uppercased() + name.dropFirst()) (\(parts[1]))"
+    }
+
+    /// Why runs are not linked to their pull requests: the Core could not
+    /// read them. The fix is the token's permission, the installation's
+    /// pending permission, or the app's permissions on GitHub.
+    static func pullRequestsUnreadable(repository: String?, details: CoreGitHubRepository?,
+                                       credential: CoreGitHubCredentialKind?, server: GitHubServerRef?) -> GitHubAccessHelp {
+        let name = repository.flatMap { $0.isEmpty ? nil : $0 } ?? "this repository"
+        let title = "Pull requests can't be read"
+        let lead = "Runs after a merge and runs from forks are not linked to their pull requests."
+        if let credential, credential.isPersonal {
+            let message = credential == .fineGrained
+                ? "\(lead) A fine-grained token needs Pull requests: Read-only for \(name)."
+                : "\(lead) The token needs the repo scope for \(name)."
+            let fix: Fix = if let server, !server.isDotCom { .openSettings } else { .editToken(tokenSettingsURL(credential)) }
+            return GitHubAccessHelp(title: title, message: message, fix: fix)
+        }
+        if let installation = details?.installation, installation.missingPermissions.contains(where: { $0.hasPrefix("pull_requests") }) {
+            let who = installation.accountType == "User" ? "\(installation.account) accepts it on GitHub." : "An owner of \(installation.account) accepts it on GitHub."
+            return GitHubAccessHelp(title: title, message: "\(lead) Runnir Desktop needs Pull requests (read) on \(name); \(who)",
+                                    fix: .reviewPermissions(installation.htmlURL ?? installationURL))
+        }
+        return GitHubAccessHelp(title: title, message: "\(lead) Runnir Desktop needs Pull requests (read) on \(name). Check the app's permissions on GitHub.",
+                                fix: .reviewPermissions(details?.installation?.htmlURL ?? installationURL))
     }
 }
 
