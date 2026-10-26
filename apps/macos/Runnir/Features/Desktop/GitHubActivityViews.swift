@@ -114,6 +114,12 @@ struct RecentRunsList: View {
     }
 }
 
+/// What a search has to cover: it loads again when the cache grows.
+private struct SavedRunsSearch: Hashable {
+    let searching: Bool
+    let cachedRuns: Int
+}
+
 /// Runs section: the runs as a list or by change, and the selected run's
 /// jobs and steps.
 struct WorkspaceRunsView: View {
@@ -178,8 +184,14 @@ struct WorkspaceRunsView: View {
             inspector.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear { if selectedRunID == nil { selectedRunID = session.runs.first?.id } }
-        .task(id: searching) {
-            if searching { await hub.loadSavedRuns(workspaceID: session.workspaceID) }
+        // Runs the cache gets while the search is open (a sync, or a window that
+        // opened with an empty cache) are covered too.
+        .task(id: SavedRunsSearch(searching: searching, cachedRuns: session.cachedRuns)) {
+            if searching {
+                await hub.loadSavedRuns(workspaceID: session.workspaceID)
+            } else {
+                await hub.endSavedRunsSearch(workspaceID: session.workspaceID)
+            }
         }
     }
 
