@@ -117,6 +117,9 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     var preparedProblems: [String] = []
     /// What GitHub answers a prepared dispatch with, when not `.ok`.
     var preparedAccess: CoreGitHubAccess = .ok
+    private var _dispatchRequests: [(workflowID: Int64, ref: String, inputs: [String: String])] = []
+    /// The workflow, ref and inputs of each prepared dispatch.
+    var dispatchRequests: [(workflowID: Int64, ref: String, inputs: [String: String])] { lock.withLock { _dispatchRequests } }
     private var _dispatchTargets: [String] = []
     /// Targets of refs, describe and prepare calls, in order.
     var dispatchTargets: [String] { lock.withLock { _dispatchTargets } }
@@ -134,6 +137,7 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     func prepareWorkflowDispatch(target: CoreGitHubTarget, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch {
         lock.withLock {
             _dispatchTargets.append(Self.key(target))
+            _dispatchRequests.append((workflowID, ref, inputs))
             if preparedAccess != .ok {
                 return CorePreparedDispatch(access: preparedAccess, dispatchID: nil, expiresAt: nil, problems: [], workflowPath: "")
             }
@@ -154,6 +158,8 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     var runActionProblems: [String] = []
     var runActionRejection: String?
     var preparedRun: CoreWorkflowRun?
+    /// The environments a prepared .approveDeployments names.
+    var runActionEnvironments: [String] = []
     private var _runActions: [CoreRunAction] = []
     private var _confirmedActions: [String] = []
     var runActions: [CoreRunAction] { lock.withLock { _runActions } }
@@ -165,7 +171,8 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         lock.withLock {
             _runActions.append(action)
             return runActionProblems.isEmpty
-                ? CorePreparedRunAction(access: .ok, actionID: "action_\(_runActions.count)", expiresAt: Date().addingTimeInterval(120), problems: [], run: preparedRun)
+                ? CorePreparedRunAction(access: .ok, actionID: "action_\(_runActions.count)", expiresAt: Date().addingTimeInterval(120), problems: [], run: preparedRun,
+                                        environments: runActionEnvironments)
                 : CorePreparedRunAction(access: .ok, actionID: nil, expiresAt: nil, problems: runActionProblems, run: preparedRun)
         }
     }

@@ -493,12 +493,15 @@ enum CoreRunAction: Equatable, Sendable {
     case cancel
     case rerun
     case rerunFailed
+    /// Approves the run's pending deployments the user may approve.
+    case approveDeployments
 
     var title: String {
         switch self {
         case .cancel: "Cancel Run"
         case .rerun: "Re-run all jobs"
         case .rerunFailed: "Re-run failed jobs"
+        case .approveDeployments: "Approve deployment"
         }
     }
 }
@@ -512,6 +515,8 @@ struct CorePreparedRunAction: Equatable, Sendable {
     let problems: [String]
     /// The run as GitHub reported it while preparing.
     let run: CoreWorkflowRun?
+    /// For `.approveDeployments`: the environments that will be approved.
+    var environments: [String] = []
 }
 
 struct CoreRunActionResult: Equatable, Sendable {

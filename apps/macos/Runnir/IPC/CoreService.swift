@@ -30,6 +30,10 @@ struct CoreJob: Equatable, Sendable {
     let id: String
     let name: String
     let needs: [String]
+    /// The job's if requires a workflow_dispatch run: it is started by hand,
+    /// with the inputs that if fixes.
+    var manual = false
+    var manualInputs: [String: String] = [:]
 }
 
 struct CoreWorkflow: Equatable, Identifiable, Sendable {

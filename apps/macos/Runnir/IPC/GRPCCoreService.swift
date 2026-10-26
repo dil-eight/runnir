@@ -285,7 +285,7 @@ struct GRPCCoreService: CoreServicing {
                 id: workflow.id,
                 name: workflow.name,
                 triggers: workflow.triggers,
-                jobs: workflow.jobs.map { CoreJob(id: $0.id, name: $0.name, needs: $0.needs) },
+                jobs: workflow.jobs.map { CoreJob(id: $0.id, name: $0.name, needs: $0.needs, manual: $0.manual, manualInputs: $0.manualInputs) },
                 parseError: workflow.parseError.isEmpty ? nil : workflow.parseError,
                 dispatchInputs: workflow.dispatchInputs.map(Self.dispatchInput),
                 concurrency: workflow.concurrency,
@@ -728,6 +728,7 @@ struct GRPCCoreService: CoreServicing {
                 case .cancel: .cancel
                 case .rerun: .rerun
                 case .rerunFailed: .rerunFailed
+                case .approveDeployments: .approveDeployments
                 }
             }, options: Self.options(Self.callTimeout))
         }
@@ -736,7 +737,8 @@ struct GRPCCoreService: CoreServicing {
             actionID: response.actionID.isEmpty ? nil : response.actionID,
             expiresAt: response.hasExpiresAt ? response.expiresAt.date : nil,
             problems: response.problems,
-            run: response.hasRun ? Self.map(response.run) : nil
+            run: response.hasRun ? Self.map(response.run) : nil,
+            environments: response.environments
         )
     }
 

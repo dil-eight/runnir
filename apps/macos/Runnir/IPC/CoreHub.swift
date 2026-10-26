@@ -1102,6 +1102,7 @@ final class CoreHub {
         switch action {
         case .cancel: now.status == "completed"
         case .rerun, .rerunFailed: now.runAttempt > before.runAttempt || now.status != "completed"
+        case .approveDeployments: now.status != "waiting"
         }
     }
 

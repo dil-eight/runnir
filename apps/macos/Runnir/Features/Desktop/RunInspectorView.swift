@@ -191,6 +191,9 @@ final class RunActionModel {
             return ("Re-run failed jobs of run #\(run.runNumber)?",
                     "\(target). Starts attempt \(run.runAttempt + 1) of the failed and cancelled jobs and the jobs that need them, on the same commit.",
                     "Re-run")
+        case .approveDeployments:
+            return ("Approve the deployment of run #\(run.runNumber)?",
+                    "\(target). The jobs waiting for it go on.", "Approve")
         }
     }
 }

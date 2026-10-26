@@ -61,8 +61,17 @@ enum PipelineLayout {
 
     /// What hovering a job of the pipeline says: its status in the latest
     /// run, and the jobs it needs.
-    static func hint(for job: CoreJob, matched: [CoreRunJob], readFailed: Bool, now: Date) -> String {
+    static func hint(for job: CoreJob, matched: [CoreRunJob], readFailed: Bool, now: Date, start: ManualJobStart? = nil) -> String {
         var lines: [String] = []
+        switch start {
+        case .approve:
+            lines.append("Waiting for your approval to deploy · ▶ approves it")
+        case .dispatch(_, _, let inputs):
+            let with = inputs.isEmpty ? "" : " with \(ManualJobStart.describe(inputs))"
+            lines.append("Runs only when started by hand\(with) · ▶ starts it")
+        case nil:
+            break
+        }
         if let outcome = outcome(matched) {
             switch outcome {
             case .skipped:
@@ -111,6 +120,10 @@ struct WorkspaceOverview: View {
     @State private var runJobs: CoreGitHubResult<CoreRunJob>?
     /// The run `runJobs` belongs to; jobs stay shown while the same run reloads.
     @State private var runJobsRunID: Int64?
+    /// What starting a manual job did, shown under the pipeline.
+    @State private var manualJobMessage: String?
+    /// The manual job being started; its ▶ waits meanwhile.
+    @State private var startingJobID: String?
 
     private var workflows: [LocalWorkflowFile] {
         favorites.ordered(files.files, workspaceID: workspaceID, path: \.relativePath)
@@ -284,20 +297,29 @@ struct WorkspaceOverview: View {
                                         .padding(.top, 12).accessibilityHidden(true)
                                 }
                                 VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(column, id: \.id) { job in jobChip(job, among: definition?.jobs ?? []) }
+                                    ForEach(column, id: \.id) { job in
+                                        jobChip(job, among: definition?.jobs ?? [], workflowName: definition?.name ?? selected.name)
+                                    }
                                 }
                             }
                         }
                     }.scrollIndicators(.hidden)
                     pipelineNote(run: run)
+                    if let manualJobMessage {
+                        Label(manualJobMessage, systemImage: "play.circle")
+                            .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).textSelection(.enabled)
+                    }
                 }
             }
         }
     }
 
-    private func jobChip(_ job: CoreJob, among jobs: [CoreJob]) -> some View {
+    private func jobChip(_ job: CoreJob, among jobs: [CoreJob], workflowName: String) -> some View {
         let matched = runJobs.map { PipelineLayout.runJobs(for: job, in: $0.items, among: jobs) } ?? []
         let outcome = PipelineLayout.outcome(matched)
+        let path = selected?.relativePath ?? ""
+        let start = session?.githubAccess == .ok
+            ? ManualJobStart.of(job, matched: matched, run: latestRun(path), workflow: remote(path)) : nil
         return HStack(spacing: 8) {
             if let outcome { RunOutcomeIcon(outcome: outcome, size: 12) } else {
                 Image(systemName: "circle").font(.system(size: 12)).foregroundStyle(RunnirTheme.mutedForeground)
@@ -305,16 +327,42 @@ struct WorkspaceOverview: View {
             }
             Text(job.name.isEmpty ? job.id : job.name).font(.system(size: 13)).lineLimit(1)
             Spacer(minLength: 12)
-            TimelineView(.periodic(from: .now, by: outcome == .running ? 1 : 3600)) { context in
-                if let duration = PipelineLayout.duration(matched, now: context.date) {
-                    Text(PipelineLayout.format(duration)).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+            if let start {
+                manualButton(start, job: job, workflowName: workflowName)
+            } else {
+                TimelineView(.periodic(from: .now, by: outcome == .running ? 1 : 3600)) { context in
+                    if let duration = PipelineLayout.duration(matched, now: context.date) {
+                        Text(PipelineLayout.format(duration)).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                    }
                 }
             }
         }
         .padding(.horizontal, 12).frame(width: 190, height: 36)
         .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(outcome == .failed ? RunnirTheme.destructive : RunnirTheme.border))
-        .help(PipelineLayout.hint(for: job, matched: matched, readFailed: runJobs.map { $0.access != .ok } ?? false, now: Date()))
+        .help(PipelineLayout.hint(for: job, matched: matched, readFailed: runJobs.map { $0.access != .ok } ?? false, now: Date(), start: start))
+    }
+
+    private func manualButton(_ start: ManualJobStart, job: CoreJob, workflowName: String) -> some View {
+        Button {
+            guard let hub, startingJobID == nil else { return }
+            startingJobID = job.id
+            Task {
+                manualJobMessage = await ManualJobRunner.start(start, jobName: job.name.isEmpty ? job.id : job.name,
+                                                               workflowName: workflowName, workspaceID: workspaceID, hub: hub) ?? manualJobMessage
+                startingJobID = nil
+            }
+        } label: {
+            if startingJobID == job.id {
+                ProgressView().controlSize(.mini)
+            } else {
+                Image(systemName: "play.fill").font(.system(size: 10)).foregroundStyle(RunnirTheme.primary)
+                    .frame(width: 22, height: 22).background(RunnirTheme.primary.opacity(0.16), in: Circle())
+            }
+        }
+        .buttonStyle(.hit).disabled(startingJobID != nil)
+        .help(start.buttonHelp(jobName: job.name.isEmpty ? job.id : job.name))
+        .accessibilityLabel(start.buttonHelp(jobName: job.name.isEmpty ? job.id : job.name))
     }
 
     @ViewBuilder private func pipelineNote(run: CoreWorkflowRun?) -> some View {
