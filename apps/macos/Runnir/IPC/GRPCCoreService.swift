@@ -660,8 +660,33 @@ struct GRPCCoreService: CoreServicing {
             access: Self.map(response.status),
             dispatchedAt: response.hasDispatchedAt ? response.dispatchedAt.date : nil,
             runID: response.runID == 0 ? nil : response.runID,
-            rejection: response.rejection.isEmpty ? nil : response.rejection
+            rejection: response.rejection.isEmpty ? nil : response.rejection,
+            historyID: response.historyID == 0 ? nil : response.historyID
         )
+    }
+
+    func dispatchHistory(repositoryID: String, workflowPath: String) async throws -> [CoreDispatchRecord] {
+        let response = try await call {
+            try await client.listDispatchHistory(.with {
+                $0.repositoryID = repositoryID
+                $0.workflowPath = workflowPath
+            }, options: Self.options(Self.callTimeout))
+        }
+        return response.records.map { record in
+            CoreDispatchRecord(id: record.id, workflowPath: record.workflowPath, ref: record.ref, inputs: record.inputs,
+                               omittedInputs: record.omittedInputs, sentAt: record.hasSentAt ? record.sentAt.date : .distantPast,
+                               runID: record.runID)
+        }
+    }
+
+    func linkDispatchRun(repositoryID: String, id: Int64, runID: Int64) async throws {
+        _ = try await call {
+            try await client.linkDispatchRun(.with {
+                $0.repositoryID = repositoryID
+                $0.id = id
+                $0.runID = runID
+            }, options: Self.options(Self.callTimeout))
+        }
     }
 
     /// The whole log can take minutes to download, so this call waits longer.

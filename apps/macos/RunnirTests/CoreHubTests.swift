@@ -152,8 +152,25 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         try lock.withLock {
             guard !_confirmed.contains(dispatchID) else { throw CoreServiceError.failedPrecondition("used") }
             _confirmed.append(dispatchID)
-            return CoreDispatchResult(access: .ok, dispatchedAt: Date(), runID: dispatchedRunID, rejection: nil)
+            return CoreDispatchResult(access: .ok, dispatchedAt: Date(), runID: dispatchedRunID, rejection: nil, historyID: dispatchHistoryID)
         }
+    }
+    /// The history entry a confirmed dispatch gets, when the Core keeps one.
+    var dispatchHistoryID: Int64?
+    /// What the Core says was sent before.
+    var history: [CoreDispatchRecord] = []
+    private var _historyRequests: [String] = []
+    var historyRequests: [String] { lock.withLock { _historyRequests } }
+    private var _linkedDispatchRuns: [(id: Int64, runID: Int64)] = []
+    var linkedDispatchRuns: [(id: Int64, runID: Int64)] { lock.withLock { _linkedDispatchRuns } }
+    func dispatchHistory(repositoryID: String, workflowPath: String) async throws -> [CoreDispatchRecord] {
+        lock.withLock {
+            _historyRequests.append(workflowPath)
+            return history.filter { workflowPath.isEmpty || $0.workflowPath == workflowPath }
+        }
+    }
+    func linkDispatchRun(repositoryID: String, id: Int64, runID: Int64) async throws {
+        lock.withLock { _linkedDispatchRuns.append((id, runID)) }
     }
     // Logs and run actions
     var jobLogResult = CoreJobLog(access: .ok, availability: .available, lines: [], truncated: false)

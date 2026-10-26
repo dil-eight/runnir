@@ -435,6 +435,22 @@ struct CoreDispatchResult: Equatable, Sendable {
     let runID: Int64?
     /// GitHub's reason when it refused the request.
     let rejection: String?
+    /// The dispatch's entry in the workspace's history, when one was kept.
+    var historyID: Int64? = nil
+}
+
+/// A workflow dispatch GitHub accepted from this Mac: what was sent, without
+/// the values that look secret.
+struct CoreDispatchRecord: Equatable, Identifiable, Sendable {
+    let id: Int64
+    let workflowPath: String
+    let ref: String
+    let inputs: [String: String]
+    /// Inputs whose values were not kept because they look secret.
+    let omittedInputs: [String]
+    let sentAt: Date
+    /// 0 until the run it started is known.
+    let runID: Int64
 }
 
 // MARK: Logs and run actions

@@ -227,6 +227,10 @@ protocol CoreServicing: Sendable {
     func prepareWorkflowDispatch(target: CoreGitHubTarget, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch
     /// Sends a prepared dispatch once. Throws when the confirmation expired or was used.
     func confirmWorkflowDispatch(dispatchID: String) async throws -> CoreDispatchResult
+    /// The dispatches sent from this Mac for a workspace, newest first; an empty path lists every workflow's.
+    func dispatchHistory(repositoryID: String, workflowPath: String) async throws -> [CoreDispatchRecord]
+    /// Says which run a history entry started. The Core keeps the first answer.
+    func linkDispatchRun(repositoryID: String, id: Int64, runID: Int64) async throws
     /// The end of one job's log, split into lines tagged with kind and step.
     func jobLog(repositoryID: String, jobID: Int64) async throws -> CoreJobLog
     /// Writes one job's whole log to a file for an editor.
