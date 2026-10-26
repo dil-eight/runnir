@@ -45,10 +45,20 @@ enum GenericPassword {
     }
 
     /// Deletes one item, or every item of the service when `account` is nil.
-    static func delete(service: String, account: String?) throws {
-        let status = SecItemDelete(base(service: service, account: account) as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else { throw KeychainError.unhandledStatus(status) }
+    /// The file-based keychain deletes one matching item per call, so a
+    /// whole service is deleted call by call until nothing matches.
+    static func delete(service: String, account: String?,
+                       deleteItem: (CFDictionary) -> OSStatus = SecItemDelete) throws {
+        let query = base(service: service, account: account) as CFDictionary
+        for _ in 0..<(account == nil ? maxItemsPerService : 1) {
+            let status = deleteItem(query)
+            if status == errSecItemNotFound { return }
+            guard status == errSecSuccess else { throw KeychainError.unhandledStatus(status) }
+        }
     }
+
+    /// More items than a service of Runnir's ever holds; bounds the deletes.
+    static let maxItemsPerService = 10_000
 
     private static func base(service: String, account: String?) -> [String: Any] {
         var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service]

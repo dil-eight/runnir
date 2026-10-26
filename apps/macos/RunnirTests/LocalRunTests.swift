@@ -211,6 +211,36 @@ struct LocalRunTests {
         #expect(fake.confirmedValues.first?.secrets == ["OTHER": "typed"])
     }
 
+    @Test func aFailedSaveOfEnteredValuesStartsNothing() async throws {
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
+        let store = InMemoryLocalRunValueStore()
+        await store.setFailSaves(true)
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        await review.prepare()
+        review.entered[LocalRunValueKey(kind: .secret, name: "OTHER")] = "typed"
+        review.saveEntered = true
+        review.trusted = true
+        #expect(await review.run() == nil)
+        #expect(review.error?.hasPrefix("Keychain did not save the entered values, so the run did not start.") == true)
+        #expect(fake.confirmedLocalRuns.isEmpty)
+    }
+
+    @Test func runWaitsForSavedValuesToBeRead() async throws {
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
+        let store = GatedValueStore(values: [LocalRunValueKey(kind: .secret, name: "NPM_TOKEN"): "saved"])
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        review.trusted = true
+        let preparing = Task { await review.prepare() }
+        #expect(await eventually { review.prepared != nil })
+        #expect(review.isPreparing && !review.canRun)
+        await store.open()
+        await preparing.value
+        #expect(review.canRun)
+        fake.localOutputs = [output(lines: nil, phase: .finished, state: .succeeded)]
+        _ = try #require(await review.run())
+        #expect(fake.confirmedValues.first?.secrets == ["NPM_TOKEN": "saved"])
+    }
+
     @Test func refusedKeychainReadCountsAsMissing() async {
         let (hub, workspace, _) = await hub { $0.preparedLocalRun = valuesPlan() }
         let token = LocalRunValueKey(kind: .secret, name: "NPM_TOKEN")
@@ -446,4 +476,29 @@ struct LocalRunTests {
         #expect(desktop.confirmQuitStopsLocalRuns())
         #expect(!asked)
     }
+}
+
+/// Saved values whose reads wait until `open()`, as a Keychain asking for
+/// access would.
+private actor GatedValueStore: LocalRunValueStoring {
+    private let values: [LocalRunValueKey: String]
+    private var isOpen = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    init(values: [LocalRunValueKey: String]) { self.values = values }
+
+    func open() {
+        isOpen = true
+        waiting.forEach { $0.resume() }
+        waiting = []
+    }
+
+    func keys(workspaceID: UUID) async throws -> Set<LocalRunValueKey> { Set(values.keys) }
+    func value(workspaceID: UUID, key: LocalRunValueKey) async throws -> String? {
+        if !isOpen { await withCheckedContinuation { waiting.append($0) } }
+        return values[key]
+    }
+    func save(workspaceID: UUID, key: LocalRunValueKey, value: String) async throws {}
+    func remove(workspaceID: UUID, key: LocalRunValueKey) async throws {}
+    func removeAll(workspaceID: UUID) async throws {}
 }

@@ -53,12 +53,24 @@ final class WorkspaceValuesModel {
         let known = Set(readers.keys).union(saved)
         edits = edits.filter { known.contains($0.key) }
         removals = removals.intersection(known)
-        shown = shown.filter { $0.key.kind == .secret && saved.contains($0.key) }
-        refused = []
         error = nil
-        for key in saved.sorted() where key.kind == .variable {
-            do { shown[key] = try await store.value(workspaceID: workspaceID, key: key) } catch { refused.insert(key) }
+        // Every variable, and each secret on screen, is read again: another
+        // window may have changed it.
+        let revealed = Set(shown.keys.filter { $0.kind == .secret })
+        var fresh: [LocalRunValueKey: String] = [:]
+        var refusedNow: Set<LocalRunValueKey> = []
+        for key in saved.sorted() where key.kind == .variable || revealed.contains(key) {
+            do { fresh[key] = try await store.value(workspaceID: workspaceID, key: key) } catch { refusedNow.insert(key) }
         }
+        // A secret hidden while reading stays hidden; one shown meanwhile
+        // stays shown.
+        let onScreen = Set(shown.keys.filter { $0.kind == .secret })
+        var next = fresh.filter { $0.key.kind == .variable || onScreen.contains($0.key) }
+        for (key, value) in shown where key.kind == .secret && next[key] == nil && saved.contains(key) && !refusedNow.contains(key) {
+            next[key] = value
+        }
+        shown = next
+        refused = refusedNow
     }
 
     /// What the value field shows: a typed value, else the saved one when it
@@ -116,7 +128,8 @@ final class WorkspaceValuesModel {
         error = nil
         importSummary = nil
         for key in forgotten { shown[key] = nil }
-        for (key, value) in written where key.kind == .variable { shown[key] = value }
+        // Variables show their value; a secret on screen shows the new one.
+        for (key, value) in written where key.kind == .variable || shown[key] != nil { shown[key] = value }
         func mark(_ rows: inout [Row]) {
             for index in rows.indices {
                 if written[rows[index].key] != nil { rows[index].saved = true }

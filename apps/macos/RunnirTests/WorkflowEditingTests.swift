@@ -347,13 +347,18 @@ struct WorkflowEditingTests {
         let controller = WorkspaceWindowController(record: record, workspace: workspace, grant: nil, desktop: DesktopCoordinator())
         let files = try #require(controller.files)
         files.source = "edited"
+        let values = try #require(controller.values)
+        values.setText("typed", for: LocalRunValueKey(kind: .secret, name: "NPM_TOKEN"))
 
         controller.attach(record: record, workspace: workspace, grant: StubGrant(root: root))
         #expect(controller.files === files)
+        #expect(controller.values === values)
+        #expect(controller.unsavedNames.contains("Secrets and Variables"))
 
         let other = WorkspaceRecord(id: UUID(), path: root.path, name: "other", bookmark: Data(), lastOpenedAt: Date())
         controller.attach(record: WorkspaceWindowRecord(id: record.id, workspaceID: other.id), workspace: other, grant: StubGrant(root: root))
         #expect(controller.files !== files)
+        #expect(controller.values !== values)
         controller.close()
     }
 }

@@ -99,12 +99,15 @@ actor InMemoryLocalRunValueStore: LocalRunValueStoring {
     private var values: [UUID: [LocalRunValueKey: String]]
     /// Makes `value` throw, as a Keychain that refuses access would.
     private var failReads = false
+    /// Makes `save` throw, as a locked Keychain would.
+    private var failSaves = false
     /// How many values were read, for tests.
     private(set) var reads = 0
 
     init(values: [UUID: [LocalRunValueKey: String]] = [:]) { self.values = values }
 
     func setFailReads(_ fail: Bool) { failReads = fail }
+    func setFailSaves(_ fail: Bool) { failSaves = fail }
     func keys(workspaceID: UUID) async throws -> Set<LocalRunValueKey> { Set(values[workspaceID, default: [:]].keys) }
     func value(workspaceID: UUID, key: LocalRunValueKey) async throws -> String? {
         reads += 1
@@ -112,6 +115,7 @@ actor InMemoryLocalRunValueStore: LocalRunValueStoring {
         return values[workspaceID]?[key]
     }
     func save(workspaceID: UUID, key: LocalRunValueKey, value: String) async throws {
+        if failSaves { throw KeychainError.unhandledStatus(errSecInteractionNotAllowed) }
         values[workspaceID, default: [:]][key] = value
         announceChange(workspaceID)
     }

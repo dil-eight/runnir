@@ -28,9 +28,10 @@ final class AppState {
     /// The workflow files of this window and the one in its editor.
     let files: WorkspaceFilesModel
     /// The Secrets and Variables section: names, saved values and edits.
-    let values = WorkspaceValuesModel()
+    let values: WorkspaceValuesModel
 
-    init(files: WorkspaceFilesModel = WorkspaceFilesModel()) {
+    init(files: WorkspaceFilesModel = WorkspaceFilesModel(), values: WorkspaceValuesModel = WorkspaceValuesModel()) {
         self.files = files
+        self.values = values
     }
 }

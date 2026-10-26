@@ -53,6 +53,24 @@ private final class Announcements: @unchecked Sendable {
         #expect(seen.ids == [workspace, workspace])
     }
 
+    @Test func deletingAServiceDeletesEveryItem() throws {
+        // The file-based keychain deletes one matching item per call.
+        var left = 3, calls = 0
+        try GenericPassword.delete(service: "dev.runnir.test", account: nil) { _ in
+            calls += 1
+            guard left > 0 else { return errSecItemNotFound }
+            left -= 1
+            return errSecSuccess
+        }
+        #expect(left == 0 && calls == 4)
+        calls = 0
+        try GenericPassword.delete(service: "dev.runnir.test", account: "secret:A") { _ in calls += 1; return errSecSuccess }
+        #expect(calls == 1)
+        #expect(throws: KeychainError.self) {
+            try GenericPassword.delete(service: "dev.runnir.test", account: nil) { _ in errSecAuthFailed }
+        }
+    }
+
     @Test func keysSortByNameThenKind() {
         let keys = [LocalRunValueKey(kind: .variable, name: "B"), LocalRunValueKey(kind: .variable, name: "A"),
                     LocalRunValueKey(kind: .secret, name: "A")]
@@ -134,6 +152,37 @@ private final class Announcements: @unchecked Sendable {
         #expect(model.text(for: token) == "s3cr3t")
         #expect(reason == "show the saved value of NPM_TOKEN")
         model.hideSecrets()
+        #expect(model.text(for: token) == "")
+    }
+
+    @Test func aShownSecretShowsItsNewValueAfterSave() async throws {
+        let store = InMemoryLocalRunValueStore(values: [workspace: [token: "old"]])
+        let model = WorkspaceValuesModel()
+        await model.load(workspaceID: workspace, workflows: workflows(), store: store)
+        await model.reveal(token, workspaceID: workspace, store: store) { _ in .confirmed }
+        model.setText("new", for: token)
+        #expect(await model.save(workspaceID: workspace, store: store))
+        #expect(model.text(for: token) == "new")
+        // A secret saved without being shown stays hidden.
+        let shared = LocalRunValueKey(kind: .secret, name: "SHARED")
+        model.setText("typed", for: shared)
+        #expect(await model.save(workspaceID: workspace, store: store))
+        #expect(model.text(for: shared) == "")
+    }
+
+    @Test func reloadingReadsAShownSecretAgain() async throws {
+        let store = InMemoryLocalRunValueStore(values: [workspace: [token: "old", region: "eu"]])
+        let model = WorkspaceValuesModel()
+        await model.load(workspaceID: workspace, workflows: workflows(), store: store)
+        await model.reveal(token, workspaceID: workspace, store: store) { _ in .confirmed }
+        // Another window saves new values.
+        try await store.save(workspaceID: workspace, key: token, value: "new")
+        try await store.save(workspaceID: workspace, key: region, value: "us")
+        await model.load(workspaceID: workspace, workflows: workflows(), store: store)
+        #expect(model.text(for: token) == "new")
+        #expect(model.text(for: region) == "us")
+        model.hideSecrets()
+        await model.load(workspaceID: workspace, workflows: workflows(), store: store)
         #expect(model.text(for: token) == "")
     }
 

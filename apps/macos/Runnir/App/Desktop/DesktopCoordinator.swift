@@ -752,20 +752,23 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
 
     func attach(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: any RepositoryGranting) {
         // The same workspace with renewed folder access (Locate) keeps the
-        // editor and any edits in it; another workspace starts fresh.
-        let keptFiles = record.workspaceID == self.record.workspaceID ? state?.files : nil
+        // editor and Secrets and Variables with any edits in them; another
+        // workspace starts fresh.
+        let kept = record.workspaceID == self.record.workspaceID ? state : nil
         self.grant?.stop()
         self.grant = grant
         self.record = record
-        installContent(workspace, files: keptFiles)
+        installContent(workspace, keeping: kept)
     }
 
     /// The window's editor, for tests.
     var files: WorkspaceFilesModel? { state?.files }
+    /// The window's Secrets and Variables, for tests.
+    var values: WorkspaceValuesModel? { state?.values }
 
-    private func installContent(_ workspace: WorkspaceRecord, files: WorkspaceFilesModel? = nil) {
+    private func installContent(_ workspace: WorkspaceRecord, keeping kept: AppState? = nil) {
         let frame = window?.frame
-        let state = files.map { AppState(files: $0) } ?? AppState()
+        let state = kept.map { AppState(files: $0.files, values: $0.values) } ?? AppState()
         self.state = state
         state.selectedSection = record.section.restored
         state.runsMode = record.runsMode ?? .list

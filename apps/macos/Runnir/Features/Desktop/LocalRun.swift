@@ -269,18 +269,20 @@ final class LocalRunReviewModel {
 
     /// Which of the plan's names have a saved value. Each value is read once
     /// per review and kept for the run, so a refused read shows before it;
-    /// a refused one is tried again when the plan is prepared again.
-    private func loadSaved() async {
+    /// a refused one is tried again when the plan is prepared again. An
+    /// answer for an older plan is dropped.
+    private func loadSaved(for keys: [LocalRunValueKey], generation current: Int) async {
         let stored = (try? await values.keys(workspaceID: workspaceID)) ?? []
         var refusedNow: Set<LocalRunValueKey> = []
-        for key in runKeys where stored.contains(key) && savedValues[key] == nil {
+        for key in keys where stored.contains(key) && savedValues[key] == nil {
             if let value = try? await values.value(workspaceID: workspaceID, key: key) {
                 savedValues[key] = value
             } else {
                 refusedNow.insert(key)
             }
         }
-        saved = Set(runKeys.filter { stored.contains($0) })
+        guard current == generation else { return }
+        saved = Set(keys.filter { stored.contains($0) })
         refused = refusedNow
     }
 
@@ -294,17 +296,20 @@ final class LocalRunReviewModel {
         let result = await hub.prepareLocalRun(workspaceID: workspaceID, workflowID: workflowID, jobID: jobID,
                                                event: event, useInstalledAct: useInstalledAct())
         guard current == generation else { return }
-        isPreparing = false
         switch result {
         case .prepared(let prepared):
             self.prepared = prepared
             error = nil
             if event == nil { event = prepared.plan.event.isEmpty ? nil : prepared.plan.event }
-            await loadSaved()
+            // Run waits for the saved values, so none is passed empty
+            // because it was still being read.
+            await loadSaved(for: runKeys, generation: current)
+            guard current == generation else { return }
         case .failed(let message):
             prepared = nil
             error = message
         }
+        isPreparing = false
     }
 
     /// Starts the reviewed run; nil and `error` when it did not start.
@@ -318,8 +323,14 @@ final class LocalRunReviewModel {
             if key.kind == .secret { secrets[key.name] = value } else { variables[key.name] = value }
         }
         if saveEntered {
-            for key in runKeys {
-                if let text = typed(key) { try? await values.save(workspaceID: workspaceID, key: key, value: text) }
+            do {
+                for key in runKeys {
+                    if let text = typed(key) { try await values.save(workspaceID: workspaceID, key: key, value: text) }
+                }
+            } catch {
+                self.error = "Keychain did not save the entered values, so the run did not start. \(error.localizedDescription) "
+                    + "Turn off \u{201C}Save entered values to this workspace\u{201D} to run without saving them."
+                return nil
             }
         }
         switch await hub.startLocalRun(workspaceID: workspaceID, prepared: prepared, secrets: secrets, variables: variables) {
