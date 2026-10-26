@@ -172,6 +172,18 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     func linkDispatchRun(repositoryID: String, id: Int64, runID: Int64) async throws {
         lock.withLock { _linkedDispatchRuns.append((id, runID)) }
     }
+    private var _clearedHistory = 0
+    var clearedHistory: Int { lock.withLock { _clearedHistory } }
+    var clearHistoryFails = false
+    func clearDispatchHistory(repositoryID: String) async throws -> Int {
+        try lock.withLock {
+            if clearHistoryFails { throw CoreServiceError.unavailable }
+            _clearedHistory += 1
+            let removed = history.count
+            history = []
+            return removed
+        }
+    }
     // Logs and run actions
     var jobLogResult = CoreJobLog(access: .ok, availability: .available, lines: [], truncated: false)
     var runActionProblems: [String] = []

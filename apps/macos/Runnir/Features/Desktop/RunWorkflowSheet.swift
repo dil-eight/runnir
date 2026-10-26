@@ -178,6 +178,16 @@ final class DispatchFormModel {
         historyNote = note
     }
 
+    /// Forgets every earlier dispatch of this repository, not only this workflow's.
+    func clearHistory() async {
+        guard let workspaceID, await hub.clearDispatchHistory(workspaceID: workspaceID) else {
+            historyNote = "The history could not be cleared."
+            return
+        }
+        history = []
+        historyNote = "History cleared."
+    }
+
     func select(workflowID: Int64) {
         selectedWorkflowID = workflowID
         appliedPresetID = nil
@@ -530,6 +540,7 @@ struct RunWorkflowSheet: View {
     @State private var presetPrompt: PresetPrompt?
     @State private var presetName = ""
     @State private var comparing = false
+    @State private var confirmingClear = false
     @State private var confirmingDelete = false
 
     private enum PresetPrompt: Identifiable {
@@ -641,6 +652,10 @@ struct RunWorkflowSheet: View {
                             Button { model.applyHistory(record) } label: { Text(DispatchHistory.menuTitle(record)) }
                                 .help(DispatchHistory.leftOut(record) ?? "Fills the form with these values; nothing is sent")
                         }
+                        if !model.history.isEmpty {
+                            Divider()
+                            Button("Clear history...", role: .destructive) { confirmingClear = true }
+                        }
                     } label: {
                         Label(model.history.isEmpty ? "Nothing sent from Runnir yet" : "Earlier runs", systemImage: "clock.arrow.circlepath")
                     }
@@ -650,11 +665,17 @@ struct RunWorkflowSheet: View {
                         .popover(isPresented: $comparing) { DispatchComparisonView(records: model.history) }
                 }
             }
+            .confirmationDialog("Clear the dispatch history?", isPresented: $confirmingClear, titleVisibility: .visible) {
+                Button("Clear History", role: .destructive) { Task { await model.clearHistory() } }
+            } message: {
+                Text("Forgets what Runnir sent to this repository. Runs on GitHub are not affected.")
+            }
             if let note = model.historyNote {
                 Label(note, systemImage: "clock").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
             }
         }
     }
+
 
     private func presetButton(_ preset: DispatchPreset) -> some View {
         // No hand pointer: an item of the preset menu.
@@ -829,8 +850,8 @@ private struct DispatchComparisonView: View {
 
     init(records: [CoreDispatchRecord]) {
         self.records = records
-        _firstID = State(initialValue: records[0].id)
-        _secondID = State(initialValue: records[min(1, records.count - 1)].id)
+        _firstID = State(initialValue: records.first?.id ?? 0)
+        _secondID = State(initialValue: records.dropFirst().first?.id ?? records.first?.id ?? 0)
     }
 
     private var first: CoreDispatchRecord? { records.first { $0.id == firstID } }

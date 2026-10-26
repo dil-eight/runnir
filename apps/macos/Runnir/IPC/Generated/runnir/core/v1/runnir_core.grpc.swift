@@ -481,6 +481,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "ClearDispatchHistory" metadata.
+        internal enum ClearDispatchHistory: Sendable {
+            /// Request type for "ClearDispatchHistory".
+            internal typealias Input = Runnir_Core_V1_ClearDispatchHistoryRequest
+            /// Response type for "ClearDispatchHistory".
+            internal typealias Output = Runnir_Core_V1_ClearDispatchHistoryResponse
+            /// Descriptor for "ClearDispatchHistory".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ClearDispatchHistory",
+                type: .unary
+            )
+        }
         /// Namespace for "LinkDispatchRun" metadata.
         internal enum LinkDispatchRun: Sendable {
             /// Request type for "LinkDispatchRun".
@@ -661,6 +674,7 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             PrepareWorkflowDispatch.descriptor,
             ConfirmWorkflowDispatch.descriptor,
             ListDispatchHistory.descriptor,
+            ClearDispatchHistory.descriptor,
             LinkDispatchRun.descriptor,
             GetJobLog.descriptor,
             SaveJobLog.descriptor,
@@ -1313,9 +1327,10 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > The dispatches GitHub accepted from this Mac for a workspace, newest
-        /// > first, with the inputs that were sent except the values that look secret
-        /// > (their names come back in omitted_inputs). At most 200 are kept.
+        /// > The dispatches GitHub accepted from this Mac to the repository the origin
+        /// > points at now, newest first, with the inputs that were sent except the
+        /// > values that look secret (their names come back in omitted_inputs). At
+        /// > most 200 are kept. Empty while the origin names no GitHub repository.
         /// > FAILED_PRECONDITION for a repository opened without a workspace_id.
         ///
         /// - Parameters:
@@ -1329,6 +1344,24 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListDispatchHistoryRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListDispatchHistoryResponse>
+
+        /// Handle the "ClearDispatchHistory" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Forgets that repository's dispatch history and says how many entries went.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ClearDispatchHistoryRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ClearDispatchHistoryResponse` messages.
+        func clearDispatchHistory(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ClearDispatchHistoryRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ClearDispatchHistoryResponse>
 
         /// Handle the "LinkDispatchRun" method.
         ///
@@ -2159,9 +2192,10 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > The dispatches GitHub accepted from this Mac for a workspace, newest
-        /// > first, with the inputs that were sent except the values that look secret
-        /// > (their names come back in omitted_inputs). At most 200 are kept.
+        /// > The dispatches GitHub accepted from this Mac to the repository the origin
+        /// > points at now, newest first, with the inputs that were sent except the
+        /// > values that look secret (their names come back in omitted_inputs). At
+        /// > most 200 are kept. Empty while the origin names no GitHub repository.
         /// > FAILED_PRECONDITION for a repository opened without a workspace_id.
         ///
         /// - Parameters:
@@ -2175,6 +2209,24 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.ServerRequest<Runnir_Core_V1_ListDispatchHistoryRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListDispatchHistoryResponse>
+
+        /// Handle the "ClearDispatchHistory" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Forgets that repository's dispatch history and says how many entries went.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClearDispatchHistoryRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ClearDispatchHistoryResponse` message.
+        func clearDispatchHistory(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ClearDispatchHistoryRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ClearDispatchHistoryResponse>
 
         /// Handle the "LinkDispatchRun" method.
         ///
@@ -3004,9 +3056,10 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > The dispatches GitHub accepted from this Mac for a workspace, newest
-        /// > first, with the inputs that were sent except the values that look secret
-        /// > (their names come back in omitted_inputs). At most 200 are kept.
+        /// > The dispatches GitHub accepted from this Mac to the repository the origin
+        /// > points at now, newest first, with the inputs that were sent except the
+        /// > values that look secret (their names come back in omitted_inputs). At
+        /// > most 200 are kept. Empty while the origin names no GitHub repository.
         /// > FAILED_PRECONDITION for a repository opened without a workspace_id.
         ///
         /// - Parameters:
@@ -3020,6 +3073,24 @@ extension Runnir_Core_V1_RunnirCore {
             request: Runnir_Core_V1_ListDispatchHistoryRequest,
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_ListDispatchHistoryResponse
+
+        /// Handle the "ClearDispatchHistory" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Forgets that repository's dispatch history and says how many entries went.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ClearDispatchHistoryRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ClearDispatchHistoryResponse` to respond with.
+        func clearDispatchHistory(
+            request: Runnir_Core_V1_ClearDispatchHistoryRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ClearDispatchHistoryResponse
 
         /// Handle the "LinkDispatchRun" method.
         ///
@@ -3618,6 +3689,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ClearDispatchHistory.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ClearDispatchHistoryRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ClearDispatchHistoryResponse>(),
+            handler: { request, context in
+                try await self.clearDispatchHistory(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.LinkDispatchRun.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_LinkDispatchRunRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_LinkDispatchRunResponse>(),
@@ -4123,6 +4205,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListDispatchHistoryResponse> {
         let response = try await self.listDispatchHistory(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func clearDispatchHistory(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ClearDispatchHistoryRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ClearDispatchHistoryResponse> {
+        let response = try await self.clearDispatchHistory(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -4706,6 +4799,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListDispatchHistoryResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_ListDispatchHistoryResponse>(
             message: try await self.listDispatchHistory(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func clearDispatchHistory(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ClearDispatchHistoryRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ClearDispatchHistoryResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ClearDispatchHistoryResponse>(
+            message: try await self.clearDispatchHistory(
                 request: request.message,
                 context: context
             ),
@@ -5651,9 +5757,10 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > The dispatches GitHub accepted from this Mac for a workspace, newest
-        /// > first, with the inputs that were sent except the values that look secret
-        /// > (their names come back in omitted_inputs). At most 200 are kept.
+        /// > The dispatches GitHub accepted from this Mac to the repository the origin
+        /// > points at now, newest first, with the inputs that were sent except the
+        /// > values that look secret (their names come back in omitted_inputs). At
+        /// > most 200 are kept. Empty while the origin names no GitHub repository.
         /// > FAILED_PRECONDITION for a repository opened without a workspace_id.
         ///
         /// - Parameters:
@@ -5671,6 +5778,29 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListDispatchHistoryResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListDispatchHistoryResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ClearDispatchHistory" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Forgets that repository's dispatch history and says how many entries went.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClearDispatchHistoryRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ClearDispatchHistoryRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ClearDispatchHistoryResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func clearDispatchHistory<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ClearDispatchHistoryRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ClearDispatchHistoryRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ClearDispatchHistoryResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearDispatchHistoryResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "LinkDispatchRun" method.
@@ -7107,9 +7237,10 @@ extension Runnir_Core_V1_RunnirCore {
         ///
         /// > Source IDL Documentation:
         /// >
-        /// > The dispatches GitHub accepted from this Mac for a workspace, newest
-        /// > first, with the inputs that were sent except the values that look secret
-        /// > (their names come back in omitted_inputs). At most 200 are kept.
+        /// > The dispatches GitHub accepted from this Mac to the repository the origin
+        /// > points at now, newest first, with the inputs that were sent except the
+        /// > values that look secret (their names come back in omitted_inputs). At
+        /// > most 200 are kept. Empty while the origin names no GitHub repository.
         /// > FAILED_PRECONDITION for a repository opened without a workspace_id.
         ///
         /// - Parameters:
@@ -7133,6 +7264,40 @@ extension Runnir_Core_V1_RunnirCore {
             try await self.client.unary(
                 request: request,
                 descriptor: Runnir_Core_V1_RunnirCore.Method.ListDispatchHistory.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ClearDispatchHistory" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Forgets that repository's dispatch history and says how many entries went.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClearDispatchHistoryRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ClearDispatchHistoryRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ClearDispatchHistoryResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func clearDispatchHistory<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ClearDispatchHistoryRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ClearDispatchHistoryRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ClearDispatchHistoryResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearDispatchHistoryResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ClearDispatchHistory.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -8513,9 +8678,10 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > The dispatches GitHub accepted from this Mac for a workspace, newest
-    /// > first, with the inputs that were sent except the values that look secret
-    /// > (their names come back in omitted_inputs). At most 200 are kept.
+    /// > The dispatches GitHub accepted from this Mac to the repository the origin
+    /// > points at now, newest first, with the inputs that were sent except the
+    /// > values that look secret (their names come back in omitted_inputs). At
+    /// > most 200 are kept. Empty while the origin names no GitHub repository.
     /// > FAILED_PRECONDITION for a repository opened without a workspace_id.
     ///
     /// - Parameters:
@@ -8536,6 +8702,35 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListDispatchHistoryRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListDispatchHistoryResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ClearDispatchHistory" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Forgets that repository's dispatch history and says how many entries went.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ClearDispatchHistoryRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func clearDispatchHistory<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ClearDispatchHistoryRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearDispatchHistoryResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.clearDispatchHistory(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ClearDispatchHistoryRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ClearDispatchHistoryResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -9994,9 +10189,10 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > The dispatches GitHub accepted from this Mac for a workspace, newest
-    /// > first, with the inputs that were sent except the values that look secret
-    /// > (their names come back in omitted_inputs). At most 200 are kept.
+    /// > The dispatches GitHub accepted from this Mac to the repository the origin
+    /// > points at now, newest first, with the inputs that were sent except the
+    /// > values that look secret (their names come back in omitted_inputs). At
+    /// > most 200 are kept. Empty while the origin names no GitHub repository.
     /// > FAILED_PRECONDITION for a repository opened without a workspace_id.
     ///
     /// - Parameters:
@@ -10020,6 +10216,39 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.listDispatchHistory(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ClearDispatchHistory" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Forgets that repository's dispatch history and says how many entries went.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func clearDispatchHistory<Result>(
+        _ message: Runnir_Core_V1_ClearDispatchHistoryRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearDispatchHistoryResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ClearDispatchHistoryRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.clearDispatchHistory(
             request: request,
             options: options,
             onResponse: handleResponse

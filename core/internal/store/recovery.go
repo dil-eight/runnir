@@ -236,8 +236,8 @@ func (s *Store) restoreLocal(ctx context.Context, salvaged localData) (int, erro
 	for _, d := range byDispatch {
 		inputs, _ := json.Marshal(nonNilInputs(d.Inputs))
 		omitted, _ := json.Marshal(nonNilNames(d.Omitted))
-		if _, err := tx.ExecContext(ctx, "INSERT OR REPLACE INTO dispatch_history ("+dispatchColumns+") VALUES (?, ?, ?, ?, ?, ?, ?)",
-			d.ID, d.WorkflowPath, d.Ref, string(inputs), string(omitted), millis(d.SentAt), d.RunID); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT OR REPLACE INTO dispatch_history ("+dispatchColumns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			d.ID, d.WorkflowPath, d.Ref, string(inputs), string(omitted), millis(d.SentAt), d.RunID, d.Source.ServerID, d.Source.Repository); err != nil {
 			_ = tx.Rollback()
 			return 0, err
 		}

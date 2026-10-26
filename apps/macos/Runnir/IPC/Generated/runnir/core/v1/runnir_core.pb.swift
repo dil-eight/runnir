@@ -2739,6 +2739,31 @@ nonisolated struct Runnir_Core_V1_ListDispatchHistoryResponse: Sendable {
   init() {}
 }
 
+nonisolated struct Runnir_Core_V1_ClearDispatchHistoryRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// Forgets the dispatches sent to the repository its origin points at now.
+  var repositoryID: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_ClearDispatchHistoryResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var removed: UInt32 = 0
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
 nonisolated struct Runnir_Core_V1_LinkDispatchRunRequest: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -7472,6 +7497,66 @@ nonisolated extension Runnir_Core_V1_ListDispatchHistoryResponse: SwiftProtobuf.
 
   static func ==(lhs: Runnir_Core_V1_ListDispatchHistoryResponse, rhs: Runnir_Core_V1_ListDispatchHistoryResponse) -> Bool {
     if lhs.records != rhs.records {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ClearDispatchHistoryRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ClearDispatchHistoryRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.repositoryID) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.repositoryID.isEmpty {
+      try visitor.visitSingularStringField(value: self.repositoryID, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ClearDispatchHistoryRequest, rhs: Runnir_Core_V1_ClearDispatchHistoryRequest) -> Bool {
+    if lhs.repositoryID != rhs.repositoryID {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ClearDispatchHistoryResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ClearDispatchHistoryResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}removed\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt32Field(value: &self.removed) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.removed != 0 {
+      try visitor.visitSingularUInt32Field(value: self.removed, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ClearDispatchHistoryResponse, rhs: Runnir_Core_V1_ClearDispatchHistoryResponse) -> Bool {
+    if lhs.removed != rhs.removed {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

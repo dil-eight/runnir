@@ -1,9 +1,25 @@
 package dispatch
 
 import (
+	"regexp"
 	"strings"
 	"unicode"
 )
+
+// secretValue matches values that are credentials whatever the input is
+// called: GitHub tokens, AWS access keys, Slack tokens, JSON web tokens and
+// private key blocks.
+var secretValue = regexp.MustCompile(`(^|[^A-Za-z0-9])(` +
+	`gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|` +
+	`(AKIA|ASIA)[A-Z0-9]{16}|xox[abprs]-[A-Za-z0-9-]{10,}|` +
+	`eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+|` +
+	`sk-[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)`)
+
+// LooksSecretValue says whether a value has the shape of a credential, for an
+// input whose name and description do not give it away.
+func LooksSecretValue(value string) bool {
+	return secretValue.MatchString(value)
+}
 
 // LooksSecret says whether an input's name or description suggests that its
 // value is a secret. It is a heuristic: nothing can know what an input

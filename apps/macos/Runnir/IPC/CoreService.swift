@@ -231,6 +231,8 @@ protocol CoreServicing: Sendable {
     func dispatchHistory(repositoryID: String, workflowPath: String) async throws -> [CoreDispatchRecord]
     /// Says which run a history entry started. The Core keeps the first answer.
     func linkDispatchRun(repositoryID: String, id: Int64, runID: Int64) async throws
+    /// Forgets the dispatches sent to the repository the workspace's origin names; returns how many.
+    func clearDispatchHistory(repositoryID: String) async throws -> Int
     /// The end of one job's log, split into lines tagged with kind and step.
     func jobLog(repositoryID: String, jobID: Int64) async throws -> CoreJobLog
     /// Writes one job's whole log to a file for an editor.

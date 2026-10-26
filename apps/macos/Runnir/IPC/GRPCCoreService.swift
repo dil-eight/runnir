@@ -689,6 +689,13 @@ struct GRPCCoreService: CoreServicing {
         }
     }
 
+    func clearDispatchHistory(repositoryID: String) async throws -> Int {
+        let response = try await call {
+            try await client.clearDispatchHistory(.with { $0.repositoryID = repositoryID }, options: Self.options(Self.callTimeout))
+        }
+        return Int(response.removed)
+    }
+
     /// The whole log can take minutes to download, so this call waits longer.
     func saveJobLog(repositoryID: String, jobID: Int64) async throws -> CoreSavedJobLog {
         let response = try await call {

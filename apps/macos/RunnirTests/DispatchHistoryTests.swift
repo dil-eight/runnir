@@ -106,6 +106,24 @@ struct DispatchHistoryFormTests {
     }
 
     @Test
+    func clearingTheHistoryEmptiesTheListAndSaysWhenItFails() async {
+        let (hub, provider, workspace) = await rig()
+        provider.core.history = [record(2, inputs: ["target": "us"]), record(1, inputs: ["target": "eu"])]
+        let model = form(hub, workspace)
+        await model.load()
+        await model.loadHistory()
+        provider.core.clearHistoryFails = true
+        await model.clearHistory()
+        #expect(model.history.count == 2, "a failure leaves the list as it was")
+        #expect(model.historyNote == "The history could not be cleared.")
+        provider.core.clearHistoryFails = false
+        await model.clearHistory()
+        #expect(model.history.isEmpty)
+        #expect(provider.core.clearedHistory == 1)
+        #expect(model.historyNote == "History cleared.")
+    }
+
+    @Test
     func anEntryFillsTheFormLikeAPresetAndKeepsNothingSecret() async {
         let (hub, provider, workspace) = await rig()
         provider.core.dispatchDefinition = CoreDispatchDefinition(access: .ok, dispatchable: true, inputs: [

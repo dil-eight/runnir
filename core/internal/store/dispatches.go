@@ -10,13 +10,14 @@ import (
 
 const maxDispatchRecords = 200
 
-const dispatchColumns = "id, workflow_path, ref, inputs, omitted, sent_at, run_id"
+const dispatchColumns = "id, workflow_path, ref, inputs, omitted, sent_at, run_id, server_id, repository"
 
 // DispatchRecord is one workflow dispatch that GitHub accepted from this
-// Mac. Inputs holds the values that were sent except those that look secret,
+// Mac, to the repository Source names. Inputs holds the values that were sent except those that look secret,
 // whose names are in Omitted: a value like that is never written down.
 type DispatchRecord struct {
 	ID           int64
+	Source       Source
 	WorkflowPath string
 	Ref          string
 	Inputs       map[string]string
@@ -38,8 +39,8 @@ func (s *Store) RecordDispatch(ctx context.Context, r DispatchRecord) (int64, er
 		return 0, err
 	}
 	result, err := s.db.ExecContext(ctx, `
-INSERT INTO dispatch_history (workflow_path, ref, inputs, omitted, sent_at, run_id) VALUES (?, ?, ?, ?, ?, ?)`,
-		r.WorkflowPath, r.Ref, string(inputs), string(omitted), millis(r.SentAt), max(r.RunID, 0))
+INSERT INTO dispatch_history (workflow_path, ref, inputs, omitted, sent_at, run_id, server_id, repository) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		r.WorkflowPath, r.Ref, string(inputs), string(omitted), millis(r.SentAt), max(r.RunID, 0), r.Source.ServerID, r.Source.Repository)
 	if err != nil {
 		return 0, err
 	}
@@ -66,16 +67,27 @@ func (s *Store) LinkDispatchRun(ctx context.Context, id, runID int64) error {
 	return s.localChanged(ctx)
 }
 
-// DispatchHistory lists dispatches, newest first, of one workflow or, for an
-// empty path, of every workflow.
-func (s *Store) DispatchHistory(ctx context.Context, workflowPath string, limit int) ([]DispatchRecord, error) {
+// ClearDispatchHistory forgets the dispatches sent to one repository and
+// returns how many there were.
+func (s *Store) ClearDispatchHistory(ctx context.Context, source Source) (int, error) {
+	result, err := s.db.ExecContext(ctx, "DELETE FROM dispatch_history WHERE server_id = ? AND repository = ?", source.ServerID, source.Repository)
+	if err != nil {
+		return 0, err
+	}
+	removed, _ := result.RowsAffected()
+	return int(removed), s.localChanged(ctx)
+}
+
+// DispatchHistory lists the dispatches sent to one repository, newest first,
+// of one workflow or, for an empty path, of every workflow.
+func (s *Store) DispatchHistory(ctx context.Context, source Source, workflowPath string, limit int) ([]DispatchRecord, error) {
 	if limit <= 0 || limit > maxDispatchRecords {
 		limit = maxDispatchRecords
 	}
-	query := "SELECT " + dispatchColumns + " FROM dispatch_history"
-	var args []any
+	query := "SELECT " + dispatchColumns + " FROM dispatch_history WHERE server_id = ? AND repository = ?"
+	args := []any{source.ServerID, source.Repository}
 	if workflowPath != "" {
-		query += " WHERE workflow_path = ?"
+		query += " AND workflow_path = ?"
 		args = append(args, workflowPath)
 	}
 	query += " ORDER BY sent_at DESC, id DESC LIMIT ?"
@@ -95,7 +107,7 @@ func scanDispatches(ctx context.Context, db *sql.DB, query string, args ...any) 
 		var r DispatchRecord
 		var inputs, omitted string
 		var sent int64
-		if err := rows.Scan(&r.ID, &r.WorkflowPath, &r.Ref, &inputs, &omitted, &sent, &r.RunID); err != nil {
+		if err := rows.Scan(&r.ID, &r.WorkflowPath, &r.Ref, &inputs, &omitted, &sent, &r.RunID, &r.Source.ServerID, &r.Source.Repository); err != nil {
 			return out, err
 		}
 		r.SentAt = fromMillis(sent)

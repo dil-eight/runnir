@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -15,6 +16,7 @@ import (
 	"runnir/core/internal/github"
 	"runnir/core/internal/scanner"
 	"runnir/core/internal/store"
+	"runnir/core/internal/workspace"
 )
 
 func (s *service) ListGitHubRefs(ctx context.Context, request *corev1.ListGitHubRefsRequest) (*corev1.ListGitHubRefsResponse, error) {
@@ -157,12 +159,14 @@ func (s *service) ConfirmWorkflowDispatch(ctx context.Context, request *corev1.C
 	return out, nil
 }
 
-// secretInputs names the inputs with a value whose name or description looks
-// secret. The value is still sent; the history never keeps it.
+// secretInputs names the inputs with a value that looks secret: by the
+// input's name or description, or by the shape of the value itself (a token
+// pasted into "notes"). The value is still sent; the history never keeps it.
 func secretInputs(definition scanner.DispatchDefinition, inputs map[string]string) []string {
 	var out []string
 	for _, input := range definition.Inputs {
-		if inputs[input.Name] != "" && dispatch.LooksSecret(input.Name, input.Description) {
+		value := inputs[input.Name]
+		if value != "" && (dispatch.LooksSecret(input.Name, input.Description) || dispatch.LooksSecretValue(value)) {
 			out = append(out, input.Name)
 		}
 	}
@@ -190,21 +194,25 @@ func (s *service) recordDispatch(ctx context.Context, prepared dispatch.Request,
 	omitted := slices.Clone(prepared.SecretInputs)
 	slices.Sort(omitted)
 	id, _ := rt.Store().RecordDispatch(ctx, store.DispatchRecord{
+		Source:       store.Source{ServerID: prepared.ServerID, Repository: strings.ToLower(prepared.Owner + "/" + prepared.Name)},
 		WorkflowPath: prepared.WorkflowPath, Ref: prepared.Ref, Inputs: kept, Omitted: omitted, SentAt: sentAt, RunID: runID,
 	})
 	return id
 }
 
 func (s *service) ListDispatchHistory(ctx context.Context, request *corev1.ListDispatchHistoryRequest) (*corev1.ListDispatchHistoryResponse, error) {
-	rt, err := s.runtimeFor(request.GetRepositoryId())
+	rt, source, err := s.historyScope(request.GetRepositoryId())
 	if err != nil {
 		return nil, err
 	}
-	records, err := rt.Store().DispatchHistory(ctx, request.GetWorkflowPath(), int(request.GetLimit()))
+	out := &corev1.ListDispatchHistoryResponse{}
+	if rt == nil {
+		return out, nil // no GitHub remote now, so no history to show
+	}
+	records, err := rt.Store().DispatchHistory(ctx, source, request.GetWorkflowPath(), int(request.GetLimit()))
 	if err != nil {
 		return nil, status.Error(codes.Internal, "could not read the dispatch history")
 	}
-	out := &corev1.ListDispatchHistoryResponse{}
 	for _, r := range records {
 		out.Records = append(out.Records, &corev1.DispatchRecord{
 			Id: r.ID, WorkflowPath: r.WorkflowPath, Ref: r.Ref, Inputs: r.Inputs, OmittedInputs: r.Omitted,
@@ -212,6 +220,39 @@ func (s *service) ListDispatchHistory(ctx context.Context, request *corev1.ListD
 		})
 	}
 	return out, nil
+}
+
+// historyScope is the workspace of a repository and the GitHub repository its
+// origin points at now, which the history is kept for. The runtime is nil
+// when the origin names none.
+func (s *service) historyScope(repositoryID string) (*workspace.Runtime, store.Source, error) {
+	rt, err := s.runtimeFor(repositoryID)
+	if err != nil {
+		return nil, store.Source{}, err
+	}
+	target, problem, err := s.githubTarget(repositoryID, "", "")
+	if err != nil {
+		return nil, store.Source{}, err
+	}
+	if problem != nil {
+		return nil, store.Source{}, nil
+	}
+	return rt, store.Source{ServerID: target.account.Server.ID, Repository: strings.ToLower(target.owner + "/" + target.name)}, nil
+}
+
+func (s *service) ClearDispatchHistory(ctx context.Context, request *corev1.ClearDispatchHistoryRequest) (*corev1.ClearDispatchHistoryResponse, error) {
+	rt, source, err := s.historyScope(request.GetRepositoryId())
+	if err != nil {
+		return nil, err
+	}
+	if rt == nil {
+		return &corev1.ClearDispatchHistoryResponse{}, nil
+	}
+	removed, err := rt.Store().ClearDispatchHistory(ctx, source)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "could not clear the dispatch history")
+	}
+	return &corev1.ClearDispatchHistoryResponse{Removed: uint32(removed)}, nil
 }
 
 func (s *service) LinkDispatchRun(ctx context.Context, request *corev1.LinkDispatchRunRequest) (*corev1.LinkDispatchRunResponse, error) {

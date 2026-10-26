@@ -45,6 +45,9 @@ on:
       deploy_token:
         type: string
         description: Token for the registry
+      notes:
+        type: string
+        description: Anything the run should know
 jobs: {}
 `
 

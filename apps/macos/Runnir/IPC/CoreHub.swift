@@ -572,6 +572,13 @@ final class CoreHub {
         try? await service.linkDispatchRun(repositoryID: coreID, id: historyID, runID: runID)
     }
 
+    /// Forgets the dispatch history of the workspace's repository. False when
+    /// the Core could not do it, so the list is left as it is.
+    func clearDispatchHistory(workspaceID: UUID) async -> Bool {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return false }
+        return (try? await service.clearDispatchHistory(repositoryID: coreID)) != nil
+    }
+
     /// Runs known before a dispatch, so the run it starts can be told apart.
     func knownRunIDs(_ target: GitHubTarget) async -> Set<Int64> {
         switch target {

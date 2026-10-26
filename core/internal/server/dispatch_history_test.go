@@ -5,6 +5,7 @@ package server
 import (
 	"context"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -61,7 +62,9 @@ func TestAcceptedDispatchesAreKeptWithoutValuesThatLookSecret(t *testing.T) {
 	fake.mu.Lock()
 	fake.runID = 4242
 	fake.mu.Unlock()
-	withToken := sendDispatch(t, client, ctx, id, "with-token", map[string]string{"environment": "production", "deploy_token": "ghp_supersecretvalue"})
+	withToken := sendDispatch(t, client, ctx, id, "with-token", map[string]string{
+		"environment": "production", "deploy_token": "ghp_supersecretvalue", "notes": "use AKIAABCDEFGHIJKLMNOP for this one",
+	})
 	if withToken.HistoryId == 0 || withToken.HistoryId == first.HistoryId {
 		t.Fatalf("second entry = %v", withToken)
 	}
@@ -75,10 +78,11 @@ func TestAcceptedDispatchesAreKeptWithoutValuesThatLookSecret(t *testing.T) {
 		newest.SentAt == nil || newest.Inputs["environment"] != "production" {
 		t.Fatalf("newest = %v", newest)
 	}
-	if _, kept := newest.Inputs["deploy_token"]; kept || len(newest.OmittedInputs) != 1 || newest.OmittedInputs[0] != "deploy_token" {
+	// "notes" does not sound secret, but its value is an AWS access key.
+	if _, kept := newest.Inputs["deploy_token"]; kept || !slices.Equal(newest.OmittedInputs, []string{"deploy_token", "notes"}) {
 		t.Fatalf("the token must be left out and named: %v", newest)
 	}
-	if strings.Contains(newest.String(), "ghp_supersecretvalue") {
+	if strings.Contains(newest.String(), "ghp_supersecretvalue") || strings.Contains(newest.String(), "AKIAABCDEFGHIJKLMNOP") {
 		t.Fatal("the secret value reached the history")
 	}
 	if older.Id != first.HistoryId || older.RunId != 0 || older.Inputs["dry_run"] != "false" || len(older.OmittedInputs) != 0 {
@@ -134,5 +138,21 @@ func TestAHistoryNeedsAWorkspace(t *testing.T) {
 	}
 	if _, err := client.ListDispatchHistory(ctx, &corev1.ListDispatchHistoryRequest{RepositoryId: id}); status.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("list = %v", err)
+	}
+}
+
+func TestClearingTheHistoryForgetsItsEntries(t *testing.T) {
+	client, id, _, ctx := historyRig(t)
+	sendDispatch(t, client, ctx, id, "main", map[string]string{"environment": "staging"})
+	sendDispatch(t, client, ctx, id, "main", map[string]string{"environment": "production"})
+	cleared, err := client.ClearDispatchHistory(ctx, &corev1.ClearDispatchHistoryRequest{RepositoryId: id})
+	if err != nil || cleared.Removed != 2 {
+		t.Fatalf("cleared = %v, %v", cleared, err)
+	}
+	if history, _ := client.ListDispatchHistory(ctx, &corev1.ListDispatchHistoryRequest{RepositoryId: id}); len(history.Records) != 0 {
+		t.Fatalf("history = %v", history)
+	}
+	if again, err := client.ClearDispatchHistory(ctx, &corev1.ClearDispatchHistoryRequest{RepositoryId: id}); err != nil || again.Removed != 0 {
+		t.Fatalf("clearing nothing = %v, %v", again, err)
 	}
 }
