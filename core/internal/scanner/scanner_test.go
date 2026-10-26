@@ -490,3 +490,56 @@ func TestScanListsSecretsAndVariables(t *testing.T) {
 		t.Fatalf("broken = %+v", broken)
 	}
 }
+
+func TestScanMarksJobsStartedByHand(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, ".github/workflows/api.yml", `name: API
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      Environment:
+        type: choice
+        options: [production, staging]
+      dry_run:
+        type: boolean
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps: [{run: echo}]
+  deploy-production:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
+    runs-on: ubuntu-latest
+    steps: [{run: echo}]
+  deploy-staging:
+    if: ${{ 'staging' == inputs.Environment && inputs.dry_run == false && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps: [{run: echo}]
+  either:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps: [{run: echo}]
+`)
+	write(t, root, ".github/workflows/no-dispatch.yml", "on: push\njobs:\n  a:\n    if: github.event_name == 'workflow_dispatch'\n    runs-on: ubuntu-latest\n    steps: [{run: echo}]\n")
+	snapshot := scan(t, root)
+	api := byID(snapshot, ".github/workflows/api.yml")
+	if api == nil || len(api.Jobs) != 4 {
+		t.Fatalf("api = %+v", api)
+	}
+	jobs := map[string]repository.Job{}
+	for _, job := range api.Jobs {
+		jobs[job.ID] = job
+	}
+	if jobs["build"].Manual || jobs["either"].Manual {
+		t.Fatalf("jobs that also run on push are marked manual: %+v", jobs)
+	}
+	if production := jobs["deploy-production"]; !production.Manual || !reflect.DeepEqual(production.ManualInputs, map[string]string{"Environment": "production"}) {
+		t.Fatalf("deploy-production = %+v", production)
+	}
+	if staging := jobs["deploy-staging"]; !staging.Manual || !reflect.DeepEqual(staging.ManualInputs, map[string]string{"Environment": "staging", "dry_run": "false"}) {
+		t.Fatalf("deploy-staging = %+v", staging)
+	}
+	if other := byID(snapshot, ".github/workflows/no-dispatch.yml"); other == nil || other.Jobs[0].Manual {
+		t.Fatalf("a workflow without workflow_dispatch has a manual job: %+v", other)
+	}
+}

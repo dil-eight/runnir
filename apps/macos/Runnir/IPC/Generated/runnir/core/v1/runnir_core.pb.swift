@@ -556,6 +556,10 @@ nonisolated enum Runnir_Core_V1_RunAction: SwiftProtobuf.Enum, Swift.CaseIterabl
 
   /// A new attempt of the failed and cancelled jobs and the jobs that need them.
   case rerunFailed // = 3
+
+  /// Approve the run's pending deployments the user may approve; the jobs
+  /// waiting on them go on.
+  case approveDeployments // = 4
   case UNRECOGNIZED(Int)
 
   init() {
@@ -568,6 +572,7 @@ nonisolated enum Runnir_Core_V1_RunAction: SwiftProtobuf.Enum, Swift.CaseIterabl
     case 1: self = .cancel
     case 2: self = .rerun
     case 3: self = .rerunFailed
+    case 4: self = .approveDeployments
     default: self = .UNRECOGNIZED(rawValue)
     }
   }
@@ -578,6 +583,7 @@ nonisolated enum Runnir_Core_V1_RunAction: SwiftProtobuf.Enum, Swift.CaseIterabl
     case .cancel: return 1
     case .rerun: return 2
     case .rerunFailed: return 3
+    case .approveDeployments: return 4
     case .UNRECOGNIZED(let i): return i
     }
   }
@@ -588,6 +594,7 @@ nonisolated enum Runnir_Core_V1_RunAction: SwiftProtobuf.Enum, Swift.CaseIterabl
     .cancel,
     .rerun,
     .rerunFailed,
+    .approveDeployments,
   ]
 
 }
@@ -1302,6 +1309,12 @@ nonisolated struct Runnir_Core_V1_Job: Sendable {
   var name: String = String()
 
   var needs: [String] = []
+
+  /// The job's if requires a workflow_dispatch run: it is started by hand.
+  var manual: Bool = false
+
+  /// The dispatch inputs that if fixes, by their declared names.
+  var manualInputs: Dictionary<String,String> = [:]
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -2823,6 +2836,9 @@ nonisolated struct Runnir_Core_V1_PrepareRunActionResponse: Sendable {
   /// Clears the value of `run`. Subsequent reads from it will return its default value.
   mutating func clearRun() {self._run = nil}
 
+  /// For RUN_ACTION_APPROVE_DEPLOYMENTS: the environments that will be approved.
+  var environments: [String] = []
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -4227,7 +4243,7 @@ nonisolated extension Runnir_Core_V1_LogLineKind: SwiftProtobuf._ProtoNameProvid
 }
 
 nonisolated extension Runnir_Core_V1_RunAction: SwiftProtobuf._ProtoNameProviding {
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0RUN_ACTION_UNSPECIFIED\0\u{1}RUN_ACTION_CANCEL\0\u{1}RUN_ACTION_RERUN\0\u{1}RUN_ACTION_RERUN_FAILED\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0RUN_ACTION_UNSPECIFIED\0\u{1}RUN_ACTION_CANCEL\0\u{1}RUN_ACTION_RERUN\0\u{1}RUN_ACTION_RERUN_FAILED\0\u{1}RUN_ACTION_APPROVE_DEPLOYMENTS\0")
 }
 
 nonisolated extension Runnir_Core_V1_ToolState: SwiftProtobuf._ProtoNameProviding {
@@ -4693,7 +4709,7 @@ nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProto
 
 nonisolated extension Runnir_Core_V1_Job: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".Job"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}needs\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}needs\0\u{1}manual\0\u{3}manual_inputs\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -4704,6 +4720,8 @@ nonisolated extension Runnir_Core_V1_Job: SwiftProtobuf.Message, SwiftProtobuf._
       case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
       case 3: try { try decoder.decodeRepeatedStringField(value: &self.needs) }()
+      case 4: try { try decoder.decodeSingularBoolField(value: &self.manual) }()
+      case 5: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.manualInputs) }()
       default: break
       }
     }
@@ -4719,6 +4737,12 @@ nonisolated extension Runnir_Core_V1_Job: SwiftProtobuf.Message, SwiftProtobuf._
     if !self.needs.isEmpty {
       try visitor.visitRepeatedStringField(value: self.needs, fieldNumber: 3)
     }
+    if self.manual != false {
+      try visitor.visitSingularBoolField(value: self.manual, fieldNumber: 4)
+    }
+    if !self.manualInputs.isEmpty {
+      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.manualInputs, fieldNumber: 5)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -4726,6 +4750,8 @@ nonisolated extension Runnir_Core_V1_Job: SwiftProtobuf.Message, SwiftProtobuf._
     if lhs.id != rhs.id {return false}
     if lhs.name != rhs.name {return false}
     if lhs.needs != rhs.needs {return false}
+    if lhs.manual != rhs.manual {return false}
+    if lhs.manualInputs != rhs.manualInputs {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -7476,7 +7502,7 @@ nonisolated extension Runnir_Core_V1_PrepareRunActionRequest: SwiftProtobuf.Mess
 
 nonisolated extension Runnir_Core_V1_PrepareRunActionResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".PrepareRunActionResponse"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{3}action_id\0\u{3}expires_at\0\u{1}problems\0\u{1}run\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{3}action_id\0\u{3}expires_at\0\u{1}problems\0\u{1}run\0\u{1}environments\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -7489,6 +7515,7 @@ nonisolated extension Runnir_Core_V1_PrepareRunActionResponse: SwiftProtobuf.Mes
       case 3: try { try decoder.decodeSingularMessageField(value: &self._expiresAt) }()
       case 4: try { try decoder.decodeRepeatedStringField(value: &self.problems) }()
       case 5: try { try decoder.decodeSingularMessageField(value: &self._run) }()
+      case 6: try { try decoder.decodeRepeatedStringField(value: &self.environments) }()
       default: break
       }
     }
@@ -7514,6 +7541,9 @@ nonisolated extension Runnir_Core_V1_PrepareRunActionResponse: SwiftProtobuf.Mes
     try { if let v = self._run {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
     } }()
+    if !self.environments.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.environments, fieldNumber: 6)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -7523,6 +7553,7 @@ nonisolated extension Runnir_Core_V1_PrepareRunActionResponse: SwiftProtobuf.Mes
     if lhs._expiresAt != rhs._expiresAt {return false}
     if lhs.problems != rhs.problems {return false}
     if lhs._run != rhs._run {return false}
+    if lhs.environments != rhs.environments {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

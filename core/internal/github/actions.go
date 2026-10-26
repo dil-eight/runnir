@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 )
@@ -21,6 +22,51 @@ func (c *Client) RerunRun(ctx context.Context, owner, name string, runID int64, 
 		suffix = "/rerun-failed-jobs"
 	}
 	return c.post(ctx, repoPath(owner, name, fmt.Sprintf("/actions/runs/%d%s", runID, suffix)), runID)
+}
+
+// PendingDeployment is an environment a run waits on for approval.
+type PendingDeployment struct {
+	EnvironmentID int64
+	Environment   string
+	// CanApprove: the signed-in user is one of its required reviewers.
+	CanApprove bool
+}
+
+// PendingDeployments lists the environments a waiting run needs approved.
+func (c *Client) PendingDeployments(ctx context.Context, owner, name string, runID int64) ([]PendingDeployment, error) {
+	if runID <= 0 {
+		return nil, ErrInvalid
+	}
+	var body []struct {
+		Environment struct {
+			ID   int64  `json:"id"`
+			Name string `json:"name"`
+		} `json:"environment"`
+		CanApprove bool `json:"current_user_can_approve"`
+	}
+	if err := c.get(ctx, repoPath(owner, name, fmt.Sprintf("/actions/runs/%d/pending_deployments", runID)), nil, &body); err != nil {
+		return nil, err
+	}
+	out := make([]PendingDeployment, 0, len(body))
+	for _, item := range body {
+		out = append(out, PendingDeployment{EnvironmentID: item.Environment.ID, Environment: item.Environment.Name, CanApprove: item.CanApprove})
+	}
+	return out, nil
+}
+
+// ApproveDeployments approves a waiting run's deployments to the given
+// environments, once; the jobs waiting on them start.
+func (c *Client) ApproveDeployments(ctx context.Context, owner, name string, runID int64, environmentIDs []int64) error {
+	if runID <= 0 || len(environmentIDs) == 0 {
+		return ErrInvalid
+	}
+	body, err := json.Marshal(map[string]any{"environment_ids": environmentIDs, "state": "approved", "comment": "Approved in Runnir"})
+	if err != nil {
+		return err
+	}
+	_, _, err = c.send(ctx, http.MethodPost, repoPath(owner, name, fmt.Sprintf("/actions/runs/%d/pending_deployments", runID)),
+		nil, body, "application/vnd.github+json")
+	return err
 }
 
 func (c *Client) post(ctx context.Context, path string, runID int64) error {

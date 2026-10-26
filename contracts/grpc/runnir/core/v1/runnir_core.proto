@@ -238,6 +238,10 @@ message Job {
   string id = 1;
   string name = 2;
   repeated string needs = 3;
+  // The job's if requires a workflow_dispatch run: it is started by hand.
+  bool manual = 4;
+  // The dispatch inputs that if fixes, by their declared names.
+  map<string, string> manual_inputs = 5;
 }
 
 message ListLaunchPresetsRequest {
@@ -868,6 +872,9 @@ enum RunAction {
   RUN_ACTION_RERUN = 2;
   // A new attempt of the failed and cancelled jobs and the jobs that need them.
   RUN_ACTION_RERUN_FAILED = 3;
+  // Approve the run's pending deployments the user may approve; the jobs
+  // waiting on them go on.
+  RUN_ACTION_APPROVE_DEPLOYMENTS = 4;
 }
 
 message PrepareRunActionRequest {
@@ -886,6 +893,8 @@ message PrepareRunActionResponse {
   repeated string problems = 4;
   // The run as GitHub reported it while preparing.
   WorkflowRun run = 5;
+  // For RUN_ACTION_APPROVE_DEPLOYMENTS: the environments that will be approved.
+  repeated string environments = 6;
 }
 
 message ConfirmRunActionRequest {

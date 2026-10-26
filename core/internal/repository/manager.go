@@ -77,6 +77,10 @@ type Job struct {
 	ID    string
 	Name  string
 	Needs []string
+	// Manual: the job's if requires a workflow_dispatch run, so it is
+	// started by hand; ManualInputs are the inputs that if fixes.
+	Manual       bool
+	ManualInputs map[string]string
 }
 
 // LaunchPreset is one file of .runnir/launches: a Run Workflow preset the

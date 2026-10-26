@@ -32,6 +32,8 @@ type runAction struct {
 	Name     string
 	RunID    int64
 	Action   corev1.RunAction
+	// EnvironmentIDs are the deployments to approve.
+	EnvironmentIDs []int64
 }
 
 func (s *service) GetJobLog(ctx context.Context, request *corev1.GetJobLogRequest) (*corev1.GetJobLogResponse, error) {
@@ -147,9 +149,31 @@ func (s *service) PrepareRunAction(ctx context.Context, request *corev1.PrepareR
 		out.Problems = []string{problem}
 		return out, nil
 	}
+	var environmentIDs []int64
+	if action == corev1.RunAction_RUN_ACTION_APPROVE_DEPLOYMENTS {
+		deployments, listErr := target.account.Client.PendingDeployments(ctx, target.owner, target.name, run.ID)
+		listed, err := s.githubStatus(target.account, listErr)
+		if err != nil {
+			return nil, err
+		}
+		if listErr != nil {
+			out.Status = listed
+			return out, nil
+		}
+		for _, deployment := range deployments {
+			if deployment.CanApprove {
+				environmentIDs = append(environmentIDs, deployment.EnvironmentID)
+				out.Environments = append(out.Environments, deployment.Environment)
+			}
+		}
+		if len(environmentIDs) == 0 {
+			out.Problems = []string{fmt.Sprintf("Nothing in run #%d waits for your approval.", run.RunNumber)}
+			return out, nil
+		}
+	}
 	pending, err := s.runActions.Prepare(runAction{
 		RepositoryID: request.GetRepositoryId(), ServerID: target.account.Server.ID, Owner: target.owner, Name: target.name,
-		RunID: run.ID, Action: action,
+		RunID: run.ID, Action: action, EnvironmentIDs: environmentIDs,
 	})
 	if errors.Is(err, approval.ErrTooMany) {
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
@@ -182,6 +206,8 @@ func (s *service) ConfirmRunAction(ctx context.Context, request *corev1.ConfirmR
 		sendErr = account.Client.RerunRun(ctx, prepared.Owner, prepared.Name, prepared.RunID, false)
 	case corev1.RunAction_RUN_ACTION_RERUN_FAILED:
 		sendErr = account.Client.RerunRun(ctx, prepared.Owner, prepared.Name, prepared.RunID, true)
+	case corev1.RunAction_RUN_ACTION_APPROVE_DEPLOYMENTS:
+		sendErr = account.Client.ApproveDeployments(ctx, prepared.Owner, prepared.Name, prepared.RunID, prepared.EnvironmentIDs)
 	}
 	acceptedAt := time.Now()
 	var rejected *github.RejectedError
@@ -248,6 +274,10 @@ func runActionProblem(run github.Run, action corev1.RunAction) string {
 		case "failure", "cancelled", "timed_out":
 		default:
 			return fmt.Sprintf("Run #%d has no failed or cancelled jobs to re-run.", run.RunNumber)
+		}
+	case corev1.RunAction_RUN_ACTION_APPROVE_DEPLOYMENTS:
+		if run.Status != "waiting" {
+			return fmt.Sprintf("Run #%d is %s, not waiting for a deployment to be approved.", run.RunNumber, humanStatus(run.Status))
 		}
 	}
 	return ""
