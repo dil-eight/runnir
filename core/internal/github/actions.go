@@ -76,8 +76,8 @@ func (c *Client) ApproveDeployments(ctx context.Context, owner, name string, run
 	return err
 }
 
-func (c *Client) post(ctx context.Context, path string, runID int64) error {
-	if runID <= 0 {
+func (c *Client) post(ctx context.Context, path string, id int64) error {
+	if id <= 0 {
 		return ErrInvalid
 	}
 	_, _, err := c.send(ctx, http.MethodPost, path, nil, []byte("{}"), "application/vnd.github+json")

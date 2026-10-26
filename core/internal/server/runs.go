@@ -307,11 +307,14 @@ func runActionProblem(run github.Run, action corev1.RunAction) string {
 }
 
 // rerunJobProblem says why a job cannot be re-run: it belongs to another run
-// or has not finished.
+// or to an earlier attempt of this one (a window that still shows the jobs
+// of attempt 1 after attempt 2 started), or has not finished.
 func rerunJobProblem(run github.Run, job github.Job) string {
 	switch {
 	case job.RunID != run.ID:
 		return fmt.Sprintf("Job %q is not part of run #%d.", job.Name, run.RunNumber)
+	case job.RunAttempt != 0 && run.RunAttempt != 0 && job.RunAttempt != run.RunAttempt:
+		return fmt.Sprintf("Job %q is from attempt %d, but run #%d is on attempt %d now. Reload the run.", job.Name, job.RunAttempt, run.RunNumber, run.RunAttempt)
 	case job.Status != "completed":
 		return fmt.Sprintf("Job %q has not finished (%s), so it cannot be re-run.", job.Name, humanStatus(job.Status))
 	}

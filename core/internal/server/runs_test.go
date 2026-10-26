@@ -70,6 +70,8 @@ func (f *fakeRunsGitHub) handler() http.HandlerFunc {
 			finished := time.Now().UTC().Format(time.RFC3339)
 			_, _ = w.Write([]byte(`{"id":16,"name":"build","status":"completed","conclusion":"success","completed_at":"` + finished + `",
 				"steps":[{"number":1,"name":"Set up job","status":"completed","conclusion":"success","started_at":"` + finished + `"}]}`))
+		case r.URL.Path == "/repos/o/r/actions/jobs/19":
+			_, _ = w.Write([]byte(`{"id":19,"run_id":21,"run_attempt":2,"name":"build","status":"completed","conclusion":"failure","steps":[]}`))
 		case r.URL.Path == "/repos/o/r/actions/jobs/18":
 			_, _ = w.Write([]byte(`{"id":18,"run_id":99,"name":"build","status":"completed","conclusion":"failure","steps":[]}`))
 		case strings.HasPrefix(r.URL.Path, "/repos/o/r/actions/jobs/") && strings.HasSuffix(r.URL.Path, "/rerun") && r.Method == http.MethodPost:
@@ -362,6 +364,9 @@ func TestReRunningOneJobChecksTheJobAndSendsOnce(t *testing.T) {
 	}
 	if elsewhere := prepare(18); elsewhere.ActionId != "" || len(elsewhere.Problems) != 1 || !strings.Contains(elsewhere.Problems[0], "not part of run #1482") {
 		t.Fatalf("a job of another run = %v", elsewhere)
+	}
+	if older := prepare(19); older.ActionId != "" || len(older.Problems) != 1 || !strings.Contains(older.Problems[0], "from attempt 2") {
+		t.Fatalf("a job of another attempt = %v", older)
 	}
 	if running := prepare(12); running.ActionId != "" || len(running.Problems) != 1 || !strings.Contains(running.Problems[0], "has not finished") {
 		t.Fatalf("a job still running = %v", running)

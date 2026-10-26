@@ -309,10 +309,10 @@ func TestRerunJobPostsToTheJobOnceAndKeepsRefusals(t *testing.T) {
 
 func TestAJobCarriesTheRunItBelongsTo(t *testing.T) {
 	client, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"id":5,"run_id":9,"name":"build","status":"completed","conclusion":"failure","steps":[]}`))
+		_, _ = w.Write([]byte(`{"id":5,"run_id":9,"run_attempt":3,"name":"build","status":"completed","conclusion":"failure","steps":[]}`))
 	})
 	job, err := client.Job(context.Background(), "o", "r", 5)
-	if err != nil || job.RunID != 9 {
+	if err != nil || job.RunID != 9 || job.RunAttempt != 3 {
 		t.Fatalf("job = %+v, %v", job, err)
 	}
 }

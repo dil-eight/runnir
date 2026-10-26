@@ -140,8 +140,10 @@ type Step struct {
 
 type Job struct {
 	ID int64
-	// RunID is the workflow run the job belongs to.
+	// RunID is the workflow run the job belongs to, and RunAttempt the attempt
+	// of it the job ran in; 0 when GitHub did not say.
 	RunID       int64
+	RunAttempt  int64
 	Name        string
 	Status      string
 	Conclusion  string
@@ -391,6 +393,7 @@ func (c *Client) Job(ctx context.Context, owner, name string, jobID int64) (Job,
 type jobJSON struct {
 	ID          int64      `json:"id"`
 	RunID       int64      `json:"run_id"`
+	RunAttempt  int64      `json:"run_attempt"`
 	Name        string     `json:"name"`
 	Status      string     `json:"status"`
 	Conclusion  *string    `json:"conclusion"`
@@ -408,7 +411,7 @@ type jobJSON struct {
 }
 
 func (j jobJSON) job() Job {
-	job := Job{ID: j.ID, RunID: j.RunID, Name: j.Name, Status: j.Status, HTMLURL: j.HTMLURL,
+	job := Job{ID: j.ID, RunID: j.RunID, RunAttempt: j.RunAttempt, Name: j.Name, Status: j.Status, HTMLURL: j.HTMLURL,
 		StartedAt: deref(j.StartedAt), CompletedAt: deref(j.CompletedAt)}
 	if j.Conclusion != nil {
 		job.Conclusion = *j.Conclusion
