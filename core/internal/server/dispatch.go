@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -13,6 +14,7 @@ import (
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
 	"runnir/core/internal/scanner"
+	"runnir/core/internal/store"
 )
 
 func (s *service) ListGitHubRefs(ctx context.Context, request *corev1.ListGitHubRefsRequest) (*corev1.ListGitHubRefsResponse, error) {
@@ -104,6 +106,7 @@ func (s *service) PrepareWorkflowDispatch(ctx context.Context, request *corev1.P
 	pending, err := s.dispatches.Prepare(dispatch.Request{
 		RepositoryID: repositoryID, ServerID: target.account.Server.ID, Owner: target.owner, Name: target.name,
 		WorkflowID: request.GetWorkflowId(), WorkflowPath: path, Ref: request.GetRef(), Inputs: request.GetInputs(),
+		SecretInputs: secretInputs(definition, request.GetInputs()),
 	})
 	if errors.Is(err, dispatch.ErrTooMany) {
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
@@ -149,8 +152,80 @@ func (s *service) ConfirmWorkflowDispatch(ctx context.Context, request *corev1.C
 	if sendErr == nil {
 		out.DispatchedAt = timestamppb.New(sentAt)
 		out.RunId = runID
+		out.HistoryId = s.recordDispatch(ctx, prepared, sentAt, runID)
 	}
 	return out, nil
+}
+
+// secretInputs names the inputs with a value whose name or description looks
+// secret. The value is still sent; the history never keeps it.
+func secretInputs(definition scanner.DispatchDefinition, inputs map[string]string) []string {
+	var out []string
+	for _, input := range definition.Inputs {
+		if inputs[input.Name] != "" && dispatch.LooksSecret(input.Name, input.Description) {
+			out = append(out, input.Name)
+		}
+	}
+	return out
+}
+
+// recordDispatch keeps an accepted dispatch in its workspace's history and
+// returns the entry's id, or 0 when nothing was kept: a repository named
+// directly or opened without a workspace has no database. A failure to
+// write the history never fails a dispatch that GitHub already accepted.
+func (s *service) recordDispatch(ctx context.Context, prepared dispatch.Request, sentAt time.Time, runID int64) int64 {
+	if prepared.RepositoryID == "" {
+		return 0
+	}
+	rt, ok := s.workspaces.ForRepository(prepared.RepositoryID)
+	if !ok {
+		return 0
+	}
+	kept := map[string]string{}
+	for name, value := range prepared.Inputs {
+		if !slices.Contains(prepared.SecretInputs, name) {
+			kept[name] = value
+		}
+	}
+	omitted := slices.Clone(prepared.SecretInputs)
+	slices.Sort(omitted)
+	id, _ := rt.Store().RecordDispatch(ctx, store.DispatchRecord{
+		WorkflowPath: prepared.WorkflowPath, Ref: prepared.Ref, Inputs: kept, Omitted: omitted, SentAt: sentAt, RunID: runID,
+	})
+	return id
+}
+
+func (s *service) ListDispatchHistory(ctx context.Context, request *corev1.ListDispatchHistoryRequest) (*corev1.ListDispatchHistoryResponse, error) {
+	rt, err := s.runtimeFor(request.GetRepositoryId())
+	if err != nil {
+		return nil, err
+	}
+	records, err := rt.Store().DispatchHistory(ctx, request.GetWorkflowPath(), int(request.GetLimit()))
+	if err != nil {
+		return nil, status.Error(codes.Internal, "could not read the dispatch history")
+	}
+	out := &corev1.ListDispatchHistoryResponse{}
+	for _, r := range records {
+		out.Records = append(out.Records, &corev1.DispatchRecord{
+			Id: r.ID, WorkflowPath: r.WorkflowPath, Ref: r.Ref, Inputs: r.Inputs, OmittedInputs: r.Omitted,
+			SentAt: timestamppb.New(r.SentAt), RunId: r.RunID,
+		})
+	}
+	return out, nil
+}
+
+func (s *service) LinkDispatchRun(ctx context.Context, request *corev1.LinkDispatchRunRequest) (*corev1.LinkDispatchRunResponse, error) {
+	if request.GetId() <= 0 || request.GetRunId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "id and run_id are required")
+	}
+	rt, err := s.runtimeFor(request.GetRepositoryId())
+	if err != nil {
+		return nil, err
+	}
+	if err := rt.Store().LinkDispatchRun(ctx, request.GetId(), request.GetRunId()); err != nil {
+		return nil, status.Error(codes.Internal, "could not save the run of the dispatch")
+	}
+	return &corev1.LinkDispatchRunResponse{}, nil
 }
 
 func inputType(name string) corev1.DispatchInputType {

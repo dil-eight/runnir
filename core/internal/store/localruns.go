@@ -99,11 +99,16 @@ FROM local_runs ORDER BY started_at DESC, execution_id DESC LIMIT ?`, limit)
 	return out, rows.Err()
 }
 
-// localChanged enforces the budget and writes the backup of local data.
+// localChanged enforces the budgets and writes the backup of local data.
 func (s *Store) localChanged(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, `
 DELETE FROM local_runs WHERE execution_id IN (
 	SELECT execution_id FROM local_runs ORDER BY started_at DESC, execution_id DESC LIMIT -1 OFFSET ?)`, maxLocalRuns); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `
+DELETE FROM dispatch_history WHERE id IN (
+	SELECT id FROM dispatch_history ORDER BY sent_at DESC, id DESC LIMIT -1 OFFSET ?)`, maxDispatchRecords); err != nil {
 		return err
 	}
 	return s.writeLocalBackup(ctx)

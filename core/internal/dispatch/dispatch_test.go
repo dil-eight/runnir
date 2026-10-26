@@ -95,3 +95,34 @@ func TestValidationFollowsTheDefinition(t *testing.T) {
 		t.Fatalf("not dispatchable = %v", problems)
 	}
 }
+
+func TestInputsThatLookSecretAreRecognizedByNameOrDescription(t *testing.T) {
+	secret := [][2]string{
+		{"deploy_token", ""}, {"API_KEY", ""}, {"deployKey", ""}, {"password", ""}, {"db-passphrase", ""},
+		{"credentials", ""}, {"apikey", ""}, {"pin", ""}, {"otp", ""}, {"session", ""},
+		{"value", "Personal access token for the registry"}, {"x", "the signing key"},
+	}
+	for _, c := range secret {
+		if !LooksSecret(c[0], c[1]) {
+			t.Errorf("%q / %q should look secret", c[0], c[1])
+		}
+	}
+	plain := [][2]string{
+		{"environment", ""}, {"dry_run", "Do not change anything"}, {"monkey", ""}, {"keyboard", ""}, {"spinner", ""},
+		{"compass", ""}, {"version", "Release version to deploy"}, {"region", ""}, {"tag", "Git tag to build"},
+	}
+	for _, c := range plain {
+		if LooksSecret(c[0], c[1]) {
+			t.Errorf("%q / %q should not look secret", c[0], c[1])
+		}
+	}
+}
+
+func TestWordsSplitCamelCaseAndSeparators(t *testing.T) {
+	got := words("deployKey_v2 and-the Token")
+	for _, want := range []string{"deploy", "key", "v2", "and", "the", "token"} {
+		if !got[want] {
+			t.Errorf("missing %q in %v", want, got)
+		}
+	}
+}

@@ -147,6 +147,20 @@ CREATE TABLE local_runs (
 	engine TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX local_runs_started ON local_runs (started_at DESC);
+-- local: the dispatches GitHub accepted from this Mac, so their inputs can be
+-- seen and sent again. inputs and omitted are JSON: the values sent except
+-- those that look secret, and the names of those. run_id is 0 until known.
+CREATE TABLE dispatch_history (
+	id INTEGER PRIMARY KEY,
+	workflow_path TEXT NOT NULL,
+	ref TEXT NOT NULL,
+	inputs TEXT NOT NULL DEFAULT '{}',
+	omitted TEXT NOT NULL DEFAULT '[]',
+	sent_at INTEGER NOT NULL,
+	run_id INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX dispatch_history_sent ON dispatch_history (sent_at DESC);
+CREATE INDEX dispatch_history_workflow ON dispatch_history (workflow_path, sent_at DESC);
 -- local: running totals of what this Mac saved, one per kind ("local_runs").
 -- They outlive local_runs, which keeps only the newest records.
 CREATE TABLE savings (

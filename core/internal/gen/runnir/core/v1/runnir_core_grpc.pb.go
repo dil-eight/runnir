@@ -59,6 +59,8 @@ const (
 	RunnirCore_DescribeWorkflowDispatch_FullMethodName  = "/runnir.core.v1.RunnirCore/DescribeWorkflowDispatch"
 	RunnirCore_PrepareWorkflowDispatch_FullMethodName   = "/runnir.core.v1.RunnirCore/PrepareWorkflowDispatch"
 	RunnirCore_ConfirmWorkflowDispatch_FullMethodName   = "/runnir.core.v1.RunnirCore/ConfirmWorkflowDispatch"
+	RunnirCore_ListDispatchHistory_FullMethodName       = "/runnir.core.v1.RunnirCore/ListDispatchHistory"
+	RunnirCore_LinkDispatchRun_FullMethodName           = "/runnir.core.v1.RunnirCore/LinkDispatchRun"
 	RunnirCore_GetJobLog_FullMethodName                 = "/runnir.core.v1.RunnirCore/GetJobLog"
 	RunnirCore_SaveJobLog_FullMethodName                = "/runnir.core.v1.RunnirCore/SaveJobLog"
 	RunnirCore_PrepareRunAction_FullMethodName          = "/runnir.core.v1.RunnirCore/PrepareRunAction"
@@ -169,6 +171,14 @@ type RunnirCoreClient interface {
 	// single-use confirmation that expires; only Confirm sends it to GitHub.
 	PrepareWorkflowDispatch(ctx context.Context, in *PrepareWorkflowDispatchRequest, opts ...grpc.CallOption) (*PrepareWorkflowDispatchResponse, error)
 	ConfirmWorkflowDispatch(ctx context.Context, in *ConfirmWorkflowDispatchRequest, opts ...grpc.CallOption) (*ConfirmWorkflowDispatchResponse, error)
+	// The dispatches GitHub accepted from this Mac for a workspace, newest
+	// first, with the inputs that were sent except the values that look secret
+	// (their names come back in omitted_inputs). At most 200 are kept.
+	// FAILED_PRECONDITION for a repository opened without a workspace_id.
+	ListDispatchHistory(ctx context.Context, in *ListDispatchHistoryRequest, opts ...grpc.CallOption) (*ListDispatchHistoryResponse, error)
+	// Says which run a history entry started, once the app has found it. The
+	// first answer is kept; an unknown entry is not an error.
+	LinkDispatchRun(ctx context.Context, in *LinkDispatchRunRequest, opts ...grpc.CallOption) (*LinkDispatchRunResponse, error)
 	// The end of one job's log (at most 2 MiB and 50,000 lines), split into
 	// lines that are tagged with their kind and the step that wrote them.
 	GetJobLog(ctx context.Context, in *GetJobLogRequest, opts ...grpc.CallOption) (*GetJobLogResponse, error)
@@ -560,6 +570,26 @@ func (c *runnirCoreClient) ConfirmWorkflowDispatch(ctx context.Context, in *Conf
 	return out, nil
 }
 
+func (c *runnirCoreClient) ListDispatchHistory(ctx context.Context, in *ListDispatchHistoryRequest, opts ...grpc.CallOption) (*ListDispatchHistoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDispatchHistoryResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ListDispatchHistory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) LinkDispatchRun(ctx context.Context, in *LinkDispatchRunRequest, opts ...grpc.CallOption) (*LinkDispatchRunResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LinkDispatchRunResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_LinkDispatchRun_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnirCoreClient) GetJobLog(ctx context.Context, in *GetJobLogRequest, opts ...grpc.CallOption) (*GetJobLogResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetJobLogResponse)
@@ -758,6 +788,14 @@ type RunnirCoreServer interface {
 	// single-use confirmation that expires; only Confirm sends it to GitHub.
 	PrepareWorkflowDispatch(context.Context, *PrepareWorkflowDispatchRequest) (*PrepareWorkflowDispatchResponse, error)
 	ConfirmWorkflowDispatch(context.Context, *ConfirmWorkflowDispatchRequest) (*ConfirmWorkflowDispatchResponse, error)
+	// The dispatches GitHub accepted from this Mac for a workspace, newest
+	// first, with the inputs that were sent except the values that look secret
+	// (their names come back in omitted_inputs). At most 200 are kept.
+	// FAILED_PRECONDITION for a repository opened without a workspace_id.
+	ListDispatchHistory(context.Context, *ListDispatchHistoryRequest) (*ListDispatchHistoryResponse, error)
+	// Says which run a history entry started, once the app has found it. The
+	// first answer is kept; an unknown entry is not an error.
+	LinkDispatchRun(context.Context, *LinkDispatchRunRequest) (*LinkDispatchRunResponse, error)
 	// The end of one job's log (at most 2 MiB and 50,000 lines), split into
 	// lines that are tagged with their kind and the step that wrote them.
 	GetJobLog(context.Context, *GetJobLogRequest) (*GetJobLogResponse, error)
@@ -901,6 +939,12 @@ func (UnimplementedRunnirCoreServer) PrepareWorkflowDispatch(context.Context, *P
 }
 func (UnimplementedRunnirCoreServer) ConfirmWorkflowDispatch(context.Context, *ConfirmWorkflowDispatchRequest) (*ConfirmWorkflowDispatchResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ConfirmWorkflowDispatch not implemented")
+}
+func (UnimplementedRunnirCoreServer) ListDispatchHistory(context.Context, *ListDispatchHistoryRequest) (*ListDispatchHistoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListDispatchHistory not implemented")
+}
+func (UnimplementedRunnirCoreServer) LinkDispatchRun(context.Context, *LinkDispatchRunRequest) (*LinkDispatchRunResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method LinkDispatchRun not implemented")
 }
 func (UnimplementedRunnirCoreServer) GetJobLog(context.Context, *GetJobLogRequest) (*GetJobLogResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetJobLog not implemented")
@@ -1558,6 +1602,42 @@ func _RunnirCore_ConfirmWorkflowDispatch_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_ListDispatchHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDispatchHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ListDispatchHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ListDispatchHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ListDispatchHistory(ctx, req.(*ListDispatchHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_LinkDispatchRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LinkDispatchRunRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).LinkDispatchRun(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_LinkDispatchRun_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).LinkDispatchRun(ctx, req.(*LinkDispatchRunRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnirCore_GetJobLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetJobLogRequest)
 	if err := dec(in); err != nil {
@@ -1876,6 +1956,14 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ConfirmWorkflowDispatch",
 			Handler:    _RunnirCore_ConfirmWorkflowDispatch_Handler,
+		},
+		{
+			MethodName: "ListDispatchHistory",
+			Handler:    _RunnirCore_ListDispatchHistory_Handler,
+		},
+		{
+			MethodName: "LinkDispatchRun",
+			Handler:    _RunnirCore_LinkDispatchRun_Handler,
 		},
 		{
 			MethodName: "GetJobLog",

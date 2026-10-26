@@ -33,6 +33,21 @@ on:
 jobs: {}
 `
 
+// deployWithTokenWorkflow also asks for a token, which a history must not keep.
+const deployWithTokenWorkflow = `name: Deploy
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        required: true
+        options: [staging, production]
+      deploy_token:
+        type: string
+        description: Token for the registry
+jobs: {}
+`
+
 type fakeDispatchGitHub struct {
 	mu         sync.Mutex
 	dispatches []map[string]any
@@ -60,6 +75,8 @@ func (f *fakeDispatchGitHub) handler(t *testing.T) http.HandlerFunc {
 			switch r.URL.Query().Get("ref") {
 			case "main":
 				_, _ = w.Write([]byte(deployWorkflow))
+			case "with-token":
+				_, _ = w.Write([]byte(deployWithTokenWorkflow))
 			case "broken":
 				_, _ = w.Write([]byte("on: [workflow_dispatch\n"))
 			default:
