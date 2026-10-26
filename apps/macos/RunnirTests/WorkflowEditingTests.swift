@@ -131,11 +131,17 @@ struct WorkflowEditingTests {
         let model = WorkspaceFilesModel()
         let file = LocalWorkflowFile(relativePath: ".github/workflows/ci.yml")
         model.select(file, reader: reader)
-        let waiting = Task { await model.waitUntilLoaded(file) }
+        // The text is read when the wait ends: the first load may finish
+        // before the second starts, and the second then clears the editor.
+        let waiting = Task { () -> (Bool, String) in
+            let loaded = await model.waitUntilLoaded(file)
+            return (loaded, model.source)
+        }
         await Task.yield()
         model.select(file, reader: reader)
-        #expect(await waiting.value)
-        #expect(model.source == Self.original)
+        let (loaded, source) = await waiting.value
+        #expect(loaded)
+        #expect(source == Self.original)
     }
 
     @Test func editsAreDirtyUntilSaved() async throws {
