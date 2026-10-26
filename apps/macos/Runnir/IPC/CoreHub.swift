@@ -1101,7 +1101,7 @@ final class CoreHub {
     nonisolated static func runShows(_ action: CoreRunAction, before: CoreWorkflowRun, now: CoreWorkflowRun) -> Bool {
         switch action {
         case .cancel: now.status == "completed"
-        case .rerun, .rerunFailed: now.runAttempt > before.runAttempt || now.status != "completed"
+        case .rerun, .rerunFailed, .rerunJob: now.runAttempt > before.runAttempt || now.status != "completed"
         case .approveDeployments: now.status != "waiting"
         }
     }

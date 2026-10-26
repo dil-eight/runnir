@@ -577,20 +577,22 @@ struct GRPCCoreService: CoreServicing {
                 $0.runID = runID
             }, options: Self.options(Self.callTimeout))
         }
-        return CoreGitHubResult(access: Self.map(response.status), items: response.jobs.map { job in
-            CoreRunJob(
-                id: job.id, name: job.name, status: job.status, conclusion: job.conclusion.isEmpty ? nil : job.conclusion,
-                startedAt: job.hasStartedAt ? job.startedAt.date : nil,
-                completedAt: job.hasCompletedAt ? job.completedAt.date : nil,
-                htmlURL: Self.webURL(job.htmlURL),
-                steps: job.steps.map { step in
-                    CoreRunStep(number: step.number, name: step.name, status: step.status,
-                                conclusion: step.conclusion.isEmpty ? nil : step.conclusion,
-                                startedAt: step.hasStartedAt ? step.startedAt.date : nil,
-                                completedAt: step.hasCompletedAt ? step.completedAt.date : nil)
-                }
-            )
-        })
+        return CoreGitHubResult(access: Self.map(response.status), items: response.jobs.map { Self.map($0) })
+    }
+
+    static func map(_ job: Runnir_Core_V1_RunJob) -> CoreRunJob {
+        CoreRunJob(
+            id: job.id, name: job.name, status: job.status, conclusion: job.conclusion.isEmpty ? nil : job.conclusion,
+            startedAt: job.hasStartedAt ? job.startedAt.date : nil,
+            completedAt: job.hasCompletedAt ? job.completedAt.date : nil,
+            htmlURL: Self.webURL(job.htmlURL),
+            steps: job.steps.map { step in
+                CoreRunStep(number: step.number, name: step.name, status: step.status,
+                            conclusion: step.conclusion.isEmpty ? nil : step.conclusion,
+                            startedAt: step.hasStartedAt ? step.startedAt.date : nil,
+                            completedAt: step.hasCompletedAt ? step.completedAt.date : nil)
+            }
+        )
     }
 
     func listGitHubRefs(target: CoreGitHubTarget) async throws -> CoreGitHubRefs {
@@ -728,8 +730,10 @@ struct GRPCCoreService: CoreServicing {
                 case .cancel: .cancel
                 case .rerun: .rerun
                 case .rerunFailed: .rerunFailed
+                case .rerunJob: .rerunJob
                 case .approveDeployments: .approveDeployments
                 }
+                if case .rerunJob(let id) = action { $0.jobID = id }
             }, options: Self.options(Self.callTimeout))
         }
         return CorePreparedRunAction(
@@ -738,7 +742,8 @@ struct GRPCCoreService: CoreServicing {
             expiresAt: response.hasExpiresAt ? response.expiresAt.date : nil,
             problems: response.problems,
             run: response.hasRun ? Self.map(response.run) : nil,
-            environments: response.environments
+            environments: response.environments,
+            job: response.hasJob ? Self.map(response.job) : nil
         )
     }
 
