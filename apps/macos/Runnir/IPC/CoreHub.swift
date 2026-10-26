@@ -81,6 +81,8 @@ final class RepositorySession: Identifiable {
     fileprivate(set) var savings: [CoreSaving] = []
     /// How many of the newest runs the session reads; grows as lists scroll.
     fileprivate(set) var activityLimit = CoreHub.activityPage
+    /// The limit a search replaced to cover every saved run; nil outside a search.
+    fileprivate var limitBeforeSearch: Int?
     fileprivate(set) var olderRuns: OlderRunsState = .idle
     /// The last sync pass's outcome, or why there is none; nil before the first.
     var githubAccess: CoreGitHubAccess? { freshness.access }
@@ -431,6 +433,27 @@ final class CoreHub {
         // Whether an owner has to accept permissions, or the user lacks
         // access, decides what the notice asks for.
         if access == .permissionMissing { await githubRepository(workspaceID: session.workspaceID) }
+    }
+
+    /// Shows every run saved on this Mac, up to the budget, so a search covers
+    /// them all. It reads the Core's saved activity only: nothing goes to
+    /// GitHub, so it works offline too.
+    func loadSavedRuns(workspaceID: UUID) async {
+        guard let session = sessions[workspaceID] else { return }
+        let wanted = min(Self.maxActivityLimit, session.cachedRuns)
+        guard wanted > session.activityLimit else { return }
+        if session.limitBeforeSearch == nil { session.limitBeforeSearch = session.activityLimit }
+        session.activityLimit = wanted
+        await readActivity(of: session)
+    }
+
+    /// Goes back to the runs shown before the search, so later syncs and reads
+    /// do not keep carrying the whole cache.
+    func endSavedRunsSearch(workspaceID: UUID) async {
+        guard let session = sessions[workspaceID], let before = session.limitBeforeSearch else { return }
+        session.limitBeforeSearch = nil
+        session.activityLimit = before
+        await readActivity(of: session)
     }
 
     /// Shows more runs when a list reaches its end: 200 more from the cache,

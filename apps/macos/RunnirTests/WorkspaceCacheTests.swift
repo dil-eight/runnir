@@ -60,6 +60,54 @@ struct TestDefaults {
         #expect(hub.session(for: workspace)?.olderRuns == .idle)
     }
 
+    @Test func searchingReadsEverySavedRunAndNeverAsksGitHub() async {
+        let (hub, provider) = await readyHub()
+        let runs = (1...200).map { run(Int64($0)) }
+        let fresh = CoreActivityFreshness(source: .live, access: .ok)
+        provider.core.setActivity(CoreWorkspaceActivity(runs: runs, workflows: [], freshness: fresh, cachedRuns: 1200), for: "/repo/linked")
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        #expect(await eventually { hub.session(for: workspace)?.cachedRuns == 1200 })
+        let refreshes = provider.core.activityRefreshes.count
+
+        await hub.loadSavedRuns(workspaceID: workspace)
+        #expect(provider.core.activityLimits.last == 1200, "every saved run, in one read from the cache")
+        #expect(provider.core.olderRunsCalls.isEmpty)
+        #expect(provider.core.activityRefreshes.count == refreshes, "no pass over GitHub")
+
+        let reads = provider.core.activityLimits.count
+        await hub.loadSavedRuns(workspaceID: workspace)
+        #expect(provider.core.activityLimits.count == reads, "once is enough")
+    }
+
+    @Test func endingTheSearchGoesBackToTheRunsShownBefore() async {
+        let (hub, provider) = await readyHub()
+        let fresh = CoreActivityFreshness(source: .live, access: .ok)
+        provider.core.setActivity(CoreWorkspaceActivity(runs: [run(1)], workflows: [], freshness: fresh, cachedRuns: 1200), for: "/repo/linked")
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        #expect(await eventually { hub.session(for: workspace)?.cachedRuns == 1200 })
+        let before = hub.session(for: workspace)?.activityLimit
+
+        await hub.loadSavedRuns(workspaceID: workspace)
+        #expect(hub.session(for: workspace)?.activityLimit == 1200)
+        await hub.endSavedRunsSearch(workspaceID: workspace)
+        #expect(hub.session(for: workspace)?.activityLimit == before, "later syncs read the usual page again")
+        await hub.endSavedRunsSearch(workspaceID: workspace) // nothing to restore twice
+        #expect(hub.session(for: workspace)?.activityLimit == before)
+    }
+
+    @Test func searchingNeverAsksForMoreThanTheBudget() async {
+        let (hub, provider) = await readyHub()
+        let fresh = CoreActivityFreshness(source: .live, access: .ok)
+        provider.core.setActivity(CoreWorkspaceActivity(runs: [run(1)], workflows: [], freshness: fresh, cachedRuns: 9000), for: "/repo/linked")
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        #expect(await eventually { hub.session(for: workspace)?.cachedRuns == 9000 })
+        await hub.loadSavedRuns(workspaceID: workspace)
+        #expect(provider.core.activityLimits.last == CoreHub.maxActivityLimit)
+    }
+
     @Test func olderRunsSayWhenGitHubFailsAndWhenTheBudgetIsReached() async {
         let (hub, provider) = await readyHub()
         provider.core.setActivity(CoreWorkspaceActivity(runs: [run(1)], workflows: [], freshness: CoreActivityFreshness(source: .live, access: .ok),
