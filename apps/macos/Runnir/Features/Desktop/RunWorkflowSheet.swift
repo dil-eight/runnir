@@ -85,6 +85,12 @@ final class DispatchFormModel {
     private(set) var appliedPresetID: UUID?
     /// What a preset could not apply: a branch or inputs that no longer exist.
     private(set) var presetNotes: [String] = []
+    /// The dispatches already sent from this Mac for the selected workflow,
+    /// newest first; none for a repository without a local clone.
+    private(set) var history: [CoreDispatchRecord] = []
+    /// Where the form's values came from after an earlier dispatch was
+    /// applied, and what was left out of it.
+    private(set) var historyNote: String?
     /// Why GitHub refused, with the step that fixes it, shown as an alert.
     var accessHelp: GitHubAccessHelp?
     /// Touch ID (or the password) is being asked for; Run Workflow waits.
@@ -145,6 +151,41 @@ final class DispatchFormModel {
         if let initialPresetID, let preset = (repositoryPresets + availablePresets).first(where: { $0.id == initialPresetID }) {
             apply(preset)
         }
+        await loadHistory()
+    }
+
+    /// Reads the earlier dispatches of the selected workflow from the Core.
+    func loadHistory() async {
+        guard let workspaceID, let workflow = selectedWorkflow else {
+            history = []
+            return
+        }
+        let records = await hub.dispatchHistory(workspaceID: workspaceID, workflowPath: workflow.path)
+        guard workflow.id == selectedWorkflowID else { return }
+        history = records
+    }
+
+    /// Fills the form with an earlier dispatch: its branch, then its values
+    /// over the workflow's defaults, saying what no longer fits. Nothing is
+    /// sent: the form is reviewed and confirmed like any other run.
+    func applyHistory(_ record: CoreDispatchRecord) {
+        guard let workspaceID else { return }
+        apply(DispatchHistory.preset(from: record, workspaceID: workspaceID), noun: "earlier dispatch")
+        // An earlier dispatch is not a preset: there is nothing to update or rename.
+        appliedPresetID = nil
+        var note = "Values from the dispatch sent \(record.sentAt.formatted(date: .abbreviated, time: .shortened))."
+        if let leftOut = DispatchHistory.leftOut(record) { note += " \(leftOut)." }
+        historyNote = note
+    }
+
+    /// Forgets every earlier dispatch of this repository, not only this workflow's.
+    func clearHistory() async {
+        guard let workspaceID, await hub.clearDispatchHistory(workspaceID: workspaceID) else {
+            historyNote = "The history could not be cleared."
+            return
+        }
+        history = []
+        historyNote = "History cleared."
     }
 
     func select(workflowID: Int64) {
@@ -152,7 +193,12 @@ final class DispatchFormModel {
         appliedPresetID = nil
         pendingPreset = nil
         presetNotes = []
-        Task { await loadDefinition() }
+        historyNote = nil
+        history = []
+        Task {
+            await loadDefinition()
+            await loadHistory()
+        }
     }
 
     func select(ref: String) {
@@ -254,9 +300,10 @@ final class DispatchFormModel {
 
     /// Applies a preset: its branch, then the workflow's defaults with the
     /// preset's values on top. What no longer fits is listed in `presetNotes`.
-    func apply(_ preset: DispatchPreset) {
+    func apply(_ preset: DispatchPreset, noun: String = "preset") {
         appliedPresetID = preset.id
         presetNotes = []
+        historyNote = nil
         let known = (refs?.branches ?? []) + (refs?.tags ?? [])
         // A preset without a branch keeps the form's.
         if !preset.ref.isEmpty, preset.ref != ref, known.contains(preset.ref) {
@@ -265,7 +312,7 @@ final class DispatchFormModel {
             return
         }
         if !preset.ref.isEmpty, preset.ref != ref {
-            presetNotes.append("The preset's branch \(preset.ref) no longer exists on GitHub; \(ref) is kept.")
+            presetNotes.append("The \(noun)'s branch \(preset.ref) no longer exists on GitHub; \(ref) is kept.")
         }
         if let definition, !isLoadingDefinition, definition.access == .ok, definition.parseError == nil {
             overlay(preset, inputs: definition.inputs)
@@ -436,9 +483,14 @@ final class DispatchFormModel {
         if let run = await hub.locateDispatchedRun(target: target, workflowID: workflow.id, ref: ref,
                                                    dispatchedAt: dispatchedAt, knownRunIDs: known, reportedRunID: result.runID) {
             step = .found(run)
+            // The Core recorded the run itself when GitHub named it; otherwise it learns which run this was.
+            if let workspaceID, let historyID = result.historyID, result.runID == nil {
+                await hub.linkDispatchRun(workspaceID: workspaceID, historyID: historyID, runID: run.id)
+            }
         } else {
             step = .notFoundYet
         }
+        await loadHistory()
     }
 
     /// The repository's GitHub name, for messages.
@@ -487,6 +539,8 @@ struct RunWorkflowSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var presetPrompt: PresetPrompt?
     @State private var presetName = ""
+    @State private var comparing = false
+    @State private var confirmingClear = false
     @State private var confirmingDelete = false
 
     private enum PresetPrompt: Identifiable {
@@ -588,6 +642,41 @@ struct RunWorkflowSheet: View {
         }
     }
 
+    /// Earlier dispatches of this workflow: apply one to the form, or compare two.
+    @ViewBuilder private var historyControl: some View {
+        if model.workspaceID != nil {
+            LabeledContent("History") {
+                HStack(spacing: 8) {
+                    Menu {
+                        ForEach(model.history.prefix(15)) { record in
+                            Button { model.applyHistory(record) } label: { Text(DispatchHistory.menuTitle(record)) }
+                                .help(DispatchHistory.leftOut(record) ?? "Fills the form with these values; nothing is sent")
+                        }
+                        if !model.history.isEmpty {
+                            Divider()
+                            Button("Clear history...", role: .destructive) { confirmingClear = true }
+                        }
+                    } label: {
+                        Label(model.history.isEmpty ? "Nothing sent from Runnir yet" : "Earlier runs", systemImage: "clock.arrow.circlepath")
+                    }
+                    .fixedSize().handPointer().disabled(model.history.isEmpty)
+                    Button("Compare...") { comparing = true }
+                        .buttonStyle(.link).handPointer().disabled(model.history.count < 2)
+                        .popover(isPresented: $comparing) { DispatchComparisonView(records: model.history) }
+                }
+            }
+            .confirmationDialog("Clear the dispatch history?", isPresented: $confirmingClear, titleVisibility: .visible) {
+                Button("Clear History", role: .destructive) { Task { await model.clearHistory() } }
+            } message: {
+                Text("Forgets what Runnir sent to this repository. Runs on GitHub are not affected.")
+            }
+            if let note = model.historyNote {
+                Label(note, systemImage: "clock").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+            }
+        }
+    }
+
+
     private func presetButton(_ preset: DispatchPreset) -> some View {
         // No hand pointer: an item of the preset menu.
         Button { model.apply(preset) } label: {
@@ -646,6 +735,7 @@ struct RunWorkflowSheet: View {
                 progress("Loading branches...")
             }
             presetControl
+            historyControl
             DesignDivider()
             definitionSection
             if !model.problems.isEmpty {
@@ -748,5 +838,60 @@ struct RunWorkflowSheet: View {
 
     private func progress(_ text: String) -> some View {
         HStack(spacing: 8) { ProgressView().controlSize(.small); Text(text).font(.system(size: 12)) }
+    }
+}
+
+
+/// Two earlier dispatches side by side: what changed between them.
+private struct DispatchComparisonView: View {
+    let records: [CoreDispatchRecord]
+    @State private var firstID: Int64
+    @State private var secondID: Int64
+
+    init(records: [CoreDispatchRecord]) {
+        self.records = records
+        _firstID = State(initialValue: records.first?.id ?? 0)
+        _secondID = State(initialValue: records.dropFirst().first?.id ?? records.first?.id ?? 0)
+    }
+
+    private var first: CoreDispatchRecord? { records.first { $0.id == firstID } }
+    private var second: CoreDispatchRecord? { records.first { $0.id == secondID } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Picker("First", selection: $firstID) {
+                ForEach(records) { Text(DispatchHistory.menuTitle($0)).tag($0.id) }
+            }.handPointer()
+            Picker("Second", selection: $secondID) {
+                ForEach(records) { Text(DispatchHistory.menuTitle($0)).tag($0.id) }
+            }.handPointer()
+            if let first, let second {
+                let rows = DispatchHistory.compare(first, second)
+                Text(DispatchHistory.changedCount(rows) == 0 ? "Everything sent is the same."
+                     : "\(DispatchHistory.changedCount(rows)) of \(rows.count) differ.")
+                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+                    GridRow {
+                        Text("").gridColumnAlignment(.leading)
+                        Text("First").foregroundStyle(RunnirTheme.secondaryForeground)
+                        Text("Second").foregroundStyle(RunnirTheme.secondaryForeground)
+                    }
+                    ForEach(rows) { row in
+                        GridRow {
+                            Text(row.name).font(.system(size: 12, weight: row.changed ? .semibold : .regular))
+                            Text(row.first ?? "not sent").foregroundStyle(row.first == nil ? RunnirTheme.mutedForeground : RunnirTheme.foreground)
+                            Text(row.second ?? "not sent").foregroundStyle(row.second == nil ? RunnirTheme.mutedForeground : RunnirTheme.foreground)
+                        }
+                        .font(.system(size: 12, design: .monospaced))
+                        .padding(.vertical, 2).padding(.horizontal, 6)
+                        .background(row.changed ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 4))
+                    }
+                }
+                if let note = [first, second].compactMap(DispatchHistory.leftOut).first {
+                    Text(note).font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground)
+                }
+            }
+        }
+        .padding(16).frame(width: 520)
     }
 }

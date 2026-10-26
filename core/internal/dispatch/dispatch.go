@@ -39,6 +39,9 @@ type Request struct {
 	WorkflowPath string
 	Ref          string
 	Inputs       map[string]string
+	// SecretInputs are the names of inputs with a value that look secret.
+	// The value is sent, but the history never keeps it.
+	SecretInputs []string
 }
 
 type Pending = approval.Pending[Request]

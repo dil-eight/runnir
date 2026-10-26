@@ -117,6 +117,17 @@ service RunnirCore {
   // single-use confirmation that expires; only Confirm sends it to GitHub.
   rpc PrepareWorkflowDispatch(PrepareWorkflowDispatchRequest) returns (PrepareWorkflowDispatchResponse);
   rpc ConfirmWorkflowDispatch(ConfirmWorkflowDispatchRequest) returns (ConfirmWorkflowDispatchResponse);
+  // The dispatches GitHub accepted from this Mac to the repository the origin
+  // points at now, newest first, with the inputs that were sent except the
+  // values that look secret (their names come back in omitted_inputs). At
+  // most 200 are kept. Empty while the origin names no GitHub repository.
+  // FAILED_PRECONDITION for a repository opened without a workspace_id.
+  rpc ListDispatchHistory(ListDispatchHistoryRequest) returns (ListDispatchHistoryResponse);
+  // Forgets that repository's dispatch history and says how many entries went.
+  rpc ClearDispatchHistory(ClearDispatchHistoryRequest) returns (ClearDispatchHistoryResponse);
+  // Says which run a history entry started, once the app has found it. The
+  // first answer is kept; an unknown entry is not an error.
+  rpc LinkDispatchRun(LinkDispatchRunRequest) returns (LinkDispatchRunResponse);
 
   // The end of one job's log (at most 2 MiB and 50,000 lines), split into
   // lines that are tagged with their kind and the step that wrote them.
@@ -798,7 +809,52 @@ message ConfirmWorkflowDispatchResponse {
   int64 run_id = 3;
   // GitHub's reason when it refused the request (status is OK then).
   string rejection = 4;
+  // The entry the accepted dispatch has in the history; 0 when none was kept
+  // (the repository was named directly or opened without a workspace).
+  int64 history_id = 5;
 }
+
+message DispatchRecord {
+  int64 id = 1;
+  string workflow_path = 2;
+  string ref = 3;
+  // The values that were sent, without those that look secret.
+  map<string, string> inputs = 4;
+  // Names of the inputs whose values were not kept because they look secret.
+  repeated string omitted_inputs = 5;
+  google.protobuf.Timestamp sent_at = 6;
+  // 0 until the run it started is known.
+  int64 run_id = 7;
+}
+
+message ListDispatchHistoryRequest {
+  string repository_id = 1;
+  // Only this workflow's entries; empty for every workflow.
+  string workflow_path = 2;
+  // 0 means every kept entry.
+  uint32 limit = 3;
+}
+
+message ListDispatchHistoryResponse {
+  repeated DispatchRecord records = 1;
+}
+
+message ClearDispatchHistoryRequest {
+  // Forgets the dispatches sent to the repository its origin points at now.
+  string repository_id = 1;
+}
+
+message ClearDispatchHistoryResponse {
+  uint32 removed = 1;
+}
+
+message LinkDispatchRunRequest {
+  string repository_id = 1;
+  int64 id = 2;
+  int64 run_id = 3;
+}
+
+message LinkDispatchRunResponse {}
 
 message GetJobLogRequest {
   string repository_id = 1;

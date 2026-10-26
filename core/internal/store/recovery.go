@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,8 +20,9 @@ const localColumns = "execution_id, workflow_path, job_id, event, started_at, fi
 
 // localData is what exists only on this Mac.
 type localData struct {
-	runs    []LocalRun
-	savings []Saving
+	runs       []LocalRun
+	savings    []Saving
+	dispatches []DispatchRecord
 }
 
 // writeLocalBackup copies the local tables to backups/local-data.sqlite:
@@ -48,6 +50,9 @@ func (s *Store) writeLocalBackup(ctx context.Context) error {
 	_, copyErr := conn.ExecContext(ctx, "CREATE TABLE backup.local_runs AS SELECT "+localColumns+" FROM main.local_runs")
 	if copyErr == nil {
 		_, copyErr = conn.ExecContext(ctx, "CREATE TABLE backup.savings AS SELECT "+savingColumns+" FROM main.savings")
+	}
+	if copyErr == nil {
+		_, copyErr = conn.ExecContext(ctx, "CREATE TABLE backup.dispatch_history AS SELECT "+dispatchColumns+" FROM main.dispatch_history")
 	}
 	_, detachErr := conn.ExecContext(context.Background(), "DETACH DATABASE backup")
 	if err := errors.Join(copyErr, detachErr); err != nil {
@@ -84,12 +89,13 @@ func readLocalBackup(path string) (localData, error) {
 	return scanLocal(db)
 }
 
-// scanLocal reads both local tables; a table that fails still gives the
-// rows read before the error, and the other table is read anyway.
+// scanLocal reads the local tables; a table that fails still gives the
+// rows read before the error, and the others are read anyway.
 func scanLocal(db *sql.DB) (localData, error) {
 	runs, runsErr := scanLocalRuns(db, "SELECT "+localColumns+" FROM local_runs")
 	savings, savingsErr := scanSavings(db, "SELECT "+savingColumns+" FROM savings")
-	return localData{runs: runs, savings: savings}, errors.Join(runsErr, savingsErr)
+	dispatches, dispatchesErr := scanDispatches(context.Background(), db, "SELECT "+dispatchColumns+" FROM dispatch_history")
+	return localData{runs: runs, savings: savings, dispatches: dispatches}, errors.Join(runsErr, savingsErr, dispatchesErr)
 }
 
 // scanLocalRuns keeps the rows read before an error: a damaged file may
@@ -194,6 +200,7 @@ func copyFile(from, to string) error {
 func (s *Store) restoreLocal(ctx context.Context, salvaged localData) (int, error) {
 	byID := map[string]LocalRun{}
 	byKind := map[string]Saving{}
+	byDispatch := map[int64]DispatchRecord{}
 	backup, _ := readLocalBackup(filepath.Join(s.dir, backupsDir, localBackupName))
 	for _, data := range []localData{backup, salvaged} {
 		for _, r := range data.runs {
@@ -203,6 +210,9 @@ func (s *Store) restoreLocal(ctx context.Context, salvaged localData) (int, erro
 			if kept, ok := byKind[v.Kind]; !ok || v.Count >= kept.Count {
 				byKind[v.Kind] = v
 			}
+		}
+		for _, d := range data.dispatches {
+			byDispatch[d.ID] = d
 		}
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -219,6 +229,15 @@ func (s *Store) restoreLocal(ctx context.Context, salvaged localData) (int, erro
 	for _, v := range byKind {
 		if _, err := tx.ExecContext(ctx, "INSERT OR REPLACE INTO savings ("+savingColumns+") VALUES (?, ?, ?, ?)",
 			v.Kind, v.Minutes, v.Count, millis(v.Since)); err != nil {
+			_ = tx.Rollback()
+			return 0, err
+		}
+	}
+	for _, d := range byDispatch {
+		inputs, _ := json.Marshal(nonNilInputs(d.Inputs))
+		omitted, _ := json.Marshal(nonNilNames(d.Omitted))
+		if _, err := tx.ExecContext(ctx, "INSERT OR REPLACE INTO dispatch_history ("+dispatchColumns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			d.ID, d.WorkflowPath, d.Ref, string(inputs), string(omitted), millis(d.SentAt), d.RunID, d.Source.ServerID, d.Source.Repository); err != nil {
 			_ = tx.Rollback()
 			return 0, err
 		}

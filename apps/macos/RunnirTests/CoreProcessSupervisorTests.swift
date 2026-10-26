@@ -70,6 +70,9 @@ private struct FakeService: CoreServicing {
         CorePreparedDispatch(access: .ok, dispatchID: nil, expiresAt: nil, problems: [], workflowPath: "")
     }
     func confirmWorkflowDispatch(dispatchID: String) async throws -> CoreDispatchResult { throw CoreServiceError.unavailable }
+    func dispatchHistory(repositoryID: String, workflowPath: String) async throws -> [CoreDispatchRecord] { throw CoreServiceError.unavailable }
+    func linkDispatchRun(repositoryID: String, id: Int64, runID: Int64) async throws { throw CoreServiceError.unavailable }
+    func clearDispatchHistory(repositoryID: String) async throws -> Int { throw CoreServiceError.unavailable }
     func jobLog(repositoryID: String, jobID: Int64) async throws -> CoreJobLog { throw CoreServiceError.unavailable }
     func saveJobLog(repositoryID: String, jobID: Int64) async throws -> CoreSavedJobLog { throw CoreServiceError.unavailable }
     func prepareRunAction(repositoryID: String, runID: Int64, action: CoreRunAction) async throws -> CorePreparedRunAction { throw CoreServiceError.unavailable }

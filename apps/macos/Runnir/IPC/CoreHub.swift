@@ -580,6 +580,28 @@ final class CoreHub {
         return result
     }
 
+    /// The dispatches sent from this Mac for a workflow of a workspace, newest
+    /// first. Empty when there are none or the Core cannot say.
+    func dispatchHistory(workspaceID: UUID, workflowPath: String) async -> [CoreDispatchRecord] {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID),
+              let records = try? await service.dispatchHistory(repositoryID: coreID, workflowPath: workflowPath) else { return [] }
+        return records
+    }
+
+    /// Tells the Core which run a history entry started. A failure only
+    /// leaves the entry without a run.
+    func linkDispatchRun(workspaceID: UUID, historyID: Int64, runID: Int64) async {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return }
+        try? await service.linkDispatchRun(repositoryID: coreID, id: historyID, runID: runID)
+    }
+
+    /// Forgets the dispatch history of the workspace's repository. False when
+    /// the Core could not do it, so the list is left as it is.
+    func clearDispatchHistory(workspaceID: UUID) async -> Bool {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return false }
+        return (try? await service.clearDispatchHistory(repositoryID: coreID)) != nil
+    }
+
     /// Runs known before a dispatch, so the run it starts can be told apart.
     func knownRunIDs(_ target: GitHubTarget) async -> Set<Int64> {
         switch target {
