@@ -20,7 +20,7 @@ import (
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 )
 
-const jobJSON = `{"id":%d,"name":"build","status":"%s","conclusion":%s,"steps":[
+const jobJSON = `{"id":%d,"run_id":21,"name":"build","status":"%s","conclusion":%s,"steps":[
  {"number":1,"name":"Set up job","status":"completed","conclusion":"success","started_at":"2026-10-19T10:00:00Z","completed_at":"2026-10-19T10:00:02Z"},
  {"number":2,"name":"Archive","status":"completed","conclusion":"failure","started_at":"2026-10-19T10:00:03Z","completed_at":"2026-10-19T10:00:09Z"},
  {"number":3,"name":"Upload","status":"completed","conclusion":"skipped","started_at":"2026-10-19T10:00:09Z","completed_at":"2026-10-19T10:00:09Z"}]}`
@@ -70,6 +70,16 @@ func (f *fakeRunsGitHub) handler() http.HandlerFunc {
 			finished := time.Now().UTC().Format(time.RFC3339)
 			_, _ = w.Write([]byte(`{"id":16,"name":"build","status":"completed","conclusion":"success","completed_at":"` + finished + `",
 				"steps":[{"number":1,"name":"Set up job","status":"completed","conclusion":"success","started_at":"` + finished + `"}]}`))
+		case r.URL.Path == "/repos/o/r/actions/jobs/18":
+			_, _ = w.Write([]byte(`{"id":18,"run_id":99,"name":"build","status":"completed","conclusion":"failure","steps":[]}`))
+		case strings.HasPrefix(r.URL.Path, "/repos/o/r/actions/jobs/") && strings.HasSuffix(r.URL.Path, "/rerun") && r.Method == http.MethodPost:
+			f.posts = append(f.posts, strings.TrimPrefix(r.URL.Path, "/repos/o/r/actions/"))
+			if f.forbidden {
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"message":"Unable to re-run this job because it was created over a month ago"}`))
+				return
+			}
+			w.WriteHeader(http.StatusCreated)
 		case r.URL.Path == "/repos/o/r/actions/jobs/17":
 			_, _ = w.Write([]byte(strings.NewReplacer("%d", "17", "%s", "completed", "conclusion\":%s", "conclusion\":\"success\"").Replace(jobJSON)))
 		case r.URL.Path == "/repos/o/r/actions/jobs/17/logs":
@@ -331,5 +341,65 @@ func TestApprovingDeploymentsSendsOnlyThoseTheUserMayApprove(t *testing.T) {
 	if strings.Join(fake.posts, ",") != "pending_deployments" ||
 		!strings.Contains(fake.bodies[0], `"environment_ids":[9]`) || !strings.Contains(fake.bodies[0], `"state":"approved"`) {
 		t.Fatalf("posts = %v %v", fake.posts, fake.bodies)
+	}
+}
+
+func TestReRunningOneJobChecksTheJobAndSendsOnce(t *testing.T) {
+	client, id, fake, ctx := runsRig(t)
+	prepare := func(jobID int64) *corev1.PrepareRunActionResponse {
+		t.Helper()
+		prepared, err := client.PrepareRunAction(ctx, &corev1.PrepareRunActionRequest{RepositoryId: id, RunId: 21,
+			Action: corev1.RunAction_RUN_ACTION_RERUN_JOB, JobId: jobID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return prepared
+	}
+
+	if _, err := client.PrepareRunAction(ctx, &corev1.PrepareRunActionRequest{RepositoryId: id, RunId: 21,
+		Action: corev1.RunAction_RUN_ACTION_RERUN_JOB}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("no job = %v", err)
+	}
+	if elsewhere := prepare(18); elsewhere.ActionId != "" || len(elsewhere.Problems) != 1 || !strings.Contains(elsewhere.Problems[0], "not part of run #1482") {
+		t.Fatalf("a job of another run = %v", elsewhere)
+	}
+	if running := prepare(12); running.ActionId != "" || len(running.Problems) != 1 || !strings.Contains(running.Problems[0], "has not finished") {
+		t.Fatalf("a job still running = %v", running)
+	}
+	if missing := prepare(99); missing.ActionId != "" || missing.Status.GetAccess() == corev1.GithubAccess_GITHUB_ACCESS_OK {
+		t.Fatalf("an unknown job = %v", missing)
+	}
+
+	ready := prepare(11)
+	if ready.ActionId == "" || ready.ExpiresAt == nil || ready.Job.GetId() != 11 || ready.Job.GetName() != "build" || ready.Run.GetRunNumber() != 1482 || len(fake.sent()) != 0 {
+		t.Fatalf("prepare = %v, posts %v", ready, fake.sent())
+	}
+	confirmed, err := client.ConfirmRunAction(ctx, &corev1.ConfirmRunActionRequest{ActionId: ready.ActionId})
+	if err != nil || confirmed.AcceptedAt == nil || confirmed.Rejection != "" {
+		t.Fatalf("confirm = %v, %v", confirmed, err)
+	}
+	if _, err := client.ConfirmRunAction(ctx, &corev1.ConfirmRunActionRequest{ActionId: ready.ActionId}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("second confirm = %v", err)
+	}
+	if posts := fake.sent(); strings.Join(posts, ",") != "jobs/11/rerun" {
+		t.Fatalf("posts = %v", posts)
+	}
+
+	// The run is still going: only finished runs can be re-run, as for the whole run.
+	fake.mu.Lock()
+	fake.runStatus = "in_progress"
+	fake.mu.Unlock()
+	if active := prepare(11); active.ActionId != "" || !strings.Contains(active.Problems[0], "Only finished runs can be re-run") {
+		t.Fatalf("re-run in an active run = %v", active)
+	}
+
+	// GitHub's refusal reaches the user with its reason.
+	fake.mu.Lock()
+	fake.runStatus, fake.forbidden = "completed", true
+	fake.mu.Unlock()
+	old := prepare(11)
+	tooOld, err := client.ConfirmRunAction(ctx, &corev1.ConfirmRunActionRequest{ActionId: old.ActionId})
+	if err != nil || !strings.Contains(tooOld.Rejection, "over a month ago") || tooOld.AcceptedAt != nil {
+		t.Fatalf("refused = %v, %v", tooOld, err)
 	}
 }

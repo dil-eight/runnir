@@ -875,12 +875,17 @@ enum RunAction {
   // Approve the run's pending deployments the user may approve; the jobs
   // waiting on them go on.
   RUN_ACTION_APPROVE_DEPLOYMENTS = 4;
+  // A new attempt of one job of a finished run and of the jobs that need it;
+  // `job_id` names the job.
+  RUN_ACTION_RERUN_JOB = 5;
 }
 
 message PrepareRunActionRequest {
   string repository_id = 1;
   int64 run_id = 2;
   RunAction action = 3;
+  // For RUN_ACTION_RERUN_JOB: the job, which must belong to `run_id`.
+  int64 job_id = 4;
 }
 
 message PrepareRunActionResponse {
@@ -895,6 +900,8 @@ message PrepareRunActionResponse {
   WorkflowRun run = 5;
   // For RUN_ACTION_APPROVE_DEPLOYMENTS: the environments that will be approved.
   repeated string environments = 6;
+  // For RUN_ACTION_RERUN_JOB: the job as GitHub reported it while preparing.
+  RunJob job = 7;
 }
 
 message ConfirmRunActionRequest {

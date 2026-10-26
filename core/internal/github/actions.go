@@ -24,6 +24,13 @@ func (c *Client) RerunRun(ctx context.Context, owner, name string, runID int64, 
 	return c.post(ctx, repoPath(owner, name, fmt.Sprintf("/actions/runs/%d%s", runID, suffix)), runID)
 }
 
+// RerunJob starts a new attempt of one job of a finished run and of the jobs
+// that need it. Like RerunRun it is not retried, so a lost answer cannot
+// start two attempts.
+func (c *Client) RerunJob(ctx context.Context, owner, name string, jobID int64) error {
+	return c.post(ctx, repoPath(owner, name, fmt.Sprintf("/actions/jobs/%d/rerun", jobID)), jobID)
+}
+
 // PendingDeployment is an environment a run waits on for approval.
 type PendingDeployment struct {
 	EnvironmentID int64
