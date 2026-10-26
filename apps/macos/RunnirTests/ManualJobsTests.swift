@@ -20,20 +20,23 @@ struct ManualJobsTests {
 
     @Test func aJobStartedByHandOffersANewRunWithTheInputsOfItsCondition() {
         let skipped = [job("completed", conclusion: "skipped")]
-        #expect(ManualJobStart.of(deploy, matched: skipped, run: run(status: "completed"), workflow: workflow)
+        #expect(ManualJobStart.of(deploy, matched: skipped, run: run(status: "completed"), workflow: workflow, defaultBranch: "main")
                 == .dispatch(workflowID: 77, ref: "main", inputs: ["environment": "production"]))
         // Not while the run is going, not for other jobs, not without the workflow on GitHub.
-        #expect(ManualJobStart.of(deploy, matched: [], run: run(status: "in_progress", conclusion: nil), workflow: workflow) == nil)
-        #expect(ManualJobStart.of(CoreJob(id: "build", name: "build", needs: []), matched: [], run: run(status: "completed"), workflow: workflow) == nil)
-        #expect(ManualJobStart.of(deploy, matched: skipped, run: run(status: "completed"), workflow: nil) == nil)
-        #expect(ManualJobStart.of(deploy, matched: skipped, run: nil, workflow: workflow) == nil)
+        #expect(ManualJobStart.of(deploy, matched: [], run: run(status: "in_progress", conclusion: nil), workflow: workflow, defaultBranch: "main") == nil)
+        #expect(ManualJobStart.of(CoreJob(id: "build", name: "build", needs: []), matched: [], run: run(status: "completed"), workflow: workflow, defaultBranch: "main") == nil)
+        #expect(ManualJobStart.of(deploy, matched: skipped, run: run(status: "completed"), workflow: nil, defaultBranch: "main") == nil)
+        #expect(ManualJobStart.of(deploy, matched: skipped, run: nil, workflow: workflow, defaultBranch: "main") == nil)
+        // A pull request's branch never starts a deployment, nor an unknown default branch.
+        #expect(ManualJobStart.of(deploy, matched: skipped, run: run(status: "completed", branch: "feature"), workflow: workflow, defaultBranch: "main") == nil)
+        #expect(ManualJobStart.of(deploy, matched: skipped, run: run(status: "completed"), workflow: workflow, defaultBranch: nil) == nil)
     }
 
     @Test func aJobWaitingForApprovalOffersTheApproval() {
         let plain = CoreJob(id: "deploy", name: "deploy", needs: [])
-        #expect(ManualJobStart.of(plain, matched: [job("waiting")], run: run(status: "waiting", conclusion: nil), workflow: workflow)
+        #expect(ManualJobStart.of(plain, matched: [job("waiting")], run: run(status: "waiting", conclusion: nil), workflow: workflow, defaultBranch: "main")
                 == .approve(runID: 438, runNumber: 438))
-        #expect(ManualJobStart.of(plain, matched: [job("queued")], run: run(status: "waiting", conclusion: nil), workflow: workflow) == nil)
+        #expect(ManualJobStart.of(plain, matched: [job("queued")], run: run(status: "waiting", conclusion: nil), workflow: workflow, defaultBranch: "main") == nil)
     }
 
     @Test func theHintSaysHowTheJobStarts() {

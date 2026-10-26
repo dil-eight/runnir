@@ -24,7 +24,7 @@ Runnir does not guess which input means "this commit" (for example an `image_tag
 - **Started by hand:** ▶ asks "Run *workflow* on *branch*?" naming the inputs, then the optional Touch ID confirmation of Settings › Runs, then prepares and sends the dispatch once through the Core, as Run Workflow does. On success the card says "Started"; the new run appears with the next refresh. Refusals and access problems are shown under the pipeline.
 - **Waiting for approval:** the Core lists the run's pending deployments when the action is prepared. ▶ shows only when the latest run is `waiting` and the job is `waiting`; the confirmation names the environments; nothing the user may not approve is sent. The Runnir Desktop GitHub App needs the repository permission "Deployments: Read and write".
 - The hover hint of a manual job says how it starts: "Runs only when started by hand with environment=production" or "Waiting for approval to deploy to production".
-- A job whose run is still going, or whose workflow GitHub does not know yet, shows no ▶.
+- A job whose run is still going, or whose workflow GitHub does not know yet, shows no ▶. A job started by hand shows ▶ only when the shown run is on the repository's default branch, so a ▶ never starts a deployment from a pull request's branch.
 
 ## Core
 

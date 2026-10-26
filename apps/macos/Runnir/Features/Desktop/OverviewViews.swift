@@ -124,6 +124,9 @@ struct WorkspaceOverview: View {
     @State private var manualJobMessage: String?
     /// The manual job being started; its ▶ waits meanwhile.
     @State private var startingJobID: String?
+    /// The repository's default branch on GitHub: manual jobs start only
+    /// from runs on it.
+    @State private var defaultBranch: String?
 
     private var workflows: [LocalWorkflowFile] {
         favorites.ordered(files.files, workspaceID: workspaceID, path: \.relativePath)
@@ -178,6 +181,11 @@ struct WorkspaceOverview: View {
                     Label(problem, systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(RunnirTheme.warning)
                 }
             }.padding(.horizontal, 28).padding(.vertical, 24)
+        }
+        .task(id: session?.githubRepository) {
+            guard let hub, session?.githubRepository != nil else { return }
+            let repository = await hub.githubRepository(workspaceID: workspaceID)
+            if repository.access == .ok { defaultBranch = repository.defaultBranch }
         }
         .task(id: jobsKey) { await loadJobs() }
         // The presets file is read on first use; reading it here keeps the
@@ -319,7 +327,7 @@ struct WorkspaceOverview: View {
         let outcome = PipelineLayout.outcome(matched)
         let path = selected?.relativePath ?? ""
         let start = session?.githubAccess == .ok
-            ? ManualJobStart.of(job, matched: matched, run: latestRun(path), workflow: remote(path)) : nil
+            ? ManualJobStart.of(job, matched: matched, run: latestRun(path), workflow: remote(path), defaultBranch: defaultBranch) : nil
         return HStack(spacing: 8) {
             if let outcome { RunOutcomeIcon(outcome: outcome, size: 12) } else {
                 Image(systemName: "circle").font(.system(size: 12)).foregroundStyle(RunnirTheme.mutedForeground)

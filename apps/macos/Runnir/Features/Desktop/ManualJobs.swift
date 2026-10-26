@@ -12,12 +12,16 @@ enum ManualJobStart: Equatable {
 
     /// Which start, if any, a job's ▶ offers. A job of a run still going gets
     /// none, unless that run waits for this job's deployment to be approved.
-    static func of(_ job: CoreJob, matched: [CoreRunJob], run: CoreWorkflowRun?, workflow: CoreGitHubWorkflow?) -> ManualJobStart? {
+    /// A job started by hand is offered only for a run on the default branch,
+    /// so a ▶ never starts a deployment from a pull request's branch.
+    static func of(_ job: CoreJob, matched: [CoreRunJob], run: CoreWorkflowRun?, workflow: CoreGitHubWorkflow?,
+                   defaultBranch: String?) -> ManualJobStart? {
         guard let run else { return nil }
         if run.status == "waiting", matched.contains(where: { $0.status == "waiting" }) {
             return .approve(runID: run.id, runNumber: run.runNumber)
         }
-        guard job.manual, let workflow, run.status == "completed", !run.branch.isEmpty else { return nil }
+        guard job.manual, let workflow, run.status == "completed", let defaultBranch, !defaultBranch.isEmpty,
+              run.branch == defaultBranch else { return nil }
         return .dispatch(workflowID: workflow.id, ref: run.branch, inputs: job.manualInputs)
     }
 
