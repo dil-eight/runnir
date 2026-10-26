@@ -13,7 +13,7 @@ GitHub has two ways to make a job wait for a person, and Runnir supports both:
 | Kind | How the workflow says it | What ▶ does |
 | --- | --- | --- |
 | Waiting for approval | The job has an `environment` with required reviewers; the run stops at the job with status `waiting` | Approves the run's pending deployments the signed-in user may approve (`POST /actions/runs/{id}/pending_deployments`, `state: approved`). The same run goes on |
-| Started by hand | The job's `if` requires `github.event_name == 'workflow_dispatch'` as one of its top-level `&&` terms, and the workflow has a `workflow_dispatch` trigger | Starts the workflow by hand on the shown run's branch, with the inputs the same `if` compares by `==` (`github.event.inputs.X` or `inputs.X` against a string or boolean). Other inputs keep their defaults. A new run starts |
+| Started by hand | The job's `if` requires `github.event_name == 'workflow_dispatch'` (compared ignoring case, as GitHub does) as one of its top-level `&&` terms, and the workflow has a `workflow_dispatch` trigger | Starts the workflow by hand on the repository's default branch, with the inputs the same `if` compares by `==` (`github.event.inputs.X` or `inputs.X` against a string or boolean). Other inputs keep their defaults. A new run starts |
 
 Required reviewers on environments need a public repository or GitHub Enterprise; on Free, Pro and Team they are not available for private repositories. The second kind works on every plan.
 
@@ -21,10 +21,10 @@ Runnir does not guess which input means "this commit" (for example an `image_tag
 
 ## Behavior
 
-- **Started by hand:** ▶ asks "Run *workflow* on *branch*?" naming the inputs, then the optional Touch ID confirmation of Settings › Runs, then prepares and sends the dispatch once through the Core, as Run Workflow does. On success the card says "Started"; the new run appears with the next refresh. Refusals and access problems are shown under the pipeline.
+- **Started by hand:** ▶ asks "Run *workflow* on *default branch*?" naming the inputs, then the optional Touch ID confirmation of Settings › Runs, then prepares and sends the dispatch once through the Core and waits for the new run, as Run Workflow does; the ▶ shows progress meanwhile, so it is not pressed twice for one deployment. What happened is shown under that workflow's pipeline: "Started *workflow* on main …: run #N", that the run has not shown up yet, a refusal or an access problem. When Runnir cannot tell whether the dispatch reached GitHub (the confirmation expired or the Core did not answer), it says to check Runs before trying again.
 - **Waiting for approval:** the Core lists the run's pending deployments when the action is prepared. ▶ shows only when the latest run is `waiting` and the job is `waiting`; the confirmation names the environments; nothing the user may not approve is sent. The Runnir Desktop GitHub App needs the repository permission "Deployments: Read and write".
-- The hover hint of a manual job says how it starts: "Runs only when started by hand with environment=production" or "Waiting for approval to deploy to production".
-- A job whose run is still going, or whose workflow GitHub does not know yet, shows no ▶. A job started by hand shows ▶ only when the shown run is on the repository's default branch, so a ▶ never starts a deployment from a pull request's branch.
+- The hover hint of a manual job says how it starts, with or without a ▶: "Runs only when started by hand with environment: production · ▶ starts it on main", or "Waiting for your approval to deploy · ▶ approves it".
+- A job started by hand shows ▶ whenever its workflow is on GitHub and the repository's default branch is known, whatever branch or state the latest run has: it always starts on the default branch, so a ▶ never deploys a pull request's branch. While a run of the workflow started by hand is going, it shows none.
 
 ## Core
 
@@ -33,4 +33,4 @@ Runnir does not guess which input means "this commit" (for example an `image_tag
 
 ## Tests
 
-Scanner: manual detection (order of terms, `inputs.X` and `github.event.inputs.X`, booleans, `||` not counted, no `workflow_dispatch` trigger). GitHub client against a test server: pending deployments read and approval body. Server: approve action prepared and confirmed against a fake GitHub. App: the card's ▶ for both kinds, the dispatch sent with the condition's inputs on the run's branch, the confirmation declined.
+Scanner: manual detection (order of terms, `inputs.X` and `github.event.inputs.X`, booleans, `||` not counted, no `workflow_dispatch` trigger). GitHub client against a test server: pending deployments read and approval body. Server: approve action prepared and confirmed against a fake GitHub. App: the card's ▶ for both kinds (offered whatever the latest run's branch, not while a run started by hand is going), the dispatch sent with the condition's inputs on the default branch and the new run awaited, the confirmation declined, the hint without a ▶.

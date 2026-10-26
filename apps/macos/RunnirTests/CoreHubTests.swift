@@ -146,11 +146,13 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
                 : CorePreparedDispatch(access: .ok, dispatchID: nil, expiresAt: nil, problems: preparedProblems, workflowPath: ".github/workflows/ci.yml")
         }
     }
+    /// The run GitHub says a dispatch started, when it says.
+    var dispatchedRunID: Int64?
     func confirmWorkflowDispatch(dispatchID: String) async throws -> CoreDispatchResult {
         try lock.withLock {
             guard !_confirmed.contains(dispatchID) else { throw CoreServiceError.failedPrecondition("used") }
             _confirmed.append(dispatchID)
-            return CoreDispatchResult(access: .ok, dispatchedAt: Date(), runID: nil, rejection: nil)
+            return CoreDispatchResult(access: .ok, dispatchedAt: Date(), runID: dispatchedRunID, rejection: nil)
         }
     }
     // Logs and run actions

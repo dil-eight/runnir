@@ -63,14 +63,14 @@ enum PipelineLayout {
     /// run, and the jobs it needs.
     static func hint(for job: CoreJob, matched: [CoreRunJob], readFailed: Bool, now: Date, start: ManualJobStart? = nil) -> String {
         var lines: [String] = []
+        let byHand = "Runs only when started by hand" + (job.manualInputs.isEmpty ? "" : " with \(ManualJobStart.describe(job.manualInputs))")
         switch start {
         case .approve:
             lines.append("Waiting for your approval to deploy · ▶ approves it")
-        case .dispatch(_, _, let inputs):
-            let with = inputs.isEmpty ? "" : " with \(ManualJobStart.describe(inputs))"
-            lines.append("Runs only when started by hand\(with) · ▶ starts it")
+        case .dispatch(_, let ref, _):
+            lines.append("\(byHand) · ▶ starts it on \(ref)")
         case nil:
-            break
+            if job.manual { lines.append(byHand) }
         }
         if let outcome = outcome(matched) {
             switch outcome {
@@ -120,8 +120,9 @@ struct WorkspaceOverview: View {
     @State private var runJobs: CoreGitHubResult<CoreRunJob>?
     /// The run `runJobs` belongs to; jobs stay shown while the same run reloads.
     @State private var runJobsRunID: Int64?
-    /// What starting a manual job did, shown under the pipeline.
-    @State private var manualJobMessage: String?
+    /// What starting a manual job did, by workflow path, shown under that
+    /// workflow's pipeline.
+    @State private var manualJobMessages: [String: String] = [:]
     /// The manual job being started; its ▶ waits meanwhile.
     @State private var startingJobID: String?
 
@@ -140,6 +141,11 @@ struct WorkspaceOverview: View {
     private func latestRun(_ path: String) -> CoreWorkflowRun? {
         guard let remote = remote(path) else { return nil }
         return session?.runs.first { $0.workflowID == remote.id }
+    }
+
+    private func runs(_ path: String) -> [CoreWorkflowRun] {
+        guard let remote = remote(path) else { return [] }
+        return session?.runs.filter { $0.workflowID == remote.id } ?? []
     }
 
     /// GitHub could not be reached, so what is shown is the last data read.
@@ -305,8 +311,8 @@ struct WorkspaceOverview: View {
                         }
                     }.scrollIndicators(.hidden)
                     pipelineNote(run: run)
-                    if let manualJobMessage {
-                        Label(manualJobMessage, systemImage: "play.circle")
+                    if let message = manualJobMessages[selected.relativePath] {
+                        Label(message, systemImage: "play.circle")
                             .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).textSelection(.enabled)
                     }
                 }
@@ -319,7 +325,7 @@ struct WorkspaceOverview: View {
         let outcome = PipelineLayout.outcome(matched)
         let path = selected?.relativePath ?? ""
         let start = session?.githubAccess == .ok
-            ? ManualJobStart.of(job, matched: matched, run: latestRun(path), workflow: remote(path),
+            ? ManualJobStart.of(job, matched: matched, run: latestRun(path), workflowRuns: runs(path), workflow: remote(path),
                                 defaultBranch: session?.githubDetails?.defaultBranch) : nil
         return HStack(spacing: 8) {
             if let outcome { RunOutcomeIcon(outcome: outcome, size: 12) } else {
@@ -329,7 +335,7 @@ struct WorkspaceOverview: View {
             Text(job.name.isEmpty ? job.id : job.name).font(.system(size: 13)).lineLimit(1)
             Spacer(minLength: 12)
             if let start {
-                manualButton(start, job: job, workflowName: workflowName)
+                manualButton(start, job: job, workflowName: workflowName, path: path)
             } else {
                 TimelineView(.periodic(from: .now, by: outcome == .running ? 1 : 3600)) { context in
                     if let duration = PipelineLayout.duration(matched, now: context.date) {
@@ -344,13 +350,15 @@ struct WorkspaceOverview: View {
         .help(PipelineLayout.hint(for: job, matched: matched, readFailed: runJobs.map { $0.access != .ok } ?? false, now: Date(), start: start))
     }
 
-    private func manualButton(_ start: ManualJobStart, job: CoreJob, workflowName: String) -> some View {
+    private func manualButton(_ start: ManualJobStart, job: CoreJob, workflowName: String, path: String) -> some View {
         Button {
             guard let hub, startingJobID == nil else { return }
             startingJobID = job.id
             Task {
-                manualJobMessage = await ManualJobRunner.start(start, jobName: job.name.isEmpty ? job.id : job.name,
-                                                               workflowName: workflowName, workspaceID: workspaceID, hub: hub) ?? manualJobMessage
+                if let message = await ManualJobRunner.start(start, jobName: job.name.isEmpty ? job.id : job.name,
+                                                             workflowName: workflowName, workspaceID: workspaceID, hub: hub) {
+                    manualJobMessages[path] = message
+                }
                 startingJobID = nil
             }
         } label: {

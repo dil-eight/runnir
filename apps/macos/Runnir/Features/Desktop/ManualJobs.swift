@@ -10,25 +10,25 @@ enum ManualJobStart: Equatable {
     /// on `ref`, with the inputs the job's if fixes.
     case dispatch(workflowID: Int64, ref: String, inputs: [String: String])
 
-    /// Which start, if any, a job's ▶ offers. A job of a run still going gets
-    /// none, unless that run waits for this job's deployment to be approved.
-    /// A job started by hand is offered only for a run on the default branch,
-    /// so a ▶ never starts a deployment from a pull request's branch.
-    static func of(_ job: CoreJob, matched: [CoreRunJob], run: CoreWorkflowRun?, workflow: CoreGitHubWorkflow?,
-                   defaultBranch: String?) -> ManualJobStart? {
-        guard let run else { return nil }
-        if run.status == "waiting", matched.contains(where: { $0.status == "waiting" }) {
+    /// Which start, if any, a job's ▶ offers. The latest run waiting for this
+    /// job's deployment is approved. A job started by hand starts on the
+    /// repository's default branch, whatever branch the latest run was on,
+    /// so a ▶ never deploys a pull request's branch; while a run of the
+    /// workflow started by hand is going, it offers none.
+    static func of(_ job: CoreJob, matched: [CoreRunJob], run: CoreWorkflowRun?, workflowRuns: [CoreWorkflowRun],
+                   workflow: CoreGitHubWorkflow?, defaultBranch: String?) -> ManualJobStart? {
+        if let run, run.status == "waiting", matched.contains(where: { $0.status == "waiting" }) {
             return .approve(runID: run.id, runNumber: run.runNumber)
         }
-        guard job.manual, let workflow, run.status == "completed", let defaultBranch, !defaultBranch.isEmpty,
-              run.branch == defaultBranch else { return nil }
-        return .dispatch(workflowID: workflow.id, ref: run.branch, inputs: job.manualInputs)
+        guard job.manual, let workflow, let defaultBranch, !defaultBranch.isEmpty,
+              !workflowRuns.contains(where: { $0.event == "workflow_dispatch" && $0.status != "completed" }) else { return nil }
+        return .dispatch(workflowID: workflow.id, ref: defaultBranch, inputs: job.manualInputs)
     }
 
     func buttonHelp(jobName: String) -> String {
         switch self {
         case .approve: "Approve the deployment so \(jobName) runs"
-        case .dispatch: "Start \(jobName)"
+        case .dispatch(_, let ref, _): "Start \(jobName) on \(ref)"
         }
     }
 
@@ -61,25 +61,33 @@ enum ManualJobRunner {
             if prepared.access != .ok { return "Not started. " + DispatchFormModel.describe(prepared.access) }
             if !prepared.problems.isEmpty { return "Not started: " + prepared.problems.joined(separator: " ") }
             guard let dispatchID = prepared.dispatchID else { return "Not started." }
+            let known = await hub.knownRunIDs(.workspace(workspaceID))
             guard let result = await hub.confirmDispatch(workspaceID: workspaceID, dispatchID: dispatchID) else {
-                return "Not started: the confirmation expired. Try again."
+                // A call that timed out may have reached GitHub.
+                return "Runnir could not confirm that \(workflowName) started: the confirmation expired or Runnir Core did not answer. "
+                    + "Check Runs before trying again."
             }
             if let rejection = result.rejection { return "GitHub refused to start \(workflowName): \(rejection)" }
-            if result.access != .ok {
+            guard result.access == .ok, let dispatchedAt = result.dispatchedAt else {
                 return DispatchFormModel.describe(result.access) + " \(workflowName) may not have started; check Runs before trying again."
             }
-            await hub.loadGitHubActivity(workspaceID: workspaceID)
-            return "Started \(workflowName) on \(ref)\(with)."
+            // The ▶ waits for the new run, so it is not pressed twice for one deployment.
+            if let run = await hub.locateDispatchedRun(workspaceID: workspaceID, workflowID: workflowID, ref: ref, dispatchedAt: dispatchedAt,
+                                                       knownRunIDs: known, reportedRunID: result.runID) {
+                return "Started \(workflowName) on \(ref)\(with): run #\(run.runNumber)."
+            }
+            return "Started \(workflowName) on \(ref)\(with). The run has not shown up yet; check Runs before starting it again."
         case .approve(let runID, let runNumber):
             let prepared = await hub.prepareRunAction(workspaceID: workspaceID, runID: runID, action: .approveDeployments)
             if prepared.access != .ok { return RunActionModel.describe(prepared.access) }
             if !prepared.problems.isEmpty { return prepared.problems.joined(separator: " ") }
-            guard let actionID = prepared.actionID else { return nil }
+            guard let actionID = prepared.actionID else { return "Not approved." }
             let environments = ListFormatter.localizedString(byJoining: prepared.environments)
             guard ask("Approve the deployment to \(environments)?",
                       "Run #\(runNumber) of \(workflowName) waits for it; \(jobName) and the jobs after it go on.", "Approve") else { return nil }
             guard let result = await hub.confirmRunAction(workspaceID: workspaceID, actionID: actionID) else {
-                return "Not approved: the confirmation expired. Try again."
+                return "Runnir could not confirm the approval: the confirmation expired or Runnir Core did not answer. "
+                    + "Check run #\(runNumber) before trying again."
             }
             if let rejection = result.rejection { return "GitHub refused the approval: \(rejection)" }
             if result.access != .ok { return RunActionModel.describe(result.access) }
