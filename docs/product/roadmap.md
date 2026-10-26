@@ -1,6 +1,6 @@
 # Product Roadmap
 
-Updated 2026-10-14. The [MVP specification](specification.md) and [ADR 0003](../decisions/0003-workspaces-sessions-offline-storage.md) supersede earlier ordering. SwiftUI + Go Core stays; launch routing is Splash -> restored workspace windows or Manager, with Dashboard inside a workspace.
+Updated 2026-10-25 (v0.2 and v0.4 revised from the [field research](../research/github-actions-pain-points.md)). The [MVP specification](specification.md) and [ADR 0003](../decisions/0003-workspaces-sessions-offline-storage.md) supersede earlier ordering. SwiftUI + Go Core stays; launch routing is Splash -> restored workspace windows or Manager, with Dashboard inside a workspace.
 
 ## v0.1 Usable Desktop Client
 
@@ -35,7 +35,9 @@ The brief's 7-10 days is an aggressive personal-prototype estimate, not a delive
 
 ## v0.2 Developer Productivity
 
-Advanced log viewer, run comparison, richer dependency visualization, notifications, improved local runner compatibility, artifact inspection and deterministic CI usage/wasted-work insights. Basic presets are already mandatory in v0.1; v0.2 may improve their ergonomics.
+Advanced log viewer, run comparison, richer dependency visualization, notifications, improved local runner compatibility, artifact inspection and deterministic CI usage/wasted-work insights, including detection of repeated builds of one commit (the read-only first step toward v0.4 artifact promotion). Basic presets are already mandatory in v0.1; v0.2 may improve their ergonomics.
+
+The [field research](../research/github-actions-pain-points.md) adds candidates, none of them a v0.1 gate: run search (B33), a history of dispatch inputs (B34), explanations for skipped jobs (B35) and long-queued runs (B36), deployments per environment (B37) and failed and active runs across repositories (B39). The permissions preflight (B38) follows them. See the [checklist](mvp-implementation-checklist.md#field-research-candidates-not-v01-gates).
 
 ## v0.3 Optional AI And MCP
 
@@ -45,7 +47,9 @@ Retain [AI](../architecture/ai.md) and [MCP](../architecture/mcp.md) designs as 
 
 ## v0.4 CI/CD Optimization
 
-Build/deploy separation recommendations, explicit trusted artifact reuse, logical pipelines, duplicate execution/CI-minute analysis, deployment improvements and cross-platform expansion. Do not claim skipped GitHub jobs can be arbitrarily resumed.
+Build/deploy separation recommendations, explicit trusted artifact reuse, logical pipelines, duplicate execution/CI-minute analysis, deployment improvements and cross-platform expansion. Artifact reuse goes through an opt-in deploy-only workflow offered as a diff, with the artifact digest a deployment uses shown and its producer, commit, integrity, expiry and permissions checked first ([workflow intelligence](../architecture/workflow-intelligence.md)).
+
+Not promised: reusing artifacts between arbitrary workflows, resuming skipped jobs of an existing run, or a money figure for saved minutes without the runner type, plan and billed minutes. One-off scheduled deployments need an always-on executor and are not planned.
 
 ## Unscheduled Startup Integrations
 

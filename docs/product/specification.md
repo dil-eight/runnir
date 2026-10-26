@@ -120,6 +120,8 @@ See [implementation checklist](mvp-implementation-checklist.md), [gaps](../archi
 
 Primary: common Actions operations require fewer navigation steps; workflow validation needs no commits; supported local execution reduces remote trial/error; the app becomes useful in daily development.
 
+Measured by hand, not in the app: short moderated sessions on a fixture repository compare Runnir with the GitHub web UI on time to start a workflow with inputs, time to a failed job's log, time to a re-run request and the number of navigation steps (see [field research](../research/github-actions-pain-points.md#measuring-usability-without-telemetry)). The results are small-sample observations, not benchmarks.
+
 After public release, voluntary feedback, public aggregate signals and explicitly opted-in coarse usage analytics can inform priorities. No telemetry is enabled by default; identifier-free counters do not establish exact unique or weekly active users. See FR-07 before introducing any collection.
 
 North star: make working with GitHub Actions faster, simpler and more predictable.

@@ -51,6 +51,7 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 
 - [Architecture and boundaries](docs/architecture/overview.md)
 - [Gap analysis](docs/architecture/gap-analysis.md)
+- [GitHub Actions pain points: field research](docs/research/github-actions-pain-points.md) and the [pain tracker](docs/research/pain-tracker.md)
 - [Foundation verification](docs/architecture/foundation-verification.md)
 - [SwiftUI + Go decision](docs/decisions/0002-swiftui-go-core.md)
 - [Workspace/session and SQLite decision](docs/decisions/0003-workspaces-sessions-offline-storage.md)

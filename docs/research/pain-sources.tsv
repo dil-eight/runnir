@@ -1,0 +1,17 @@
+P01	2026-10-17	github-discussion	https://github.com/orgs/community/discussions/210506	4	open	2026-10-25	Run workflow form keeps stale input values after switching branches
+P03	2026-10-22	github-discussion	https://github.com/orgs/community/discussions/211030	4	open	2026-10-25	Quick re-run, including a single job, from the pull request checks
+P03	2026-05-14	github-discussion	https://github.com/orgs/community/discussions/195854	2	open	2026-10-25	Log autoscroll hides the Rerun buttons after a refresh
+P04	2026-07-17	github-discussion	https://github.com/orgs/community/discussions/202191	3	open	2026-10-25	Search runs by their dynamic run name
+P08	2026-08-12	github-discussion	https://github.com/orgs/community/discussions/204703	3	open	2026-10-25	Schedule a one-off future run with the inputs of a manual dispatch
+P09	2026-08-26	github-discussion	https://github.com/orgs/community/discussions/205874	5	open	2026-10-25	Runs stuck queued with no runner; cancel and force-cancel fail
+P09	2026-10-14	github-discussion	https://github.com/orgs/community/discussions/210234	4	open	2026-10-25	Scheduled run queued for six days; cancel, force-cancel and delete fail
+P09	2026-10-20	github-discussion	https://github.com/orgs/community/discussions/210840	4	open	2026-10-25	Manual dispatch stuck queued with zero jobs; force-cancel refused
+P05	2026-10-20	hacker-news	https://news.ycombinator.com/item?id=50167146	3	open	2026-10-25	Ask HN on what people hate about Actions; a commenter names no way to run locally for testing
+P06	2026-10-20	hacker-news	https://news.ycombinator.com/item?id=50167146	3	open	2026-10-25	Same Ask HN: a commenter finds the structure harder to follow than GitLab pipelines
+P10	2026-10-20	hacker-news	https://news.ycombinator.com/item?id=50167146	3	open	2026-10-25	Same Ask HN: a commenter names a confusing permission model
+P01	2026-10-14	github-discussion	https://github.com/orgs/community/discussions/210253	4	open	2026-10-25	Run workflow button stays in a loading state after using the browser Back button
+P01	2026-10-14	github-discussion	https://github.com/orgs/community/discussions/210277	2	open	2026-10-25	The new Run workflow side panel is harder to use: the button sits far from the other controls
+P09	2026-10-20	github-discussion	https://github.com/orgs/community/discussions/210841	1	open	2026-10-25	How to tell concurrency admission from runner or dispatch delay when a job waited 13 minutes to start
+P09	2026-10-23	github-discussion	https://github.com/orgs/community/discussions/211084	3	open	2026-10-25	Why a run's total duration is far longer than the only job it contains
+P11	2026-10-13	github-discussion	https://github.com/orgs/community/discussions/210225	7	open	2026-10-25	Inline job logs appear only after 10 to 15 minutes on a non-default branch
+P06	2026-10-20	github-discussion	https://github.com/orgs/community/discussions/210766	2	open	2026-10-25	Workflow starts zero jobs on a branch its push filter excludes, although it passes actionlint
