@@ -61,6 +61,7 @@ New candidates, none a v0.1 gate (see the [checklist](../product/mvp-implementat
 | B37 | What is deployed in each environment |
 | B38 | Permissions preflight from the workflow files |
 | B39 | Failed and active runs across favorite repositories and workspaces |
+| B40 | Run search beyond the saved runs: newer runs, runs the cache dropped, runs only a search index still knows |
 
 ## What Runnir Will Not Promise
 

@@ -37,7 +37,7 @@ The brief's 7-10 days is an aggressive personal-prototype estimate, not a delive
 
 Advanced log viewer, run comparison, richer dependency visualization, notifications, improved local runner compatibility, artifact inspection and deterministic CI usage/wasted-work insights, including detection of repeated builds of one commit (the read-only first step toward v0.4 artifact promotion). Basic presets are already mandatory in v0.1; v0.2 may improve their ergonomics.
 
-The [field research](../research/github-actions-pain-points.md) adds candidates, none of them a v0.1 gate: run search (B33), a history of dispatch inputs (B34), explanations for skipped jobs (B35) and long-queued runs (B36), deployments per environment (B37) and failed and active runs across repositories (B39). The permissions preflight (B38) follows them. See the [checklist](mvp-implementation-checklist.md#field-research-candidates-not-v01-gates).
+The [field research](../research/github-actions-pain-points.md) adds candidates, none of them a v0.1 gate: run search (B33) and its extension beyond the saved runs (B40), a history of dispatch inputs (B34), explanations for skipped jobs (B35) and long-queued runs (B36), deployments per environment (B37) and failed and active runs across repositories (B39). The permissions preflight (B38) follows them. See the [checklist](mvp-implementation-checklist.md#field-research-candidates-not-v01-gates).
 
 ## v0.3 Optional AI And MCP
 
