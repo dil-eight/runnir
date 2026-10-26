@@ -11,10 +11,10 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -318,22 +318,55 @@ func configurePool(db *sql.DB) {
 
 var errDamaged = errors.New("database is damaged")
 
-var tableName = regexp.MustCompile(`(?m)^CREATE TABLE (\w+)`)
-
-// outdated reports a database at the current schema version that lacks a
-// table the schema creates.
+// outdated reports a database at the current schema version whose tables,
+// indexes, views or triggers differ from the ones the migrations make, such
+// as a table or a column an earlier development build did not have.
 func outdated(db *sql.DB) bool {
 	var version int
 	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != len(migrations) {
 		return false
 	}
-	for _, match := range tableName.FindAllStringSubmatch(strings.Join(migrations, "\n"), -1) {
-		var found int
-		if err := db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?", match[1]).Scan(&found); err != nil || found == 0 {
-			return true
+	want, err := expectedSchema()
+	if err != nil {
+		return false
+	}
+	have, err := schemaOf(db)
+	return err == nil && !maps.Equal(have, want)
+}
+
+// expectedSchema is the schema the migrations make, read from a database
+// in memory that runs them.
+var expectedSchema = sync.OnceValues(func() (map[string]string, error) {
+	db, err := openDSN(":memory:")
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+	for _, migration := range migrations {
+		if _, err := db.Exec(migration); err != nil {
+			return nil, err
 		}
 	}
-	return false
+	return schemaOf(db)
+})
+
+// schemaOf is the SQL of each table, index, view and trigger, by name.
+// SQLite keeps the statement each was made with, in a normalized form.
+func schemaOf(db *sql.DB) (map[string]string, error) {
+	rows, err := db.Query("SELECT type || ' ' || name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND sql IS NOT NULL")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var name, statement string
+		if err := rows.Scan(&name, &statement); err != nil {
+			return nil, err
+		}
+		out[name] = statement
+	}
+	return out, rows.Err()
 }
 
 func quickCheck(db *sql.DB) error {

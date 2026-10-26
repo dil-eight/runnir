@@ -263,3 +263,30 @@ func TestADatabaseFromAnEarlierBuildIsReplacedAndLocalRunsSurvive(t *testing.T) 
 		t.Fatalf("backup = %v", err)
 	}
 }
+
+func TestADatabaseFromAnEarlierBuildWithoutAColumnIsReplaced(t *testing.T) {
+	dir := t.TempDir()
+	s := openTest(t, dir)
+	record(t, s, "exec_1", LocalSucceeded)
+	_ = s.Close()
+	// The same schema version with a table one column short.
+	db, err := openFile(filepath.Join(dir, "state.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("ALTER TABLE link_lookups DROP COLUMN fetched_at"); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+
+	again := openTest(t, dir)
+	if r := again.Report(); r.State != Persistent || !strings.Contains(r.Note, "earlier build") || !strings.Contains(r.Note, "Restored 1 local run record") {
+		t.Fatalf("report = %+v", r)
+	}
+	_ = again.Close()
+	// The new database matches the schema: opening it again keeps it.
+	third := openTest(t, dir)
+	if r := third.Report(); r.Note != "" || len(recoveryDirs(t, dir)) != 1 {
+		t.Fatalf("report = %+v, recovery = %v", r, recoveryDirs(t, dir))
+	}
+}

@@ -43,7 +43,8 @@ func manualTrigger(condition string) (map[string]string, bool) {
 			}
 			path := propertyPath(sides[0])
 			switch {
-			case path == "github.event_name" && value == "workflow_dispatch":
+			// GitHub compares strings ignoring case.
+			case path == "github.event_name" && strings.EqualFold(value, "workflow_dispatch"):
 				dispatch = true
 			case strings.HasPrefix(path, "github.event.inputs."):
 				inputs[strings.TrimPrefix(path, "github.event.inputs.")] = value

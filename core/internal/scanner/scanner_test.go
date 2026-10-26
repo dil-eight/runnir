@@ -512,7 +512,7 @@ jobs:
     runs-on: ubuntu-latest
     steps: [{run: echo}]
   deploy-staging:
-    if: ${{ 'staging' == inputs.Environment && inputs.dry_run == false && github.event_name == 'workflow_dispatch' }}
+    if: ${{ 'staging' == inputs.Environment && inputs.dry_run == false && github.event_name == 'Workflow_Dispatch' }}
     runs-on: ubuntu-latest
     steps: [{run: echo}]
   either:
