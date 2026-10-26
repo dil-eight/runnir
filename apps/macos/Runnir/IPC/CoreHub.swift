@@ -433,6 +433,17 @@ final class CoreHub {
         if access == .permissionMissing { await githubRepository(workspaceID: session.workspaceID) }
     }
 
+    /// Shows every run saved on this Mac, up to the budget, so a search covers
+    /// them all. It reads the Core's saved activity only: nothing goes to
+    /// GitHub, so it works offline too.
+    func loadSavedRuns(workspaceID: UUID) async {
+        guard let session = sessions[workspaceID] else { return }
+        let wanted = min(Self.maxActivityLimit, session.cachedRuns)
+        guard wanted > session.activityLimit else { return }
+        session.activityLimit = wanted
+        await readActivity(of: session)
+    }
+
     /// Shows more runs when a list reaches its end: 200 more from the cache,
     /// or, once every cached run is shown, one page of older runs from GitHub.
     func showMoreRuns(workspaceID: UUID) async {
