@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -266,5 +267,52 @@ func TestOlderRunsAskForRunsCreatedUpToATime(t *testing.T) {
 	runs, err := client.OlderRuns(context.Background(), "o", "r", before, 100)
 	if err != nil || len(runs) != 1 || runs[0].ID != 3 || runs[0].CommitTitle != "Old" {
 		t.Fatalf("runs = %+v, %v", runs, err)
+	}
+}
+
+func TestRerunJobPostsToTheJobOnceAndKeepsRefusals(t *testing.T) {
+	var calls []string
+	client, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		calls = append(calls, r.Method+" "+r.URL.Path+" "+string(body))
+		w.WriteHeader(http.StatusCreated)
+	})
+	if err := client.RerunJob(context.Background(), "o", "r", 7); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 1 || calls[0] != "POST /repos/o/r/actions/jobs/7/rerun {}" {
+		t.Fatalf("calls = %q", calls)
+	}
+	if err := client.RerunJob(context.Background(), "o", "r", 0); !errors.Is(err, ErrInvalid) || len(calls) != 1 {
+		t.Fatalf("job 0 = %v, calls %q", err, calls)
+	}
+
+	// A server error is not retried: a lost answer must not start two attempts.
+	attempts := 0
+	broken, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		w.WriteHeader(http.StatusBadGateway)
+	})
+	if err := broken.RerunJob(context.Background(), "o", "r", 7); err == nil || attempts != 1 {
+		t.Fatalf("bad gateway = %v after %d attempts", err, attempts)
+	}
+
+	refused, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"Unable to re-run this job because the run is still in progress"}`))
+	})
+	var rejected *RejectedError
+	if err := refused.RerunJob(context.Background(), "o", "r", 7); !errors.As(err, &rejected) || !strings.Contains(rejected.Message, "still in progress") {
+		t.Fatalf("refused = %v", err)
+	}
+}
+
+func TestAJobCarriesTheRunItBelongsTo(t *testing.T) {
+	client, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"id":5,"run_id":9,"run_attempt":3,"name":"build","status":"completed","conclusion":"failure","steps":[]}`))
+	})
+	job, err := client.Job(context.Background(), "o", "r", 5)
+	if err != nil || job.RunID != 9 || job.RunAttempt != 3 {
+		t.Fatalf("job = %+v, %v", job, err)
 	}
 }

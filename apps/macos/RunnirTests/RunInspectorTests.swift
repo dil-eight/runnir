@@ -54,6 +54,29 @@ struct RunInspectorTests {
     }
 
     @Test
+    func aConfirmedJobReRunIsSentOnceForThatJobAndFollowedUntilTheRunChanges() async {
+        let finished = run()
+        let (hub, provider, workspace) = await rig(runs: [finished])
+        provider.core.preparedRun = finished
+        let model = RunActionModel(hub: hub, workspaceID: workspace)
+
+        await model.prepare(.rerunJob(id: 11), for: finished)
+        #expect(model.pending?.action == .rerunJob(id: 11))
+        #expect(provider.core.runActions == [.rerunJob(id: 11)])
+        #expect(provider.core.confirmedActions.isEmpty, "preparing must not send anything")
+
+        provider.core.setRuns(CoreGitHubResult(access: .ok, items: [run(status: "queued", conclusion: nil, attempt: 2)]), for: "/repo/linked")
+        await model.confirm(current: finished)
+        #expect(provider.core.confirmedActions == ["action_1"])
+        #expect(model.phase == .requested(.rerunJob(id: 11)))
+        #expect(await eventually { model.phase == .idle })
+        #expect(hub.session(for: workspace)?.runs.first?.runAttempt == 2)
+
+        await model.confirm(current: finished)
+        #expect(provider.core.confirmedActions == ["action_1"], "a used confirmation is not sent again")
+    }
+
+    @Test
     func problemsAndRefusalsAreShownAndNothingIsSent() async {
         let finished = run()
         let (hub, provider, workspace) = await rig(runs: [finished])
@@ -108,6 +131,8 @@ struct RunInspectorTests {
         #expect(!CoreHub.runShows(.rerunFailed, before: before, now: run(attempt: 1, updated: Date())))
         #expect(CoreHub.runShows(.rerunFailed, before: before, now: run(conclusion: "success", attempt: 2)))
         #expect(CoreHub.runShows(.rerun, before: before, now: run(status: "queued", conclusion: nil)))
+        #expect(!CoreHub.runShows(.rerunJob(id: 11), before: before, now: run(attempt: 1, updated: Date())))
+        #expect(CoreHub.runShows(.rerunJob(id: 11), before: before, now: run(conclusion: "success", attempt: 2)))
         #expect(!CoreHub.runShows(.cancel, before: run(status: "in_progress", conclusion: nil), now: run(status: "in_progress", conclusion: nil, updated: Date())))
     }
 
@@ -171,6 +196,21 @@ struct RunInspectorTests {
         #expect(text.message.contains("CI on main · a3f9c21"))
         #expect(text.message.contains("attempt 3"))
         #expect(RunActionModel.confirmation(for: .cancel, run: run()).button == "Cancel Run")
+    }
+
+    @Test
+    func theJobConfirmationNamesTheJobAndTheNextAttempt() {
+        let job = CoreRunJob(id: 11, name: "build-ios", status: "completed", conclusion: "failure", startedAt: nil, completedAt: nil,
+                             htmlURL: nil, steps: [])
+        let text = RunActionModel.confirmation(for: .rerunJob(id: 11), run: run(attempt: 2), job: job)
+        #expect(text.title == "Re-run job \"build-ios\" of run #1482?")
+        #expect(text.message.contains("CI on main · a3f9c21"))
+        #expect(text.message.contains("attempt 3"))
+        #expect(text.message.contains("jobs that need it"))
+        #expect(text.button == "Re-run")
+        #expect(CoreRunAction.rerunJob(id: 11).title == "Re-run job")
+        // Without the job as read (it could not be named), the text still says which kind of action it is.
+        #expect(RunActionModel.confirmation(for: .rerunJob(id: 11), run: run()).title == "Re-run the job of run #1482?")
     }
 
     @Test

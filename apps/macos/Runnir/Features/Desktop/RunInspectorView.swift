@@ -143,12 +143,17 @@ final class RunActionModel {
 
     var statusText: String? {
         switch phase {
-        case .preparing(let action): "Checking the run before \(action == .cancel ? "cancelling" : "re-running")..."
-        case .sending(let action): action == .cancel ? "Asking GitHub to cancel..." : "Asking GitHub to re-run..."
+        case .preparing(let action): "Checking the \(Self.isJob(action) ? "job" : "run") before \(action == .cancel ? "cancelling" : "re-running")..."
+        case .sending(let action): action == .cancel ? "Asking GitHub to cancel..." : (Self.isJob(action) ? "Asking GitHub to re-run the job..." : "Asking GitHub to re-run...")
         case .requested(let action): action == .cancel ? "Cancel requested. GitHub is stopping the run." : "Re-run requested. GitHub is starting a new attempt."
         case .notice(let text), .failed(let text): text
         case .idle, .confirming: nil
         }
+    }
+
+    private static func isJob(_ action: CoreRunAction) -> Bool {
+        if case .rerunJob = action { return true }
+        return false
     }
 
     /// Why a change could not be made.
@@ -178,7 +183,7 @@ final class RunActionModel {
     }
 
     /// Title and explanation for the confirmation, from the run as prepared.
-    static func confirmation(for action: CoreRunAction, run: CoreWorkflowRun) -> (title: String, message: String, button: String) {
+    static func confirmation(for action: CoreRunAction, run: CoreWorkflowRun, job: CoreRunJob? = nil) -> (title: String, message: String, button: String) {
         let target = "\(run.name) on \(run.branch) · \(run.headSHA.prefix(7))"
         switch action {
         case .cancel:
@@ -190,6 +195,11 @@ final class RunActionModel {
         case .rerunFailed:
             return ("Re-run failed jobs of run #\(run.runNumber)?",
                     "\(target). Starts attempt \(run.runAttempt + 1) of the failed and cancelled jobs and the jobs that need them, on the same commit.",
+                    "Re-run")
+        case .rerunJob:
+            let name = job.map { "job \"\($0.name)\"" }
+            return ("Re-run \(name ?? "the job") of run #\(run.runNumber)?",
+                    "\(target). Starts attempt \(run.runAttempt + 1) of \(name ?? "the job") and the jobs that need it, on the same commit.",
                     "Re-run")
         case .approveDeployments:
             return ("Approve the deployment of run #\(run.runNumber)?",
@@ -334,7 +344,7 @@ struct RunInspectorView: View {
         .githubAccessAlert(Binding(get: { actions.accessHelp }, set: { actions.accessHelp = $0 }), github: github)
         .confirmationDialog(confirmationTitle, isPresented: confirmationShown, titleVisibility: .visible) {
             if let pending = actions.pending {
-                let text = RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run)
+                let text = RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run, job: pending.prepared.job)
                 Button(text.button, role: pending.action == .cancel ? .destructive : nil) {
                     guard let confirmed = actions.takeConfirmation() else { return }
                     Task { await actions.send(confirmed, current: run) }
@@ -343,7 +353,7 @@ struct RunInspectorView: View {
             }
         } message: {
             if let pending = actions.pending {
-                Text(RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run).message)
+                Text(RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run, job: pending.prepared.job).message)
             }
         }
     }
@@ -354,7 +364,7 @@ struct RunInspectorView: View {
 
     private var confirmationTitle: String {
         guard let pending = actions.pending else { return "" }
-        return RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run).title
+        return RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run, job: pending.prepared.job).title
     }
 
     // MARK: Header
@@ -505,7 +515,36 @@ struct RunInspectorView: View {
         }
     }
 
+    /// Only a finished run can have a job re-run, and only a job that has finished.
+    private func canRerun(_ job: CoreRunJob) -> Bool {
+        !run.outcome.isActive && job.status == "completed"
+    }
+
+    private func rerunJob(_ job: CoreRunJob) {
+        Task { await actions.prepare(.rerunJob(id: job.id), for: run) }
+    }
+
     private func jobRow(_ job: CoreRunJob) -> some View {
+        HStack(spacing: 2) {
+            jobSelectionButton(job)
+            if canRerun(job) {
+                Button { rerunJob(job) } label: {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 11))
+                        .frame(width: 28, height: 28).contentShape(Rectangle())
+                }
+                .buttonStyle(.hit).disabled(actions.isBusy)
+                .help("Re-run this job and the jobs that need it")
+                .accessibilityLabel("Re-run job \(job.name)")
+            }
+        }
+        .contextMenu {
+            if canRerun(job) {
+                Button("Re-run job") { rerunJob(job) }.disabled(actions.isBusy)
+            }
+        }
+    }
+
+    private func jobSelectionButton(_ job: CoreRunJob) -> some View {
         Button {
             if selectedJobID == job.id {
                 selectedStep = nil
@@ -521,7 +560,7 @@ struct RunInspectorView: View {
                 Text(timing(job.outcome, from: job.startedAt, to: job.completedAt))
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
             }
-            .padding(.horizontal, 8).frame(height: 30).contentShape(Rectangle())
+            .padding(.horizontal, 8).frame(maxWidth: .infinity).frame(height: 30).contentShape(Rectangle())
             .background(job.id == selectedJobID && selectedStep == nil ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.hit)

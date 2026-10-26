@@ -3,7 +3,7 @@
 # "built" means implemented in main; Runnir has no release yet. Edit queries to widen or narrow the daily search.
 P01	Manual runs: inputs and the Run workflow form	built	B09, B10, B25: typed inputs read at the chosen ref, branch and tag picker, presets	"Run workflow" inputs ;; workflow_dispatch input ;; "Run workflow" branch
 P02	Inputs of earlier runs cannot be seen or repeated	planned	B34: history of dispatches sent from Runnir with Run again	workflow_dispatch inputs "previous run" ;; inputs used for a run ;; rerun same inputs dispatch
-P03	Re-running one failed job takes too many steps	partial	B13: cancel, re-run all, re-run failed built; re-run one job planned	"re-run failed jobs" ;; "re-run" single job ;; rerun checks "pull request"
+P03	Re-running one failed job takes too many steps	built	B13: cancel, re-run all, re-run failed and re-run one job from its row in the run inspector	"re-run failed jobs" ;; "re-run" single job ;; rerun checks "pull request"
 P04	Finding a particular run among many	planned	B33: search by title, SHA, branch, actor; filters built (S07)	search "workflow runs" ;; "run-name" ;; find "workflow run" by
 P05	Testing workflows without commit and push	built	B03, B14 to B16: actionlint and local runs with act	locally workflow test ;; nektos act ;; workflow "without pushing"
 P06	Why a job or workflow was skipped, how jobs depend on each other	partial	B08 pipeline built; B32 scenarios designed; B35 explains skipped jobs (planned)	"job skipped" ;; skipped needs ;; workflow "dependency graph"

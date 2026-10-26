@@ -32,6 +32,8 @@ type runAction struct {
 	Name     string
 	RunID    int64
 	Action   corev1.RunAction
+	// JobID is the job to re-run for RUN_ACTION_RERUN_JOB.
+	JobID int64
 	// EnvironmentIDs are the deployments to approve.
 	EnvironmentIDs []int64
 }
@@ -131,6 +133,9 @@ func (s *service) PrepareRunAction(ctx context.Context, request *corev1.PrepareR
 	if request.GetRunId() <= 0 || action == corev1.RunAction_RUN_ACTION_UNSPECIFIED || corev1.RunAction_name[int32(action)] == "" {
 		return nil, status.Error(codes.InvalidArgument, "run_id and a known action are required")
 	}
+	if action == corev1.RunAction_RUN_ACTION_RERUN_JOB && request.GetJobId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "job_id is required to re-run a job")
+	}
 	target, problem, err := s.githubTarget(request.GetRepositoryId(), "", "")
 	if err != nil || problem != nil {
 		return &corev1.PrepareRunActionResponse{Status: problem}, err
@@ -148,6 +153,22 @@ func (s *service) PrepareRunAction(ctx context.Context, request *corev1.PrepareR
 	if problem := runActionProblem(run, action); problem != "" {
 		out.Problems = []string{problem}
 		return out, nil
+	}
+	if action == corev1.RunAction_RUN_ACTION_RERUN_JOB {
+		job, jobErr := target.account.Client.Job(ctx, target.owner, target.name, request.GetJobId())
+		read, err := s.githubStatus(target.account, jobErr)
+		if err != nil {
+			return nil, err
+		}
+		if jobErr != nil {
+			out.Status = read
+			return out, nil
+		}
+		out.Job = jobMessage(job)
+		if problem := rerunJobProblem(run, job); problem != "" {
+			out.Problems = []string{problem}
+			return out, nil
+		}
 	}
 	var environmentIDs []int64
 	if action == corev1.RunAction_RUN_ACTION_APPROVE_DEPLOYMENTS {
@@ -173,7 +194,7 @@ func (s *service) PrepareRunAction(ctx context.Context, request *corev1.PrepareR
 	}
 	pending, err := s.runActions.Prepare(runAction{
 		RepositoryID: request.GetRepositoryId(), ServerID: target.account.Server.ID, Owner: target.owner, Name: target.name,
-		RunID: run.ID, Action: action, EnvironmentIDs: environmentIDs,
+		RunID: run.ID, Action: action, JobID: request.GetJobId(), EnvironmentIDs: environmentIDs,
 	})
 	if errors.Is(err, approval.ErrTooMany) {
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
@@ -206,6 +227,8 @@ func (s *service) ConfirmRunAction(ctx context.Context, request *corev1.ConfirmR
 		sendErr = account.Client.RerunRun(ctx, prepared.Owner, prepared.Name, prepared.RunID, false)
 	case corev1.RunAction_RUN_ACTION_RERUN_FAILED:
 		sendErr = account.Client.RerunRun(ctx, prepared.Owner, prepared.Name, prepared.RunID, true)
+	case corev1.RunAction_RUN_ACTION_RERUN_JOB:
+		sendErr = account.Client.RerunJob(ctx, prepared.Owner, prepared.Name, prepared.JobID)
 	case corev1.RunAction_RUN_ACTION_APPROVE_DEPLOYMENTS:
 		sendErr = account.Client.ApproveDeployments(ctx, prepared.Owner, prepared.Name, prepared.RunID, prepared.EnvironmentIDs)
 	}
@@ -262,7 +285,7 @@ func runActionProblem(run github.Run, action corev1.RunAction) string {
 		if finished {
 			return fmt.Sprintf("Run #%d already finished (%s), so it cannot be cancelled.", run.RunNumber, run.Conclusion)
 		}
-	case corev1.RunAction_RUN_ACTION_RERUN:
+	case corev1.RunAction_RUN_ACTION_RERUN, corev1.RunAction_RUN_ACTION_RERUN_JOB:
 		if !finished {
 			return fmt.Sprintf("Run #%d is still %s. Only finished runs can be re-run.", run.RunNumber, humanStatus(run.Status))
 		}
@@ -279,6 +302,21 @@ func runActionProblem(run github.Run, action corev1.RunAction) string {
 		if run.Status != "waiting" {
 			return fmt.Sprintf("Run #%d is %s, not waiting for a deployment to be approved.", run.RunNumber, humanStatus(run.Status))
 		}
+	}
+	return ""
+}
+
+// rerunJobProblem says why a job cannot be re-run: it belongs to another run
+// or to an earlier attempt of this one (a window that still shows the jobs
+// of attempt 1 after attempt 2 started), or has not finished.
+func rerunJobProblem(run github.Run, job github.Job) string {
+	switch {
+	case job.RunID != run.ID:
+		return fmt.Sprintf("Job %q is not part of run #%d.", job.Name, run.RunNumber)
+	case job.RunAttempt != 0 && run.RunAttempt != 0 && job.RunAttempt != run.RunAttempt:
+		return fmt.Sprintf("Job %q is from attempt %d, but run #%d is on attempt %d now. Reload the run.", job.Name, job.RunAttempt, run.RunNumber, run.RunAttempt)
+	case job.Status != "completed":
+		return fmt.Sprintf("Job %q has not finished (%s), so it cannot be re-run.", job.Name, humanStatus(job.Status))
 	}
 	return ""
 }

@@ -14,7 +14,7 @@ Each row is a public thread where someone describes a problem Runnir addresses. 
 | --- | --- | --- | ---: | ---: | ---: | --- |
 | [P01](#p01) | Manual runs: inputs and the Run workflow form | built: B09, B10, B25: typed inputs read at the chosen ref, branch and tag picker, presets | 3 | 3 | 3 | 2026-10-25 |
 | [P02](#p02) | Inputs of earlier runs cannot be seen or repeated | planned: B34: history of dispatches sent from Runnir with Run again | 0 | 0 | 0 | none |
-| [P03](#p03) | Re-running one failed job takes too many steps | partial: B13: cancel, re-run all, re-run failed built; re-run one job planned | 2 | 2 | 2 | 2026-10-25 |
+| [P03](#p03) | Re-running one failed job takes too many steps | built: B13: cancel, re-run all, re-run failed and re-run one job from its row in the run inspector | 2 | 2 | 2 | 2026-10-25 |
 | [P04](#p04) | Finding a particular run among many | planned: B33: search by title, SHA, branch, actor; filters built (S07) | 1 | 1 | 1 | 2026-10-25 |
 | [P05](#p05) | Testing workflows without commit and push | built: B03, B14 to B16: actionlint and local runs with act | 1 | 1 | 1 | 2026-10-25 |
 | [P06](#p06) | Why a job or workflow was skipped, how jobs depend on each other | partial: B08 pipeline built; B32 scenarios designed; B35 explains skipped jobs (planned) | 2 | 2 | 2 | 2026-10-25 |
@@ -49,7 +49,7 @@ No threads in the window yet.
 
 ## P03
 
-Re-running one failed job takes too many steps. Runnir: partial, B13: cancel, re-run all, re-run failed built; re-run one job planned
+Re-running one failed job takes too many steps. Runnir: built, B13: cancel, re-run all, re-run failed and re-run one job from its row in the run inspector
 
 | Posted | Where | Thread | What they ask | Comments | State | Found |
 | --- | --- | --- | --- | ---: | --- | --- |
