@@ -174,7 +174,7 @@ struct WorkspaceSwitcherView: View {
                         ForEach(Array(actions.enumerated()), id: \.element) { index, action in
                             actionRow(action, selected: index == selection)
                                 .id(Entry.action(action).id)
-                                .onTapGesture { selection = index; activate(entries, newWindow: false) }
+                                .clickable().onTapGesture { selection = index; activate(entries, newWindow: false) }
                         }
                         if !actions.isEmpty && !rows.isEmpty {
                             DesignDivider().padding(.vertical, 5).padding(.horizontal, 4)
@@ -187,7 +187,7 @@ struct WorkspaceSwitcherView: View {
                             let index = actions.count + offset
                             row(item, selected: index == selection)
                                 .id(item.id.uuidString)
-                                .onTapGesture { selection = index; activate(entries, newWindow: false) }
+                                .clickable().onTapGesture { selection = index; activate(entries, newWindow: false) }
                                 .contextMenu {
                                     Button("Open in New Window") { close(); desktop.openRegistered(item.workspace) }
                                     Button("Show in Finder") {

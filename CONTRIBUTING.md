@@ -12,7 +12,7 @@ AI/MCP and cloud/referral integrations remain later directions. Keep current con
 
 ## Development Setup
 
-For desktop work, use a Mac with a supported Xcode 27+ installation, Swift 6 and Go 1.27+. The app targets macOS 15+. Go is required because Xcode builds and bundles the Core helper. Open apps/macos/Runnir.xcodeproj, select Runnir and My Mac, then Run.
+For desktop work, use a Mac with a supported Xcode 27+ installation, Swift 6 and Go 1.27+. The app targets macOS 15+. Go is required because Xcode builds and bundles the Core helper. The Xcode build never downloads Go: when the Go on PATH is older than `core/go.mod` asks for, it uses that version if a `go` command already downloaded it to the module cache, and otherwise stops and asks you to update Go (for example `brew upgrade go`). Open apps/macos/Runnir.xcodeproj, select Runnir and My Mac, then Run.
 
 Go-only work can run from core/ on supported macOS/Linux/Windows environments. Native desktop integration tests require macOS/Xcode; a cross-build is not evidence of native execution on another OS.
 

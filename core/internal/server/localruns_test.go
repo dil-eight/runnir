@@ -6,6 +6,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -254,5 +256,69 @@ func TestToolReadinessReportsEveryTool(t *testing.T) {
 	}
 	if fake.refreshs != 1 {
 		t.Fatalf("refresh not passed on (%d)", fake.refreshs)
+	}
+}
+
+const valuesWorkflow = "name: CI\non: push\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ${{ secrets.NPM_TOKEN }} ${{ vars.region }}\n"
+
+func TestLocalRunTakesValuesForPlanNamesOnly(t *testing.T) {
+	path := socketPath(t)
+	var spec *localrun.Spec
+	started := make(chan struct{})
+	hold := execution.RunnerFunc(func(ctx context.Context, job execution.Job) error {
+		spec, _ = job.Spec.(*localrun.Spec)
+		close(started)
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	stop := startWith(t, path, Options{Runner: hold, Tools: readyTools(), Home: "/Users/me"})
+	defer stop()
+	client := connect(t, path)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: repoWithWorkflows(t, map[string]string{"ci.yml": valuesWorkflow})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepare := func() *corev1.PrepareLocalRunResponse {
+		t.Helper()
+		prepared, err := client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: opened.Repository.Id, WorkflowId: ".github/workflows/ci.yml"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return prepared
+	}
+
+	first := prepare()
+	if !slices.Equal(first.Plan.Secrets, []string{"NPM_TOKEN"}) || !slices.Equal(first.Plan.Variables, []string{"REGION"}) {
+		t.Fatalf("plan = %v", first.Plan)
+	}
+	for _, bad := range []*corev1.ConfirmLocalRunRequest{
+		{Secrets: map[string]string{"OTHER": "x"}},
+		{Variables: map[string]string{"NPM_TOKEN": "x"}},
+		{Secrets: map[string]string{"NPM_TOKEN": strings.Repeat("x", 48<<10+1)}},
+		{Secrets: map[string]string{"npm_token": "a", "NPM_TOKEN": "b"}},
+	} {
+		bad.ConfirmationId = prepare().ConfirmationId
+		if _, err := client.ConfirmLocalRun(ctx, bad); status.Code(err) != codes.InvalidArgument {
+			t.Fatalf("confirm %v = %v", bad, err)
+		}
+	}
+
+	confirmed, err := client.ConfirmLocalRun(ctx, &corev1.ConfirmLocalRunRequest{ConfirmationId: first.ConfirmationId,
+		Secrets: map[string]string{"npm_token": "s3cr3t"}, Variables: map[string]string{"Region": "eu"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-started
+	if spec.Secrets["NPM_TOKEN"] != "s3cr3t" || spec.Variables["REGION"] != "eu" || len(spec.Secrets) != 1 || len(spec.Variables) != 1 {
+		t.Fatalf("spec values = %v %v", spec.Secrets, spec.Variables)
+	}
+	output, err := client.GetLocalRunOutput(ctx, &corev1.GetLocalRunOutputRequest{ExecutionId: confirmed.Execution.ExecutionId})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), "s3cr3t") {
+		t.Fatal("a value is in the run's output message")
 	}
 }

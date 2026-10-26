@@ -138,6 +138,144 @@ struct LocalRunTests {
         #expect(run.lines.count == 2)
     }
 
+    @Test func startPassesValuesToTheCore() async throws {
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = prepared() }
+        fake.localOutputs = [output(lines: nil, phase: .finished, state: .succeeded)]
+        let result = await hub.startLocalRun(workspaceID: workspace, prepared: prepared(),
+                                             secrets: ["NPM_TOKEN": "s3cr3t"], variables: ["REGION": "eu"])
+        guard case .started = result else { Issue.record("not started"); return }
+        #expect(fake.confirmedValues.first?.secrets == ["NPM_TOKEN": "s3cr3t"])
+        #expect(fake.confirmedValues.first?.variables == ["REGION": "eu"])
+    }
+
+    @Test func envFileIsReadByTheAppAndParsedByTheCore() async throws {
+        let file = CoreEnvFile(entries: [CoreEnvEntry(name: "A", value: "1", encrypted: false, line: 1)], problems: [])
+        let (hub, _, fake) = await hub { $0.envFile = file }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let env = directory.appendingPathComponent(".env")
+        try Data("A=1\n".utf8).write(to: env)
+        #expect(await hub.readEnvFile(url: env) == .read(file))
+        #expect(fake.parsedContents == [Data("A=1\n".utf8)])
+
+        fake.envFileError = .invalidArgument("the file is not UTF-8 text")
+        #expect(await hub.readEnvFile(url: env) == .failed("The file is not UTF-8 text."))
+
+        let large = directory.appendingPathComponent("large.env")
+        try Data(repeating: 65, count: 1 << 20 + 1).write(to: large)
+        #expect(await hub.readEnvFile(url: large) == .failed("The file is larger than 1 MiB."))
+        #expect(await hub.readEnvFile(url: directory) == .failed("Runnir can't read this file."))
+        #expect(fake.parsedContents.count == 2)
+    }
+
+    private func valuesPlan() -> CorePreparedLocalRun {
+        var plan = plan()
+        plan.secrets = ["NPM_TOKEN", "OTHER"]
+        plan.variables = ["REGION"]
+        return CorePreparedLocalRun(readiness: FakeCore.readyTools, plan: plan, confirmationID: "local_1", expiresAt: Date())
+    }
+
+    @Test func runSendsSavedAndEnteredValuesForPlanNames() async throws {
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
+        let token = LocalRunValueKey(kind: .secret, name: "NPM_TOKEN")
+        let region = LocalRunValueKey(kind: .variable, name: "REGION")
+        let store = InMemoryLocalRunValueStore(values: [workspace: [token: "saved", region: "eu",
+                                                                     LocalRunValueKey(kind: .secret, name: "UNRELATED"): "x"]])
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        await review.prepare()
+        #expect(review.saved == [token, region])
+        #expect(review.missing == [LocalRunValueKey(kind: .secret, name: "OTHER")])
+        #expect(review.accessSummary == "2 passed, 1 empty. Workflow steps can read these values and send them over the network")
+        review.entered[region] = "us"
+        review.trusted = true
+        fake.localOutputs = [output(lines: nil, phase: .finished, state: .succeeded)]
+        _ = try #require(await review.run())
+        #expect(fake.confirmedValues.first?.secrets == ["NPM_TOKEN": "saved"])
+        #expect(fake.confirmedValues.first?.variables == ["REGION": "us"])
+        #expect(try await store.value(workspaceID: workspace, key: region) == "eu")
+    }
+
+    @Test func enteredValuesAreSavedWhenAsked() async throws {
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
+        let store = InMemoryLocalRunValueStore()
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        await review.prepare()
+        let other = LocalRunValueKey(kind: .secret, name: "OTHER")
+        review.entered[other] = "typed"
+        review.saveEntered = true
+        review.trusted = true
+        fake.localOutputs = [output(lines: nil, phase: .finished, state: .succeeded)]
+        _ = try #require(await review.run())
+        #expect(try await store.value(workspaceID: workspace, key: other) == "typed")
+        #expect(fake.confirmedValues.first?.secrets == ["OTHER": "typed"])
+    }
+
+    @Test func aFailedSaveOfEnteredValuesStartsNothing() async throws {
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
+        let store = InMemoryLocalRunValueStore()
+        await store.setFailSaves(true)
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        await review.prepare()
+        review.entered[LocalRunValueKey(kind: .secret, name: "OTHER")] = "typed"
+        review.saveEntered = true
+        review.trusted = true
+        #expect(await review.run() == nil)
+        #expect(review.error?.hasPrefix("Keychain did not save the entered values, so the run did not start.") == true)
+        #expect(fake.confirmedLocalRuns.isEmpty)
+    }
+
+    @Test func runWaitsForSavedValuesToBeRead() async throws {
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
+        let store = GatedValueStore(values: [LocalRunValueKey(kind: .secret, name: "NPM_TOKEN"): "saved"])
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        review.trusted = true
+        let preparing = Task { await review.prepare() }
+        #expect(await eventually { review.prepared != nil })
+        #expect(review.isPreparing && !review.canRun)
+        await store.open()
+        await preparing.value
+        #expect(review.canRun)
+        fake.localOutputs = [output(lines: nil, phase: .finished, state: .succeeded)]
+        _ = try #require(await review.run())
+        #expect(fake.confirmedValues.first?.secrets == ["NPM_TOKEN": "saved"])
+    }
+
+    @Test func refusedKeychainReadCountsAsMissing() async {
+        let (hub, workspace, _) = await hub { $0.preparedLocalRun = valuesPlan() }
+        let token = LocalRunValueKey(kind: .secret, name: "NPM_TOKEN")
+        let store = InMemoryLocalRunValueStore(values: [workspace: [token: "saved"]])
+        await store.setFailReads(true)
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        await review.prepare()
+        #expect(review.refused == [token])
+        #expect(review.missing.contains(token))
+    }
+
+    @Test func savedValuesAreReadOncePerReview() async throws {
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
+        let token = LocalRunValueKey(kind: .secret, name: "NPM_TOKEN")
+        let region = LocalRunValueKey(kind: .variable, name: "REGION")
+        let store = InMemoryLocalRunValueStore(values: [workspace: [token: "saved", region: "eu"]])
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        await review.prepare()
+        await review.prepare()
+        review.trusted = true
+        fake.localOutputs = [output(lines: nil, phase: .finished, state: .succeeded)]
+        _ = try #require(await review.run())
+        #expect(await store.reads == 2)
+        #expect(fake.confirmedValues.first?.secrets == ["NPM_TOKEN": "saved"])
+        #expect(fake.confirmedValues.first?.variables == ["REGION": "eu"])
+    }
+
+    @Test func runWithoutNamesSaysNothingIsRead() async {
+        let (hub, workspace, _) = await hub { $0.preparedLocalRun = prepared() }
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        await review.prepare()
+        #expect(review.runKeys.isEmpty)
+        #expect(review.accessSummary == "None read by this workflow. GitHub token and host environment are not passed")
+    }
+
     @Test func blockedPlanCannotRun() async {
         let (hub, workspace, fake) = await hub { $0.preparedLocalRun = prepared(confirmation: nil, blockers: ["OrbStack is not running or does not answer."]) }
         let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
@@ -338,4 +476,29 @@ struct LocalRunTests {
         #expect(desktop.confirmQuitStopsLocalRuns())
         #expect(!asked)
     }
+}
+
+/// Saved values whose reads wait until `open()`, as a Keychain asking for
+/// access would.
+private actor GatedValueStore: LocalRunValueStoring {
+    private let values: [LocalRunValueKey: String]
+    private var isOpen = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    init(values: [LocalRunValueKey: String]) { self.values = values }
+
+    func open() {
+        isOpen = true
+        waiting.forEach { $0.resume() }
+        waiting = []
+    }
+
+    func keys(workspaceID: UUID) async throws -> Set<LocalRunValueKey> { Set(values.keys) }
+    func value(workspaceID: UUID, key: LocalRunValueKey) async throws -> String? {
+        if !isOpen { await withCheckedContinuation { waiting.append($0) } }
+        return values[key]
+    }
+    func save(workspaceID: UUID, key: LocalRunValueKey, value: String) async throws {}
+    func remove(workspaceID: UUID, key: LocalRunValueKey) async throws {}
+    func removeAll(workspaceID: UUID) async throws {}
 }

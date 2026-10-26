@@ -7,6 +7,9 @@ import (
 	"syscall"
 )
 
+// PassesValues: secrets and variables reach act through pipes it inherits.
+const PassesValues = true
+
 // act runs in its own process group so an interrupt reaches the programs it
 // started too.
 func setProcessGroup(cmd *exec.Cmd) {

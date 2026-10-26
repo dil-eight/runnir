@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -30,6 +31,10 @@ type fakeRunsGitHub struct {
 	posts     []string
 	conflict  bool
 	forbidden bool
+	// pending is the run's pending_deployments answer; bodies are the
+	// bodies of POSTs.
+	pending string
+	bodies  []string
 }
 
 func (f *fakeRunsGitHub) sent() []string {
@@ -84,8 +89,12 @@ func (f *fakeRunsGitHub) handler() http.HandlerFunc {
 				conclusion = "null"
 			}
 			_, _ = w.Write([]byte(`{"id":21,"run_number":1482,"run_attempt":1,"name":"CI","status":"` + f.runStatus + `","conclusion":` + conclusion + `}`))
+		case r.URL.Path == "/repos/o/r/actions/runs/21/pending_deployments" && r.Method == http.MethodGet:
+			_, _ = w.Write([]byte(f.pending))
 		case strings.HasPrefix(r.URL.Path, "/repos/o/r/actions/runs/21/") && r.Method == http.MethodPost:
 			f.posts = append(f.posts, strings.TrimPrefix(r.URL.Path, "/repos/o/r/actions/runs/21/"))
+			body, _ := io.ReadAll(r.Body)
+			f.bodies = append(f.bodies, string(body))
 			if f.forbidden {
 				w.WriteHeader(http.StatusForbidden)
 				_, _ = w.Write([]byte(`{"message":"Unable to re-run this workflow run because it was created over a month ago"}`))
@@ -279,5 +288,48 @@ func TestRunActionsCheckTheRunStateAndSendOnce(t *testing.T) {
 	}
 	if _, err := client.PrepareRunAction(ctx, &corev1.PrepareRunActionRequest{RepositoryId: id, RunId: 21}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("no action = %v", err)
+	}
+}
+
+func TestApprovingDeploymentsSendsOnlyThoseTheUserMayApprove(t *testing.T) {
+	client, id, fake, ctx := runsRig(t)
+	prepare := func() *corev1.PrepareRunActionResponse {
+		t.Helper()
+		prepared, err := client.PrepareRunAction(ctx, &corev1.PrepareRunActionRequest{RepositoryId: id, RunId: 21,
+			Action: corev1.RunAction_RUN_ACTION_APPROVE_DEPLOYMENTS})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return prepared
+	}
+	if finished := prepare(); finished.ActionId != "" || !strings.Contains(finished.Problems[0], "not waiting") {
+		t.Fatalf("approve a finished run = %v", finished)
+	}
+
+	fake.mu.Lock()
+	fake.runStatus = "waiting"
+	fake.pending = `[{"environment":{"id":7,"name":"staging"},"current_user_can_approve":false}]`
+	fake.mu.Unlock()
+	if nobody := prepare(); nobody.ActionId != "" || !strings.Contains(nobody.Problems[0], "waits for your approval") {
+		t.Fatalf("nothing to approve = %v", nobody)
+	}
+
+	fake.mu.Lock()
+	fake.pending = `[{"environment":{"id":7,"name":"staging"},"current_user_can_approve":false},
+		{"environment":{"id":9,"name":"production"},"current_user_can_approve":true}]`
+	fake.mu.Unlock()
+	approve := prepare()
+	if approve.ActionId == "" || len(approve.Environments) != 1 || approve.Environments[0] != "production" {
+		t.Fatalf("approve = %v", approve)
+	}
+	confirmed, err := client.ConfirmRunAction(ctx, &corev1.ConfirmRunActionRequest{ActionId: approve.ActionId})
+	if err != nil || confirmed.AcceptedAt == nil {
+		t.Fatalf("confirm = %v, %v", confirmed, err)
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if strings.Join(fake.posts, ",") != "pending_deployments" ||
+		!strings.Contains(fake.bodies[0], `"environment_ids":[9]`) || !strings.Contains(fake.bodies[0], `"state":"approved"`) {
+		t.Fatalf("posts = %v %v", fake.posts, fake.bodies)
 	}
 }

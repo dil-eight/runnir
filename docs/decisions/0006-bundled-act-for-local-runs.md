@@ -18,7 +18,7 @@ Local runs (FR-06) execute workflows with [act](https://github.com/nektos/act) o
   - `--network bridge`, not the engine's host network, which on some engines reaches the Mac's own services;
   - `--no-cache-server`, because the cache server listens on a network address of the Mac;
   - `--container-daemon-socket -`, so the engine's socket is never mounted;
-  - empty `--env-file`, `--secret-file`, `--var-file` and `--input-file`, so a repository's `.env`, `.secrets`, `.vars` or `.input` is never read;
+  - an empty `--env-file` and `--input-file`, and `--secret-file` and `--var-file` naming `secrets.yaml` and `vars.yaml` in the scratch folder, links to pipes act inherits (fd 3 and 4) that carry the values the user set for the run (B28) as JSON, so a repository's `.env`, `.secrets`, `.vars` or `.input` is never read and no value is on disk, in argv or in act's environment; `GITHUB_TOKEN` is always among the secrets, empty unless the user set it, so act never asks the `gh` CLI for one;
   - job containers get a label with the run's id and CPU and memory limits;
   - every runner label act can stand in for is mapped to act's medium images.
 - act runs in a private scratch directory, with its own home and configuration directories. This keeps the user's and the repository's `.actrc` from applying. act gets no Docker credentials and no environment from the Core. `ACT_DISABLE_VERSION_CHECK=1` stops act's request to its notice service, which would otherwise send act's version, OS and architecture on every start.

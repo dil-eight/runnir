@@ -16,6 +16,7 @@ import (
 
 	"github.com/rhysd/actionlint"
 
+	"runnir/core/internal/references"
 	"runnir/core/internal/tools"
 )
 
@@ -105,11 +106,15 @@ type Plan struct {
 	JobID  string
 	Jobs   []JobPlan
 	Images []Image
-	// Secrets the workflow reads. Local runs get none of them.
-	Secrets  []string
-	Notes    []string
-	Blockers []string
-	Limits   Limits
+	// Secrets and Variables the workflow reads, upper-cased. The values the
+	// user sets travel in Spec, never in the plan.
+	Secrets   []string
+	Variables []string
+	// UnnamedSecrets: the workflow also reads secrets it does not name.
+	UnnamedSecrets bool
+	Notes          []string
+	Blockers       []string
+	Limits         Limits
 	// Digest is the SHA-256 of the workflow file the plan was made from.
 	Digest string
 }
@@ -221,7 +226,8 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 	}
 	sort.Slice(plan.Images, func(i, j int) bool { return plan.Images[i].Ref < plan.Images[j].Ref })
 
-	plan.Secrets = secretNames(request.Source)
+	names := references.Find(request.Source)
+	plan.Secrets, plan.Variables, plan.UnnamedSecrets = names.Secrets, names.Variables, names.UnnamedSecrets
 	plan.Notes = notes(plan, report, containerJobs, services, request.Source)
 	return plan, nil
 }
@@ -436,27 +442,10 @@ func dockerSteps(job *actionlint.Job) []string {
 	return images
 }
 
-var secretPattern = regexp.MustCompile(`secrets\.([A-Za-z_][A-Za-z0-9_]*)`)
-
-func secretNames(source []byte) []string {
-	seen := map[string]bool{}
-	var names []string
-	for _, match := range secretPattern.FindAllSubmatch(source, -1) {
-		name := string(match[1])
-		if !seen[name] {
-			seen[name] = true
-			names = append(names, name)
-		}
-	}
-	sort.Strings(names)
-	return names
-}
-
 func notes(plan Plan, report tools.Report, containerJobs, services []string, source []byte) []string {
 	var notes []string
-	if len(plan.Secrets) > 0 {
-		notes = append(notes, fmt.Sprintf("The workflow reads %s. Local runs get no secrets, so %s empty.",
-			strings.Join(plan.Secrets, ", "), map[bool]string{true: "it is", false: "they are"}[len(plan.Secrets) == 1]))
+	if plan.UnnamedSecrets {
+		notes = append(notes, "This workflow reads secrets it does not name; only the listed ones are passed.")
 	}
 	if arch := strings.ToLower(report.Engine.Architecture); arch == "aarch64" || arch == "arm64" {
 		notes = append(notes, "Jobs run as linux/arm64 on this Mac. Steps that download x64-only tools may fail.")

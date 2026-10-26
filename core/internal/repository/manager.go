@@ -56,6 +56,10 @@ type Workflow struct {
 	DispatchInputs []DispatchInput
 	// Concurrency: the file sets concurrency at the top level or in a job.
 	Concurrency bool
+	// Secrets and Variables are the secrets.X and vars.X names the file
+	// reads, upper-cased and sorted.
+	Secrets   []string
+	Variables []string
 }
 
 // DispatchInput is one `on.workflow_dispatch.inputs` entry.
@@ -73,6 +77,10 @@ type Job struct {
 	ID    string
 	Name  string
 	Needs []string
+	// Manual: the job's if requires a workflow_dispatch run, so it is
+	// started by hand; ManualInputs are the inputs that if fixes.
+	Manual       bool
+	ManualInputs map[string]string
 }
 
 // LaunchPreset is one file of .runnir/launches: a Run Workflow preset the

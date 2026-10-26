@@ -2,6 +2,7 @@ package localrun
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -78,11 +79,14 @@ func TestWholeWorkflowPlan(t *testing.T) {
 			t.Fatalf("image %s = %v %v", ref, got, ok)
 		}
 	}
-	if len(p.Secrets) != 1 || p.Secrets[0] != "NPM_TOKEN" {
-		t.Fatalf("secrets = %v", p.Secrets)
+	if !slices.Equal(p.Secrets, []string{"NPM_TOKEN"}) || len(p.Variables) != 0 || p.UnnamedSecrets {
+		t.Fatalf("secrets = %v variables = %v unnamed = %v", p.Secrets, p.Variables, p.UnnamedSecrets)
 	}
 	notes := strings.Join(p.Notes, "\n")
-	for _, want := range []string{"NPM_TOKEN", "linux/arm64", "service containers: db"} {
+	if strings.Contains(notes, "NPM_TOKEN") || strings.Contains(notes, "get no secrets") {
+		t.Fatalf("notes still say secrets are empty: %s", notes)
+	}
+	for _, want := range []string{"linux/arm64", "service containers: db"} {
 		if !strings.Contains(notes, want) {
 			t.Fatalf("notes lack %q: %s", want, notes)
 		}
@@ -226,5 +230,16 @@ func TestChosenJobUsesTheIDAsWritten(t *testing.T) {
 	p := plan(t, source, "lint", "", readyReport(), nil)
 	if p.JobID != "Lint" || !p.Runnable() {
 		t.Fatalf("job = %q blockers = %v", p.JobID, p.Blockers)
+	}
+}
+
+func TestPlanNotesSecretsReadAsAWhole(t *testing.T) {
+	source := "on: push\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo '${{ toJSON(secrets) }}' ${{ vars.stage }}\n"
+	p := plan(t, source, "", "", readyReport(), nil)
+	if !p.UnnamedSecrets || !slices.Equal(p.Variables, []string{"STAGE"}) {
+		t.Fatalf("plan = %+v", p)
+	}
+	if !slices.Contains(p.Notes, "This workflow reads secrets it does not name; only the listed ones are passed.") {
+		t.Fatalf("notes = %v", p.Notes)
 	}
 }

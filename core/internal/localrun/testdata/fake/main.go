@@ -19,6 +19,9 @@ type script struct {
 	Exit            int      `json:"exit"`
 	WaitForSignal   bool     `json:"waitForSignal"`
 	IgnoreInterrupt bool     `json:"ignoreInterrupt"`
+	// CopyValueFiles records what the --secret-file and --var-file paths
+	// hold, in act.files.
+	CopyValueFiles bool `json:"copyValueFiles"`
 }
 
 type invocation struct {
@@ -42,6 +45,22 @@ func main() {
 	var s script
 	if data, err := os.ReadFile(filepath.Join(dir, "act.json")); err == nil {
 		_ = json.Unmarshal(data, &s)
+	}
+	if s.CopyValueFiles {
+		files := map[string]string{}
+		for _, arg := range os.Args[1:] {
+			for _, flag := range []string{"--secret-file=", "--var-file="} {
+				if path, ok := strings.CutPrefix(arg, flag); ok {
+					data, err := os.ReadFile(path)
+					if err != nil {
+						data = []byte("error: " + err.Error())
+					}
+					files[flag] = string(data)
+				}
+			}
+		}
+		encoded, _ := json.Marshal(files)
+		appendFile(filepath.Join(dir, "act.files"), string(encoded))
 	}
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)

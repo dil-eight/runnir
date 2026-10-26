@@ -129,8 +129,8 @@ struct WorkspaceManagerView: View {
             .frame(height: 51).padding(.bottom, 16)
 
             HStack(spacing: 4) {
-                Button("Workspaces") { tab = .workspaces }.buttonStyle(WorkflowTabStyle(selected: tab == .workspaces))
-                Button("GitHub") { tab = .github }.buttonStyle(WorkflowTabStyle(selected: tab == .github))
+                Button("Workspaces") { tab = .workspaces }.handPointer().buttonStyle(WorkflowTabStyle(selected: tab == .workspaces))
+                Button("GitHub") { tab = .github }.handPointer().buttonStyle(WorkflowTabStyle(selected: tab == .github))
                     .accessibilityIdentifier("manager-github-tab")
                 Spacer()
             }.padding(.bottom, 14)
@@ -584,6 +584,8 @@ struct DesktopWorkspaceView: View {
                     } actions: {
                         Button("Locate / Grant Access...") { desktop.importRepository(relinkID: workspace.id, reuseWindowID: windowID) }
                     }
+                    // Fills the column so the toolbar stays at the top.
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     coreBanner
                     content
@@ -629,9 +631,10 @@ struct DesktopWorkspaceView: View {
             if let session, let hub = desktop.core {
                 LocalRunSheet(model: LocalRunReviewModel(workspaceID: workspace.id, workflowID: request.workflowID,
                                                          jobs: session.workflows.first { $0.id == request.workflowID }?.jobs ?? [],
-                                                         jobID: request.jobID, hub: hub),
+                                                         jobID: request.jobID, hub: hub, values: desktop.localRunValues),
                               repositoryPath: session.path,
-                              unsavedFile: files.isDirty && files.selected?.relativePath == request.workflowID ? files.selected?.name : nil) { _ in
+                              unsavedFile: files.isDirty && files.selected?.relativePath == request.workflowID ? files.selected?.name : nil,
+                              manageValues: { state.selectedSection = .secrets }) { _ in
                     state.selectedSection = .workspace
                     state.workspaceTab = .localRun
                 }
@@ -993,7 +996,7 @@ struct DesktopWorkspaceView: View {
                     GitHubAccountRow(session: github)
                 } else {
                     HStack(spacing: 10) {
-                        Image(systemName: "person.crop.circle").font(.system(size: 16)).frame(width: 16)
+                        SidebarIcon(symbol: "person.crop.circle")
                             .foregroundStyle(RunnirTheme.secondaryForeground)
                         VStack(alignment: .leading, spacing: 1) {
                             Text("GitHub").font(.system(size: 12))
@@ -1045,6 +1048,7 @@ struct DesktopWorkspaceView: View {
         if state.showingSwitcher {
             ZStack(alignment: .topLeading) {
                 Color.black.opacity(0.001)
+                    // No hand pointer: a click outside the switcher closes it.
                     .onTapGesture { state.showingSwitcher = false }
                 WorkspaceSwitcherView(desktop: desktop, currentWorkspaceID: workspace.id, windowID: windowID,
                                       close: { state.showingSwitcher = false })
@@ -1095,6 +1099,12 @@ struct DesktopWorkspaceView: View {
                     state.selectedRunID = run.id
                     state.selectedSection = .runs
                 }, runWorkflow: { workflow in requestRun(workflowID: workflow.id) })
+            } else {
+                coreUnavailable
+            }
+        case .secrets:
+            if let session, let hub = desktop.core {
+                WorkspaceValuesView(model: state.values, workspaceID: workspace.id, session: session, hub: hub, store: desktop.localRunValues)
             } else {
                 coreUnavailable
             }
@@ -1394,6 +1404,35 @@ extension View {
     func clickable() -> some View {
         contentShape(Rectangle()).pointerStyle(.link)
     }
+
+    /// A native control that is not a button of the default style (a toggle,
+    /// picker, menu, or a link or borderless button): the hand pointer while
+    /// it is enabled. Apply it before `.disabled`.
+    func handPointer() -> some View {
+        modifier(HandPointer())
+    }
+
+    /// Every button below that keeps the default style gets the hand pointer,
+    /// in its own look. Applied at the root of each window.
+    func handPointerButtons() -> some View {
+        buttonStyle(HandPointerButtonStyle())
+    }
+}
+
+/// Draws a button as the style around it would and adds the hand pointer.
+/// `Button(configuration)` takes the style outside this one, so a button
+/// with a style of its own keeps it.
+struct HandPointerButtonStyle: PrimitiveButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button(configuration).modifier(HandPointer())
+    }
+}
+
+private struct HandPointer: ViewModifier {
+    @Environment(\.isEnabled) private var isEnabled
+    func body(content: Content) -> some View {
+        content.pointerStyle(isEnabled ? .link : nil)
+    }
 }
 
 struct WorkflowTabStyle: ButtonStyle {
@@ -1408,6 +1447,17 @@ struct WorkflowTabStyle: ButtonStyle {
     }
 }
 
+/// A sidebar icon fitted into a 16-point square. SF Symbols differ in width
+/// (`ladybug` is 17.5 points at 13-point text, `key` 11.5), so centring
+/// them in a column still leaves their edges apart; a square they all fill
+/// lines them up.
+struct SidebarIcon: View {
+    let symbol: String
+    var body: some View {
+        Image(systemName: symbol).resizable().scaledToFit().frame(width: 16, height: 16)
+    }
+}
+
 /// A sidebar row: a 16-point icon column, so the sections, the account and
 /// the items under it line up, and the whole row takes the click.
 struct SidebarItemLabel: View {
@@ -1417,7 +1467,7 @@ struct SidebarItemLabel: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: symbol).frame(width: 16)
+            SidebarIcon(symbol: symbol)
                 .foregroundStyle(selected ? RunnirTheme.primary : RunnirTheme.secondaryForeground)
             Text(title)
             Spacer(minLength: 0)

@@ -42,7 +42,7 @@ New modules in `core/go.mod`, read from each module's license file:
 
 - The Core binary grows by about 6.6 MB per architecture (see [verification](#verification)).
 - Only the Core touches workspace databases. The app reads activity and storage usage through gRPC.
-- A damaged database is moved to `recovery/<time>/` and kept; local run records are restored from it or from the backup. A database from a newer Runnir is left untouched and the workspace runs in memory.
+- A damaged database is moved to `recovery/<time>/` and kept; local run records are restored from it or from the backup. So is one at the current schema version that lacks a table the schema creates: before the first release the schema changes in place, so an earlier development build may have made it. A database from a newer Runnir is left untouched and the workspace runs in memory.
 - Not verified by this decision: a Developer ID signed and notarized build with the database, and behavior on real power loss or a crash during a write (tests cover damaged and missing files and the write order only).
 
 ## Verification

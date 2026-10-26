@@ -48,6 +48,10 @@ type Spec struct {
 	// act fetches `uses:` actions there; empty for github.com. The token is
 	// never given to act.
 	GitHubInstance string
+	// Secrets and Variables the user set for this run, by upper-cased name.
+	// They reach act through pipes and are dropped when the run ends.
+	Secrets   map[string]string
+	Variables map[string]string
 }
 
 // Runner runs approved plans with act. It implements execution.Runner.
@@ -75,6 +79,9 @@ func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 		return fmt.Errorf("prepare the run: %w", err)
 	}
 	defer os.RemoveAll(scratch)
+	defer func() { spec.Secrets, spec.Variables = nil, nil }()
+	r.outputs.update(id, func(run *run) { run.masks = masksFor(spec.Secrets) })
+	defer r.outputs.update(id, func(run *run) { run.masks = nil })
 	if err := prepareScratch(scratch); err != nil {
 		return fmt.Errorf("prepare the run: %w", err)
 	}
@@ -95,16 +102,28 @@ func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 	cmd.Dir = scratch // keeps act from reading an .actrc where the Core runs
 	cmd.Env = actEnv(spec, scratch)
 	setProcessGroup(cmd)
+	var feeds []*valueFeed
+	if PassesValues {
+		if feeds, err = attachValues(cmd, scratch, spec); err != nil {
+			return fmt.Errorf("prepare the run: %w", err)
+		}
+	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		closeFeeds(feeds)
 		return fmt.Errorf("start act: %w", err)
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		closeFeeds(feeds)
 		return fmt.Errorf("start act: %w", err)
 	}
 	if err := cmd.Start(); err != nil {
+		closeFeeds(feeds)
 		return fmt.Errorf("start act: %w", err)
+	}
+	for _, feed := range feeds {
+		feed.send()
 	}
 
 	var readers sync.WaitGroup
@@ -132,6 +151,11 @@ func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 			_ = killGroup(cmd)
 			waitErr = <-waited
 		}
+	}
+
+	// act has exited; a write it never read is ended here.
+	for _, feed := range feeds {
+		feed.finish()
 	}
 
 	exitCode := -1
@@ -215,10 +239,11 @@ func Args(spec *Spec, executionID, scratch string) []string {
 		// Never mount the engine's socket into job containers.
 		"--container-daemon-socket=-",
 		// Override act's defaults (.env, .secrets, .vars, .input in the
-		// repository) so no local file reaches the jobs.
+		// repository) so no local file reaches the jobs; secrets and
+		// variables come only through Runnir's pipes.
 		"--env-file=" + empty,
-		"--secret-file=" + empty,
-		"--var-file=" + empty,
+		"--secret-file=" + valueFile(scratch, SecretsFile),
+		"--var-file=" + valueFile(scratch, VarsFile),
 		"--input-file=" + empty,
 		"--container-options=" + containerOptions(plan.Limits, executionID),
 	}
@@ -238,6 +263,16 @@ func Args(spec *Spec, executionID, scratch string) []string {
 	}
 	args = append(args, "--", plan.Event)
 	return args
+}
+
+// valueFile is the pipe link where values are passed, else the empty file.
+func valueFile(scratch, name string) string { return valueFileFor(PassesValues, scratch, name) }
+
+func valueFileFor(passesValues bool, scratch, name string) string {
+	if passesValues {
+		return filepath.Join(scratch, name)
+	}
+	return filepath.Join(scratch, "empty")
 }
 
 func containerOptions(limits Limits, executionID string) string {

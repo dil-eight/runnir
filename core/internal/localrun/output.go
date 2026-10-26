@@ -84,6 +84,8 @@ type run struct {
 	lines []Line // ring of at most MaxLines
 	head  int
 	next  uint64
+	// masks are the secret values hidden in kept lines while the run goes.
+	masks []string
 }
 
 // Outputs keeps the output of recent local runs. Safe for concurrent use.
@@ -249,6 +251,7 @@ func (o *Outputs) update(executionID string, change func(*run)) {
 }
 
 func (r *run) append(jobID, text string, isError bool) {
+	text = mask(text, r.masks)
 	if len(text) > MaxLineBytes {
 		cut := MaxLineBytes
 		for cut > 0 && !utf8Start(text[cut]) {

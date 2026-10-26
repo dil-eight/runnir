@@ -12,7 +12,7 @@ struct ManualRunSettingsSection: View {
                     Text(caption).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-            }
+            }.handPointer()
             .accessibilityIdentifier("confirm-manual-runs-touch-id")
         }
     }

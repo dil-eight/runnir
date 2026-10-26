@@ -9,6 +9,8 @@ package localrun
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,6 +39,8 @@ jobs:
           if [ -S /var/run/docker.sock ]; then echo "docker-socket=mounted"; else echo "docker-socket=absent"; fi
           echo "secret=[${{ secrets.NPM_TOKEN }}]"
           echo "token=[${{ secrets.GITHUB_TOKEN }}]"
+          echo "secret-sha=$(printf %s '${{ secrets.NPM_TOKEN }}' | sha256sum | cut -c1-16)"
+          echo "region=[${{ vars.REGION }}]"
           ls -a
   wait:
     needs: hello
@@ -126,6 +130,30 @@ func TestE2ERunReportsOutputWithoutLeaks(t *testing.T) {
 	snap, _ := outputs.Since(job.ExecutionID, 0)
 	if snap.ExitCode != 0 || snap.Jobs[0].State != JobSucceeded || snap.CleanupProblem != "" {
 		t.Fatalf("exit=%d jobs=%+v cleanup=%q", snap.ExitCode, snap.Jobs, snap.CleanupProblem)
+	}
+	assertNoContainers(t, spec)
+}
+
+func TestE2EValuesReachTheJob(t *testing.T) {
+	spec, outputs, job := e2eSpec(t, "hello")
+	spec.Secrets = map[string]string{"NPM_TOKEN": "e2e-secret-value"}
+	spec.Variables = map[string]string{"REGION": "eu-test-1"}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	err := NewRunner(outputs).Run(ctx, job)
+	out := text(outputs, job.ExecutionID)
+	t.Logf("output:\n%s", out)
+	if err != nil {
+		t.Fatalf("Run = %v", err)
+	}
+	sum := sha256.Sum256([]byte("e2e-secret-value"))
+	for _, want := range []string{"secret-sha=" + hex.EncodeToString(sum[:])[:16], "region=[eu-test-1]", "secret=[***]"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q", want)
+		}
+	}
+	if strings.Contains(out, "e2e-secret-value") {
+		t.Error("the secret's value is in the output")
 	}
 	assertNoContainers(t, spec)
 }

@@ -71,7 +71,7 @@ inputs:
   environment: staging
 ```
 
-Secrets never go into `.runnir`. Plan for local runs (B28, not implemented): the secrets a run needs are the `secrets.X` the workflow itself references; for each one the user enters a value for this run, or keeps it in Keychain for this workspace, and a kept value is shown only after Touch ID or the password. Values reach act through its environment (`-s NAME`), never argv, disk, the database or logs. Environment variables come from the user's own tools (dotenvx, `.env`, act's files) rather than a Runnir format. GitHub Actions secrets stay on GitHub.
+Secrets never go into `.runnir`. Local runs (B28, [design](../superpowers/specs/2026-10-25-local-run-secrets-design.md)) get the `secrets.X` and `vars.X` the workflow itself names. The Core finds the names in the repository scan and the run's plan; the app keeps values per workspace in Keychain (service `dev.runnir.local-run.<workspace>`, account `secret:NAME` or `variable:NAME`), shows a saved secret only after Touch ID or the password, fills values from a `.env` file the user picks (the Core reads it; dotenvx-encrypted values are flagged, not decrypted), and takes a value typed for one run in the Run Locally review. Values travel to the Core only when a run is confirmed and reach act through two pipes, linked as `secrets.yaml` and `vars.yaml` in the run's scratch folder; never through a file on disk, act's command line or environment, the workspace database or logs. Secret values are masked in the run's output. Removing a workspace registration forgets its values; Clear Cache keeps them. GitHub Actions secrets stay on GitHub.
 
 A malformed or unusable preset file is listed with its problem and never used; the workspace opens normally. Opening never writes to the working tree. Local-only presets stay machine-private in `dispatch-presets.json`.
 
@@ -130,8 +130,8 @@ Local files are authoritative for their local index; GitHub is authoritative for
 | --- | --- |
 | W01 | Repo without remote/.runnir opens; no silent writes; clones/relinks/canonical identity behave correctly |
 | W02 | Safe optional YAML parse of `.runnir/launches`, limits/traversal/symlink denial and degraded opening |
-| W03 | Field precedence/effective-value origins tested; repository safety flag cannot bypass app policy (B28) |
-| W04 | Secret reference scoped/missing/denied; no values in portable/local persistence or diagnostics (B28) |
+| W03 | Values for a run come from the review, then Keychain; only names the plan reads are accepted (B28) |
+| W04 | Secret names per workspace, missing or refused by Keychain; no values on disk, in the database, act's argv or environment, logs or diagnostics (B28) |
 | W05 | SQLite migrations/transaction/concurrent-window reads and single-writer integrity; missing/corrupt DB repair preserves unique local data |
 | W06 | Offline relaunch renders cache before network; shared windows issue one logical sync; checked/failed/succeeded times remain separate |
 | W07 | Local changes, remote YAML and live run updates are distinguishable; auth/rate-limit/backoff/cancel handled |

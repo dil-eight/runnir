@@ -11,6 +11,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -173,7 +174,21 @@ func (s *Store) openDatabase(ctx context.Context) (string, bool) {
 		if err == nil {
 			err = quickCheck(db)
 		}
+		earlier := err == nil && outdated(db)
 		switch {
+		case earlier:
+			// Schemas change in place before the first release (AGENTS.md),
+			// so a database an earlier development build made can lack a
+			// table. It is set aside like a damaged one and its local data
+			// carried over.
+			_ = db.Close()
+			evidence, rows, moveErr := s.quarantine()
+			if moveErr != nil {
+				return "The workspace database from an earlier build could not be moved aside.", false
+			}
+			salvaged, damaged = rows, true
+			notes = append(notes, fmt.Sprintf("The database was made by an earlier build of Runnir; it was kept in %s and a new one was made.",
+				filepath.Join(recoveryDir, filepath.Base(evidence))))
 		case err == nil:
 			s.db = db
 		case isDamaged(err):
@@ -302,6 +317,57 @@ func configurePool(db *sql.DB) {
 }
 
 var errDamaged = errors.New("database is damaged")
+
+// outdated reports a database at the current schema version whose tables,
+// indexes, views or triggers differ from the ones the migrations make, such
+// as a table or a column an earlier development build did not have.
+func outdated(db *sql.DB) bool {
+	var version int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != len(migrations) {
+		return false
+	}
+	want, err := expectedSchema()
+	if err != nil {
+		return false
+	}
+	have, err := schemaOf(db)
+	return err == nil && !maps.Equal(have, want)
+}
+
+// expectedSchema is the schema the migrations make, read from a database
+// in memory that runs them.
+var expectedSchema = sync.OnceValues(func() (map[string]string, error) {
+	db, err := openDSN(":memory:")
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+	for _, migration := range migrations {
+		if _, err := db.Exec(migration); err != nil {
+			return nil, err
+		}
+	}
+	return schemaOf(db)
+})
+
+// schemaOf is the SQL of each table, index, view and trigger, by name.
+// SQLite keeps the statement each was made with, in a normalized form.
+func schemaOf(db *sql.DB) (map[string]string, error) {
+	rows, err := db.Query("SELECT type || ' ' || name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND sql IS NOT NULL")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var name, statement string
+		if err := rows.Scan(&name, &statement); err != nil {
+			return nil, err
+		}
+		out[name] = statement
+	}
+	return out, rows.Err()
+}
 
 func quickCheck(db *sql.DB) error {
 	var result string

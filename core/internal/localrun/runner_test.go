@@ -349,3 +349,75 @@ func TestArgsNameTheEnterpriseInstance(t *testing.T) {
 		t.Fatal("the flag comes after --")
 	}
 }
+
+func TestValuesReachActThroughPipesOnly(t *testing.T) {
+	if !PassesValues {
+		t.Skip("values are not passed on this platform")
+	}
+	secretLine := `{"level":"info","job":"CI/lint","jobID":"lint","raw_output":true,"msg":"token s3cr3t-value and second-line here\n"}`
+	actPath, dockerPath, dir := fakeTools(t, map[string]any{"copyValueFiles": true, "lines": []string{startLine, secretLine, doneLine}})
+	spec := testSpec(t, actPath, dockerPath)
+	spec.Secrets = map[string]string{"NPM_TOKEN": "s3cr3t-value", "CERT": "first-line\nsecond-line"}
+	spec.Variables = map[string]string{"REGION": "eu-west-1"}
+	runner, outputs, job := startRun(t, spec)
+	if err := runner.Run(context.Background(), job); err != nil {
+		t.Fatalf("Run = %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "act.files"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var files map[string]string
+	if err := json.Unmarshal(data, &files); err != nil {
+		t.Fatal(err)
+	}
+	var secrets, variables map[string]string
+	if err := json.Unmarshal([]byte(files["--secret-file="]), &secrets); err != nil {
+		t.Fatalf("secret file %q: %v", files["--secret-file="], err)
+	}
+	if err := json.Unmarshal([]byte(files["--var-file="]), &variables); err != nil {
+		t.Fatalf("var file %q: %v", files["--var-file="], err)
+	}
+	if secrets["NPM_TOKEN"] != "s3cr3t-value" || secrets["CERT"] != "first-line\nsecond-line" || secrets["GITHUB_TOKEN"] != "" || len(secrets) != 3 {
+		t.Fatalf("secrets = %v", secrets)
+	}
+	if variables["REGION"] != "eu-west-1" || len(variables) != 1 {
+		t.Fatalf("variables = %v", variables)
+	}
+
+	call := invocations(t, dir, "act")[0]
+	recorded := strings.Join(append(call.Args, call.Env...), "\n")
+	for _, value := range []string{"s3cr3t-value", "first-line", "eu-west-1"} {
+		if strings.Contains(recorded, value) {
+			t.Fatalf("%q in act's arguments or environment", value)
+		}
+	}
+	snap, _ := outputs.Since(job.ExecutionID, 0)
+	for _, line := range snap.Lines {
+		if strings.Contains(line.Text, "s3cr3t-value") || strings.Contains(line.Text, "second-line") {
+			t.Fatalf("secret kept in output: %q", line.Text)
+		}
+	}
+	if spec.Secrets != nil || spec.Variables != nil {
+		t.Fatal("values kept after the run")
+	}
+}
+
+func TestRunWithoutValuesStillPassesGitHubToken(t *testing.T) {
+	if !PassesValues {
+		t.Skip("values are not passed on this platform")
+	}
+	actPath, dockerPath, dir := fakeTools(t, map[string]any{"copyValueFiles": true})
+	spec := testSpec(t, actPath, dockerPath)
+	runner, _, job := startRun(t, spec)
+	if err := runner.Run(context.Background(), job); err != nil {
+		t.Fatalf("Run = %v", err)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "act.files"))
+	var files map[string]string
+	_ = json.Unmarshal(data, &files)
+	if files["--secret-file="] != `{"GITHUB_TOKEN":""}` || files["--var-file="] != `{}` {
+		t.Fatalf("files = %v", files)
+	}
+}

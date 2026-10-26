@@ -131,11 +131,17 @@ struct WorkflowEditingTests {
         let model = WorkspaceFilesModel()
         let file = LocalWorkflowFile(relativePath: ".github/workflows/ci.yml")
         model.select(file, reader: reader)
-        let waiting = Task { await model.waitUntilLoaded(file) }
+        // The text is read when the wait ends: the first load may finish
+        // before the second starts, and the second then clears the editor.
+        let waiting = Task { () -> (Bool, String) in
+            let loaded = await model.waitUntilLoaded(file)
+            return (loaded, model.source)
+        }
         await Task.yield()
         model.select(file, reader: reader)
-        #expect(await waiting.value)
-        #expect(model.source == Self.original)
+        let (loaded, source) = await waiting.value
+        #expect(loaded)
+        #expect(source == Self.original)
     }
 
     @Test func editsAreDirtyUntilSaved() async throws {
@@ -309,6 +315,7 @@ struct WorkflowEditingTests {
         #expect(alert.buttons.map(\.title) == ["Save", "Don't Save", "Cancel"])
         #expect(alert.buttons[0].keyEquivalent == "\r")
         #expect(UnsavedChangesPrompt.title(for: ["ci.yml", "release.yml"]) == "Do you want to save the changes you made to 2 workflow files?")
+        #expect(UnsavedChangesPrompt.title(for: ["ci.yml", "Secrets and Variables"]) == "Do you want to save the changes you made to 2 items?")
         #expect(UnsavedChangesPrompt.choice(.alertFirstButtonReturn) == .save)
         #expect(UnsavedChangesPrompt.choice(.alertSecondButtonReturn) == .discard)
         #expect(UnsavedChangesPrompt.choice(.alertThirdButtonReturn) == .cancel)
@@ -346,13 +353,18 @@ struct WorkflowEditingTests {
         let controller = WorkspaceWindowController(record: record, workspace: workspace, grant: nil, desktop: DesktopCoordinator())
         let files = try #require(controller.files)
         files.source = "edited"
+        let values = try #require(controller.values)
+        values.setText("typed", for: LocalRunValueKey(kind: .secret, name: "NPM_TOKEN"))
 
         controller.attach(record: record, workspace: workspace, grant: StubGrant(root: root))
         #expect(controller.files === files)
+        #expect(controller.values === values)
+        #expect(controller.unsavedNames.contains("Secrets and Variables"))
 
         let other = WorkspaceRecord(id: UUID(), path: root.path, name: "other", bookmark: Data(), lastOpenedAt: Date())
         controller.attach(record: WorkspaceWindowRecord(id: record.id, workspaceID: other.id), workspace: other, grant: StubGrant(root: root))
         #expect(controller.files !== files)
+        #expect(controller.values !== values)
         controller.close()
     }
 }

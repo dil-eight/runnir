@@ -585,6 +585,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "ParseEnvFile" metadata.
+        internal enum ParseEnvFile: Sendable {
+            /// Request type for "ParseEnvFile".
+            internal typealias Input = Runnir_Core_V1_ParseEnvFileRequest
+            /// Response type for "ParseEnvFile".
+            internal typealias Output = Runnir_Core_V1_ParseEnvFileResponse
+            /// Descriptor for "ParseEnvFile".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ParseEnvFile",
+                type: .unary
+            )
+        }
         /// Descriptors for all methods in the "runnir.core.v1.RunnirCore" service.
         internal static let descriptors: [GRPCCore.MethodDescriptor] = [
             HealthCheck.descriptor,
@@ -629,7 +642,8 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             PrepareLocalRun.descriptor,
             ConfirmLocalRun.descriptor,
             GetLocalRunOutput.descriptor,
-            CancelExecution.descriptor
+            CancelExecution.descriptor,
+            ParseEnvFile.descriptor
         ]
     }
 }
@@ -1431,6 +1445,27 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_CancelExecutionRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_CancelExecutionResponse>
+
+        /// Handle the "ParseEnvFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Parses a .env file the user chose, read by the app, to import values
+        /// > into Secrets and Variables. Nothing is expanded or run; values
+        /// > encrypted by dotenvx are flagged, not decrypted. INVALID_ARGUMENT for
+        /// > content larger than 1 MiB or not UTF-8.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ParseEnvFileRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ParseEnvFileResponse` messages.
+        func parseEnvFile(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ParseEnvFileRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ParseEnvFileResponse>
     }
 
     /// Service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -2216,6 +2251,27 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.ServerRequest<Runnir_Core_V1_CancelExecutionRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_CancelExecutionResponse>
+
+        /// Handle the "ParseEnvFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Parses a .env file the user chose, read by the app, to import values
+        /// > into Secrets and Variables. Nothing is expanded or run; values
+        /// > encrypted by dotenvx are flagged, not decrypted. INVALID_ARGUMENT for
+        /// > content larger than 1 MiB or not UTF-8.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ParseEnvFileRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ParseEnvFileResponse` message.
+        func parseEnvFile(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ParseEnvFileRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ParseEnvFileResponse>
     }
 
     /// Simple service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -3000,6 +3056,27 @@ extension Runnir_Core_V1_RunnirCore {
             request: Runnir_Core_V1_CancelExecutionRequest,
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_CancelExecutionResponse
+
+        /// Handle the "ParseEnvFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Parses a .env file the user chose, read by the app, to import values
+        /// > into Secrets and Variables. Nothing is expanded or run; values
+        /// > encrypted by dotenvx are flagged, not decrypted. INVALID_ARGUMENT for
+        /// > content larger than 1 MiB or not UTF-8.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ParseEnvFileRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ParseEnvFileResponse` to respond with.
+        func parseEnvFile(
+            request: Runnir_Core_V1_ParseEnvFileRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ParseEnvFileResponse
     }
 }
 
@@ -3480,6 +3557,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
                 )
             }
         )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ParseEnvFile.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ParseEnvFileRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ParseEnvFileResponse>(),
+            handler: { request, context in
+                try await self.parseEnvFile(
+                    request: request,
+                    context: context
+                )
+            }
+        )
     }
 }
 
@@ -3953,6 +4041,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_CancelExecutionResponse> {
         let response = try await self.cancelExecution(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func parseEnvFile(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ParseEnvFileRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ParseEnvFileResponse> {
+        let response = try await self.parseEnvFile(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -4519,6 +4618,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_CancelExecutionResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_CancelExecutionResponse>(
             message: try await self.cancelExecution(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func parseEnvFile(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ParseEnvFileRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ParseEnvFileResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ParseEnvFileResponse>(
+            message: try await self.parseEnvFile(
                 request: request.message,
                 context: context
             ),
@@ -5525,6 +5637,32 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_CancelExecutionResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_CancelExecutionResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ParseEnvFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Parses a .env file the user chose, read by the app, to import values
+        /// > into Secrets and Variables. Nothing is expanded or run; values
+        /// > encrypted by dotenvx are flagged, not decrypted. INVALID_ARGUMENT for
+        /// > content larger than 1 MiB or not UTF-8.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ParseEnvFileRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ParseEnvFileRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ParseEnvFileResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func parseEnvFile<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ParseEnvFileRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ParseEnvFileRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ParseEnvFileResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ParseEnvFileResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
     }
 
@@ -7005,6 +7143,43 @@ extension Runnir_Core_V1_RunnirCore {
                 onResponse: handleResponse
             )
         }
+
+        /// Call the "ParseEnvFile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Parses a .env file the user chose, read by the app, to import values
+        /// > into Secrets and Variables. Nothing is expanded or run; values
+        /// > encrypted by dotenvx are flagged, not decrypted. INVALID_ARGUMENT for
+        /// > content larger than 1 MiB or not UTF-8.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ParseEnvFileRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ParseEnvFileRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ParseEnvFileResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func parseEnvFile<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ParseEnvFileRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ParseEnvFileRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ParseEnvFileResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ParseEnvFileResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ParseEnvFile.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
     }
 }
 
@@ -8253,6 +8428,38 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_CancelExecutionRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_CancelExecutionResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ParseEnvFile" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Parses a .env file the user chose, read by the app, to import values
+    /// > into Secrets and Variables. Nothing is expanded or run; values
+    /// > encrypted by dotenvx are flagged, not decrypted. INVALID_ARGUMENT for
+    /// > content larger than 1 MiB or not UTF-8.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ParseEnvFileRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func parseEnvFile<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ParseEnvFileRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ParseEnvFileResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.parseEnvFile(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ParseEnvFileRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ParseEnvFileResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -9675,6 +9882,42 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.cancelExecution(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ParseEnvFile" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Parses a .env file the user chose, read by the app, to import values
+    /// > into Secrets and Variables. Nothing is expanded or run; values
+    /// > encrypted by dotenvx are flagged, not decrypted. INVALID_ARGUMENT for
+    /// > content larger than 1 MiB or not UTF-8.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func parseEnvFile<Result>(
+        _ message: Runnir_Core_V1_ParseEnvFileRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ParseEnvFileResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ParseEnvFileRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.parseEnvFile(
             request: request,
             options: options,
             onResponse: handleResponse

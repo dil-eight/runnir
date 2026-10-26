@@ -47,7 +47,7 @@ struct ToolsSettingsSection: View {
                     }
                     Text(installedActCaption).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
-            }
+            }.handPointer()
         } header: {
             HStack {
                 Text("Tools")

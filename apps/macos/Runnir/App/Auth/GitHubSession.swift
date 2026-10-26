@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -45,12 +46,24 @@ enum GitHubConnection: Equatable, Sendable {
 @MainActor
 @Observable
 final class GitHubSession {
-    private(set) var connection: GitHubConnection = .restoring
+    private(set) var connection: GitHubConnection = .restoring {
+        didSet {
+            if case .waiting = connection { return }
+            codeCopied = false
+            verificationOpensAt = nil
+        }
+    }
+    /// While waiting: the code is on the clipboard.
+    private(set) var codeCopied = false
+    /// While waiting: when the verification page opens by itself; nil once
+    /// it opened.
+    private(set) var verificationOpensAt: Date?
 
     @ObservationIgnored private let deviceFlow: any DeviceFlowServicing
     @ObservationIgnored private let credentials: any CredentialStoring
     @ObservationIgnored private let api: any GitHubService
     @ObservationIgnored private let openURL: @MainActor (URL) -> Void
+    @ObservationIgnored private let copyToClipboard: @MainActor (String) -> Void
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private let clock = ContinuousClock()
     @ObservationIgnored private var signInTask: Task<Void, Never>?
@@ -68,17 +81,21 @@ final class GitHubSession {
     /// Where a user revokes Runnir's authorization at GitHub.
     static let authorizationsURL = URL(string: "https://github.com/settings/apps/authorizations")!
     static let maxConsecutiveNetworkFailures = 3
+    /// How long the code shows, already copied, before GitHub opens.
+    static let verificationDelay: Duration = .seconds(3)
 
     init(deviceFlow: any DeviceFlowServicing,
          credentials: any CredentialStoring,
          api: any GitHubService,
          openURL: @escaping @MainActor (URL) -> Void,
+         copyToClipboard: @escaping @MainActor (String) -> Void = GitHubSession.copyToPasteboard,
          sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
          offlineRetryDelays: [Duration] = [.seconds(30), .seconds(60), .seconds(120), .seconds(300)]) {
         self.deviceFlow = deviceFlow
         self.credentials = credentials
         self.api = api
         self.openURL = openURL
+        self.copyToClipboard = copyToClipboard
         self.sleep = sleep
         self.offlineRetryDelays = offlineRetryDelays
     }
@@ -115,8 +132,9 @@ final class GitHubSession {
 
     // MARK: Sign in
 
-    /// Starts the Device Flow: requests a code, opens the verification page and
-    /// polls until the user approves, declines or the code expires.
+    /// Starts the Device Flow: requests a code, copies it to the clipboard,
+    /// opens the verification page a moment later and polls until the user
+    /// approves, declines or the code expires.
     func signIn() {
         guard signInTask == nil else { return }
         stopOfflineRetry()
@@ -137,9 +155,24 @@ final class GitHubSession {
         connection = .signedOut(nil)
     }
 
-    /// Opens the verification page again, for a closed browser tab.
-    func reopenVerificationPage() {
-        if case .waiting(let authorization, _) = connection { openURL(authorization.verificationURL) }
+    /// Opens the verification page now: before it opens by itself, or again
+    /// for a closed browser tab.
+    func openVerificationPage() {
+        guard case .waiting(let authorization, _) = connection else { return }
+        verificationOpensAt = nil
+        openURL(authorization.verificationURL)
+    }
+
+    /// Puts the code on the clipboard again.
+    func copyCode() {
+        guard case .waiting(let authorization, _) = connection else { return }
+        copyToClipboard(authorization.userCode)
+        codeCopied = true
+    }
+
+    static func copyToPasteboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     private func runSignIn() async {
@@ -152,7 +185,13 @@ final class GitHubSession {
         }
         guard !Task.isCancelled else { return }
         connection = .waiting(authorization, slowerPolling: false)
-        openURL(authorization.verificationURL)
+        // The code goes to the clipboard first and stays on screen a moment,
+        // so it is ready to paste when GitHub's page asks for it.
+        copyCode()
+        verificationOpensAt = Date().addingTimeInterval(Double(Self.verificationDelay.components.seconds))
+        do { try await sleep(Self.verificationDelay) } catch { return }
+        guard !Task.isCancelled else { return }
+        if verificationOpensAt != nil { openVerificationPage() }
 
         let deadline = clock.now + authorization.expiresIn
         var interval = authorization.interval

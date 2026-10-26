@@ -159,13 +159,13 @@ struct NotificationSettingsSection: View {
                     Text("Pull request checks")
                     Text("When the checks of a pull request you opened finish.").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
-            }
+            }.handPointer()
             Toggle(isOn: $localRuns) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Local runs")
                     Text("When a run with act on this Mac finishes or fails.").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
-            }
+            }.handPointer()
             Picker("Notify about", selection: $failuresOnly) {
                 Text("Failures and successes").tag(false)
                 Text("Failures only").tag(true)

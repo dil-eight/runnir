@@ -876,6 +876,49 @@ final class CoreHub {
 
     // MARK: Local runs
 
+    enum EnvFileRead: Equatable {
+        case read(CoreEnvFile)
+        case failed(String)
+    }
+
+    /// The largest .env file read, as the Core parses it.
+    nonisolated static let maxEnvFileBytes = 1 << 20
+
+    /// Reads a .env file the user chose (a regular file of at most 1 MiB)
+    /// and has the Core parse it, for Secrets and Variables.
+    func readEnvFile(url: URL) async -> EnvFileRead {
+        let content: Data
+        do {
+            content = try await Task.detached { try Self.readBounded(url) }.value
+        } catch EnvFileError.tooLarge {
+            return .failed("The file is larger than 1 MiB.")
+        } catch {
+            return .failed("Runnir can't read this file.")
+        }
+        guard isReady, let service = try? await provider.service() else {
+            return .failed("Runnir Core is not ready. Try again in a moment.")
+        }
+        do {
+            return .read(try await service.parseEnvFile(content: content))
+        } catch CoreServiceError.invalidArgument(let message) {
+            return .failed(Self.sentence(message))
+        } catch {
+            return .failed(Self.describe(error))
+        }
+    }
+
+    private enum EnvFileError: Error { case tooLarge, notAFile }
+
+    nonisolated private static func readBounded(_ url: URL) throws -> Data {
+        let values = try url.resourceValues(forKeys: [.isRegularFileKey])
+        guard values.isRegularFile == true else { throw EnvFileError.notAFile }
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        let data = try handle.read(upToCount: maxEnvFileBytes + 1) ?? Data()
+        guard data.count <= maxEnvFileBytes else { throw EnvFileError.tooLarge }
+        return data
+    }
+
     /// act, the Docker CLI and the container engine as the Core finds them;
     /// nil when the Core is not ready.
     func toolReadiness(refresh: Bool) async -> CoreToolReadiness? {
@@ -911,8 +954,10 @@ final class CoreHub {
         case failed(String)
     }
 
-    /// Starts a reviewed run once and makes it the workspace's local run.
-    func startLocalRun(workspaceID: UUID, prepared: CorePreparedLocalRun) async -> LocalRunStart {
+    /// Starts a reviewed run once with the values for its secrets and
+    /// variables, and makes it the workspace's local run.
+    func startLocalRun(workspaceID: UUID, prepared: CorePreparedLocalRun,
+                       secrets: [String: String] = [:], variables: [String: String] = [:]) async -> LocalRunStart {
         guard let confirmationID = prepared.confirmationID else { return .failed("This run can't start yet.") }
         // Another window of this workspace may have started one meanwhile;
         // replacing it would hide a run that keeps going.
@@ -923,7 +968,7 @@ final class CoreHub {
             return .failed("Runnir Core is not ready. Nothing was started.")
         }
         do {
-            let execution = try await service.confirmLocalRun(confirmationID: confirmationID)
+            let execution = try await service.confirmLocalRun(confirmationID: confirmationID, secrets: secrets, variables: variables)
             guard let session = sessions[workspaceID] else { return .failed("The workspace was closed.") }
             let model = LocalRunModel(executionID: execution.id, workspaceID: workspaceID, plan: prepared.plan)
             let name = (session.path as NSString).lastPathComponent
@@ -932,7 +977,7 @@ final class CoreHub {
             session.localRun = model
             model.follow(hub: self)
             return .started(model)
-        } catch CoreServiceError.failedPrecondition(let message) {
+        } catch CoreServiceError.failedPrecondition(let message), CoreServiceError.invalidArgument(let message) {
             return .failed(Self.sentence(message))
         } catch CoreServiceError.resourceExhausted {
             return .failed("Runnir Core has too many runs waiting. Try again when one finishes.")
@@ -1057,6 +1102,7 @@ final class CoreHub {
         switch action {
         case .cancel: now.status == "completed"
         case .rerun, .rerunFailed: now.runAttempt > before.runAttempt || now.status != "completed"
+        case .approveDeployments: now.status != "waiting"
         }
     }
 

@@ -91,6 +91,18 @@ struct PipelineLayoutTests {
                    htmlURL: nil, steps: [])
     }
 
+    @Test func hoveringAJobSaysItsStatus() {
+        let deploy = job("deploy-production", needs: ["build"], name: "Deploy to production")
+        let now = Date(timeIntervalSince1970: 100)
+        #expect(PipelineLayout.hint(for: deploy, matched: [runJob("Deploy to production", conclusion: "skipped")], readFailed: false, now: now)
+                == "Skipped in the latest run: its condition was not met, or a job it needs did not succeed\nNeeds build")
+        #expect(PipelineLayout.hint(for: job("test"), matched: [runJob("test", start: 0, end: 261)], readFailed: false, now: now)
+                == "Succeeded · 4m 21s")
+        #expect(PipelineLayout.hint(for: job("test"), matched: [], readFailed: true, now: now)
+                == "Status unknown: the latest run's jobs could not be read from GitHub")
+        #expect(PipelineLayout.hint(for: job("test"), matched: [], readFailed: false, now: now) == "Not in the latest run")
+    }
+
     @Test func columnsFollowNeeds() {
         let columns = PipelineLayout.columns([
             job("lint"), job("unit-tests"), job("build", needs: ["lint", "unit-tests"]),

@@ -104,7 +104,7 @@ struct StorageSettingsSection: View {
         Section("Job Logs") {
             Toggle("Keep job logs on this Mac", isOn: Binding(
                 get: { model.keepJobLogs },
-                set: { keep in if keep { Task { await model.setKeepJobLogs(true) } } else { confirming = .stopKeepingLogs } }))
+                set: { keep in if keep { Task { await model.setKeepJobLogs(true) } } else { confirming = .stopKeepingLogs } })).handPointer()
             Text("Logs of finished jobs open offline and are not downloaded again. They can contain output your workflows print; they stay in Runnir's folder on this Mac, up to 100 MB per workspace.")
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
         }

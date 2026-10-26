@@ -146,6 +146,11 @@ service RunnirCore {
   // Stops a queued or running execution; a local run's containers are
   // removed afterwards.
   rpc CancelExecution(CancelExecutionRequest) returns (CancelExecutionResponse);
+  // Parses a .env file the user chose, read by the app, to import values
+  // into Secrets and Variables. Nothing is expanded or run; values
+  // encrypted by dotenvx are flagged, not decrypted. INVALID_ARGUMENT for
+  // content larger than 1 MiB or not UTF-8.
+  rpc ParseEnvFile(ParseEnvFileRequest) returns (ParseEnvFileResponse);
 }
 
 message HealthCheckRequest {}
@@ -224,12 +229,19 @@ message Workflow {
   repeated DispatchInput dispatch_inputs = 6;
   // The file sets concurrency at the top level or in a job.
   bool concurrency = 7;
+  // Names of the secrets.X and vars.X the file reads, upper-cased.
+  repeated string secrets = 8;
+  repeated string variables = 9;
 }
 
 message Job {
   string id = 1;
   string name = 2;
   repeated string needs = 3;
+  // The job's if requires a workflow_dispatch run: it is started by hand.
+  bool manual = 4;
+  // The dispatch inputs that if fixes, by their declared names.
+  map<string, string> manual_inputs = 5;
 }
 
 message ListLaunchPresetsRequest {
@@ -860,6 +872,9 @@ enum RunAction {
   RUN_ACTION_RERUN = 2;
   // A new attempt of the failed and cancelled jobs and the jobs that need them.
   RUN_ACTION_RERUN_FAILED = 3;
+  // Approve the run's pending deployments the user may approve; the jobs
+  // waiting on them go on.
+  RUN_ACTION_APPROVE_DEPLOYMENTS = 4;
 }
 
 message PrepareRunActionRequest {
@@ -878,6 +893,8 @@ message PrepareRunActionResponse {
   repeated string problems = 4;
   // The run as GitHub reported it while preparing.
   WorkflowRun run = 5;
+  // For RUN_ACTION_APPROVE_DEPLOYMENTS: the environments that will be approved.
+  repeated string environments = 6;
 }
 
 message ConfirmRunActionRequest {
@@ -990,7 +1007,7 @@ message LocalRunPlan {
   string job_id = 5;
   repeated LocalRunJob jobs = 6;
   repeated LocalRunImage images = 7;
-  // Secrets the workflow reads. Local runs get none.
+  // Secrets the run reads, upper-cased; the values the user sets are passed.
   repeated string secrets = 8;
   // Differences from a GitHub run worth knowing before starting.
   repeated string notes = 9;
@@ -1004,6 +1021,11 @@ message LocalRunPlan {
   bool installed_act = 15;
   string engine_name = 16;
   string engine_context = 17;
+  // Variables (vars.X) the run reads, upper-cased.
+  repeated string variables = 18;
+  // The workflow reads secrets it does not name (toJSON(secrets), secrets:
+  // inherit); only the listed ones can be passed.
+  bool unnamed_secrets = 19;
 }
 
 message PrepareLocalRunRequest {
@@ -1029,6 +1051,12 @@ message PrepareLocalRunResponse {
 
 message ConfirmLocalRunRequest {
   string confirmation_id = 1;
+  // Values for the plan's secrets and variables, by name (any case). Only
+  // names in the plan are accepted: at most 100 of each, each value at most
+  // 48 KiB. They reach act through pipes, never a file, its command line or
+  // its environment, and are not logged or stored.
+  map<string, string> secrets = 2;
+  map<string, string> variables = 3;
 }
 
 message ConfirmLocalRunResponse {
@@ -1393,3 +1421,28 @@ message SetStoragePreferencesRequest {
 }
 
 message SetStoragePreferencesResponse {}
+
+message ParseEnvFileRequest {
+  // The file's bytes; the Core reads no path for this.
+  bytes content = 1;
+}
+
+message EnvEntry {
+  // Upper-cased.
+  string name = 1;
+  string value = 2;
+  // A dotenvx "encrypted:" value; `value` is empty.
+  bool encrypted = 3;
+  uint32 line = 4;
+}
+
+message EnvProblem {
+  uint32 line = 1;
+  string message = 2;
+}
+
+message ParseEnvFileResponse {
+  // In file order; a later entry for a name replaced an earlier one.
+  repeated EnvEntry entries = 1;
+  repeated EnvProblem problems = 2;
+}

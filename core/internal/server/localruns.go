@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -114,7 +116,53 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 	return out, nil
 }
 
+// The limits on values for one run; GitHub allows 48 KiB per secret.
+const (
+	maxRunValues    = 100
+	maxRunValueSize = 48 << 10
+)
+
+// runValues checks values against the names the plan reads and upper-cases them.
+func runValues(kind string, values map[string]string, names []string) (map[string]string, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	if len(values) > maxRunValues {
+		return nil, fmt.Errorf("at most %d %ss can be passed", maxRunValues, kind)
+	}
+	allowed := map[string]bool{}
+	for _, name := range names {
+		allowed[name] = true
+	}
+	out := make(map[string]string, len(values))
+	for name, value := range values {
+		upper := strings.ToUpper(name)
+		if !allowed[upper] {
+			return nil, fmt.Errorf("the workflow does not read the %s %s", kind, upper)
+		}
+		if _, twice := out[upper]; twice {
+			return nil, fmt.Errorf("the %s %s is given twice", kind, upper)
+		}
+		if len(value) > maxRunValueSize {
+			return nil, fmt.Errorf("the value of %s is larger than 48 KiB", upper)
+		}
+		out[upper] = value
+	}
+	return out, nil
+}
+
+// valuesSupported refuses values where act cannot get them (Windows).
+func valuesSupported(passesValues bool, request *corev1.ConfirmLocalRunRequest) error {
+	if !passesValues && (len(request.GetSecrets()) > 0 || len(request.GetVariables()) > 0) {
+		return status.Error(codes.FailedPrecondition, "secrets and variables reach act only on macOS and Linux")
+	}
+	return nil
+}
+
 func (s *service) ConfirmLocalRun(_ context.Context, request *corev1.ConfirmLocalRunRequest) (*corev1.ConfirmLocalRunResponse, error) {
+	if err := valuesSupported(localrun.PassesValues, request); err != nil {
+		return nil, err
+	}
 	approved, err := s.localRuns.Confirm(request.GetConfirmationId())
 	if err != nil {
 		return nil, status.Error(codes.FailedPrecondition, "this confirmation expired or was already used; review the run again")
@@ -130,6 +178,16 @@ func (s *service) ConfirmLocalRun(_ context.Context, request *corev1.ConfirmLoca
 	if err != nil || hex.EncodeToString(digest[:]) != approved.Spec.Plan.Digest {
 		return nil, status.Error(codes.FailedPrecondition, "the workflow file changed after the review; review the run again")
 	}
+	secrets, err := runValues("secret", request.GetSecrets(), approved.Spec.Plan.Secrets)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error()+"; review the run again")
+	}
+	variables, err := runValues("variable", request.GetVariables(), approved.Spec.Plan.Variables)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error()+"; review the run again")
+	}
+	spec := *approved.Spec
+	spec.Secrets, spec.Variables = secrets, variables
 
 	id, err := execution.NewID()
 	if err != nil {
@@ -143,7 +201,7 @@ func (s *service) ConfirmLocalRun(_ context.Context, request *corev1.ConfirmLoca
 	s.localOutputs.Create(id, info.ID, approved.Spec.Plan, approved.ActVersion, approved.Installed, approved.EngineName)
 	started, err := s.executions.StartJob(execution.Job{
 		ExecutionID: id, RepositoryID: info.ID, RepositoryPath: info.Path,
-		Workflow: approved.Workflow, Spec: approved.Spec,
+		Workflow: approved.Workflow, Spec: &spec,
 	})
 	if err != nil {
 		s.localOutputs.Remove(id)
@@ -249,7 +307,8 @@ func planMessage(approved localRunApproval) *corev1.LocalRunPlan {
 	plan := approved.Spec.Plan
 	out := &corev1.LocalRunPlan{
 		WorkflowId: plan.WorkflowID, WorkflowName: plan.WorkflowName, Events: plan.Events, Event: plan.Event,
-		JobId: plan.JobID, Secrets: plan.Secrets, Notes: plan.Notes, Blockers: plan.Blockers,
+		JobId: plan.JobID, Secrets: plan.Secrets, Variables: plan.Variables, UnnamedSecrets: plan.UnnamedSecrets,
+		Notes: plan.Notes, Blockers: plan.Blockers,
 		Cpus: uint32(max(plan.Limits.CPUs, 0)), MemoryBytes: plan.Limits.MemoryBytes,
 		TimeoutSeconds: uint32(plan.Limits.Timeout / time.Second),
 		ActVersion:     approved.ActVersion, InstalledAct: approved.Installed,

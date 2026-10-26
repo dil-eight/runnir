@@ -30,6 +30,10 @@ struct CoreJob: Equatable, Sendable {
     let id: String
     let name: String
     let needs: [String]
+    /// The job's if requires a workflow_dispatch run: it is started by hand,
+    /// with the inputs that if fixes.
+    var manual = false
+    var manualInputs: [String: String] = [:]
 }
 
 struct CoreWorkflow: Equatable, Identifiable, Sendable {
@@ -42,6 +46,9 @@ struct CoreWorkflow: Equatable, Identifiable, Sendable {
     var dispatchInputs: [CoreDispatchInput] = []
     /// The file sets concurrency at the top level or in a job.
     var concurrency = false
+    /// The secrets.X and vars.X names the file reads, upper-cased.
+    var secrets: [String] = []
+    var variables: [String] = []
 }
 
 /// A Run Workflow preset the repository shares in .runnir/launches, or, with
@@ -235,9 +242,14 @@ protocol CoreServicing: Sendable {
     /// single-use confirmation when nothing blocks it. Starts nothing.
     func prepareLocalRun(repositoryID: String, workflowID: String, jobID: String?, event: String?,
                          useInstalledAct: Bool) async throws -> CorePreparedLocalRun
-    /// Starts a prepared local run once. Throws `.failedPrecondition` when the
-    /// confirmation expired or was used, or the file changed after the review.
-    func confirmLocalRun(confirmationID: String) async throws -> CoreExecution
+    /// Starts a prepared local run once with the values for the plan's
+    /// secrets and variables. Throws `.failedPrecondition` when the
+    /// confirmation expired or was used, or the file changed after the
+    /// review, and `.invalidArgument` for a name the plan does not read.
+    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String]) async throws -> CoreExecution
+    /// Parses the bytes of a .env file the user chose; values encrypted by
+    /// dotenvx are flagged. The Core reads no path for this.
+    func parseEnvFile(content: Data) async throws -> CoreEnvFile
     /// A local run's state and the output lines after `after`.
     func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput
     func cancelExecution(executionID: String) async throws

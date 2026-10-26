@@ -10,6 +10,7 @@ struct RunOutcomeIcon: View {
             .font(.system(size: size))
             .foregroundStyle(color)
             .accessibilityLabel(outcome.label)
+            .help(outcome.label)
     }
 
     private var color: Color { Self.color(outcome) }
@@ -199,7 +200,7 @@ struct WorkspaceRunsView: View {
         ForEach(runs) { run in
             RunRow(run: run, selected: run.id == selectedRunID, pullRequest: run.link.pullRequest.flatMap { pullRequests[$0] },
                    newer: run.supersededBy.flatMap { runsByID[$0] })
-                .onTapGesture { selectedRunID = run.id }
+                .clickable().onTapGesture { selectedRunID = run.id }
         }
         if runs.isEmpty && session.githubAccess == .ok {
             Text(onlyCurrentBranch ? "No runs on this branch." : "No runs yet.")

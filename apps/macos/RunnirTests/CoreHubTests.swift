@@ -117,6 +117,9 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     var preparedProblems: [String] = []
     /// What GitHub answers a prepared dispatch with, when not `.ok`.
     var preparedAccess: CoreGitHubAccess = .ok
+    private var _dispatchRequests: [(workflowID: Int64, ref: String, inputs: [String: String])] = []
+    /// The workflow, ref and inputs of each prepared dispatch.
+    var dispatchRequests: [(workflowID: Int64, ref: String, inputs: [String: String])] { lock.withLock { _dispatchRequests } }
     private var _dispatchTargets: [String] = []
     /// Targets of refs, describe and prepare calls, in order.
     var dispatchTargets: [String] { lock.withLock { _dispatchTargets } }
@@ -134,6 +137,7 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     func prepareWorkflowDispatch(target: CoreGitHubTarget, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch {
         lock.withLock {
             _dispatchTargets.append(Self.key(target))
+            _dispatchRequests.append((workflowID, ref, inputs))
             if preparedAccess != .ok {
                 return CorePreparedDispatch(access: preparedAccess, dispatchID: nil, expiresAt: nil, problems: [], workflowPath: "")
             }
@@ -142,11 +146,13 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
                 : CorePreparedDispatch(access: .ok, dispatchID: nil, expiresAt: nil, problems: preparedProblems, workflowPath: ".github/workflows/ci.yml")
         }
     }
+    /// The run GitHub says a dispatch started, when it says.
+    var dispatchedRunID: Int64?
     func confirmWorkflowDispatch(dispatchID: String) async throws -> CoreDispatchResult {
         try lock.withLock {
             guard !_confirmed.contains(dispatchID) else { throw CoreServiceError.failedPrecondition("used") }
             _confirmed.append(dispatchID)
-            return CoreDispatchResult(access: .ok, dispatchedAt: Date(), runID: nil, rejection: nil)
+            return CoreDispatchResult(access: .ok, dispatchedAt: Date(), runID: dispatchedRunID, rejection: nil)
         }
     }
     // Logs and run actions
@@ -154,6 +160,8 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     var runActionProblems: [String] = []
     var runActionRejection: String?
     var preparedRun: CoreWorkflowRun?
+    /// The environments a prepared .approveDeployments names.
+    var runActionEnvironments: [String] = []
     private var _runActions: [CoreRunAction] = []
     private var _confirmedActions: [String] = []
     var runActions: [CoreRunAction] { lock.withLock { _runActions } }
@@ -165,7 +173,8 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         lock.withLock {
             _runActions.append(action)
             return runActionProblems.isEmpty
-                ? CorePreparedRunAction(access: .ok, actionID: "action_\(_runActions.count)", expiresAt: Date().addingTimeInterval(120), problems: [], run: preparedRun)
+                ? CorePreparedRunAction(access: .ok, actionID: "action_\(_runActions.count)", expiresAt: Date().addingTimeInterval(120), problems: [], run: preparedRun,
+                                        environments: runActionEnvironments)
                 : CorePreparedRunAction(access: .ok, actionID: nil, expiresAt: nil, problems: runActionProblems, run: preparedRun)
         }
     }
@@ -482,6 +491,13 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     var confirmLocalRunError: CoreServiceError?
     private var _confirmedLocalRuns: [String] = []
     var confirmedLocalRuns: [String] { lock.withLock { _confirmedLocalRuns } }
+    private var _confirmedValues: [(secrets: [String: String], variables: [String: String])] = []
+    var confirmedValues: [(secrets: [String: String], variables: [String: String])] { lock.withLock { _confirmedValues } }
+    /// What ParseEnvFile answers; nil throws `.notFound`.
+    var envFile: CoreEnvFile?
+    var envFileError: CoreServiceError?
+    private var _parsedContents: [Data] = []
+    var parsedContents: [Data] { lock.withLock { _parsedContents } }
     /// Answers to GetLocalRunOutput in order; the last one repeats.
     var localOutputs: [CoreLocalRunOutput] = []
     var localOutputError: CoreServiceError?
@@ -504,11 +520,12 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
             return preparedLocalRun
         }
     }
-    func confirmLocalRun(confirmationID: String) async throws -> CoreExecution {
+    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String]) async throws -> CoreExecution {
         try lock.withLock {
             if let confirmLocalRunError { throw confirmLocalRunError }
             guard !_confirmedLocalRuns.contains(confirmationID) else { throw CoreServiceError.failedPrecondition("used") }
             _confirmedLocalRuns.append(confirmationID)
+            _confirmedValues.append((secrets, variables))
             return CoreExecution(id: "exec_1", repositoryID: "repo", state: .running)
         }
     }
@@ -522,6 +539,14 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     }
     func cancelExecution(executionID: String) async throws {
         lock.withLock { _cancelledExecutions.append(executionID) }
+    }
+    func parseEnvFile(content: Data) async throws -> CoreEnvFile {
+        try lock.withLock {
+            _parsedContents.append(content)
+            if let envFileError { throw envFileError }
+            guard let envFile else { throw CoreServiceError.notFound }
+            return envFile
+        }
     }
 
     func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error> {

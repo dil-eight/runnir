@@ -25,6 +25,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"runnir/core/internal/references"
 	"runnir/core/internal/repository"
 )
 
@@ -437,6 +438,8 @@ func readBounded(file string, limit int64) ([]byte, error) {
 
 func parse(id string, data []byte) repository.Workflow {
 	workflow := repository.Workflow{ID: id, Name: id}
+	names := references.Find(data)
+	workflow.Secrets, workflow.Variables = names.Secrets, names.Variables
 	fail := func(message string) repository.Workflow {
 		workflow.ParseError = message
 		return workflow
@@ -457,6 +460,8 @@ func parse(id string, data []byte) repository.Workflow {
 		return fail("workflow must be a mapping")
 	}
 
+	// Each job's if, by index, to find the jobs started by hand.
+	conditions := map[int]string{}
 	for i := 0; i+1 < len(top.Content); i += 2 {
 		key, value := top.Content[i], resolve(top.Content[i+1])
 		switch key.Value {
@@ -467,12 +472,13 @@ func parse(id string, data []byte) repository.Workflow {
 		case "on":
 			workflow.Triggers = triggers(value)
 		case "jobs":
-			workflow.Jobs = jobs(value, &workflow)
+			workflow.Jobs = jobs(value, &workflow, conditions)
 		case "concurrency":
 			workflow.Concurrency = true
 		}
 	}
 	workflow.DispatchInputs = dispatchOf(top).Inputs
+	markManualJobs(&workflow, conditions)
 	return workflow
 }
 
@@ -507,7 +513,7 @@ func scalarList(node *yaml.Node) []string {
 	return nil
 }
 
-func jobs(node *yaml.Node, workflow *repository.Workflow) []repository.Job {
+func jobs(node *yaml.Node, workflow *repository.Workflow, conditions map[int]string) []repository.Job {
 	if node.Kind != yaml.MappingNode {
 		return nil
 	}
@@ -528,6 +534,10 @@ func jobs(node *yaml.Node, workflow *repository.Workflow) []repository.Job {
 					}
 				case "needs":
 					job.Needs = scalarList(value)
+				case "if":
+					if value.Kind == yaml.ScalarNode {
+						conditions[len(out)] = value.Value
+					}
 				case "concurrency":
 					workflow.Concurrency = true
 				}

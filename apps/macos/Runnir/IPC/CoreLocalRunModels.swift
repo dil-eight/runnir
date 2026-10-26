@@ -90,6 +90,9 @@ struct CoreLocalRunPlan: Equatable, Sendable {
     var jobs: [CoreLocalRunJob] = []
     var images: [CoreLocalRunImage] = []
     var secrets: [String] = []
+    var variables: [String] = []
+    /// The workflow reads secrets it does not name; only listed ones are passed.
+    var unnamedSecrets = false
     var notes: [String] = []
     /// Why the run cannot start now.
     var blockers: [String] = []
@@ -100,6 +103,26 @@ struct CoreLocalRunPlan: Equatable, Sendable {
     var installedAct = false
     var engineName = ""
     var engineContext = ""
+}
+
+/// One NAME=value of a .env file, as the Core read it.
+struct CoreEnvEntry: Equatable, Sendable {
+    /// Upper-cased.
+    let name: String
+    let value: String
+    /// Encrypted by dotenvx; `value` is empty.
+    let encrypted: Bool
+    let line: Int
+}
+
+struct CoreEnvProblem: Equatable, Sendable {
+    let line: Int
+    let message: String
+}
+
+struct CoreEnvFile: Equatable, Sendable {
+    let entries: [CoreEnvEntry]
+    let problems: [CoreEnvProblem]
 }
 
 struct CorePreparedLocalRun: Equatable, Sendable {

@@ -235,7 +235,7 @@ struct PullRequestShortcutSettingsSection: View {
 
     var body: some View {
         Section("Pull Requests") {
-            Toggle("Open the Pull Requests window with a shortcut", isOn: $enabled)
+            Toggle("Open the Pull Requests window with a shortcut", isOn: $enabled).handPointer()
                 .onChange(of: enabled) { center.apply(enabled: enabled, shortcut: shortcut) }
             HStack {
                 Text("Shortcut")

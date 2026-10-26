@@ -54,6 +54,7 @@ struct SettingsOverlay: View {
             // The window behind is blurred by `settingsOverlay`; this dims it.
             Color(red: 0.04, green: 0.05, blue: 0.06).opacity(0.32)
                 .contentShape(Rectangle())
+                // No hand pointer: a click outside the panel closes it.
                 .onTapGesture { desktop.closeSettings() }
                 .accessibilityHidden(true)
             panel

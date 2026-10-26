@@ -14,6 +14,11 @@
 /// tag the contract changes in place (AGENTS.md); from then on additive changes
 /// keep this package and breaking changes require a new package version.
 
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
+import Foundation
+#endif
 import SwiftProtobuf
 
 // If the compiler emits an error on this type, it is because this file
@@ -551,6 +556,10 @@ nonisolated enum Runnir_Core_V1_RunAction: SwiftProtobuf.Enum, Swift.CaseIterabl
 
   /// A new attempt of the failed and cancelled jobs and the jobs that need them.
   case rerunFailed // = 3
+
+  /// Approve the run's pending deployments the user may approve; the jobs
+  /// waiting on them go on.
+  case approveDeployments // = 4
   case UNRECOGNIZED(Int)
 
   init() {
@@ -563,6 +572,7 @@ nonisolated enum Runnir_Core_V1_RunAction: SwiftProtobuf.Enum, Swift.CaseIterabl
     case 1: self = .cancel
     case 2: self = .rerun
     case 3: self = .rerunFailed
+    case 4: self = .approveDeployments
     default: self = .UNRECOGNIZED(rawValue)
     }
   }
@@ -573,6 +583,7 @@ nonisolated enum Runnir_Core_V1_RunAction: SwiftProtobuf.Enum, Swift.CaseIterabl
     case .cancel: return 1
     case .rerun: return 2
     case .rerunFailed: return 3
+    case .approveDeployments: return 4
     case .UNRECOGNIZED(let i): return i
     }
   }
@@ -583,6 +594,7 @@ nonisolated enum Runnir_Core_V1_RunAction: SwiftProtobuf.Enum, Swift.CaseIterabl
     .cancel,
     .rerun,
     .rerunFailed,
+    .approveDeployments,
   ]
 
 }
@@ -1277,6 +1289,11 @@ nonisolated struct Runnir_Core_V1_Workflow: Sendable {
   /// The file sets concurrency at the top level or in a job.
   var concurrency: Bool = false
 
+  /// Names of the secrets.X and vars.X the file reads, upper-cased.
+  var secrets: [String] = []
+
+  var variables: [String] = []
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -1292,6 +1309,12 @@ nonisolated struct Runnir_Core_V1_Job: Sendable {
   var name: String = String()
 
   var needs: [String] = []
+
+  /// The job's if requires a workflow_dispatch run: it is started by hand.
+  var manual: Bool = false
+
+  /// The dispatch inputs that if fixes, by their declared names.
+  var manualInputs: Dictionary<String,String> = [:]
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -2813,6 +2836,9 @@ nonisolated struct Runnir_Core_V1_PrepareRunActionResponse: Sendable {
   /// Clears the value of `run`. Subsequent reads from it will return its default value.
   mutating func clearRun() {self._run = nil}
 
+  /// For RUN_ACTION_APPROVE_DEPLOYMENTS: the environments that will be approved.
+  var environments: [String] = []
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -3110,7 +3136,7 @@ nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
     set {_uniqueStorage()._images = newValue}
   }
 
-  /// Secrets the workflow reads. Local runs get none.
+  /// Secrets the run reads, upper-cased; the values the user sets are passed.
   var secrets: [String] {
     get {_storage._secrets}
     set {_uniqueStorage()._secrets = newValue}
@@ -3162,6 +3188,19 @@ nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
   var engineContext: String {
     get {_storage._engineContext}
     set {_uniqueStorage()._engineContext = newValue}
+  }
+
+  /// Variables (vars.X) the run reads, upper-cased.
+  var variables: [String] {
+    get {_storage._variables}
+    set {_uniqueStorage()._variables = newValue}
+  }
+
+  /// The workflow reads secrets it does not name (toJSON(secrets), secrets:
+  /// inherit); only the listed ones can be passed.
+  var unnamedSecrets: Bool {
+    get {_storage._unnamedSecrets}
+    set {_uniqueStorage()._unnamedSecrets = newValue}
   }
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
@@ -3246,6 +3285,14 @@ nonisolated struct Runnir_Core_V1_ConfirmLocalRunRequest: Sendable {
   // methods supported on all messages.
 
   var confirmationID: String = String()
+
+  /// Values for the plan's secrets and variables, by name (any case). Only
+  /// names in the plan are accepted: at most 100 of each, each value at most
+  /// 48 KiB. They reach act through pipes, never a file, its command line or
+  /// its environment, and are not logged or stored.
+  var secrets: Dictionary<String,String> = [:]
+
+  var variables: Dictionary<String,String> = [:]
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -4093,6 +4140,68 @@ nonisolated struct Runnir_Core_V1_SetStoragePreferencesResponse: Sendable {
   init() {}
 }
 
+nonisolated struct Runnir_Core_V1_ParseEnvFileRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// The file's bytes; the Core reads no path for this.
+  var content: Data = Data()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_EnvEntry: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// Upper-cased.
+  var name: String = String()
+
+  var value: String = String()
+
+  /// A dotenvx "encrypted:" value; `value` is empty.
+  var encrypted: Bool = false
+
+  var line: UInt32 = 0
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_EnvProblem: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var line: UInt32 = 0
+
+  var message: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_ParseEnvFileResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// In file order; a later entry for a name replaced an earlier one.
+  var entries: [Runnir_Core_V1_EnvEntry] = []
+
+  var problems: [Runnir_Core_V1_EnvProblem] = []
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
 fileprivate nonisolated let _protobuf_package = "runnir.core.v1"
@@ -4134,7 +4243,7 @@ nonisolated extension Runnir_Core_V1_LogLineKind: SwiftProtobuf._ProtoNameProvid
 }
 
 nonisolated extension Runnir_Core_V1_RunAction: SwiftProtobuf._ProtoNameProviding {
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0RUN_ACTION_UNSPECIFIED\0\u{1}RUN_ACTION_CANCEL\0\u{1}RUN_ACTION_RERUN\0\u{1}RUN_ACTION_RERUN_FAILED\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0RUN_ACTION_UNSPECIFIED\0\u{1}RUN_ACTION_CANCEL\0\u{1}RUN_ACTION_RERUN\0\u{1}RUN_ACTION_RERUN_FAILED\0\u{1}RUN_ACTION_APPROVE_DEPLOYMENTS\0")
 }
 
 nonisolated extension Runnir_Core_V1_ToolState: SwiftProtobuf._ProtoNameProviding {
@@ -4530,7 +4639,7 @@ nonisolated extension Runnir_Core_V1_ListWorkflowsResponse: SwiftProtobuf.Messag
 
 nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".Workflow"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}triggers\0\u{1}jobs\0\u{3}parse_error\0\u{3}dispatch_inputs\0\u{1}concurrency\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}triggers\0\u{1}jobs\0\u{3}parse_error\0\u{3}dispatch_inputs\0\u{1}concurrency\0\u{1}secrets\0\u{1}variables\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -4545,6 +4654,8 @@ nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProto
       case 5: try { try decoder.decodeSingularStringField(value: &self.parseError) }()
       case 6: try { try decoder.decodeRepeatedMessageField(value: &self.dispatchInputs) }()
       case 7: try { try decoder.decodeSingularBoolField(value: &self.concurrency) }()
+      case 8: try { try decoder.decodeRepeatedStringField(value: &self.secrets) }()
+      case 9: try { try decoder.decodeRepeatedStringField(value: &self.variables) }()
       default: break
       }
     }
@@ -4572,6 +4683,12 @@ nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProto
     if self.concurrency != false {
       try visitor.visitSingularBoolField(value: self.concurrency, fieldNumber: 7)
     }
+    if !self.secrets.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.secrets, fieldNumber: 8)
+    }
+    if !self.variables.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.variables, fieldNumber: 9)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -4583,6 +4700,8 @@ nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProto
     if lhs.parseError != rhs.parseError {return false}
     if lhs.dispatchInputs != rhs.dispatchInputs {return false}
     if lhs.concurrency != rhs.concurrency {return false}
+    if lhs.secrets != rhs.secrets {return false}
+    if lhs.variables != rhs.variables {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -4590,7 +4709,7 @@ nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProto
 
 nonisolated extension Runnir_Core_V1_Job: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".Job"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}needs\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}needs\0\u{1}manual\0\u{3}manual_inputs\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -4601,6 +4720,8 @@ nonisolated extension Runnir_Core_V1_Job: SwiftProtobuf.Message, SwiftProtobuf._
       case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
       case 3: try { try decoder.decodeRepeatedStringField(value: &self.needs) }()
+      case 4: try { try decoder.decodeSingularBoolField(value: &self.manual) }()
+      case 5: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.manualInputs) }()
       default: break
       }
     }
@@ -4616,6 +4737,12 @@ nonisolated extension Runnir_Core_V1_Job: SwiftProtobuf.Message, SwiftProtobuf._
     if !self.needs.isEmpty {
       try visitor.visitRepeatedStringField(value: self.needs, fieldNumber: 3)
     }
+    if self.manual != false {
+      try visitor.visitSingularBoolField(value: self.manual, fieldNumber: 4)
+    }
+    if !self.manualInputs.isEmpty {
+      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.manualInputs, fieldNumber: 5)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -4623,6 +4750,8 @@ nonisolated extension Runnir_Core_V1_Job: SwiftProtobuf.Message, SwiftProtobuf._
     if lhs.id != rhs.id {return false}
     if lhs.name != rhs.name {return false}
     if lhs.needs != rhs.needs {return false}
+    if lhs.manual != rhs.manual {return false}
+    if lhs.manualInputs != rhs.manualInputs {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -7373,7 +7502,7 @@ nonisolated extension Runnir_Core_V1_PrepareRunActionRequest: SwiftProtobuf.Mess
 
 nonisolated extension Runnir_Core_V1_PrepareRunActionResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".PrepareRunActionResponse"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{3}action_id\0\u{3}expires_at\0\u{1}problems\0\u{1}run\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{3}action_id\0\u{3}expires_at\0\u{1}problems\0\u{1}run\0\u{1}environments\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -7386,6 +7515,7 @@ nonisolated extension Runnir_Core_V1_PrepareRunActionResponse: SwiftProtobuf.Mes
       case 3: try { try decoder.decodeSingularMessageField(value: &self._expiresAt) }()
       case 4: try { try decoder.decodeRepeatedStringField(value: &self.problems) }()
       case 5: try { try decoder.decodeSingularMessageField(value: &self._run) }()
+      case 6: try { try decoder.decodeRepeatedStringField(value: &self.environments) }()
       default: break
       }
     }
@@ -7411,6 +7541,9 @@ nonisolated extension Runnir_Core_V1_PrepareRunActionResponse: SwiftProtobuf.Mes
     try { if let v = self._run {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
     } }()
+    if !self.environments.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.environments, fieldNumber: 6)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -7420,6 +7553,7 @@ nonisolated extension Runnir_Core_V1_PrepareRunActionResponse: SwiftProtobuf.Mes
     if lhs._expiresAt != rhs._expiresAt {return false}
     if lhs.problems != rhs.problems {return false}
     if lhs._run != rhs._run {return false}
+    if lhs.environments != rhs.environments {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -7897,7 +8031,7 @@ nonisolated extension Runnir_Core_V1_LocalRunImage: SwiftProtobuf.Message, Swift
 
 nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".LocalRunPlan"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}workflow_name\0\u{1}events\0\u{1}event\0\u{3}job_id\0\u{1}jobs\0\u{1}images\0\u{1}secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}workflow_name\0\u{1}events\0\u{1}event\0\u{3}job_id\0\u{1}jobs\0\u{1}images\0\u{1}secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0\u{1}variables\0\u{3}unnamed_secrets\0")
 
   fileprivate class _StorageClass {
     var _workflowID: String = String()
@@ -7917,6 +8051,8 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
     var _installedAct: Bool = false
     var _engineName: String = String()
     var _engineContext: String = String()
+    var _variables: [String] = []
+    var _unnamedSecrets: Bool = false
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -7944,6 +8080,8 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       _installedAct = source._installedAct
       _engineName = source._engineName
       _engineContext = source._engineContext
+      _variables = source._variables
+      _unnamedSecrets = source._unnamedSecrets
     }
   }
 
@@ -7979,6 +8117,8 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         case 15: try { try decoder.decodeSingularBoolField(value: &_storage._installedAct) }()
         case 16: try { try decoder.decodeSingularStringField(value: &_storage._engineName) }()
         case 17: try { try decoder.decodeSingularStringField(value: &_storage._engineContext) }()
+        case 18: try { try decoder.decodeRepeatedStringField(value: &_storage._variables) }()
+        case 19: try { try decoder.decodeSingularBoolField(value: &_storage._unnamedSecrets) }()
         default: break
         }
       }
@@ -8038,6 +8178,12 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       if !_storage._engineContext.isEmpty {
         try visitor.visitSingularStringField(value: _storage._engineContext, fieldNumber: 17)
       }
+      if !_storage._variables.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._variables, fieldNumber: 18)
+      }
+      if _storage._unnamedSecrets != false {
+        try visitor.visitSingularBoolField(value: _storage._unnamedSecrets, fieldNumber: 19)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -8064,6 +8210,8 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         if _storage._installedAct != rhs_storage._installedAct {return false}
         if _storage._engineName != rhs_storage._engineName {return false}
         if _storage._engineContext != rhs_storage._engineContext {return false}
+        if _storage._variables != rhs_storage._variables {return false}
+        if _storage._unnamedSecrets != rhs_storage._unnamedSecrets {return false}
         return true
       }
       if !storagesAreEqual {return false}
@@ -8174,7 +8322,7 @@ nonisolated extension Runnir_Core_V1_PrepareLocalRunResponse: SwiftProtobuf.Mess
 
 nonisolated extension Runnir_Core_V1_ConfirmLocalRunRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ConfirmLocalRunRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}confirmation_id\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}confirmation_id\0\u{1}secrets\0\u{1}variables\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -8183,6 +8331,8 @@ nonisolated extension Runnir_Core_V1_ConfirmLocalRunRequest: SwiftProtobuf.Messa
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.confirmationID) }()
+      case 2: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.secrets) }()
+      case 3: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.variables) }()
       default: break
       }
     }
@@ -8192,11 +8342,19 @@ nonisolated extension Runnir_Core_V1_ConfirmLocalRunRequest: SwiftProtobuf.Messa
     if !self.confirmationID.isEmpty {
       try visitor.visitSingularStringField(value: self.confirmationID, fieldNumber: 1)
     }
+    if !self.secrets.isEmpty {
+      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.secrets, fieldNumber: 2)
+    }
+    if !self.variables.isEmpty {
+      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.variables, fieldNumber: 3)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_ConfirmLocalRunRequest, rhs: Runnir_Core_V1_ConfirmLocalRunRequest) -> Bool {
     if lhs.confirmationID != rhs.confirmationID {return false}
+    if lhs.secrets != rhs.secrets {return false}
+    if lhs.variables != rhs.variables {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -9838,6 +9996,151 @@ nonisolated extension Runnir_Core_V1_SetStoragePreferencesResponse: SwiftProtobu
   }
 
   static func ==(lhs: Runnir_Core_V1_SetStoragePreferencesResponse, rhs: Runnir_Core_V1_SetStoragePreferencesResponse) -> Bool {
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ParseEnvFileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ParseEnvFileRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}content\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularBytesField(value: &self.content) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.content.isEmpty {
+      try visitor.visitSingularBytesField(value: self.content, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ParseEnvFileRequest, rhs: Runnir_Core_V1_ParseEnvFileRequest) -> Bool {
+    if lhs.content != rhs.content {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_EnvEntry: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".EnvEntry"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}name\0\u{1}value\0\u{1}encrypted\0\u{1}line\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.value) }()
+      case 3: try { try decoder.decodeSingularBoolField(value: &self.encrypted) }()
+      case 4: try { try decoder.decodeSingularUInt32Field(value: &self.line) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.name.isEmpty {
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 1)
+    }
+    if !self.value.isEmpty {
+      try visitor.visitSingularStringField(value: self.value, fieldNumber: 2)
+    }
+    if self.encrypted != false {
+      try visitor.visitSingularBoolField(value: self.encrypted, fieldNumber: 3)
+    }
+    if self.line != 0 {
+      try visitor.visitSingularUInt32Field(value: self.line, fieldNumber: 4)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_EnvEntry, rhs: Runnir_Core_V1_EnvEntry) -> Bool {
+    if lhs.name != rhs.name {return false}
+    if lhs.value != rhs.value {return false}
+    if lhs.encrypted != rhs.encrypted {return false}
+    if lhs.line != rhs.line {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_EnvProblem: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".EnvProblem"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}line\0\u{1}message\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt32Field(value: &self.line) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.message) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.line != 0 {
+      try visitor.visitSingularUInt32Field(value: self.line, fieldNumber: 1)
+    }
+    if !self.message.isEmpty {
+      try visitor.visitSingularStringField(value: self.message, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_EnvProblem, rhs: Runnir_Core_V1_EnvProblem) -> Bool {
+    if lhs.line != rhs.line {return false}
+    if lhs.message != rhs.message {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ParseEnvFileResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ParseEnvFileResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}entries\0\u{1}problems\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeRepeatedMessageField(value: &self.entries) }()
+      case 2: try { try decoder.decodeRepeatedMessageField(value: &self.problems) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.entries.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.entries, fieldNumber: 1)
+    }
+    if !self.problems.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.problems, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ParseEnvFileResponse, rhs: Runnir_Core_V1_ParseEnvFileResponse) -> Bool {
+    if lhs.entries != rhs.entries {return false}
+    if lhs.problems != rhs.problems {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
