@@ -4,21 +4,19 @@ Status: design/handoff work packages, updated 2026-10-15. Current Pen includes M
 
 ## Canvas Organization
 
-Treat the following as named canvas zones, not assumptions that Pen has a particular page/tab feature:
+Since 2026-10-25 the canvas has five top-level container frames, stacked top to bottom (Pen has no page or tab feature, so containers are the navigation; the layers panel shows five nodes instead of every frame):
 
-| Zone | Content |
+| Container | Content |
 | --- | --- |
-| 00 Brief and flow index | MVP scope, screen IDs, journey/state index and links to these documents |
-| 01 Foundations | Existing brand reference, semantic tokens, light/dark and native primitive examples |
-| 02 Components | C01-C31 masters/variants as justified by actual reuse |
-| 03 MVP workspace | S09 and S14-S18: splash/Manager, local editor, environments/portable presets and recovery |
-| 04 MVP GitHub | S02-S08, auth/dashboard/discovery/dispatch/inspector journeys |
-| 05 MVP local execution | S10-S11, readiness/approval/output/cleanup states |
-| 06 MVP settings | S12 and account/tool/folder/data-management states |
-| 07 Review and handoff | Compact/standard/wide and light/dark comparisons, unresolved questions and approved snapshots |
-| Future concepts | Existing Assistant Home/Chat and Pipeline; retained outside the MVP acceptance set |
+| 00 · Index | Brief and flow index card with screen IDs and drawn states, and a canvas map with the number of frames in each container |
+| 01 · Foundations | Brand reference, semantic tokens (dark and light) |
+| 02 · Components | Component masters (C01 Sidebar, C26 pipeline jobs, C12 run rows, C27 menu bar glyph and the masters sheet) |
+| 03 · Screens | One container per user journey, A to G, each with a heading and a flow line, then `Row — …` groups with a caption above a strip of frames in flow order |
+| 04 · Future concepts | Assistant Home, Pipeline and Assistant Chat; retained outside the MVP acceptance set |
 
-Before each edit re-read the live document, confirm frame IDs and find empty space. Do not rename/move/delete collaborative content merely to make this organization literal. Add a new MVP area without overlapping existing concepts; any later reorganization should preserve references/assets.
+Journeys, in order: A Launch and Workspace Manager (S14, S15) · B Overview and GitHub connection (S03, S02) · C Workflows (S05, S06) · D Runs (S07, S08, runs linked to pull requests and commits) · E Workspace (S09, S10, S11, S18) · F Menu bar and notifications (S19) · G Settings and support (S12, S13). Settings and support stay last.
+
+To add a screen: re-read the live document, put the frame in the journey of its sidebar section and in the row of its surface (a new row gets a caption; a row holds at most five frames, the sixth starts a new row), after the screens it follows in the flow, and move it with `Move`, never copy-paste, so ids and component references survive. A new sidebar section gets a new journey container before G. After adding, update the canvas map on the index card. Frames in the layout containers are positioned by layout, so do not set their x and y.
 
 Name screen frames Sxx / Surface / State / Theme / Window, for example S09 / Local Workspace / Invalid YAML / Dark / 1280x800. Use Cxx for component masters and Oxx for overlay samples. Keep annotations outside app viewports and distinguish design notes from user-facing copy.
 
