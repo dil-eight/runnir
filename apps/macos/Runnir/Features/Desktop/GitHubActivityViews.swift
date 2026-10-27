@@ -134,6 +134,7 @@ struct WorkspaceRunsView: View {
     @State private var showingSuperseded = false
     @State private var expanded: Set<String> = []
     @State private var query = ""
+    @State private var statuses: Set<RunStatusFilter> = []
 
     private var branch: String? { onlyCurrentBranch && !session.branch.isEmpty ? session.branch : nil }
     private var runsByID: [Int64: CoreWorkflowRun] {
@@ -144,6 +145,12 @@ struct WorkspaceRunsView: View {
         return session.runs.filter { $0.branch == branch }
     }
     private var searching: Bool { RunSearch.isActive(query) }
+    /// A search or a status filter narrows the list to the saved runs, all of them.
+    private var narrowing: Bool { searching || !statuses.isEmpty }
+    /// Runs per status that match the typed query and the branch filter.
+    private var statusCounts: [RunStatusFilter: Int] {
+        RunStatusFilter.counts(RunPresentation.matching(session.runs, branch: branch, query: query))
+    }
     /// Every run saved on this Mac, which a search covers.
     private var savedRuns: Int { max(session.cachedRuns, session.runs.count) }
     private var pullRequests: [Int64: CoreChangePullRequest] { RunPresentation.pullRequests(session.changes) }
@@ -174,8 +181,8 @@ struct WorkspaceRunsView: View {
                         case .list: listRows
                         case .byChange: changeBlocks
                         }
-                        // A search reads the saved runs only: loading older ones from GitHub waits for the search to end.
-                        if !searching { OlderRunsFooter(session: session, hub: hub) }
+                        // A search or a filter reads the saved runs only: loading older ones from GitHub waits until it ends.
+                        if !narrowing { OlderRunsFooter(session: session, hub: hub) }
                     }.padding(6)
                 }
             }
@@ -186,8 +193,8 @@ struct WorkspaceRunsView: View {
         .onAppear { if selectedRunID == nil { selectedRunID = session.runs.first?.id } }
         // Runs the cache gets while the search is open (a sync, or a window that
         // opened with an empty cache) are covered too.
-        .task(id: SavedRunsSearch(searching: searching, cachedRuns: session.cachedRuns)) {
-            if searching {
+        .task(id: SavedRunsSearch(searching: narrowing, cachedRuns: session.cachedRuns)) {
+            if narrowing {
                 await hub.loadSavedRuns(workspaceID: session.workspaceID)
             } else {
                 await hub.endSavedRunsSearch(workspaceID: session.workspaceID)
@@ -198,7 +205,11 @@ struct WorkspaceRunsView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             modeRow
-            searchField
+            HStack(spacing: 6) {
+                searchField
+                StatusFilterButton(statuses: $statuses, counts: statusCounts, query: query)
+            }
+            if !statuses.isEmpty { StatusChips(statuses: $statuses) }
         }
         .padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 4)
     }
@@ -243,9 +254,16 @@ struct WorkspaceRunsView: View {
     @ViewBuilder private func searchNote(found: Int, noun: String, summary: String) -> some View {
         if found == 0 {
             VStack(alignment: .leading, spacing: 6) {
-                Text("No \(noun) match \u{201C}\(query.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}.")
+                if searching {
+                    Text("No \(noun) match \u{201C}\(query.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}\(statuses.isEmpty ? "" : " and the chosen statuses").")
+                } else {
+                    Text("No \(noun) have the chosen statuses.")
+                }
                 Text(summary).foregroundStyle(RunnirTheme.mutedForeground)
-                Button("Clear search") { query = "" }.buttonStyle(.link).pointerStyle(.link)
+                HStack(spacing: 12) {
+                    if searching { Button("Clear search") { query = "" }.buttonStyle(.link).pointerStyle(.link) }
+                    if !statuses.isEmpty { Button("Clear statuses") { statuses = [] }.buttonStyle(.link).pointerStyle(.link) }
+                }
             }
             .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(12)
         } else {
@@ -255,8 +273,8 @@ struct WorkspaceRunsView: View {
     }
 
     @ViewBuilder private var listRows: some View {
-        let runs = RunPresentation.list(session.runs, branch: branch, query: query, showingSuperseded: showingSuperseded)
-        if searching {
+        let runs = RunPresentation.list(session.runs, branch: branch, query: query, statuses: statuses, showingSuperseded: showingSuperseded)
+        if narrowing {
             searchNote(found: runs.count, noun: "runs",
                        summary: RunSearch.summary(matches: runs.count, saved: savedRuns, historyComplete: session.historyComplete))
         }
@@ -265,12 +283,12 @@ struct WorkspaceRunsView: View {
                    newer: run.supersededBy.flatMap { runsByID[$0] })
                 .clickable().onTapGesture { selectedRunID = run.id }
         }
-        if runs.isEmpty && !searching && session.githubAccess == .ok {
+        if runs.isEmpty && !narrowing && session.githubAccess == .ok {
             Text(onlyCurrentBranch ? "No runs on this branch." : "No runs yet.")
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(12)
         }
         let hidden = RunPresentation.hiddenCount(branchRuns)
-        if !searching, showingSuperseded || hidden > 0 {
+        if !narrowing, showingSuperseded || hidden > 0 {
             Button(showingSuperseded ? "Hide superseded runs" : "\(hidden) superseded \(hidden == 1 ? "run" : "runs") hidden · Show") {
                 showingSuperseded.toggle()
             }
@@ -280,8 +298,8 @@ struct WorkspaceRunsView: View {
     }
 
     @ViewBuilder private var changeBlocks: some View {
-        let changes = RunPresentation.changes(session.changes, runs: runsByID, branch: branch, query: query)
-        if searching {
+        let changes = RunPresentation.changes(session.changes, runs: runsByID, branch: branch, query: query, statuses: statuses)
+        if narrowing {
             searchNote(found: changes.count, noun: "changes",
                        summary: "Showing \(changes.count) of \(session.changes.count) changes" + (session.historyComplete ? "" : ". Older runs are on GitHub."))
         }
@@ -291,7 +309,7 @@ struct WorkspaceRunsView: View {
                            workflowName: workflowName, select: { selectedRunID = $0 },
                            addConcurrency: addConcurrency, dismissHint: dismissHint)
         }
-        if changes.isEmpty && !searching && session.githubAccess == .ok {
+        if changes.isEmpty && !narrowing && session.githubAccess == .ok {
             Text(onlyCurrentBranch ? "No runs on this branch." : "No runs yet.")
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(12)
         }

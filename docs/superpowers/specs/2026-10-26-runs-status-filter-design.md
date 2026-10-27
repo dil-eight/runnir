@@ -1,6 +1,6 @@
 # Status filter on the runs list (B42)
 
-Status: design agreed, states drawn in Pen (S07 Runs list: menu open, filters applied), not implemented.
+Status: built in the app (chips, menu, counts, the mapping and its tests); the mapping and counts move to the Core with B40. States drawn in Pen (S07 Runs list: menu open, filters applied).
 
 ## Behaviour
 

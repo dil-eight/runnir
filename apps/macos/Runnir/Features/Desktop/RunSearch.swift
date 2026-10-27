@@ -70,17 +70,31 @@ extension RunPresentation {
     /// `query`. Without a query, completed superseded runs stay hidden unless
     /// asked for; a search shows every match, because hiding one would make a
     /// run that exists look missing.
-    static func list(_ runs: [CoreWorkflowRun], branch: String?, query: String, showingSuperseded: Bool) -> [CoreWorkflowRun] {
+    static func list(_ runs: [CoreWorkflowRun], branch: String?, query: String, statuses: Set<RunStatusFilter> = [],
+                     showingSuperseded: Bool) -> [CoreWorkflowRun] {
         let onBranch = branch.map { branch in runs.filter { $0.branch == branch } } ?? runs
-        guard RunSearch.isActive(query) else { return visible(onBranch, showingSuperseded: showingSuperseded) }
+        guard RunSearch.isActive(query) || !statuses.isEmpty else { return visible(onBranch, showingSuperseded: showingSuperseded) }
+        return RunStatusFilter.filter(RunSearch.filter(onBranch, query: query), statuses: statuses)
+    }
+
+    /// The runs on `branch` (all for nil) that match `query`, whatever their
+    /// status: what the status menu counts.
+    static func matching(_ runs: [CoreWorkflowRun], branch: String?, query: String) -> [CoreWorkflowRun] {
+        let onBranch = branch.map { branch in runs.filter { $0.branch == branch } } ?? runs
         return RunSearch.filter(onBranch, query: query)
     }
 
-    /// The changes with a run on `branch` (all for nil) that match `query`.
-    static func changes(_ changes: [CoreRunChange], runs: [Int64: CoreWorkflowRun], branch: String?, query: String) -> [CoreRunChange] {
+    /// The changes with a run on `branch` (all for nil) that match `query`
+    /// and have a run with one of `statuses`.
+    static func changes(_ changes: [CoreRunChange], runs: [Int64: CoreWorkflowRun], branch: String?, query: String,
+                        statuses: Set<RunStatusFilter> = []) -> [CoreRunChange] {
         let onBranch = Self.changes(changes, runs: runs, branch: branch)
         let terms = RunSearch.terms(query)
-        guard !terms.isEmpty else { return onBranch }
-        return onBranch.filter { RunSearch.matches($0, runs: runs, terms: terms) }
+        let matched = terms.isEmpty ? onBranch : onBranch.filter { RunSearch.matches($0, runs: runs, terms: terms) }
+        guard !statuses.isEmpty else { return matched }
+        return matched.filter { change in
+            (change.sections.flatMap { $0.runIDs + $0.repeatRunIDs } + change.olderRunIDs)
+                .compactMap { runs[$0] }.contains { statuses.contains(RunStatusFilter.of($0)) }
+        }
     }
 }
