@@ -80,7 +80,7 @@ struct CoreProcessIntegrationTests {
         // as a syntax error: the plan is blocked and has no confirmation.
         let repository = try await service.openRepository(path: try Self.tempRepository())
         let prepared = try await service.prepareLocalRun(repositoryID: repository.id, workflowID: ".github/workflows/ci.yml",
-                                                         jobID: nil, event: nil, useInstalledAct: false)
+                                                         jobID: nil, event: nil, useInstalledAct: false, limits: nil, resetLimits: false)
         #expect(prepared.confirmationID == nil)
         #expect(!prepared.plan.blockers.isEmpty)
         #expect(prepared.plan.blockers.contains { $0.contains("syntax error") })

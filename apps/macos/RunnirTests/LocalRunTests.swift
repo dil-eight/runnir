@@ -138,6 +138,51 @@ struct LocalRunTests {
         #expect(run.lines.count == 2)
     }
 
+    @Test func changedLimitsPlanTheRunAgainAndAskForTheConfirmationAgain() async {
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = prepared() }
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        await review.prepare()
+        review.trusted = true
+        let asked = CoreLocalRunLimits(cpus: 6, memoryBytes: 6 << 30, timeoutSeconds: 3600)
+        await review.change(limits: asked)
+        #expect(!review.trusted, "a new plan is confirmed again")
+        #expect(fake.localRunLimits.map(\.limits) == [nil, asked])
+        #expect(fake.localRunLimits.last?.reset == false)
+        await review.resetLimits()
+        #expect(fake.localRunLimits.last?.limits == nil && fake.localRunLimits.last?.reset == true)
+        // Planning again for another reason keeps the reset.
+        await review.prepare()
+        #expect(fake.localRunLimits.last?.reset == true)
+    }
+
+    @Test func limitsAreWordedAsTheReviewShowsThem() {
+        #expect(LocalRunText.duration(seconds: 1800) == "30 min")
+        #expect(LocalRunText.duration(seconds: 3600) == "1 h")
+        #expect(LocalRunText.duration(seconds: 5400) == "1 h 30 min")
+        var plan = CoreLocalRunPlan(workflowID: "ci.yml")
+        plan.cpus = 1
+        plan.memoryBytes = 2 << 30
+        plan.timeoutSeconds = 7200
+        #expect(LocalRunText.limits(plan).hasPrefix("1 CPU · ") && LocalRunText.limits(plan).hasSuffix("· 2 h timeout"))
+    }
+
+    @Test func limitStepsStopAtTheirBounds() {
+        #expect(LimitSteps.cpus(4, by: 1, max: 8) == 5)
+        #expect(LimitSteps.cpus(8, by: 1, max: 8) == 8)
+        #expect(LimitSteps.cpus(1, by: -1, max: 8) == 1)
+        #expect(LimitSteps.cpus(16, by: 1, max: 0) == 17, "an engine that did not say caps nothing")
+        let gib: UInt64 = 1 << 30
+        #expect(LimitSteps.memory(4 * gib, by: 1, max: 8 * gib) == 4 * gib + 512 << 20)
+        #expect(LimitSteps.memory(gib, by: -1, max: 8 * gib) == gib)
+        // 5.85 GB, between steps: down to 5.5, up to the engine's 5.85.
+        let engine = UInt64(5.85 * Double(gib))
+        #expect(LimitSteps.memory(engine, by: -1, max: engine) == 5 * gib + 512 << 20)
+        #expect(LimitSteps.memory(5 * gib + 512 << 20, by: 1, max: engine) == engine)
+        #expect(LimitSteps.timeout(1800, by: 1) == 2100)
+        #expect(LimitSteps.timeout(300, by: -1) == 300)
+        #expect(LimitSteps.timeout(6 * 3600, by: 1) == 6 * 3600)
+    }
+
     @Test func startPassesValuesToTheCore() async throws {
         let (hub, workspace, fake) = await hub { $0.preparedLocalRun = prepared() }
         fake.localOutputs = [output(lines: nil, phase: .finished, state: .succeeded)]

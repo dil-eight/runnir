@@ -194,6 +194,15 @@ CREATE TABLE run_index (
 	PRIMARY KEY (server_id, repository, id)
 );
 CREATE INDEX run_index_created ON run_index (server_id, repository, created_at DESC);
+-- local: the limits the person chose for this workspace's local runs, one
+-- row; none means the defaults. Clear Cache keeps it; it is a preference, so
+-- it is not in the backup of local data.
+CREATE TABLE local_run_limits (
+	id INTEGER PRIMARY KEY CHECK (id = 1),
+	cpus INTEGER NOT NULL,
+	memory_bytes INTEGER NOT NULL,
+	timeout_seconds INTEGER NOT NULL
+);
 -- local: running totals of what this Mac saved, one per kind ("local_runs").
 -- They outlive local_runs, which keeps only the newest records.
 CREATE TABLE savings (

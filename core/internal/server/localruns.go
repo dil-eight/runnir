@@ -75,9 +75,12 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 			return s.tools.ImagePresent(ctx, report.DockerCLI.Path, report.Engine.Endpoint, reference)
 		}
 	}
+	ceiling := localrun.CeilingFor(report.Engine)
+	asked, own := s.askedLimits(ctx, info.ID, request)
+	limits := localrun.Choose(asked, ceiling)
 	plan, err := localrun.NewPlan(localrun.Request{
 		WorkflowID: workflow.ID, Source: source, JobID: request.GetJobId(), Event: request.GetEvent(),
-	}, report, useInstalled, imagePresent)
+	}, report, useInstalled, imagePresent, limits)
 	switch {
 	case errors.Is(err, localrun.ErrUnknownJob):
 		return nil, status.Error(codes.NotFound, "the workflow has no job with this id")
@@ -86,6 +89,10 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 	case err != nil:
 		return nil, status.Error(codes.Internal, "the run could not be planned")
 	}
+
+	plan.Ceiling, plan.OwnLimits = ceiling, own
+	plan.LimitWarnings = localrun.Warnings(limits, ceiling, own)
+	plan.LimitNote = localrun.Note(ceiling, report.Engine.Name, own)
 
 	// act fetches actions from the Enterprise server the repository is on.
 	instance := ""
@@ -114,6 +121,23 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 	out.ConfirmationId = pending.ID
 	out.ExpiresAt = timestamppb.New(pending.ExpiresAt)
 	return out, nil
+}
+
+// askedLimits are the limits a review asks for: those of the request, the
+// workspace's own, or none (the defaults) after a reset or without either.
+// own says they are not the defaults.
+func (s *service) askedLimits(ctx context.Context, repositoryID string, request *corev1.PrepareLocalRunRequest) (*localrun.Limits, bool) {
+	switch {
+	case request.GetResetLimits():
+		return nil, false
+	case request.GetLimits() != nil:
+		l := request.GetLimits()
+		return &localrun.Limits{CPUs: int(l.GetCpus()), MemoryBytes: l.GetMemoryBytes(), Timeout: time.Duration(l.GetTimeoutSeconds()) * time.Second}, true
+	}
+	if saved, ok := s.workspaces.LocalRunLimits(ctx, repositoryID); ok {
+		return &localrun.Limits{CPUs: saved.CPUs, MemoryBytes: saved.MemoryBytes, Timeout: saved.Timeout}, true
+	}
+	return nil, false
 }
 
 // The limits on values for one run; GitHub allows 48 KiB per secret.
@@ -199,6 +223,13 @@ func (s *service) ConfirmLocalRun(_ context.Context, request *corev1.ConfirmLoca
 		StartedAt: time.Now(), State: store.LocalQueued, ActVersion: approved.ActVersion, Engine: approved.EngineName,
 	})
 	s.localOutputs.Create(id, info.ID, approved.Spec.Plan, approved.ActVersion, approved.Installed, approved.EngineName)
+	// The limits of a confirmed run are the workspace's from now on; a run
+	// with the defaults forgets them.
+	var keep *store.RunLimits
+	if p := approved.Spec.Plan; p.OwnLimits {
+		keep = &store.RunLimits{CPUs: p.Limits.CPUs, MemoryBytes: p.Limits.MemoryBytes, Timeout: p.Limits.Timeout}
+	}
+	_ = s.workspaces.SetLocalRunLimits(context.Background(), info.ID, keep)
 	started, err := s.executions.StartJob(execution.Job{
 		ExecutionID: id, RepositoryID: info.ID, RepositoryPath: info.Path,
 		Workflow: approved.Workflow, Spec: &spec,
@@ -311,7 +342,10 @@ func planMessage(approved localRunApproval) *corev1.LocalRunPlan {
 		Notes: plan.Notes, Blockers: plan.Blockers,
 		Cpus: uint32(max(plan.Limits.CPUs, 0)), MemoryBytes: plan.Limits.MemoryBytes,
 		TimeoutSeconds: uint32(plan.Limits.Timeout / time.Second),
-		ActVersion:     approved.ActVersion, InstalledAct: approved.Installed,
+		MaxCpus:        uint32(max(plan.Ceiling.CPUs, 0)), MaxMemoryBytes: plan.Ceiling.MemoryBytes,
+		MaxTimeoutSeconds: uint32(plan.Ceiling.Timeout / time.Second),
+		OwnLimits:         plan.OwnLimits, LimitWarnings: plan.LimitWarnings, LimitNote: plan.LimitNote,
+		ActVersion: approved.ActVersion, InstalledAct: approved.Installed,
 		EngineName: approved.EngineName, EngineContext: approved.EngineContext,
 	}
 	for _, job := range plan.Jobs {

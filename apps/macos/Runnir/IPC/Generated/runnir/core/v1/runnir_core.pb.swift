@@ -3831,6 +3831,43 @@ nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
     set {_uniqueStorage()._unnamedSecrets = newValue}
   }
 
+  /// The most a run gets here: the engine's CPUs and memory (0 when it did
+  /// not say) and 6 hours.
+  var maxCpus: UInt32 {
+    get {_storage._maxCpus}
+    set {_uniqueStorage()._maxCpus = newValue}
+  }
+
+  var maxMemoryBytes: UInt64 {
+    get {_storage._maxMemoryBytes}
+    set {_uniqueStorage()._maxMemoryBytes = newValue}
+  }
+
+  var maxTimeoutSeconds: UInt32 {
+    get {_storage._maxTimeoutSeconds}
+    set {_uniqueStorage()._maxTimeoutSeconds = newValue}
+  }
+
+  /// The limits are the workspace's own, not the defaults; confirming the run
+  /// keeps them for the workspace.
+  var ownLimits: Bool {
+    get {_storage._ownLimits}
+    set {_uniqueStorage()._ownLimits = newValue}
+  }
+
+  /// What these limits risk on this engine; they never block the run.
+  var limitWarnings: [String] {
+    get {_storage._limitWarnings}
+    set {_uniqueStorage()._limitWarnings = newValue}
+  }
+
+  /// A line worth reading without opening the limits: an engine smaller than
+  /// a default, or one that does not say what it has.
+  var limitNote: String {
+    get {_storage._limitNote}
+    set {_uniqueStorage()._limitNote = newValue}
+  }
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -3857,6 +3894,39 @@ nonisolated struct Runnir_Core_V1_PrepareLocalRunRequest: Sendable {
   /// Experimental: run with the act installed on this computer when one is
   /// usable, instead of the bundled act.
   var useInstalledAct: Bool = false
+
+  /// Limits asked for; unset: the workspace's, else the defaults. The Core
+  /// caps them at the engine and rounds them to their steps.
+  var limits: Runnir_Core_V1_LocalRunLimits {
+    get {_limits ?? Runnir_Core_V1_LocalRunLimits()}
+    set {_limits = newValue}
+  }
+  /// Returns true if `limits` has been explicitly set.
+  var hasLimits: Bool {self._limits != nil}
+  /// Clears the value of `limits`. Subsequent reads from it will return its default value.
+  mutating func clearLimits() {self._limits = nil}
+
+  /// Plan with the defaults; confirming the run forgets the workspace's limits.
+  var resetLimits: Bool = false
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _limits: Runnir_Core_V1_LocalRunLimits? = nil
+}
+
+/// CPUs, memory and timeout of a local run.
+nonisolated struct Runnir_Core_V1_LocalRunLimits: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var cpus: UInt32 = 0
+
+  var memoryBytes: UInt64 = 0
+
+  var timeoutSeconds: UInt32 = 0
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -9788,7 +9858,7 @@ nonisolated extension Runnir_Core_V1_LocalRunImage: SwiftProtobuf.Message, Swift
 
 nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".LocalRunPlan"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}workflow_name\0\u{1}events\0\u{1}event\0\u{3}job_id\0\u{1}jobs\0\u{1}images\0\u{1}secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0\u{1}variables\0\u{3}unnamed_secrets\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}workflow_name\0\u{1}events\0\u{1}event\0\u{3}job_id\0\u{1}jobs\0\u{1}images\0\u{1}secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0\u{1}variables\0\u{3}unnamed_secrets\0\u{3}max_cpus\0\u{3}max_memory_bytes\0\u{3}max_timeout_seconds\0\u{3}own_limits\0\u{3}limit_warnings\0\u{3}limit_note\0")
 
   fileprivate class _StorageClass {
     var _workflowID: String = String()
@@ -9810,6 +9880,12 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
     var _engineContext: String = String()
     var _variables: [String] = []
     var _unnamedSecrets: Bool = false
+    var _maxCpus: UInt32 = 0
+    var _maxMemoryBytes: UInt64 = 0
+    var _maxTimeoutSeconds: UInt32 = 0
+    var _ownLimits: Bool = false
+    var _limitWarnings: [String] = []
+    var _limitNote: String = String()
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -9839,6 +9915,12 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       _engineContext = source._engineContext
       _variables = source._variables
       _unnamedSecrets = source._unnamedSecrets
+      _maxCpus = source._maxCpus
+      _maxMemoryBytes = source._maxMemoryBytes
+      _maxTimeoutSeconds = source._maxTimeoutSeconds
+      _ownLimits = source._ownLimits
+      _limitWarnings = source._limitWarnings
+      _limitNote = source._limitNote
     }
   }
 
@@ -9876,6 +9958,12 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         case 17: try { try decoder.decodeSingularStringField(value: &_storage._engineContext) }()
         case 18: try { try decoder.decodeRepeatedStringField(value: &_storage._variables) }()
         case 19: try { try decoder.decodeSingularBoolField(value: &_storage._unnamedSecrets) }()
+        case 20: try { try decoder.decodeSingularUInt32Field(value: &_storage._maxCpus) }()
+        case 21: try { try decoder.decodeSingularUInt64Field(value: &_storage._maxMemoryBytes) }()
+        case 22: try { try decoder.decodeSingularUInt32Field(value: &_storage._maxTimeoutSeconds) }()
+        case 23: try { try decoder.decodeSingularBoolField(value: &_storage._ownLimits) }()
+        case 24: try { try decoder.decodeRepeatedStringField(value: &_storage._limitWarnings) }()
+        case 25: try { try decoder.decodeSingularStringField(value: &_storage._limitNote) }()
         default: break
         }
       }
@@ -9941,6 +10029,24 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       if _storage._unnamedSecrets != false {
         try visitor.visitSingularBoolField(value: _storage._unnamedSecrets, fieldNumber: 19)
       }
+      if _storage._maxCpus != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._maxCpus, fieldNumber: 20)
+      }
+      if _storage._maxMemoryBytes != 0 {
+        try visitor.visitSingularUInt64Field(value: _storage._maxMemoryBytes, fieldNumber: 21)
+      }
+      if _storage._maxTimeoutSeconds != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._maxTimeoutSeconds, fieldNumber: 22)
+      }
+      if _storage._ownLimits != false {
+        try visitor.visitSingularBoolField(value: _storage._ownLimits, fieldNumber: 23)
+      }
+      if !_storage._limitWarnings.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._limitWarnings, fieldNumber: 24)
+      }
+      if !_storage._limitNote.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._limitNote, fieldNumber: 25)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -9969,6 +10075,12 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         if _storage._engineContext != rhs_storage._engineContext {return false}
         if _storage._variables != rhs_storage._variables {return false}
         if _storage._unnamedSecrets != rhs_storage._unnamedSecrets {return false}
+        if _storage._maxCpus != rhs_storage._maxCpus {return false}
+        if _storage._maxMemoryBytes != rhs_storage._maxMemoryBytes {return false}
+        if _storage._maxTimeoutSeconds != rhs_storage._maxTimeoutSeconds {return false}
+        if _storage._ownLimits != rhs_storage._ownLimits {return false}
+        if _storage._limitWarnings != rhs_storage._limitWarnings {return false}
+        if _storage._limitNote != rhs_storage._limitNote {return false}
         return true
       }
       if !storagesAreEqual {return false}
@@ -9980,7 +10092,7 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Runnir_Core_V1_PrepareLocalRunRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".PrepareLocalRunRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}workflow_id\0\u{3}job_id\0\u{1}event\0\u{3}use_installed_act\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}workflow_id\0\u{3}job_id\0\u{1}event\0\u{3}use_installed_act\0\u{1}limits\0\u{3}reset_limits\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -9993,12 +10105,18 @@ nonisolated extension Runnir_Core_V1_PrepareLocalRunRequest: SwiftProtobuf.Messa
       case 3: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.event) }()
       case 5: try { try decoder.decodeSingularBoolField(value: &self.useInstalledAct) }()
+      case 6: try { try decoder.decodeSingularMessageField(value: &self._limits) }()
+      case 7: try { try decoder.decodeSingularBoolField(value: &self.resetLimits) }()
       default: break
       }
     }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
     if !self.repositoryID.isEmpty {
       try visitor.visitSingularStringField(value: self.repositoryID, fieldNumber: 1)
     }
@@ -10014,6 +10132,12 @@ nonisolated extension Runnir_Core_V1_PrepareLocalRunRequest: SwiftProtobuf.Messa
     if self.useInstalledAct != false {
       try visitor.visitSingularBoolField(value: self.useInstalledAct, fieldNumber: 5)
     }
+    try { if let v = self._limits {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+    } }()
+    if self.resetLimits != false {
+      try visitor.visitSingularBoolField(value: self.resetLimits, fieldNumber: 7)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -10023,6 +10147,48 @@ nonisolated extension Runnir_Core_V1_PrepareLocalRunRequest: SwiftProtobuf.Messa
     if lhs.jobID != rhs.jobID {return false}
     if lhs.event != rhs.event {return false}
     if lhs.useInstalledAct != rhs.useInstalledAct {return false}
+    if lhs._limits != rhs._limits {return false}
+    if lhs.resetLimits != rhs.resetLimits {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_LocalRunLimits: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".LocalRunLimits"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt32Field(value: &self.cpus) }()
+      case 2: try { try decoder.decodeSingularUInt64Field(value: &self.memoryBytes) }()
+      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.timeoutSeconds) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.cpus != 0 {
+      try visitor.visitSingularUInt32Field(value: self.cpus, fieldNumber: 1)
+    }
+    if self.memoryBytes != 0 {
+      try visitor.visitSingularUInt64Field(value: self.memoryBytes, fieldNumber: 2)
+    }
+    if self.timeoutSeconds != 0 {
+      try visitor.visitSingularUInt32Field(value: self.timeoutSeconds, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_LocalRunLimits, rhs: Runnir_Core_V1_LocalRunLimits) -> Bool {
+    if lhs.cpus != rhs.cpus {return false}
+    if lhs.memoryBytes != rhs.memoryBytes {return false}
+    if lhs.timeoutSeconds != rhs.timeoutSeconds {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

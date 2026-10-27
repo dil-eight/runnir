@@ -387,6 +387,26 @@ func (m *Runtimes) clearRunIndex(ctx context.Context, id string) error {
 	return clearErr
 }
 
+// LocalRunLimits are the limits kept for the workspace of a repository.
+func (m *Runtimes) LocalRunLimits(ctx context.Context, repositoryID string) (store.RunLimits, bool) {
+	rt, ok := m.ForRepository(repositoryID)
+	if !ok {
+		return store.RunLimits{}, false
+	}
+	l, found, err := rt.cfg.store.RunLimits(ctx)
+	return l, found && err == nil
+}
+
+// SetLocalRunLimits keeps (nil: forgets) the limits of the workspace of a
+// repository; a repository opened without a workspace keeps none.
+func (m *Runtimes) SetLocalRunLimits(ctx context.Context, repositoryID string, l *store.RunLimits) error {
+	rt, ok := m.ForRepository(repositoryID)
+	if !ok {
+		return nil
+	}
+	return rt.cfg.store.SetRunLimits(ctx, l)
+}
+
 // Delete removes a workspace's whole directory; refused while it is open.
 func (m *Runtimes) Delete(raw string) error {
 	id, ok := store.NormalizeWorkspaceID(raw)

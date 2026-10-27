@@ -1033,13 +1033,14 @@ final class CoreHub {
 
     /// Reviews a local run in the Core. Nothing starts.
     func prepareLocalRun(workspaceID: UUID, workflowID: String, jobID: String?, event: String?,
-                         useInstalledAct: Bool) async -> LocalRunPreparation {
+                         useInstalledAct: Bool, limits: CoreLocalRunLimits? = nil, resetLimits: Bool = false) async -> LocalRunPreparation {
         guard let (service, coreID) = await serviceAndCoreID(workspaceID) else {
             return .failed("Runnir Core is not ready. Local runs are reviewed and started by the Core.")
         }
         do {
             return .prepared(try await service.prepareLocalRun(repositoryID: coreID, workflowID: workflowID, jobID: jobID,
-                                                               event: event, useInstalledAct: useInstalledAct))
+                                                               event: event, useInstalledAct: useInstalledAct,
+                                                               limits: limits, resetLimits: resetLimits))
         } catch CoreServiceError.notFound {
             return .failed("This workflow or job is no longer in the working tree. Refresh and review again.")
         } catch CoreServiceError.invalidArgument(let message), CoreServiceError.failedPrecondition(let message) {

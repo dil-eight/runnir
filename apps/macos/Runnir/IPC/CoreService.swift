@@ -259,8 +259,11 @@ protocol CoreServicing: Sendable {
     func toolReadiness(refresh: Bool) async throws -> CoreToolReadiness
     /// Checks the tools and the workflow file and returns the plan, with a
     /// single-use confirmation when nothing blocks it. Starts nothing.
+    /// `limits` asks for limits (nil: the workspace's, else the defaults);
+    /// `resetLimits` plans the defaults and forgets the workspace's once the
+    /// run is confirmed.
     func prepareLocalRun(repositoryID: String, workflowID: String, jobID: String?, event: String?,
-                         useInstalledAct: Bool) async throws -> CorePreparedLocalRun
+                         useInstalledAct: Bool, limits: CoreLocalRunLimits?, resetLimits: Bool) async throws -> CorePreparedLocalRun
     /// Starts a prepared local run once with the values for the plan's
     /// secrets and variables. Throws `.failedPrecondition` when the
     /// confirmation expired or was used, or the file changed after the

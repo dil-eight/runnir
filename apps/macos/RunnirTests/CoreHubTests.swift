@@ -592,10 +592,14 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
             return readiness
         }
     }
+    private var _localRunLimits: [(limits: CoreLocalRunLimits?, reset: Bool)] = []
+    /// The limits each review asked for.
+    var localRunLimits: [(limits: CoreLocalRunLimits?, reset: Bool)] { lock.withLock { _localRunLimits } }
     func prepareLocalRun(repositoryID: String, workflowID: String, jobID: String?, event: String?,
-                         useInstalledAct: Bool) async throws -> CorePreparedLocalRun {
+                         useInstalledAct: Bool, limits: CoreLocalRunLimits?, resetLimits: Bool) async throws -> CorePreparedLocalRun {
         try lock.withLock {
             _localRunRequests.append((workflowID, jobID, event, useInstalledAct))
+            _localRunLimits.append((limits, resetLimits))
             guard let preparedLocalRun else { throw CoreServiceError.unavailable }
             return preparedLocalRun
         }

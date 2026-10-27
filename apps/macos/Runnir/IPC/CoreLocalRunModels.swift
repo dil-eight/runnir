@@ -103,6 +103,26 @@ struct CoreLocalRunPlan: Equatable, Sendable {
     var installedAct = false
     var engineName = ""
     var engineContext = ""
+    /// The most a run gets here: the engine's CPUs and memory (0 when it did
+    /// not say) and 6 hours.
+    var maxCPUs = 0
+    var maxMemoryBytes: UInt64 = 0
+    var maxTimeoutSeconds = 0
+    /// The limits are the workspace's own, not the defaults.
+    var ownLimits = false
+    /// What the limits risk on this engine; they never block the run.
+    var limitWarnings: [String] = []
+    /// A line about the engine worth reading without opening the limits.
+    var limitNote = ""
+
+    var limits: CoreLocalRunLimits { CoreLocalRunLimits(cpus: cpus, memoryBytes: memoryBytes, timeoutSeconds: timeoutSeconds) }
+}
+
+/// CPUs, memory and timeout of a local run, as the Core plans them.
+struct CoreLocalRunLimits: Equatable, Sendable {
+    var cpus: Int
+    var memoryBytes: UInt64
+    var timeoutSeconds: Int
 }
 
 /// One NAME=value of a .env file, as the Core read it.
