@@ -1,6 +1,6 @@
 # Run search beyond the saved runs (B40)
 
-Status: design agreed, states drawn in Pen (Row — Search beyond the saved runs, S12 storage frame), not implemented.
+Status: design agreed, states drawn in Pen (Row — Run search, and the S12 storage frame), not implemented.
 
 ## Problem
 
