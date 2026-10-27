@@ -13,13 +13,14 @@ type Usage struct {
 	CachedRuns     int
 	LocalRuns      int
 	RecoveryCopies int
+	IndexedRuns    int
 }
 
 func (s *Store) Usage(ctx context.Context) (Usage, error) {
 	var u Usage
 	var logBytes int64
 	if err := s.db.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM runs), (SELECT COUNT(*) FROM local_runs),
-	(SELECT COALESCE(SUM(size), 0) FROM blobs)`).Scan(&u.CachedRuns, &u.LocalRuns, &logBytes); err != nil {
+	(SELECT COALESCE(SUM(size), 0) FROM blobs), (SELECT COUNT(*) FROM run_index)`).Scan(&u.CachedRuns, &u.LocalRuns, &logBytes, &u.IndexedRuns); err != nil {
 		return Usage{}, err
 	}
 	u.LogBytes = uint64(logBytes)
@@ -96,7 +97,7 @@ func Peek(dir string) (u Usage, report Report, ok bool) {
 		defer db.Close()
 		var logBytes int64
 		err = db.QueryRow(`SELECT (SELECT COUNT(*) FROM runs), (SELECT COUNT(*) FROM local_runs),
-	(SELECT COALESCE(SUM(size), 0) FROM blobs)`).Scan(&u.CachedRuns, &u.LocalRuns, &logBytes)
+	(SELECT COALESCE(SUM(size), 0) FROM blobs), (SELECT COUNT(*) FROM run_index)`).Scan(&u.CachedRuns, &u.LocalRuns, &logBytes, &u.IndexedRuns)
 		u.LogBytes = uint64(logBytes)
 	}
 	if err != nil {

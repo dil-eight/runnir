@@ -56,6 +56,8 @@ type Snapshot struct {
 	Workflows []github.Workflow
 	// Links, superseded runs and overlaps over every cached run.
 	Analysis changes.Analysis
+	// PullRequests are the cached pull requests, whose text a run linked to one is searched by.
+	PullRequests []github.RepositoryPullRequest
 	// The changes of Runs, newest first.
 	Changes         []changes.Change
 	CachedRuns      int
@@ -94,6 +96,8 @@ type Runtime struct {
 	wake        chan struct{}
 	loopDone    chan struct{}
 	flights     singleflight.Group
+	// searchMu lets one deep search on GitHub run at a time.
+	searchMu sync.Mutex
 	// branchFor is the target whose default branch a pass read in this
 	// process; only the loop goroutine uses it.
 	branchFor store.Source
@@ -398,6 +402,7 @@ func (r *Runtime) Snapshot(ctx context.Context, limit int) (Snapshot, error) {
 	}
 	in := input(a, target, r.cfg.now())
 	snap.Analysis = changes.Analyze(in)
+	snap.PullRequests = a.PullRequests
 	snap.Changes = changes.Group(in, snap.Analysis, window)
 	snap.Runs, snap.Workflows, snap.SyncedAt, snap.ChangedAt = window, a.Workflows, a.SyncedAt, a.ChangedAt
 	snap.CachedRuns, snap.HistoryComplete = a.CachedRuns, a.HistoryComplete

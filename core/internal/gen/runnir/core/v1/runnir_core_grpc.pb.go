@@ -32,6 +32,9 @@ const (
 	RunnirCore_GetWorkspaceActivity_FullMethodName      = "/runnir.core.v1.RunnirCore/GetWorkspaceActivity"
 	RunnirCore_RefreshWorkspaceActivity_FullMethodName  = "/runnir.core.v1.RunnirCore/RefreshWorkspaceActivity"
 	RunnirCore_LoadOlderRuns_FullMethodName             = "/runnir.core.v1.RunnirCore/LoadOlderRuns"
+	RunnirCore_SearchRuns_FullMethodName                = "/runnir.core.v1.RunnirCore/SearchRuns"
+	RunnirCore_SearchRunsOnGitHub_FullMethodName        = "/runnir.core.v1.RunnirCore/SearchRunsOnGitHub"
+	RunnirCore_ClearRunIndex_FullMethodName             = "/runnir.core.v1.RunnirCore/ClearRunIndex"
 	RunnirCore_GetStorageUsage_FullMethodName           = "/runnir.core.v1.RunnirCore/GetStorageUsage"
 	RunnirCore_ClearWorkspaceCache_FullMethodName       = "/runnir.core.v1.RunnirCore/ClearWorkspaceCache"
 	RunnirCore_DeleteWorkspaceData_FullMethodName       = "/runnir.core.v1.RunnirCore/DeleteWorkspaceData"
@@ -96,6 +99,17 @@ type RunnirCoreClient interface {
 	// stores it; nothing is read when the cache holds 5000 runs or the whole
 	// history. Concurrent calls for one workspace share one request.
 	LoadOlderRuns(ctx context.Context, in *LoadOlderRunsRequest, opts ...grpc.CallOption) (*LoadOlderRunsResponse, error)
+	// Searches the workspace's runs on this Mac: the activity cache and the
+	// search index, which also holds runs the cache dropped or GitHub deleted.
+	// Reads nothing from GitHub, so it works offline. The query is words and
+	// qualifiers (branch:, author:, event:, workflow:, status:, after:, before:).
+	SearchRuns(ctx context.Context, in *SearchRunsRequest, opts ...grpc.CallOption) (*SearchRunsResponse, error)
+	// One step of a deep search on GitHub: up to 10 pages of 100 runs, read by
+	// creation time from the cursor, filtered by GitHub where it can and by the
+	// Core for the rest. Every run read is added to the search index.
+	SearchRunsOnGitHub(ctx context.Context, in *SearchRunsOnGitHubRequest, opts ...grpc.CallOption) (*SearchRunsOnGitHubResponse, error)
+	// Forgets the search index of workspaces (all when none are named).
+	ClearRunIndex(ctx context.Context, in *ClearRunIndexRequest, opts ...grpc.CallOption) (*ClearRunIndexResponse, error)
 	// What workspaces keep on this Mac, by id; empty ids: every workspace with
 	// data and every open one.
 	GetStorageUsage(ctx context.Context, in *GetStorageUsageRequest, opts ...grpc.CallOption) (*GetStorageUsageResponse, error)
@@ -295,6 +309,36 @@ func (c *runnirCoreClient) LoadOlderRuns(ctx context.Context, in *LoadOlderRunsR
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LoadOlderRunsResponse)
 	err := c.cc.Invoke(ctx, RunnirCore_LoadOlderRuns_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) SearchRuns(ctx context.Context, in *SearchRunsRequest, opts ...grpc.CallOption) (*SearchRunsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchRunsResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_SearchRuns_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) SearchRunsOnGitHub(ctx context.Context, in *SearchRunsOnGitHubRequest, opts ...grpc.CallOption) (*SearchRunsOnGitHubResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchRunsOnGitHubResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_SearchRunsOnGitHub_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) ClearRunIndex(ctx context.Context, in *ClearRunIndexRequest, opts ...grpc.CallOption) (*ClearRunIndexResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearRunIndexResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ClearRunIndex_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -741,6 +785,17 @@ type RunnirCoreServer interface {
 	// stores it; nothing is read when the cache holds 5000 runs or the whole
 	// history. Concurrent calls for one workspace share one request.
 	LoadOlderRuns(context.Context, *LoadOlderRunsRequest) (*LoadOlderRunsResponse, error)
+	// Searches the workspace's runs on this Mac: the activity cache and the
+	// search index, which also holds runs the cache dropped or GitHub deleted.
+	// Reads nothing from GitHub, so it works offline. The query is words and
+	// qualifiers (branch:, author:, event:, workflow:, status:, after:, before:).
+	SearchRuns(context.Context, *SearchRunsRequest) (*SearchRunsResponse, error)
+	// One step of a deep search on GitHub: up to 10 pages of 100 runs, read by
+	// creation time from the cursor, filtered by GitHub where it can and by the
+	// Core for the rest. Every run read is added to the search index.
+	SearchRunsOnGitHub(context.Context, *SearchRunsOnGitHubRequest) (*SearchRunsOnGitHubResponse, error)
+	// Forgets the search index of workspaces (all when none are named).
+	ClearRunIndex(context.Context, *ClearRunIndexRequest) (*ClearRunIndexResponse, error)
 	// What workspaces keep on this Mac, by id; empty ids: every workspace with
 	// data and every open one.
 	GetStorageUsage(context.Context, *GetStorageUsageRequest) (*GetStorageUsageResponse, error)
@@ -896,6 +951,15 @@ func (UnimplementedRunnirCoreServer) RefreshWorkspaceActivity(context.Context, *
 }
 func (UnimplementedRunnirCoreServer) LoadOlderRuns(context.Context, *LoadOlderRunsRequest) (*LoadOlderRunsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method LoadOlderRuns not implemented")
+}
+func (UnimplementedRunnirCoreServer) SearchRuns(context.Context, *SearchRunsRequest) (*SearchRunsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchRuns not implemented")
+}
+func (UnimplementedRunnirCoreServer) SearchRunsOnGitHub(context.Context, *SearchRunsOnGitHubRequest) (*SearchRunsOnGitHubResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchRunsOnGitHub not implemented")
+}
+func (UnimplementedRunnirCoreServer) ClearRunIndex(context.Context, *ClearRunIndexRequest) (*ClearRunIndexResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClearRunIndex not implemented")
 }
 func (UnimplementedRunnirCoreServer) GetStorageUsage(context.Context, *GetStorageUsageRequest) (*GetStorageUsageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetStorageUsage not implemented")
@@ -1163,6 +1227,60 @@ func _RunnirCore_LoadOlderRuns_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnirCoreServer).LoadOlderRuns(ctx, req.(*LoadOlderRunsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_SearchRuns_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRunsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).SearchRuns(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_SearchRuns_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).SearchRuns(ctx, req.(*SearchRunsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_SearchRunsOnGitHub_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRunsOnGitHubRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).SearchRunsOnGitHub(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_SearchRunsOnGitHub_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).SearchRunsOnGitHub(ctx, req.(*SearchRunsOnGitHubRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_ClearRunIndex_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearRunIndexRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ClearRunIndex(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ClearRunIndex_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ClearRunIndex(ctx, req.(*ClearRunIndexRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1932,6 +2050,18 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "LoadOlderRuns",
 			Handler:    _RunnirCore_LoadOlderRuns_Handler,
+		},
+		{
+			MethodName: "SearchRuns",
+			Handler:    _RunnirCore_SearchRuns_Handler,
+		},
+		{
+			MethodName: "SearchRunsOnGitHub",
+			Handler:    _RunnirCore_SearchRunsOnGitHub_Handler,
+		},
+		{
+			MethodName: "ClearRunIndex",
+			Handler:    _RunnirCore_ClearRunIndex_Handler,
 		},
 		{
 			MethodName: "GetStorageUsage",

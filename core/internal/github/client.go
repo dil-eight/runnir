@@ -238,6 +238,32 @@ func (c *Client) Runs(ctx context.Context, owner, name, branch string, limit int
 	return runs, nil
 }
 
+// RunsQuery reads one page of up to 100 runs by the filters of a search
+// (`actor`, `branch`, `event`, `status`, `head_sha`, `created`), newest first.
+// GitHub answers at most 1000 results of a filtered search; a caller that
+// goes deeper pages by `created` instead, as the older-runs read does.
+func (c *Client) RunsQuery(ctx context.Context, owner, name string, filters url.Values) ([]Run, error) {
+	query := url.Values{"per_page": {"100"}}
+	for key, values := range filters {
+		for _, value := range values {
+			if value != "" {
+				query.Set(key, value)
+			}
+		}
+	}
+	var body struct {
+		WorkflowRuns []runJSON `json:"workflow_runs"`
+	}
+	if err := c.get(ctx, repoPath(owner, name, "/actions/runs"), query, &body); err != nil {
+		return nil, err
+	}
+	runs := make([]Run, 0, len(body.WorkflowRuns))
+	for _, r := range body.WorkflowRuns {
+		runs = append(runs, r.run(owner, name))
+	}
+	return runs, nil
+}
+
 // RunsIfChanged reads the newest runs like Runs; with etag set GitHub
 // answers ErrNotModified when they did not change. It returns the new ETag.
 func (c *Client) RunsIfChanged(ctx context.Context, owner, name string, limit int, etag string) ([]Run, string, error) {

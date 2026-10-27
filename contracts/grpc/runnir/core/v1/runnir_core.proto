@@ -31,6 +31,17 @@ service RunnirCore {
   // stores it; nothing is read when the cache holds 5000 runs or the whole
   // history. Concurrent calls for one workspace share one request.
   rpc LoadOlderRuns(LoadOlderRunsRequest) returns (LoadOlderRunsResponse);
+  // Searches the workspace's runs on this Mac: the activity cache and the
+  // search index, which also holds runs the cache dropped or GitHub deleted.
+  // Reads nothing from GitHub, so it works offline. The query is words and
+  // qualifiers (branch:, author:, event:, workflow:, status:, after:, before:).
+  rpc SearchRuns(SearchRunsRequest) returns (SearchRunsResponse);
+  // One step of a deep search on GitHub: up to 10 pages of 100 runs, read by
+  // creation time from the cursor, filtered by GitHub where it can and by the
+  // Core for the rest. Every run read is added to the search index.
+  rpc SearchRunsOnGitHub(SearchRunsOnGitHubRequest) returns (SearchRunsOnGitHubResponse);
+  // Forgets the search index of workspaces (all when none are named).
+  rpc ClearRunIndex(ClearRunIndexRequest) returns (ClearRunIndexResponse);
   // What workspaces keep on this Mac, by id; empty ids: every workspace with
   // data and every open one.
   rpc GetStorageUsage(GetStorageUsageRequest) returns (GetStorageUsageResponse);
@@ -1426,6 +1437,70 @@ message LoadOlderRunsResponse {
   bool budget_reached = 4;
 }
 
+message SearchRunsRequest {
+  string repository_id = 1;
+  string query = 2;
+  // At most this many runs only the index knows are returned; 0 is 200.
+  uint32 limit = 3;
+}
+
+message SearchRunsResponse {
+  // The matching runs of the activity cache, newest first. The app holds
+  // those runs already and shows them by id.
+  repeated int64 cached_run_ids = 1;
+  // Matching runs only the search index knows, newest first.
+  repeated WorkflowRun indexed_runs = 2;
+  // How many runs were looked at in each.
+  uint32 cached_searched = 3;
+  uint32 indexed_searched = 4;
+  // Parts of the query that could not be used, as text for the person.
+  repeated string problems = 5;
+}
+
+message SearchRunsOnGitHubRequest {
+  string repository_id = 1;
+  string query = 2;
+  // Where the step starts: the creation time of the oldest run the previous
+  // step read. Unset for the newest runs.
+  google.protobuf.Timestamp cursor = 3;
+  // Pages of 100 to read, 1 to 10; 0 is 10.
+  uint32 pages = 4;
+}
+
+enum SearchStop {
+  SEARCH_STOP_UNSPECIFIED = 0;
+  // GitHub has no older run for the query.
+  SEARCH_STOP_DONE = 1;
+  // The pages of this step are read; ask again from next_cursor to go on.
+  SEARCH_STOP_BUDGET = 2;
+  SEARCH_STOP_RATE_LIMITED = 3;
+  SEARCH_STOP_UNAVAILABLE = 4;
+  // Another deep search of this repository is running.
+  SEARCH_STOP_BUSY = 5;
+}
+
+message SearchRunsOnGitHubResponse {
+  GitHubStatus status = 1;
+  // The matches of this step, newest first.
+  repeated WorkflowRun runs = 2;
+  google.protobuf.Timestamp next_cursor = 3;
+  // The creation time of the oldest run read so far.
+  google.protobuf.Timestamp looked_back_to = 4;
+  uint32 pages = 5;
+  uint32 runs_read = 6;
+  SearchStop stop = 7;
+  repeated string problems = 8;
+}
+
+message ClearRunIndexRequest {
+  // Empty: every workspace.
+  repeated string workspace_ids = 1;
+}
+
+message ClearRunIndexResponse {
+  repeated WorkspaceStorage workspaces = 1;
+}
+
 message InsertWorkflowConcurrencyRequest {
   string repository_id = 1;
   // The editor's text, UTF-8, at most 1 MiB.
@@ -1473,6 +1548,8 @@ message WorkspaceStorage {
   uint32 cached_runs = 7;
   uint32 local_runs = 8;
   uint32 recovery_copies = 9;
+  // Runs in the search index.
+  uint32 indexed_runs = 10;
 }
 
 message GetStorageUsageRequest {
