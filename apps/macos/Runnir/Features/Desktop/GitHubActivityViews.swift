@@ -137,6 +137,8 @@ struct WorkspaceRunsView: View {
     @State private var statuses: Set<RunStatusFilter> = []
     /// The log of a job, opened over the list and the graph.
     @State private var layer: RunLayerModel
+    /// The Core's answers to the typed query, and a deep search on GitHub.
+    @State private var search: RunSearchModel
 
     init(session: RepositorySession, hub: CoreHub, github: GitHubSession?, selectedRunID: Binding<Int64?>, mode: Binding<RunsMode>,
          dismissals: ConcurrencyHintDismissals? = nil, addConcurrency: @escaping (String) -> Void = { _ in }) {
@@ -148,6 +150,7 @@ struct WorkspaceRunsView: View {
         self.dismissals = dismissals
         self.addConcurrency = addConcurrency
         _layer = State(initialValue: RunLayerModel(hub: hub, workspaceID: session.workspaceID))
+        _search = State(initialValue: RunSearchModel(hub: hub, workspaceID: session.workspaceID))
     }
 
     private var branch: String? { onlyCurrentBranch && !session.branch.isEmpty ? session.branch : nil }
@@ -161,9 +164,20 @@ struct WorkspaceRunsView: View {
     private var searching: Bool { RunSearch.isActive(query) }
     /// A search or a status filter narrows the list to the saved runs, all of them.
     private var narrowing: Bool { searching || !statuses.isEmpty }
+    /// The saved runs the Core found for the query: none until it answers.
+    private var matchingIDs: Set<Int64>? { searching ? (search.matchingIDs ?? []) : nil }
     /// Runs per status that match the typed query and the branch filter.
     private var statusCounts: [RunStatusFilter: Int] {
-        RunStatusFilter.counts(RunPresentation.matching(session.runs, branch: branch, query: query))
+        RunStatusFilter.counts(RunPresentation.matching(session.runs, branch: branch, ids: matchingIDs))
+    }
+    /// The run shown in the inspector: a saved one, or one the search found.
+    private var selectedRun: CoreWorkflowRun? {
+        session.runs.first { $0.id == selectedRunID } ?? selectedRunID.flatMap { search.run(id: $0) }
+    }
+    /// What a search found beyond the saved runs, narrowed by the branch and the statuses.
+    private func beyondSaved(_ runs: [CoreWorkflowRun]) -> [CoreWorkflowRun] {
+        let onBranch = branch.map { branch in runs.filter { $0.branch == branch } } ?? runs
+        return RunStatusFilter.filter(onBranch, statuses: statuses)
     }
     /// Every run saved on this Mac, which a search covers.
     private var savedRuns: Int { max(session.cachedRuns, session.runs.count) }
@@ -205,10 +219,12 @@ struct WorkspaceRunsView: View {
             inspector.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .overlay {
-            if layer.isOpen, let run = session.runs.first(where: { $0.id == selectedRunID }) {
+            if layer.isOpen, let run = selectedRun {
                 RunLogLayer(model: layer, run: run, workspaceID: session.workspaceID, hub: hub)
             }
         }
+        .onChange(of: query) { search.update(query: query) }
+        .onChange(of: session.cachedRuns) { search.refresh() }
         .onAppear { if selectedRunID == nil { selectedRunID = session.runs.first?.id } }
         // Runs the cache gets while the search is open (a sync, or a window that
         // opened with an empty cache) are covered too.
@@ -297,15 +313,29 @@ struct WorkspaceRunsView: View {
     }
 
     @ViewBuilder private var listRows: some View {
-        let runs = RunPresentation.list(session.runs, branch: branch, query: query, statuses: statuses, showingSuperseded: showingSuperseded)
+        let runs = RunPresentation.list(session.runs, branch: branch, matching: matchingIDs, statuses: statuses, showingSuperseded: showingSuperseded)
+        let indexed = searching ? beyondSaved(search.indexedRuns) : []
+        let github = searching ? beyondSaved(search.foundOnGitHub(excluding: Set(session.runs.map(\.id)))) : []
         if narrowing {
-            searchNote(found: runs.count, noun: "runs",
-                       summary: RunSearch.summary(matches: runs.count, saved: savedRuns, historyComplete: session.historyComplete))
+            searchNote(found: runs.count + indexed.count + github.count, noun: "runs",
+                       summary: RunSearch.summary(matches: runs.count, saved: savedRuns, indexed: searching ? (search.saved?.indexedSearched ?? 0) : 0,
+                                                  historyComplete: session.historyComplete))
         }
         ForEach(runs) { run in
             RunRow(run: run, selected: run.id == selectedRunID, pullRequest: run.link.pullRequest.flatMap { pullRequests[$0] },
                    newer: run.supersededBy.flatMap { runsByID[$0] })
                 .clickable().onTapGesture { selectedRunID = run.id }
+        }
+        if !indexed.isEmpty {
+            RunGroupHeader(title: "IN THE SEARCH INDEX \u{00B7} \(indexed.count)")
+            ForEach(indexed) { run in extraRow(run) }
+        }
+        if !github.isEmpty {
+            RunGroupHeader(title: "FOUND ON GITHUB \u{00B7} \(github.count)")
+            ForEach(github) { run in extraRow(run) }
+        }
+        if searching {
+            DeepSearchFooter(model: search, githubReady: session.githubAccess == .ok)
         }
         if runs.isEmpty && !narrowing && session.githubAccess == .ok {
             Text(onlyCurrentBranch ? "No runs on this branch." : "No runs yet.")
@@ -321,8 +351,14 @@ struct WorkspaceRunsView: View {
         }
     }
 
+    /// A run the search found that the activity cache does not hold.
+    private func extraRow(_ run: CoreWorkflowRun) -> some View {
+        RunRow(run: run, selected: run.id == selectedRunID, pullRequest: nil, newer: nil)
+            .clickable().onTapGesture { selectedRunID = run.id }
+    }
+
     @ViewBuilder private var changeBlocks: some View {
-        let changes = RunPresentation.changes(session.changes, runs: runsByID, branch: branch, query: query, statuses: statuses)
+        let changes = RunPresentation.changes(session.changes, runs: runsByID, branch: branch, matching: matchingIDs, statuses: statuses)
         if narrowing {
             searchNote(found: changes.count, noun: "changes",
                        summary: "Showing \(changes.count) of \(session.changes.count) changes" + (session.historyComplete ? "" : ". Older runs are on GitHub."))
@@ -340,7 +376,7 @@ struct WorkspaceRunsView: View {
     }
 
     @ViewBuilder private var inspector: some View {
-        if let run = session.runs.first(where: { $0.id == selectedRunID }) {
+        if let run = selectedRun {
             RunInspectorView(run: run, workspaceID: session.workspaceID, hub: hub, layer: layer, github: github,
                              context: RunPresentation.context(for: run, runs: runsByID, pullRequests: pullRequests, hints: hints,
                                                               workflowName: workflowName(run.workflowID)),

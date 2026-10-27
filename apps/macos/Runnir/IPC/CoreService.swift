@@ -166,6 +166,12 @@ protocol CoreServicing: Sendable {
     func refreshWorkspaceActivity(repositoryID: String, wait: Bool, limit: Int) async throws -> CoreWorkspaceActivity
     /// Reads one page of older runs from GitHub into the workspace's cache.
     func loadOlderRuns(repositoryID: String) async throws -> CoreOlderRuns
+    /// The saved runs and the search index for a query; nothing goes to GitHub.
+    func searchRuns(repositoryID: String, query: String, limit: Int) async throws -> CoreRunSearch
+    /// One step of a deep search on GitHub, from `cursor` (nil for the newest runs).
+    func searchRunsOnGitHub(repositoryID: String, query: String, cursor: Date?, pages: Int) async throws -> CoreGitHubRunSearch
+    /// Forgets the search index of workspaces (all when empty).
+    func clearRunIndex(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage]
     /// What workspaces keep on this Mac; empty ids: all with data and all open.
     func storageUsage(workspaceIDs: [UUID]) async throws -> CoreStorageUsage
     /// Deletes what can be downloaded again; empty ids: every workspace.

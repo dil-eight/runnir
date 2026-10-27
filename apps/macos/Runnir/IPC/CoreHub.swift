@@ -825,6 +825,33 @@ final class CoreHub {
         return (try? await service.clearWorkspaceCache(workspaceIDs: workspaceIDs)) != nil
     }
 
+    /// Forgets the search index of the workspaces (all when empty): the runs
+    /// it keeps that the cache has dropped or GitHub deleted.
+    @discardableResult
+    func clearRunIndex(workspaceIDs: [UUID]) async -> Bool {
+        guard isReady, let service = try? await provider.service() else { return false }
+        return (try? await service.clearRunIndex(workspaceIDs: workspaceIDs)) != nil
+    }
+
+    /// The saved runs and the search index for a query; nil when the Core
+    /// cannot answer. Nothing goes to GitHub, so it works offline.
+    func searchRuns(workspaceID: UUID, query: String) async -> CoreRunSearch? {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return nil }
+        return try? await service.searchRuns(repositoryID: coreID, query: query, limit: 200)
+    }
+
+    /// One step of a deep search on GitHub.
+    func searchRunsOnGitHub(workspaceID: UUID, query: String, cursor: Date?) async -> CoreGitHubRunSearch {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return .failed(.unavailable) }
+        do {
+            let result = try await service.searchRunsOnGitHub(repositoryID: coreID, query: query, cursor: cursor, pages: 10)
+            if result.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
+            return result
+        } catch {
+            return .failed(.unavailable)
+        }
+    }
+
     /// Deletes a closed workspace's data on this Mac, once the Core has
     /// closed the repository its last window released.
     @discardableResult

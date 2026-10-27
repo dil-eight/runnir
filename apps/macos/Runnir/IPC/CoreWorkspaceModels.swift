@@ -112,6 +112,48 @@ struct CoreConcurrencyHint: Equatable, Sendable {
 }
 
 /// What a request for older runs did.
+/// What a search over the runs saved on this Mac found: the matching runs of
+/// the activity cache, by id (the app holds them already), and the matches
+/// only the search index knows.
+struct CoreRunSearch: Equatable, Sendable {
+    var cachedRunIDs: [Int64] = []
+    var indexedRuns: [CoreWorkflowRun] = []
+    var cachedSearched = 0
+    var indexedSearched = 0
+    /// Parts of the query that could not be used.
+    var problems: [String] = []
+}
+
+/// Why a step of a deep search on GitHub ended.
+enum CoreSearchStop: Equatable, Sendable {
+    /// GitHub has no older run for the query.
+    case done
+    /// The pages of this step are read; going on starts from the cursor.
+    case budget
+    case rateLimited
+    case unavailable
+    /// Another deep search of this repository is running.
+    case busy
+}
+
+/// One step of a deep search on GitHub.
+struct CoreGitHubRunSearch: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    var runs: [CoreWorkflowRun] = []
+    /// Where the next step starts; nil when the search is done.
+    var nextCursor: Date?
+    /// The creation time of the oldest run read so far.
+    var lookedBackTo: Date?
+    var pages = 0
+    var runsRead = 0
+    var stop: CoreSearchStop = .unavailable
+    var problems: [String] = []
+
+    static func failed(_ access: CoreGitHubAccess) -> CoreGitHubRunSearch {
+        CoreGitHubRunSearch(access: access)
+    }
+}
+
 struct CoreOlderRuns: Equatable, Sendable {
     let access: CoreGitHubAccess
     let added: Int
@@ -159,6 +201,8 @@ struct CoreWorkspaceStorage: Equatable, Identifiable, Sendable {
     let cachedRuns: Int
     let localRuns: Int
     let recoveryCopies: Int
+    /// Runs in the search index.
+    var indexedRuns = 0
     var id: UUID { workspaceID }
 }
 

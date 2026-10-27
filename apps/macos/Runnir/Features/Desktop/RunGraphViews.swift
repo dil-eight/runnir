@@ -161,6 +161,16 @@ struct RunGraphView: View {
         case nil:
             HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Loading jobs...") }
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+        case .some(let result) where result.access == .notVisible:
+            // The run was found in the search index, or was cached, and GitHub no longer serves it.
+            VStack(spacing: 8) {
+                Image(systemName: "icloud.slash").font(.system(size: 28)).foregroundStyle(RunnirTheme.mutedForeground)
+                Text("GitHub no longer has this run").font(.system(size: 15, weight: .semibold))
+                Text("Runnir kept its title, commit, branch and time in the search index. Jobs, steps and logs went with it on GitHub.")
+                    .font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground).multilineTextAlignment(.center)
+                    .frame(maxWidth: 420)
+            }
+            .frame(maxWidth: .infinity).padding(.top, 40)
         case .some(let result) where result.access != .ok:
             Text(RunActionModel.describeRead(result.access))
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)

@@ -123,6 +123,51 @@ struct GRPCCoreService: CoreServicing {
                              historyComplete: response.historyComplete, budgetReached: response.budgetReached)
     }
 
+    func searchRuns(repositoryID: String, query: String, limit: Int) async throws -> CoreRunSearch {
+        let response = try await call {
+            try await client.searchRuns(.with {
+                $0.repositoryID = repositoryID
+                $0.query = query
+                $0.limit = UInt32(clamping: max(0, limit))
+            }, options: Self.options(Self.callTimeout))
+        }
+        return CoreRunSearch(cachedRunIDs: response.cachedRunIds, indexedRuns: response.indexedRuns.map(Self.map),
+                             cachedSearched: Int(response.cachedSearched), indexedSearched: Int(response.indexedSearched),
+                             problems: response.problems)
+    }
+
+    /// A step reads up to 10 pages from GitHub, one after another.
+    func searchRunsOnGitHub(repositoryID: String, query: String, cursor: Date?, pages: Int) async throws -> CoreGitHubRunSearch {
+        let response = try await call {
+            try await client.searchRunsOnGitHub(.with {
+                $0.repositoryID = repositoryID
+                $0.query = query
+                if let cursor { $0.cursor = .init(date: cursor) }
+                $0.pages = UInt32(clamping: max(0, pages))
+            }, options: Self.options(.seconds(330)))
+        }
+        let stop: CoreSearchStop = switch response.stop {
+        case .done: .done
+        case .budget: .budget
+        case .rateLimited: .rateLimited
+        case .busy: .busy
+        default: .unavailable
+        }
+        return CoreGitHubRunSearch(
+            access: Self.map(response.status),
+            runs: response.runs.map(Self.map), nextCursor: response.hasNextCursor ? response.nextCursor.date : nil,
+            lookedBackTo: response.hasLookedBackTo ? response.lookedBackTo.date : nil, pages: Int(response.pages),
+            runsRead: Int(response.runsRead), stop: stop, problems: response.problems)
+    }
+
+    func clearRunIndex(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] {
+        let response = try await call {
+            try await client.clearRunIndex(.with { $0.workspaceIds = workspaceIDs.map { $0.uuidString.lowercased() } },
+                                           options: Self.options(Self.callTimeout))
+        }
+        return response.workspaces.compactMap(Self.map)
+    }
+
     func insertWorkflowConcurrency(repositoryID: String, content: String) async throws -> CoreConcurrencyInsertion {
         let response = try await call {
             try await client.insertWorkflowConcurrency(.with {
@@ -266,7 +311,8 @@ struct GRPCCoreService: CoreServicing {
         }
         return CoreWorkspaceStorage(workspaceID: id, state: state, note: storage.note.isEmpty ? nil : storage.note, isOpen: storage.open,
                                     databaseBytes: storage.databaseBytes, logBytes: storage.logBytes, cachedRuns: Int(storage.cachedRuns),
-                                    localRuns: Int(storage.localRuns), recoveryCopies: Int(storage.recoveryCopies))
+                                    localRuns: Int(storage.localRuns), recoveryCopies: Int(storage.recoveryCopies),
+                                    indexedRuns: Int(storage.indexedRuns))
     }
 
     func refreshRepository(id: String) async throws -> CoreRepository {

@@ -36,34 +36,36 @@ import Testing
         #expect(RunStatusFilter.filter(runs, statuses: [.failed, .running]).map(\.id) == [2, 3])
     }
 
-    @Test func theStatusFilterCombinesWithTheQueryAndTheBranch() {
+    @Test func theStatusFilterCombinesWithTheFoundRunsAndTheBranch() {
         let runs = [run(1, title: "Release 1.4.0", conclusion: "failure"), run(2, title: "Release 1.3.9"),
                     run(3, title: "Bump Go", conclusion: "failure"), run(4, title: "Release 1.4.1", branch: "dev", conclusion: "failure")]
-        let failed = RunPresentation.list(runs, branch: nil, query: "release", statuses: [.failed], showingSuperseded: false)
+        // The Core found the three Release runs for the query.
+        let found: Set<Int64> = [1, 2, 4]
+        let failed = RunPresentation.list(runs, branch: nil, matching: found, statuses: [.failed], showingSuperseded: false)
         #expect(failed.map(\.id) == [1, 4])
-        let onMain = RunPresentation.list(runs, branch: "main", query: "release", statuses: [.failed], showingSuperseded: false)
+        let onMain = RunPresentation.list(runs, branch: "main", matching: found, statuses: [.failed], showingSuperseded: false)
         #expect(onMain.map(\.id) == [1])
-        let onlyStatus = RunPresentation.list(runs, branch: nil, query: "", statuses: [.failed], showingSuperseded: false)
+        let onlyStatus = RunPresentation.list(runs, branch: nil, matching: nil, statuses: [.failed], showingSuperseded: false)
         #expect(onlyStatus.map(\.id) == [1, 3, 4])
     }
 
-    @Test func theCountsFollowTheQueryAndTheBranchWhateverIsTicked() {
+    @Test func theCountsFollowTheFoundRunsAndTheBranchWhateverIsTicked() {
         let runs = [run(1, title: "Release 1.4.0", conclusion: "failure"), run(2, title: "Release 1.3.9"),
                     run(3, title: "Bump Go", conclusion: "failure"), run(4, title: "Release 1.4.1", branch: "dev", conclusion: "failure")]
-        let counts = RunStatusFilter.counts(RunPresentation.matching(runs, branch: nil, query: "release"))
+        let counts = RunStatusFilter.counts(RunPresentation.matching(runs, branch: nil, ids: [1, 2, 4]))
         #expect(counts[.failed] == 2)
         #expect(counts[.succeeded] == 1)
         #expect(counts[.running] == nil, "a status nothing matches has no count")
-        let main = RunStatusFilter.counts(RunPresentation.matching(runs, branch: "main", query: "release"))
+        let main = RunStatusFilter.counts(RunPresentation.matching(runs, branch: "main", ids: [1, 2, 4]))
         #expect(main[.failed] == 1)
-        let all = RunStatusFilter.counts(RunPresentation.matching(runs, branch: nil, query: ""))
+        let all = RunStatusFilter.counts(RunPresentation.matching(runs, branch: nil, ids: nil))
         #expect(all.values.reduce(0, +) == 4)
     }
 
     @Test func aStatusFilterShowsSupersededRunsLikeASearchDoes() {
         let runs = [run(1, conclusion: "failure"), run(2, conclusion: "failure")]
-        let hidden = RunPresentation.list(runs, branch: nil, query: "", statuses: [], showingSuperseded: false)
-        let filtered = RunPresentation.list(runs, branch: nil, query: "", statuses: [.failed], showingSuperseded: false)
+        let hidden = RunPresentation.list(runs, branch: nil, statuses: [], showingSuperseded: false)
+        let filtered = RunPresentation.list(runs, branch: nil, statuses: [.failed], showingSuperseded: false)
         #expect(filtered.count == 2)
         #expect(hidden.count <= filtered.count)
     }

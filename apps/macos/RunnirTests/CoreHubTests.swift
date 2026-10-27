@@ -388,6 +388,31 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
             return olderRunsResult
         }
     }
+    var runSearchResult = CoreRunSearch()
+    private var _searchQueries: [String] = []
+    var searchQueries: [String] { lock.withLock { _searchQueries } }
+    func searchRuns(repositoryID: String, query: String, limit: Int) async throws -> CoreRunSearch {
+        lock.withLock {
+            _searchQueries.append(query)
+            return runSearchResult
+        }
+    }
+    /// The steps of a deep search, answered in order.
+    var githubSearchSteps: [CoreGitHubRunSearch] = []
+    private var _githubSearchCursors: [Date?] = []
+    var githubSearchCursors: [Date?] { lock.withLock { _githubSearchCursors } }
+    func searchRunsOnGitHub(repositoryID: String, query: String, cursor: Date?, pages: Int) async throws -> CoreGitHubRunSearch {
+        lock.withLock {
+            _githubSearchCursors.append(cursor)
+            return githubSearchSteps.isEmpty ? .failed(.unavailable) : githubSearchSteps.removeFirst()
+        }
+    }
+    private var _clearedIndexes = 0
+    var clearedIndexes: Int { lock.withLock { _clearedIndexes } }
+    func clearRunIndex(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] {
+        lock.withLock { _clearedIndexes += 1 }
+        return []
+    }
     var concurrencyInsertion: CoreConcurrencyInsertion = .refused(.alreadyPresent)
     private var _insertions: [String] = []
     var insertions: [String] { lock.withLock { _insertions } }

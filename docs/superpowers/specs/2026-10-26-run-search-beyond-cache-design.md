@@ -1,6 +1,6 @@
 # Run search beyond the saved runs (B40)
 
-Status: design agreed, not implemented. Only the S12 storage frame with the search index row is on the Pen canvas; the S07 search states were drawn and then removed from it, so they are described below, not drawn.
+Status: built (the Core grammar, `run_index`, `SearchRuns`, `SearchRunsOnGitHub`, `ClearRunIndex`, the list and Settings › Storage); the S07 search states are not on the canvas and have not been tried against GitHub.
 
 ## Problem
 
