@@ -42,9 +42,9 @@ Warnings never block a run.
 ## Core
 
 - `PrepareLocalRunRequest` gets `limits` (CPUs, memory in bytes, timeout in seconds; unset keeps the workspace's) and `reset_limits`.
-- `LocalRunPlan` gets the ceilings (`max_cpus`, `max_memory_bytes`, `max_timeout_seconds`), whether the limits are the workspace's own, and `limit_warnings`.
+- `LocalRunPlan` gets the ceilings (`max_cpus`, `max_memory_bytes`, `max_timeout_seconds`), whether the limits are the workspace's own (`own_limits`), `limit_warnings` and `limit_note` (the line for a small or silent engine, not a warning).
 - `localrun` caps what is asked at the engine's capacity and the bounds above, and words the warnings; one place for the rules.
-- The workspace's limits are kept in its database on this Mac, as local data (kept by Clear Cache, part of the local-data backup), and saved when a run with them is confirmed. Reset to defaults forgets them.
+- The workspace's limits are kept in its database on this Mac, as local data kept by Clear Cache; being a preference, they are not in the backup of local data (after a recovery the defaults come back). They are saved when a run with them is confirmed; a confirmed run with the defaults (after Reset to defaults) forgets them, so Reset changes nothing until a run is confirmed.
 - The app never sends more than the plan allows; the Core checks it again.
 
 ## States drawn
