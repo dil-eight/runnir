@@ -61,7 +61,7 @@ enum SettingsIndex {
     /// The settings that match every word, best matches first: a word in the
     /// title ranks above one in a keyword, which ranks above the detail.
     static func search(_ query: String, limit: Int = 8) -> [SettingsItem] {
-        let words = SearchText.words(query)
+        let words = SearchText.terms(query)
         guard !words.isEmpty else { return [] }
         var scored: [(item: SettingsItem, score: Int, index: Int)] = []
         for (index, item) in items.enumerated() {
@@ -86,18 +86,11 @@ enum SettingsIndex {
 }
 
 enum SearchText {
-    /// The lowercased words of a typed query that are not qualifiers such as
-    /// `branch:main`: what is marked in a result's title.
-    static func words(_ query: String) -> [String] {
-        query.split(whereSeparator: \.isWhitespace).compactMap { token in
-            let text = token.lowercased()
-            if let colon = text.firstIndex(of: ":"), text.index(after: colon) < text.endIndex,
-               qualifiers.contains(String(text[..<colon])) { return nil }
-            return text
-        }
+    /// The lowercased words of a typed query, split at spaces. Which of them
+    /// are qualifiers is the Core's grammar: it says so in its answer.
+    static func terms(_ query: String) -> [String] {
+        query.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
     }
-
-    private static let qualifiers: Set<String> = ["branch", "author", "actor", "event", "workflow", "status", "after", "before"]
 
     /// The text with each word marked, to show why a result matched.
     static func marked(_ text: String, words: [String]) -> AttributedString {
@@ -233,6 +226,8 @@ final class GlobalSearchModel {
     /// Workspaces that could not be searched, with the reason.
     private(set) var unreadable: [(name: String, reason: String)] = []
     private(set) var problems: [String] = []
+    /// The words the Core read in the query, without its qualifiers.
+    private(set) var marks: [String] = []
     var selection: SearchResult.ID?
 
     init(hub: CoreHub?, currentWorkspaceID: UUID, workspaces: @escaping @MainActor () -> [WorkspaceRecord], now: @escaping () -> Date = Date.init) {
@@ -242,7 +237,9 @@ final class GlobalSearchModel {
         self.now = now
     }
 
-    var words: [String] { SearchText.words(query) }
+    /// What results are marked by: the Core's words once it answered, else
+    /// the typed words (only settings are listed then).
+    var words: [String] { marks.isEmpty ? SearchText.terms(query) : marks }
     var visible: [SearchResult] { results.filter { tab.includes($0.kind) } }
 
     func count(_ tab: Tab) -> Int {
@@ -266,6 +263,7 @@ final class GlobalSearchModel {
         results = []
         unreadable = []
         problems = []
+        marks = []
         status = .idle
         selection = nil
         tab = .all
@@ -311,11 +309,12 @@ final class GlobalSearchModel {
             return
         }
         problems = answer.problems
+        marks = answer.words
         var rows: [SearchResult] = []
         unreadable = []
         let names = Dictionary(records.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
         // The window's own workspace first, then the others as they are listed.
-        let order = records.map(\.id).sorted { lhs, _ in lhs == currentWorkspaceID }
+        let order = records.filter { $0.id == currentWorkspaceID }.map(\.id) + records.filter { $0.id != currentWorkspaceID }.map(\.id)
         let byWorkspace = Dictionary(answer.workspaces.map { ($0.workspaceID, $0) }, uniquingKeysWith: { first, _ in first })
         for id in order {
             guard let hits = byWorkspace[id], let name = names[id] else { continue }

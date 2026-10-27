@@ -75,6 +75,42 @@ struct RunSearchModelTests {
         #expect(await eventually { model.deep == .failed(.unavailable) })
     }
 
+    @Test func aSyncWhileTypingKeepsTheSearchForTheNewText() async {
+        let (model, provider, _) = await rig()
+        model.debounce = .milliseconds(50)
+        provider.core.runSearchResult = CoreRunSearch(cachedRunIDs: [1])
+        model.update(query: "deploy")
+        #expect(await eventually { model.query == "deploy" })
+        model.update(query: "deploy prod")
+        // A sync lands during the pause before the new text is searched.
+        model.refresh()
+        #expect(await eventually { model.query == "deploy prod" })
+        #expect(provider.core.searchQueries.last == "deploy prod")
+    }
+
+    @Test func aTextClearedBeforeItsSearchRanIsNotSearched() async throws {
+        let (model, provider, _) = await rig()
+        model.debounce = .milliseconds(50)
+        model.update(query: "a")
+        model.update(query: "")
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(!provider.core.searchQueries.contains("a"))
+        #expect(model.query.isEmpty && model.saved == nil)
+    }
+
+    @Test func aSearchTheCoreDoesNotAnswerNarrowsNothing() async {
+        let (model, provider, _) = await rig()
+        provider.core.runSearchFails = true
+        model.update(query: "deploy")
+        #expect(await eventually { model.unavailable })
+        #expect(model.matchingIDs == nil, "the list stays as it is instead of saying nothing matches")
+        provider.core.runSearchFails = false
+        provider.core.runSearchResult = CoreRunSearch(cachedRunIDs: [2])
+        model.update(query: "deploy!")
+        #expect(await eventually { model.matchingIDs == [2] })
+        #expect(!model.unavailable)
+    }
+
     @Test func anotherQueryEndsTheDeepSearchOfTheOldOne() async {
         let (model, provider, _) = await rig()
         provider.core.runSearchResult = CoreRunSearch(cachedRunIDs: [1])

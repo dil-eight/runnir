@@ -144,7 +144,7 @@ struct GRPCCoreService: CoreServicing {
                 $0.limitPerKind = UInt32(clamping: max(0, limitPerKind))
             }, options: Self.options(Self.callTimeout))
         }
-        return CoreWorkspaceSearch(workspaces: response.workspaces.compactMap(Self.map), problems: response.problems)
+        return CoreWorkspaceSearch(workspaces: response.workspaces.compactMap(Self.map), problems: response.problems, words: response.words)
     }
 
     static func map(_ hits: Runnir_Core_V1_WorkspaceSearchHits) -> CoreWorkspaceHits? {

@@ -39,6 +39,7 @@ struct GlobalSearchTests {
                               pullRequests: [CoreSearchedPullRequest(number: 7, title: "Fix login redirect", state: "open", isDraft: false, author: "ana",
                                                                      headRef: "fix-login", htmlURL: URL(string: "https://github.com/o/web/pull/7"), updatedAt: nil)],
                               pullRequestsMatched: 1),
+            CoreWorkspaceHits(workspaceID: UUID(), runs: [run(99, title: "Not registered")], runsMatched: 1),
             CoreWorkspaceHits(workspaceID: current, isOpen: true, repository: "o/mobile-app",
                               runs: [run(12, title: "Fix flaky login test", conclusion: "failure")], runsMatched: 31,
                               workflows: [CoreGitHubWorkflow(id: 4, name: "Login smoke", path: ".github/workflows/login.yml", state: "active", htmlURL: nil)],
@@ -63,8 +64,15 @@ struct GlobalSearchTests {
         }
     }
 
-    @Test func qualifiersAreNotMarkedInATitle() {
-        #expect(SearchText.words("Login branch:main  status:failed #12") == ["login", "#12"])
+    @Test func theWordsTheCoreReadMarkTheResults() async {
+        let (model, provider) = await rig()
+        var search = answer
+        search.words = ["login"]
+        provider.core.workspaceSearchResult = search
+        model.update(query: "Login branch:main")
+        #expect(model.words == ["login", "branch:main"], "before the answer, the typed words")
+        #expect(await eventually { model.status == .done })
+        #expect(model.words == ["login"], "the Core says which words are qualifiers")
         let marked = SearchText.marked("Fix login on Login", words: ["login"])
         let emphasized = marked.runs.filter { $0.inlinePresentationIntent == .stronglyEmphasized }.map { String(marked[$0.range].characters) }
         #expect(emphasized == ["login", "Login"])

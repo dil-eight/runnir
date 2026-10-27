@@ -403,9 +403,12 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     var runSearchResult = CoreRunSearch()
     private var _searchQueries: [String] = []
     var searchQueries: [String] { lock.withLock { _searchQueries } }
+    /// The Core does not answer run searches.
+    var runSearchFails = false
     func searchRuns(repositoryID: String, query: String, limit: Int) async throws -> CoreRunSearch {
-        lock.withLock {
+        try lock.withLock {
             _searchQueries.append(query)
+            if runSearchFails { throw CoreServiceError.unavailable }
             return runSearchResult
         }
     }

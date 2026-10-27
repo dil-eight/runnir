@@ -36,7 +36,8 @@ Words from a title can therefore only be matched on this Mac, either in the save
 - `run_index` in the workspace database: run id, source (server and repository), title, workflow name, SHA, branch, actor, event, status, conclusion, created and updated time, pull request numbers; about 200 bytes a run.
 - Filled by everything the Core reads: sync passes, older pages, deep searches. It is not the cache: the cache stays one unbroken stretch of the newest runs.
 - Own budget of 50,000 runs a workspace (about 10 MB), oldest evicted first. Kept by Clear Cache, because what GitHub deleted cannot be downloaded again; not part of the local-data backup. Settings › Storage shows its size and has Clear Search Index.
-- A result from the index is a light row. Opening it reads the run from GitHub; a 404 shows "GitHub no longer has this run" with the stored title, commit, branch and time, and an option to remove it from the index.
+- A result from the index is a light row. Opening it reads the run from GitHub; a 404 shows "GitHub does not show this run" (GitHub answers the same for a deleted run and for a repository the account can no longer see) with the stored title, commit, branch and time. Removing one run from the index is not built.
+- GitHub's filters are sent only where they cover the whole of what the query means: a branch keeps its case (GitHub compares it exactly), and of the statuses only success, cancelled and in progress are sent, because GitHub's `failure`, `queued` and `skipped` each leave out runs of that status (timed out, waiting, neutral). `after:` and `before:` are days in this Mac's time zone.
 
 ### App
 

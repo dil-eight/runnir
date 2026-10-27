@@ -179,6 +179,9 @@ struct CoreWorkspaceSearch: Equatable, Sendable {
     var workspaces: [CoreWorkspaceHits] = []
     /// Parts of the query that could not be used.
     var problems: [String] = []
+    /// The query's words without its qualifiers, as the Core read them: what
+    /// a result is marked by.
+    var words: [String] = []
 }
 
 /// Why a step of a deep search on GitHub ended.

@@ -33,8 +33,13 @@ final class RunSearchModel {
     private(set) var lookedBackTo: Date?
     private(set) var runsRead = 0
     private(set) var pagesRead = 0
+    /// The Core did not answer the latest search, so it narrows nothing.
+    private(set) var unavailable = false
     @ObservationIgnored private var cursor: Date?
+    /// The text the latest search is for, answered or still on its way.
+    @ObservationIgnored private var typed = ""
     @ObservationIgnored private var searchTask: Task<Void, Never>?
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var deepTask: Task<Void, Never>?
 
     init(hub: CoreHub, workspaceID: UUID) {
@@ -42,8 +47,12 @@ final class RunSearchModel {
         self.workspaceID = workspaceID
     }
 
-    /// The ids of the saved runs that match the query; nil without a search.
-    var matchingIDs: Set<Int64>? { query.isEmpty ? nil : Set(saved?.cachedRunIDs ?? []) }
+    /// The ids of the saved runs that match the query; nil without an answer
+    /// (no search, none yet, or the Core did not answer), which narrows nothing.
+    var matchingIDs: Set<Int64>? {
+        guard !query.isEmpty, let saved else { return nil }
+        return Set(saved.cachedRunIDs)
+    }
     var indexedRuns: [CoreWorkflowRun] { saved?.indexedRuns ?? [] }
     var problems: [String] { saved?.problems ?? [] }
 
@@ -62,8 +71,12 @@ final class RunSearchModel {
     /// the search; another query ends a deep search of the old one.
     func update(query text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed != query || (saved == nil && !trimmed.isEmpty && !isSearching) else { return }
+        // Compared with the text last asked for, not the last answered: a text
+        // cleared before its search ran cancels that search.
+        guard trimmed != typed || (saved == nil && !trimmed.isEmpty && !isSearching) else { return }
+        typed = trimmed
         searchTask?.cancel()
+        refreshTask?.cancel()
         guard !trimmed.isEmpty else {
             reset()
             return
@@ -78,20 +91,24 @@ final class RunSearchModel {
             isSearching = false
             if trimmed != query { resetDeep() }
             query = trimmed
-            saved = result ?? CoreRunSearch()
+            saved = result
+            unavailable = result == nil
         }
     }
 
-    /// The saved runs changed (a sync): the answer is read again.
+    /// The saved runs changed (a sync): the answer is read again. A text
+    /// typed since is on its way and its answer covers the change, so the
+    /// search for it is left alone.
     func refresh() {
-        guard !query.isEmpty else { return }
+        guard !query.isEmpty, query == typed else { return }
         let current = query
-        searchTask?.cancel()
-        searchTask = Task { [weak self] in
+        refreshTask?.cancel()
+        refreshTask = Task { [weak self] in
             guard let self else { return }
             let result = await hub.searchRuns(workspaceID: workspaceID, query: current)
-            guard !Task.isCancelled, current == query else { return }
-            saved = result ?? saved
+            guard !Task.isCancelled, current == query, current == typed, let result else { return }
+            saved = result
+            unavailable = false
         }
     }
 
@@ -169,8 +186,11 @@ final class RunSearchModel {
 
     private func reset() {
         resetDeep()
+        refreshTask?.cancel()
+        typed = ""
         query = ""
         saved = nil
+        unavailable = false
         isSearching = false
     }
 }

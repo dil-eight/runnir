@@ -47,10 +47,24 @@ import Testing
         inbox.record(notification("still there"))
         inbox.markDelivered("shown")
         inbox.markDelivered("still there")
-        inbox.reconcile(stillDelivered: ["still there"])
+        inbox.reconcile(stillDelivered: ["still there"], checkedAt: Date(timeIntervalSince1970: 1_000_001))
         #expect(inbox.entries.first { $0.id == "shown" }?.read == true, "cleared in Notification Center")
         #expect(inbox.entries.first { $0.id == "still there" }?.read == false)
         #expect(inbox.entries.first { $0.id == "never shown" }?.read == false, "macOS never showed it, so it can only be read here")
+    }
+
+    @Test func aNotificationShownAfterTheCheckBeganIsNotRead() {
+        var clock = Date(timeIntervalSince1970: 1_000_000)
+        let inbox = inbox(now: { clock })
+        inbox.record(notification("new"))
+        let asked = clock
+        // macOS answers the check without it; it is delivered in the meantime.
+        clock = clock.addingTimeInterval(1)
+        inbox.markDelivered("new")
+        inbox.reconcile(stillDelivered: [], checkedAt: asked)
+        #expect(inbox.entries.first?.read == false && inbox.unreadCount == 1)
+        inbox.reconcile(stillDelivered: [], checkedAt: clock.addingTimeInterval(1))
+        #expect(inbox.unreadCount == 0, "a later check that does not list it reads it")
     }
 
     @Test func theListKeepsTheNewestHundredFromTheLastThirtyDays() {

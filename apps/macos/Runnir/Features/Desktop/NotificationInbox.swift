@@ -14,9 +14,9 @@ struct InboxEntry: Codable, Identifiable, Equatable, Sendable {
     var workspaceID: UUID?
     var at: Date
     var read = false
-    /// macOS showed it as a notification. Only such an entry can be read by
-    /// closing it there; one it never showed stays unread until opened here.
-    var delivered = false
+    /// When macOS took it to show. Only such an entry can be read by closing
+    /// it there; one it never showed stays unread until opened here.
+    var deliveredAt: Date?
 }
 
 /// notifications.json in the app's support directory: the bell's list.
@@ -85,9 +85,10 @@ final class NotificationInbox {
         persist()
     }
 
-    /// macOS showed the notification.
+    /// macOS took the notification to show.
     func markDelivered(_ id: String) {
-        update(id) { $0.delivered = true }
+        let at = now()
+        update(id) { $0.deliveredAt = at }
     }
 
     func markRead(_ id: String) {
@@ -101,9 +102,12 @@ final class NotificationInbox {
     }
 
     /// Entries macOS showed that it no longer holds were closed there.
-    func reconcile(stillDelivered ids: Set<String>) {
+    /// `checkedAt` is when the list of what it holds was asked for: an entry
+    /// delivered after that is not in the list yet and stays as it is.
+    func reconcile(stillDelivered ids: Set<String>, checkedAt: Date) {
         var changed = false
-        for index in entries.indices where entries[index].delivered && !entries[index].read && !ids.contains(entries[index].id) {
+        for index in entries.indices where !entries[index].read && !ids.contains(entries[index].id) {
+            guard let delivered = entries[index].deliveredAt, delivered < checkedAt else { continue }
             entries[index].read = true
             changed = true
         }

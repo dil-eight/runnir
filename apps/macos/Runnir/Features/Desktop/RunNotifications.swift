@@ -121,8 +121,9 @@ final class RunNotifier: NSObject, UNUserNotificationCenterDelegate {
 
     /// Reads in the bell what macOS no longer holds of what it showed.
     func reconcile() async {
+        let asked = Date()
         let delivered = await UNUserNotificationCenter.current().deliveredNotifications()
-        inbox?.reconcile(stillDelivered: Set(delivered.map { $0.request.identifier }))
+        inbox?.reconcile(stillDelivered: Set(delivered.map { $0.request.identifier }), checkedAt: asked)
     }
 
     private func post(_ notification: RunNotification) {

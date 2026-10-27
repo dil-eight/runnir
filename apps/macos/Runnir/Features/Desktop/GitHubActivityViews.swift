@@ -167,8 +167,11 @@ struct WorkspaceRunsView: View {
     private var searching: Bool { RunSearch.isActive(query) }
     /// A search or a status filter narrows the list to the saved runs, all of them.
     private var narrowing: Bool { searching || !statuses.isEmpty }
-    /// The saved runs the Core found for the query: none until it answers.
-    private var matchingIDs: Set<Int64>? { searching ? (search.matchingIDs ?? []) : nil }
+    /// The saved runs the Core found for the query; nil (nothing narrowed)
+    /// until it answers or when it cannot.
+    private var matchingIDs: Set<Int64>? { searching ? search.matchingIDs : nil }
+    /// A query is typed and the Core has not answered any yet.
+    private var awaitingAnswer: Bool { searching && search.matchingIDs == nil && !search.unavailable }
     /// Runs per status that match the typed query and the branch filter.
     private var statusCounts: [RunStatusFilter: Int] {
         RunStatusFilter.counts(RunPresentation.matching(session.runs, branch: branch, ids: matchingIDs))
@@ -325,7 +328,11 @@ struct WorkspaceRunsView: View {
         let runs = RunPresentation.list(session.runs, branch: branch, matching: matchingIDs, statuses: statuses, showingSuperseded: showingSuperseded)
         let indexed = searching ? beyondSaved(search.indexedRuns) : []
         let github = searching ? beyondSaved(search.foundOnGitHub(excluding: Set(session.runs.map(\.id)))) : []
-        if narrowing {
+        if searching && search.unavailable {
+            searchUnavailable
+        } else if awaitingAnswer {
+            searchingLine
+        } else if narrowing {
             searchNote(found: runs.count + indexed.count + github.count, noun: "runs",
                        summary: RunSearch.summary(matches: runs.count, saved: savedRuns, indexed: searching ? (search.saved?.indexedSearched ?? 0) : 0,
                                                   historyComplete: session.historyComplete))
@@ -360,6 +367,20 @@ struct WorkspaceRunsView: View {
         }
     }
 
+    private var searchingLine: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text("Searching the saved runs\u{2026}")
+        }
+        .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(12)
+    }
+
+    /// The Core did not answer: the list stays as it is rather than look empty.
+    private var searchUnavailable: some View {
+        Label("Runnir Core did not answer, so the search could not run. The list is not narrowed by it.", systemImage: "exclamationmark.triangle")
+            .font(.system(size: 12)).foregroundStyle(RunnirTheme.warning).fixedSize(horizontal: false, vertical: true).padding(12)
+    }
+
     /// A run the search found that the activity cache does not hold.
     private func extraRow(_ run: CoreWorkflowRun) -> some View {
         RunRow(run: run, selected: run.id == selectedRunID, pullRequest: nil, newer: nil)
@@ -368,7 +389,11 @@ struct WorkspaceRunsView: View {
 
     @ViewBuilder private var changeBlocks: some View {
         let changes = RunPresentation.changes(session.changes, runs: runsByID, branch: branch, matching: matchingIDs, statuses: statuses)
-        if narrowing {
+        if searching && search.unavailable {
+            searchUnavailable
+        } else if awaitingAnswer {
+            searchingLine
+        } else if narrowing {
             searchNote(found: changes.count, noun: "changes",
                        summary: "Showing \(changes.count) of \(session.changes.count) changes" + (session.historyComplete ? "" : ". Older runs are on GitHub."))
         }

@@ -30,7 +30,7 @@ import Testing
         let node = try #require(RunGraph.layout(workflow: workflow, runJobs: runJobs)?.columns.first?.first)
         #expect(node.title == "test ×3")
         #expect(node.outcome == .failed)
-        #expect(RunGraph.jobToOpen(node)?.id == 2, "a click opens the failed variant")
+        #expect(RunGraph.jobToOpen(node.jobs)?.id == 2, "a click opens the failed variant")
     }
 
     @Test func aNameSetByAnExpressionShowsTheJobId() throws {

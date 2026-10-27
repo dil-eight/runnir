@@ -44,8 +44,8 @@ enum RunGraph {
     static func absentOutcome(runActive: Bool) -> CoreRunOutcome { runActive ? .queued : .skipped }
 
     /// The job a click on a node opens: its first failed one, else its first.
-    static func jobToOpen(_ node: Node) -> CoreRunJob? {
-        node.jobs.first { $0.outcome == .failed } ?? node.jobs.first
+    static func jobToOpen(_ jobs: [CoreRunJob]) -> CoreRunJob? {
+        jobs.first { $0.outcome == .failed } ?? jobs.first
     }
 
     /// Where a run stands, for the line under the graph: the first failed
@@ -162,11 +162,12 @@ struct RunGraphView: View {
             HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Loading jobs...") }
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
         case .some(let result) where result.access == .notVisible:
-            // The run was found in the search index, or was cached, and GitHub no longer serves it.
+            // GitHub answers the same for a run it deleted and for a repository
+            // this account can no longer see, so both are named.
             VStack(spacing: 8) {
                 Image(systemName: "icloud.slash").font(.system(size: 28)).foregroundStyle(RunnirTheme.mutedForeground)
-                Text("GitHub no longer has this run").font(.system(size: 15, weight: .semibold))
-                Text("Runnir kept its title, commit, branch and time in the search index. Jobs, steps and logs went with it on GitHub.")
+                Text("GitHub does not show this run").font(.system(size: 15, weight: .semibold))
+                Text("It was deleted on GitHub, or this account can no longer see the repository. Its title, commit, branch and time are still on this Mac; its jobs, steps and logs are read from GitHub.")
                     .font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground).multilineTextAlignment(.center)
                     .frame(maxWidth: 420)
             }
@@ -232,7 +233,7 @@ struct RunGraphView: View {
     }
 
     private func jobNode(title: String, outcome: CoreRunOutcome, jobs: [CoreRunJob]) -> some View {
-        let target = jobs.first { $0.outcome == .failed } ?? jobs.first
+        let target = RunGraph.jobToOpen(jobs)
         return Button {
             if let target { model.open(target) }
         } label: {
