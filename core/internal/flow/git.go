@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -94,6 +95,40 @@ func (g Git) Upstream(ctx context.Context) string {
 	return strings.TrimSpace(string(out))
 }
 
+// UpstreamHead is the commit of the branch the current one tracks, as last
+// fetched or pushed; empty without one.
+func (g Git) UpstreamHead(ctx context.Context) string {
+	if g.Path == "" {
+		return ""
+	}
+	out, err := g.run(ctx, "rev-parse", "--verify", "--quiet", "@{upstream}")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// maxTags bounds the local tags read.
+const maxTags = 10000
+
+// Tags are the tags of the local repository; nil when git cannot say.
+func (g Git) Tags(ctx context.Context) map[string]bool {
+	if g.Path == "" {
+		return nil
+	}
+	out, err := g.run(ctx, "for-each-ref", "--format=%(refname)", "--count="+strconv.Itoa(maxTags), "refs/tags")
+	if err != nil {
+		return nil
+	}
+	tags := map[string]bool{}
+	for _, line := range strings.Split(string(out), "\n") {
+		if name, ok := strings.CutPrefix(strings.TrimSpace(line), "refs/tags/"); ok && name != "" {
+			tags[name] = true
+		}
+	}
+	return tags
+}
+
 // Changes lists the files changed since the change left `against`: the
 // commits since the merge base, uncommitted changes and untracked files.
 func (g Git) Changes(ctx context.Context, against string) Changes {
@@ -134,7 +169,7 @@ func (g Git) Changes(ctx context.Context, against string) Changes {
 func (g Git) ChangesFor(ctx context.Context, s Scenario, repo Repo) Changes {
 	switch s.Kind {
 	case PullRequest, Merge:
-		if !literalName(s.Target) {
+		if _, ok := exactName(s.Target); !ok {
 			return Changes{Note: "pick a branch for " + s.Target + " to read paths filters"}
 		}
 		return g.Changes(ctx, "origin/"+s.Target)

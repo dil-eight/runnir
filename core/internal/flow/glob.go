@@ -8,8 +8,8 @@ import (
 
 // GitHub's filter patterns: `*` matches any characters but `/`, `**` any
 // characters, `?` makes the character before it optional, `+` repeats it,
-// `[...]` is one character of a set, and a leading `!` excludes. In a list
-// the last pattern that matches decides.
+// `[...]` is one character of a set, `\` takes the next character as it is,
+// and a leading `!` excludes. In a list the last pattern that matches decides.
 
 var (
 	patternsMu sync.Mutex
@@ -28,6 +28,9 @@ func compile(pattern string) *regexp.Regexp {
 	for i := 0; i < len(pattern); i++ {
 		c := pattern[i]
 		switch {
+		case c == '\\' && i+1 < len(pattern):
+			i++
+			b.WriteString(regexp.QuoteMeta(pattern[i : i+1]))
 		case c == '*' && i+1 < len(pattern) && pattern[i+1] == '*':
 			b.WriteString(".*")
 			i++
@@ -40,14 +43,16 @@ func compile(pattern string) *regexp.Regexp {
 		case (c == '?' || c == '+') && i > 0 && !afterStar:
 			b.WriteByte(c)
 		case c == '[':
-			if end := strings.IndexByte(pattern[i+1:], ']'); end > 0 {
-				b.WriteString("[" + strings.ReplaceAll(pattern[i+1:i+1+end], `\`, `\\`) + "]")
-				i += end + 1
+			if set, end, ok := charSet(pattern, i); ok {
+				b.WriteString(set)
+				i = end
 			} else {
-				b.WriteString(regexp.QuoteMeta(string(c)))
+				b.WriteString(`\[`)
 			}
 		default:
-			b.WriteString(regexp.QuoteMeta(string(c)))
+			// One byte at a time: the bytes of a multi-byte character follow
+			// each other unchanged, as QuoteMeta leaves them.
+			b.WriteString(regexp.QuoteMeta(pattern[i : i+1]))
 		}
 		afterStar = false
 	}
@@ -58,6 +63,40 @@ func compile(pattern string) *regexp.Regexp {
 	}
 	patterns[pattern] = re
 	return re
+}
+
+// charSet reads the [...] set that starts at pattern[start]: its regexp
+// and the index of its closing ']'. Inside it `\` takes the next character
+// as it is. A set holds one character at least, so "[]" is no set.
+func charSet(pattern string, start int) (set string, end int, ok bool) {
+	if start+1 >= len(pattern) || pattern[start+1] == ']' {
+		return "", 0, false
+	}
+	var b strings.Builder
+	b.WriteString("[")
+	for i := start + 1; i < len(pattern); i++ {
+		switch c := pattern[i]; {
+		case c == ']':
+			return b.String() + "]", i, true
+		case c == '\\' && i+1 < len(pattern):
+			i++
+			b.WriteString(classLiteral(pattern[i]))
+		case c == '\\' || c == '[':
+			b.WriteString(classLiteral(c))
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return "", 0, false
+}
+
+// classLiteral writes a character as itself inside a regexp set: the ones
+// a set reads otherwise (\ [ ] ^ -) escaped, any other byte as it is.
+func classLiteral(c byte) string {
+	if strings.IndexByte(`\[]^-`, c) >= 0 {
+		return `\` + string(rune(c))
+	}
+	return string([]byte{c})
 }
 
 func globMatch(pattern, value string) bool {
@@ -81,9 +120,10 @@ func decide(list []string, value string) (in bool, by string) {
 	return in, by
 }
 
-// refFilter checks a branch or tag against an include and an ignore list.
-// ok is true without filters. The reason names what decided against it.
-func refFilter(include, ignore []string, value, noun string) (ok bool, decided, reason string) {
+// refFilter checks a branch or tag (noun says which) against the include
+// and ignore lists of a filter ("branches" or "tags"). ok is true without
+// filters. The reason names what decided against it.
+func refFilter(filter string, include, ignore []string, value, noun string) (ok bool, decided, reason string) {
 	switch {
 	case len(include) > 0:
 		in, by := decide(include, value)
@@ -98,7 +138,7 @@ func refFilter(include, ignore []string, value, noun string) (ok bool, decided, 
 	case len(ignore) > 0:
 		for _, pattern := range ignore {
 			if globMatch(pattern, value) {
-				return false, "", map[string]string{"branch": "branches-ignore ", "tag": "tags-ignore "}[noun] + pattern
+				return false, "", filter + "-ignore " + pattern
 			}
 		}
 	}
@@ -131,9 +171,25 @@ func pathFilter(paths, ignore, files []string) (ok bool, reason string) {
 	return true, ""
 }
 
-// literalName: a filter entry that names one branch, with no pattern.
-func literalName(pattern string) bool {
-	return pattern != "" && !strings.ContainsAny(pattern, "*?+[!")
+// exactName is the one name a filter entry stands for, with GitHub's escapes
+// taken out; ok is false for a pattern or an exclusion.
+func exactName(pattern string) (name string, ok bool) {
+	if pattern == "" || pattern[0] == '!' {
+		return "", false
+	}
+	var b strings.Builder
+	for i := 0; i < len(pattern); i++ {
+		switch c := pattern[i]; {
+		case c == '\\' && i+1 < len(pattern):
+			i++
+			b.WriteByte(pattern[i])
+		case strings.IndexByte("*?+[", c) >= 0:
+			return "", false
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return b.String(), true
 }
 
 // MatchesTag says whether a tag name matches a Tag scenario's target, a

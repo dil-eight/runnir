@@ -35,10 +35,15 @@ func (s *service) GetFlow(ctx context.Context, request *corev1.GetFlowRequest) (
 	if repo.DefaultBranch == "" {
 		repo.DefaultBranch = "main"
 	}
-	for _, p := range saved.PullRequests {
-		if p.State == "open" && p.HeadRef == repo.CurrentBranch && repo.CurrentBranch != "" {
-			repo.PullRequestBase = p.BaseRef
-			break
+	git := flow.Git{Path: s.git(), Root: info.Path}
+	head := git.Head(ctx)
+	// The branch's pull request, and where its head comes from: the
+	// repository itself or the user's fork.
+	headRepository := saved.Source.Repository
+	if p, ok := branchPullRequest(saved.PullRequests, repo.CurrentBranch, saved.Source.Repository, head, git.UpstreamHead(ctx)); ok {
+		repo.PullRequestBase = p.BaseRef
+		if p.HeadRepository != "" {
+			headRepository = p.HeadRepository
 		}
 	}
 	scenarios := flow.Scenarios(workflows, repo)
@@ -53,10 +58,16 @@ func (s *service) GetFlow(ctx context.Context, request *corev1.GetFlowRequest) (
 		}
 		chosen = scenarios[0]
 	}
-	git := flow.Git{Path: s.git(), Root: info.Path}
 	changes := git.ChangesFor(ctx, chosen, repo)
 	plan := flow.Plan(chosen, workflows, repo, changes)
-	head := git.Head(ctx)
+	match := laneRuns{scenario: chosen, repo: repo, headRepository: headRepository}
+	if chosen.Kind == flow.Tag {
+		match.tags = git.Tags(ctx)
+	}
+	byPath := map[string]flow.Workflow{}
+	for _, w := range workflows {
+		byPath[w.Path] = w
+	}
 	out.Scenario = scenarioMessage(chosen)
 	out.Changes = &corev1.FlowChanges{
 		Applies: plan.PathsApply, Known: changes.Known, Count: uint32(len(changes.Files)), Against: changes.Against, Note: changes.Note,
@@ -77,7 +88,7 @@ func (s *service) GetFlow(ctx context.Context, request *corev1.GetFlowRequest) (
 			})
 		}
 		if id, ok := ids[lane.Path]; ok {
-			if run, ok := laneRun(chosen, lane.Kind, saved.Runs, id, repo); ok {
+			if run, ok := match.newest(lane.Kind, byPath[lane.Path].PushesTagsOnly(), id, saved.Runs); ok {
 				message.Run = runMessage(run)
 				if ownChange(chosen, lane.Kind) && head != "" && run.HeadSHA != "" && run.HeadSHA != head {
 					message.StatusesFrom = shortSHA(run.HeadSHA)
@@ -99,29 +110,69 @@ func (s *service) git() string {
 	return s.gitPath
 }
 
-// laneRun is the newest saved run of a lane's workflow that belongs to the
+// branchPullRequest is the current branch's open pull request: the one whose
+// head is the commit checked out or last pushed, from the repository itself
+// or the user's fork; else one from the repository itself. A fork's pull
+// request from a branch of the same name with another head is someone else's.
+func branchPullRequest(pulls []github.RepositoryPullRequest, branch, repository string, commits ...string) (github.RepositoryPullRequest, bool) {
+	var own *github.RepositoryPullRequest
+	for i, p := range pulls {
+		if p.State != "open" || branch == "" || p.HeadRef != branch {
+			continue
+		}
+		for _, c := range commits {
+			if c != "" && p.HeadSHA == c {
+				return p, true
+			}
+		}
+		if own == nil && !github.OtherRepository(p.HeadRepository, repository) {
+			own = &pulls[i]
+		}
+	}
+	if own != nil {
+		return *own, true
+	}
+	return github.RepositoryPullRequest{}, false
+}
+
+// laneRuns tells a lane's runs apart from the other runs of its workflow.
+type laneRuns struct {
+	scenario flow.Scenario
+	repo     flow.Repo
+	// headRepository is where the branch's pull request comes from; runs
+	// of another fork's branch of the same name are someone else's.
+	headRepository string
+	// tags are the local tags, read for a Tag scenario: GitHub names a push
+	// run by its ref only, so a run on a ref of the tag's pattern is a tag's
+	// when the tag is known here, or when the workflow pushes only tags. The
+	// runs of a tag not fetched yet are left out.
+	tags map[string]bool
+}
+
+// newest is the newest saved run of a lane's workflow that belongs to the
 // scenario: on the branch's pull request, a push to the branch or the target,
 // a tag, a manual start on the branch, the schedule; workflow_run for a chain.
 // The runs are newest first.
-func laneRun(sc flow.Scenario, kind flow.LaneKind, runs []github.Run, workflowID int64, repo flow.Repo) (github.Run, bool) {
+func (m laneRuns) newest(kind flow.LaneKind, tagsOnly bool, workflowID int64, runs []github.Run) (github.Run, bool) {
 	belongs := func(r github.Run) bool {
 		switch kind {
 		case flow.Chained:
 			return r.Event == "workflow_run"
 		case flow.ByHand:
-			return r.Event == "workflow_dispatch" && r.Branch == repo.CurrentBranch
+			return r.Event == "workflow_dispatch" && r.Branch == m.repo.CurrentBranch
 		}
-		switch sc.Kind {
+		switch m.scenario.Kind {
 		case flow.PullRequest:
-			return (r.Event == "pull_request" || r.Event == "pull_request_target") && r.Branch == repo.CurrentBranch
+			return (r.Event == "pull_request" || r.Event == "pull_request_target") && r.Branch == m.repo.CurrentBranch &&
+				!github.OtherRepository(r.HeadRepository, m.headRepository)
 		case flow.Push:
-			return r.Event == "push" && r.Branch == repo.CurrentBranch
+			return r.Event == "push" && r.Branch == m.repo.CurrentBranch
 		case flow.Merge:
-			return r.Event == "push" && r.Branch == sc.Target
+			return r.Event == "push" && r.Branch == m.scenario.Target
 		case flow.Tag:
-			return r.Event == "release" || r.Event == "push" && flow.MatchesTag(sc.Target, r.Branch)
+			return r.Event == "release" || r.Event == "push" && flow.MatchesTag(m.scenario.Target, r.Branch) && (tagsOnly || m.tags[r.Branch])
 		case flow.Manual:
-			return r.Event == "workflow_dispatch" && r.Branch == repo.CurrentBranch
+			return r.Event == "workflow_dispatch" && r.Branch == m.repo.CurrentBranch
 		case flow.Schedule:
 			return r.Event == "schedule"
 		}

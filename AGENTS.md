@@ -10,7 +10,7 @@ Runnir combines a native macOS desktop app with a portable Go Core. Keep impleme
 - Preserve existing Swift services until feature-level migrations are tested. Do not duplicate new GitHub domain logic across runtimes.
 - Do not introduce Node.js, npm, pnpm, React, Electron, Tauri, Rust, CocoaPods, or Carthage.
 - Store credentials only in macOS Keychain.
-- Do not add telemetry by default.
+- Do not add telemetry by default. The approved analytics design (B21, [spec](docs/superpowers/specs/2026-10-25-anonymous-analytics-design.md)) changes this rule when it is implemented; until then the rule holds.
 - Do not claim authentication, signing, notarization, auto-update, or deployment features are complete until they are implemented and verified.
 - Prefer small protocol-backed services and deterministic tests.
 - No backward compatibility before the first release tag. Runnir has not been released, so change file formats (`.runnir`, files in Application Support), gRPC and IPC contracts, database schemas and settings in place: no migrations, fallbacks, version fields or aliases kept only for data or clients from earlier development builds. Local data that no longer fits may be discarded. Existing migration code stays until someone removes it on purpose. Backward compatibility starts with the first published version tag; from then on follow the compatibility rules in ADR 0004 and ADR 0007.
