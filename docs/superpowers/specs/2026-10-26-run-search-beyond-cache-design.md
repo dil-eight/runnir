@@ -1,6 +1,6 @@
 # Run search beyond the saved runs (B40)
 
-Status: design agreed, states drawn in Pen (Row — Run search, and the S12 storage frame), not implemented.
+Status: design agreed, not implemented. Only the S12 storage frame with the search index row is on the Pen canvas; the S07 search states were drawn and then removed from it, so they are described below, not drawn.
 
 ## Problem
 
@@ -42,7 +42,7 @@ Words from a title can therefore only be matched on this Mac, either in the save
 
 - The search field is as in B33. Below the results: the coverage line ("Showing 3 of 812 saved runs · 12 340 in the search index."), the Search GitHub row, progress with Cancel while searching, a "Found on GitHub" group, and the limit state with "Search deeper" and a hint to narrow with `branch:`, `author:` or `after:`.
 - Paused by the rate limit: a notice with the time it resets; saved runs and the index keep working. Offline reads the same way.
-- States are in Pen: S07 checking, searching, searched back to the limit, nothing found anywhere, paused, run kept only in the index; S12 Storage with the search index row.
+- States to draw when this is built: S07 checking, searching, searched back to the limit, nothing found anywhere, paused, run kept only in the index. S12 Storage with the search index row is on the canvas.
 
 ## Delivery
 
