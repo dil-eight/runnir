@@ -262,13 +262,19 @@ func Plan(s Scenario, workflows []Workflow, repo Repo, changes Changes) Flow {
 				continue
 			}
 			e, ok := w.Events["workflow_run"]
-			if !ok || !contains(e.Workflows, source.Name) || !completes(e.Types) {
+			if !ok || !contains(e.Workflows, source.Name) {
 				continue
 			}
 			if ok, _, _ := refFilter(e.Branches, e.BranchesIgnore, branch, "branch"); !ok {
 				continue
 			}
-			lane := Lane{Path: w.Path, Name: w.Name, Kind: Chained, After: source.Name, AfterPath: source.Path, Why: "workflow_run", ParseError: w.ParseError}
+			// requested and in_progress start it with the source, not after it:
+			// it is in the scenario all the same.
+			why := "workflow_run"
+			if !completes(e.Types) {
+				why = joinWhy(why, "types "+strings.Join(e.Types, ", "))
+			}
+			lane := Lane{Path: w.Path, Name: w.Name, Kind: Chained, After: source.Name, AfterPath: source.Path, Why: why, ParseError: w.ParseError}
 			lane.Jobs = plannedJobs(w, runContext(s, repo, "workflow_run", true))
 			in[w.Path] = true
 			lanes = append(lanes, lane)
@@ -301,11 +307,27 @@ func Plan(s Scenario, workflows []Workflow, repo Repo, changes Changes) Flow {
 			continue
 		}
 		if e, ok := w.Events["workflow_run"]; ok && len(w.Events) == 1 {
-			reason = "after " + strings.Join(e.Workflows, ", ") + ", which " + plural(len(e.Workflows), "is", "are") + " not in this scenario"
+			reason = chainReason(e, lanes, refName(s, repo))
 		}
 		f.Skipped = append(f.Skipped, SkippedWorkflow{w.Path, w.Name, reason})
 	}
 	return f
+}
+
+// chainReason says why a workflow_run workflow is not in the scenario: the
+// branch of a source in it is filtered out, or no source is in it.
+func chainReason(e Event, lanes []Lane, branch string) string {
+	for _, source := range e.Workflows {
+		for _, l := range lanes {
+			if l.Name != source || l.Kind == ByHand {
+				continue
+			}
+			if ok, _, reason := refFilter(e.Branches, e.BranchesIgnore, branch, "branch"); !ok {
+				return "after " + source + ": " + reason
+			}
+		}
+	}
+	return "after " + strings.Join(e.Workflows, ", ") + ", which " + plural(len(e.Workflows), "is", "are") + " not in this scenario"
 }
 
 // match says whether the scenario's event starts the workflow, and why not.
@@ -359,17 +381,27 @@ func match(s Scenario, w Workflow, repo Repo, changes Changes) (Lane, string) {
 			return lane, reason
 		}
 	case Tag:
-		if e, ok := w.Events["push"]; ok && (len(e.Tags) > 0 || len(e.TagsIgnore) > 0) {
+		e, push := w.Events["push"]
+		switch {
+		case push && (len(e.Tags) > 0 || len(e.TagsIgnore) > 0):
 			if ok, decided, reason := refFilter(e.Tags, e.TagsIgnore, s.Target, "tag"); ok {
 				lane.Why = joinWhy("push", tagsWhy(decided))
 				return lane, ""
 			} else {
 				return lane, reason
 			}
+		case push && len(e.Branches) == 0 && len(e.BranchesIgnore) == 0:
+			// Without ref filters a tag's push starts it too, and paths
+			// filters are not read for tags.
+			lane.Why = "push"
+			return lane, ""
 		}
 		if _, ok := w.Events["release"]; ok {
 			lane.Why = "release"
 			return lane, ""
+		}
+		if push {
+			return lane, "runs on branch pushes"
 		}
 	}
 	return lane, runsOn(w)
@@ -445,6 +477,9 @@ func runsOn(w Workflow) string {
 	sort.Strings(names)
 	if len(names) == 1 && names[0] == "schedule" {
 		return "runs on schedule"
+	}
+	if len(names) == 1 && names[0] == "workflow_call" {
+		return "called by other workflows"
 	}
 	if len(names) == 0 {
 		return "has no trigger"

@@ -21,11 +21,13 @@ func TestTheFlowOfAScenarioCarriesTheNewestRunOfEachLane(t *testing.T) {
 			_, _ = w.Write([]byte(`{"total_count":2,"workflows":[{"id":3,"name":"CI","path":".github/workflows/ci.yml","state":"active"},{"id":4,"name":"Nightly","path":".github/workflows/nightly.yml","state":"active"}]}`))
 		case "/repos/o/r/actions/runs":
 			_, _ = w.Write([]byte(`{"workflow_runs":[
+{"id":13,"workflow_id":3,"name":"CI","run_number":10,"event":"pull_request","status":"completed","conclusion":"failure","head_branch":"feature/retry","head_sha":"f1","head_repository":{"full_name":"fork/r"},"created_at":"2026-10-21T10:00:00Z","updated_at":"2026-10-21T10:04:00Z"},
 {"id":12,"workflow_id":4,"name":"Nightly","run_number":5,"event":"schedule","status":"completed","conclusion":"success","head_branch":"main","head_sha":"c3","created_at":"2026-10-20T03:00:00Z","updated_at":"2026-10-20T03:04:00Z"},
 {"id":11,"workflow_id":3,"name":"CI","run_number":9,"event":"push","status":"completed","conclusion":"failure","head_branch":"main","head_sha":"b2","created_at":"2026-10-19T10:00:00Z","updated_at":"2026-10-19T10:04:00Z"},
 {"id":10,"workflow_id":3,"name":"CI","run_number":8,"event":"pull_request","status":"completed","conclusion":"success","head_branch":"feature/retry","head_sha":"a1","created_at":"2026-10-18T10:00:00Z","updated_at":"2026-10-18T10:04:00Z"}]}`))
 		case "/repos/o/r/pulls":
-			_, _ = w.Write([]byte(`[]`))
+			// A fork's pull request from a branch of the same name is not this branch's.
+			_, _ = w.Write([]byte(`[{"number":7,"state":"open","head":{"ref":"feature/retry","sha":"f1","repo":{"full_name":"fork/r"}},"base":{"ref":"release"},"user":{"login":"x"}}]`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}

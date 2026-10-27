@@ -35,8 +35,9 @@ func (s *service) GetFlow(ctx context.Context, request *corev1.GetFlowRequest) (
 	if repo.DefaultBranch == "" {
 		repo.DefaultBranch = "main"
 	}
+	source := saved.Source.Repository
 	for _, p := range saved.PullRequests {
-		if p.State == "open" && p.HeadRef == repo.CurrentBranch && repo.CurrentBranch != "" {
+		if p.State == "open" && p.HeadRef == repo.CurrentBranch && repo.CurrentBranch != "" && !fork(p.HeadRepository, source) {
 			repo.PullRequestBase = p.BaseRef
 			break
 		}
@@ -77,7 +78,7 @@ func (s *service) GetFlow(ctx context.Context, request *corev1.GetFlowRequest) (
 			})
 		}
 		if id, ok := ids[lane.Path]; ok {
-			if run, ok := laneRun(chosen, lane.Kind, saved.Runs, id, repo); ok {
+			if run, ok := laneRun(chosen, lane.Kind, saved.Runs, id, repo, source); ok {
 				message.Run = runMessage(run)
 				if ownChange(chosen, lane.Kind) && head != "" && run.HeadSHA != "" && run.HeadSHA != head {
 					message.StatusesFrom = shortSHA(run.HeadSHA)
@@ -102,8 +103,9 @@ func (s *service) git() string {
 // laneRun is the newest saved run of a lane's workflow that belongs to the
 // scenario: on the branch's pull request, a push to the branch or the target,
 // a tag, a manual start on the branch, the schedule; workflow_run for a chain.
+// A fork's pull request from a branch of the same name is not the branch's.
 // The runs are newest first.
-func laneRun(sc flow.Scenario, kind flow.LaneKind, runs []github.Run, workflowID int64, repo flow.Repo) (github.Run, bool) {
+func laneRun(sc flow.Scenario, kind flow.LaneKind, runs []github.Run, workflowID int64, repo flow.Repo, source string) (github.Run, bool) {
 	belongs := func(r github.Run) bool {
 		switch kind {
 		case flow.Chained:
@@ -113,7 +115,7 @@ func laneRun(sc flow.Scenario, kind flow.LaneKind, runs []github.Run, workflowID
 		}
 		switch sc.Kind {
 		case flow.PullRequest:
-			return (r.Event == "pull_request" || r.Event == "pull_request_target") && r.Branch == repo.CurrentBranch
+			return (r.Event == "pull_request" || r.Event == "pull_request_target") && r.Branch == repo.CurrentBranch && !fork(r.HeadRepository, source)
 		case flow.Push:
 			return r.Event == "push" && r.Branch == repo.CurrentBranch
 		case flow.Merge:
@@ -133,6 +135,11 @@ func laneRun(sc flow.Scenario, kind flow.LaneKind, runs []github.Run, workflowID
 		}
 	}
 	return github.Run{}, false
+}
+
+// fork: the head came from another repository; unknown counts as its own.
+func fork(head, repository string) bool {
+	return head != "" && repository != "" && head != repository
 }
 
 // ownChange: the lane's run is of the commit checked out here, so another

@@ -8,8 +8,8 @@ import (
 
 // GitHub's filter patterns: `*` matches any characters but `/`, `**` any
 // characters, `?` makes the character before it optional, `+` repeats it,
-// `[...]` is one character of a set, and a leading `!` excludes. In a list
-// the last pattern that matches decides.
+// `[...]` is one character of a set, `\` takes the next character as it is,
+// and a leading `!` excludes. In a list the last pattern that matches decides.
 
 var (
 	patternsMu sync.Mutex
@@ -28,6 +28,9 @@ func compile(pattern string) *regexp.Regexp {
 	for i := 0; i < len(pattern); i++ {
 		c := pattern[i]
 		switch {
+		case c == '\\' && i+1 < len(pattern):
+			b.WriteString(regexp.QuoteMeta(pattern[i+1 : i+2]))
+			i++
 		case c == '*' && i+1 < len(pattern) && pattern[i+1] == '*':
 			b.WriteString(".*")
 			i++
