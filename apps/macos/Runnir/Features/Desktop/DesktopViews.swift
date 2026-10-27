@@ -1006,8 +1006,10 @@ struct DesktopWorkspaceView: View {
             Color.clear.frame(width: 64)
             workspaceSwitcherButton
             Spacer(minLength: 0)
+            NotificationBell(inbox: desktop.inbox, open: { desktop.openInboxEntry($0) },
+                             openSettings: { desktop.showSettings(in: windowID, section: .notifications) })
         }
-        .padding(.leading, 12).padding(.top, 3).frame(height: 40, alignment: .top)
+        .padding(.leading, 12).padding(.trailing, 14).padding(.top, 3).frame(height: 40, alignment: .top)
     }
 
     private var sidebar: some View {

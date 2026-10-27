@@ -1,6 +1,6 @@
 # Global search and the notification bell (B43, B44)
 
-Status: design agreed, drawn on one screen only (S03 Overview, "Islands layout, proposal") and as the results layer (S20), not implemented. The bell's list is not drawn yet.
+Status: the bell (B44) is built: the list, the badge, the read rules and the reconcile; they have not been tried against real macOS notifications. The global search (B43) is drawn on one screen (S03 Overview, "Islands layout, proposal") and as the results layer (S20), not implemented. The bell's list is not drawn yet.
 
 ## The top strip
 
