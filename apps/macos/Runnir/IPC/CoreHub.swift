@@ -840,6 +840,13 @@ final class CoreHub {
         return try? await service.searchRuns(repositoryID: coreID, query: query, limit: 200)
     }
 
+    /// The global search over the saved data of workspaces (all when empty);
+    /// nil when the Core cannot answer. Nothing goes to GitHub.
+    func searchWorkspaces(query: String, workspaceIDs: [UUID] = []) async -> CoreWorkspaceSearch? {
+        guard isReady, let service = try? await provider.service() else { return nil }
+        return try? await service.searchWorkspaces(query: query, workspaceIDs: workspaceIDs, limitPerKind: 8)
+    }
+
     /// One step of a deep search on GitHub.
     func searchRunsOnGitHub(workspaceID: UUID, query: String, cursor: Date?) async -> CoreGitHubRunSearch {
         guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return .failed(.unavailable) }

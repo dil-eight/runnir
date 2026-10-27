@@ -388,6 +388,18 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
             return olderRunsResult
         }
     }
+    var workspaceSearchResult = CoreWorkspaceSearch()
+    private var _workspaceSearches: [String] = []
+    var workspaceSearches: [String] { lock.withLock { _workspaceSearches } }
+    private var _workspaceSearchScopes: [[UUID]] = []
+    var workspaceSearchScopes: [[UUID]] { lock.withLock { _workspaceSearchScopes } }
+    func searchWorkspaces(query: String, workspaceIDs: [UUID], limitPerKind: Int) async throws -> CoreWorkspaceSearch {
+        lock.withLock {
+            _workspaceSearches.append(query)
+            _workspaceSearchScopes.append(workspaceIDs)
+            return workspaceSearchResult
+        }
+    }
     var runSearchResult = CoreRunSearch()
     private var _searchQueries: [String] = []
     var searchQueries: [String] { lock.withLock { _searchQueries } }

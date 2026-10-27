@@ -341,6 +341,34 @@ struct DesktopCoordinatorTests {
         #expect(asked == [["ci.yml"], ["ci.yml"], ["ci.yml"]])
     }
 
+    @Test func aSearchResultOpensItsWorkspaceAndGoesThere() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant, makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        let workspaceID = fixture.original.id
+
+        // Not open yet: opened, then taken to the result.
+        coordinator.open(.workflow(path: ".github/workflows/ci.yml"), workspaceID: workspaceID, from: UUID())
+        let window = try #require(factory.windows.first)
+        #expect(window.destinations == [.workflow(path: ".github/workflows/ci.yml")])
+
+        // Open: the same window, no second one.
+        coordinator.open(.run(id: 7, number: 12), workspaceID: workspaceID, from: window.record.id)
+        #expect(factory.windows.count == 1 && window.destinations.last == .run(id: 7, number: 12))
+
+        // Settings open over the window and a pull request is no window's business.
+        coordinator.open(.setting(.storage), workspaceID: nil, from: window.record.id)
+        #expect(coordinator.settings == SettingsPresentation(windowID: window.record.id, section: .storage))
+        coordinator.open(.pullRequest(nil), workspaceID: workspaceID, from: window.record.id)
+        #expect(window.destinations.count == 2)
+
+        // A workspace that is not registered leads nowhere.
+        coordinator.open(.localRuns, workspaceID: UUID(), from: window.record.id)
+        #expect(window.destinations.count == 2 && factory.windows.count == 1)
+    }
+
     @Test func quittingWithUnsavedEditsAsksOnceForAllWindows() async throws {
         let fixture = try CoordinatorFixture()
         defer { fixture.remove() }
@@ -616,6 +644,8 @@ private final class TestWorkspaceWindow: WorkspaceWindowManaging {
         self.grant = grant
     }
     func showWindow(_ sender: Any?) {}
+    var destinations: [SearchDestination] = []
+    func navigate(to destination: SearchDestination) { destinations.append(destination) }
     var unsaved: String?
     var saveSucceeds = true
     var saveCalls = 0

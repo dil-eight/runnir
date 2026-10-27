@@ -128,6 +128,8 @@ struct WorkspaceRunsView: View {
     let github: GitHubSession?
     @Binding var selectedRunID: Int64?
     @Binding var mode: RunsMode
+    /// A search the global search asks for.
+    @Binding var request: RunsListRequest?
     var dismissals: ConcurrencyHintDismissals? = nil
     var addConcurrency: (String) -> Void = { _ in }
     @State private var onlyCurrentBranch = false
@@ -141,12 +143,13 @@ struct WorkspaceRunsView: View {
     @State private var search: RunSearchModel
 
     init(session: RepositorySession, hub: CoreHub, github: GitHubSession?, selectedRunID: Binding<Int64?>, mode: Binding<RunsMode>,
-         dismissals: ConcurrencyHintDismissals? = nil, addConcurrency: @escaping (String) -> Void = { _ in }) {
+         request: Binding<RunsListRequest?> = .constant(nil), dismissals: ConcurrencyHintDismissals? = nil, addConcurrency: @escaping (String) -> Void = { _ in }) {
         self.session = session
         self.hub = hub
         self.github = github
         _selectedRunID = selectedRunID
         _mode = mode
+        _request = request
         self.dismissals = dismissals
         self.addConcurrency = addConcurrency
         _layer = State(initialValue: RunLayerModel(hub: hub, workspaceID: session.workspaceID))
@@ -224,6 +227,12 @@ struct WorkspaceRunsView: View {
             }
         }
         .onChange(of: query) { search.update(query: query) }
+        .onChange(of: request, initial: true) { _, value in
+            guard let value else { return }
+            request = nil
+            if let id = value.unlessSaved, session.runs.contains(where: { $0.id == id }) { return }
+            query = value.query
+        }
         .onChange(of: session.cachedRuns) { search.refresh() }
         .onAppear { if selectedRunID == nil { selectedRunID = session.runs.first?.id } }
         // Runs the cache gets while the search is open (a sync, or a window that

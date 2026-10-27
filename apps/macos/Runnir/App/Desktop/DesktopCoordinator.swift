@@ -10,6 +10,8 @@ protocol WorkspaceWindowManaging: AnyObject {
     func attach(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: any RepositoryGranting)
     func showWindow(_ sender: Any?)
     func showSwitcher()
+    /// Shows where a search result leads, in this window.
+    func navigate(to destination: SearchDestination)
     /// What has edits not saved: the workflow file in the editor and
     /// Secrets and Variables; empty when nothing does.
     var unsavedNames: [String] { get }
@@ -19,6 +21,7 @@ protocol WorkspaceWindowManaging: AnyObject {
 
 extension WorkspaceWindowManaging {
     func showSwitcher() {}
+    func navigate(to destination: SearchDestination) {}
     var unsavedNames: [String] { [] }
     func saveUnsavedChanges() async -> Bool { true }
 }
@@ -541,6 +544,27 @@ final class DesktopCoordinator {
         }
     }
 
+    /// A search result was chosen in a window. Settings open over that window,
+    /// a pull request opens on GitHub, anything else is shown in a window of
+    /// the result's workspace: this one when it is the same, else the one
+    /// opened or brought forward for it.
+    func open(_ destination: SearchDestination, workspaceID: UUID?, from windowID: UUID) {
+        switch destination {
+        case .setting(let section):
+            showSettings(in: windowID, section: section)
+        case .pullRequest(let url):
+            if let url { NSWorkspace.shared.open(url) }
+        case .run, .runsList, .workflow, .localRuns:
+            guard let workspaceID, let workspace = snapshot.workspaces.first(where: { $0.id == workspaceID }) else { return }
+            if let own = windows[windowID], own.record.workspaceID == workspaceID {
+                own.navigate(to: destination)
+                return
+            }
+            openOrFocus(workspace)
+            windows.values.first { $0.record.workspaceID == workspaceID }?.navigate(to: destination)
+        }
+    }
+
     func openOrFocus(_ workspace: WorkspaceRecord) {
         if openCount(workspace.id) > 0 { focus(workspace.id) } else { openRegistered(workspace) }
     }
@@ -798,6 +822,11 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
     func showSwitcher() {
         window?.makeKeyAndOrderFront(nil)
         state?.showingSwitcher = true
+    }
+
+    func navigate(to destination: SearchDestination) {
+        window?.makeKeyAndOrderFront(nil)
+        state?.go(to: destination)
     }
 
     var unsavedNames: [String] {

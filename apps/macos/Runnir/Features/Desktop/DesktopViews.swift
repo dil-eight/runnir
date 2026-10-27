@@ -589,6 +589,9 @@ struct DesktopWorkspaceView: View {
     @State private var openAfterSheet: String?
     @State private var hoveringSwitcher = false
     @State private var reportingBug = false
+    /// The global search, made when it is first opened.
+    @State private var globalSearch: GlobalSearchModel?
+    @State private var showingSearch = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -622,6 +625,11 @@ struct DesktopWorkspaceView: View {
         }
         .background(RunnirTheme.window).foregroundStyle(RunnirTheme.foreground).tint(RunnirTheme.primary)
         .overlay(alignment: .topLeading) { switcherPanel }
+        .overlay {
+            if showingSearch, let globalSearch {
+                GlobalSearchLayer(model: globalSearch, choose: chooseSearchResult, close: closeSearch)
+            }
+        }
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: windowID)
         .sheet(isPresented: $reportingBug) {
@@ -1006,10 +1014,31 @@ struct DesktopWorkspaceView: View {
             Color.clear.frame(width: 64)
             workspaceSwitcherButton
             Spacer(minLength: 0)
+            Color.clear.frame(width: 16)
             NotificationBell(inbox: desktop.inbox, open: { desktop.openInboxEntry($0) },
                              openSettings: { desktop.showSettings(in: windowID, section: .notifications) })
         }
         .padding(.leading, 12).padding(.trailing, 14).padding(.top, 3).frame(height: 40, alignment: .top)
+        .overlay(alignment: .top) {
+            GlobalSearchField(open: openSearch).frame(width: 420).padding(.top, 3)
+        }
+    }
+
+    private func openSearch() {
+        if globalSearch == nil {
+            globalSearch = GlobalSearchModel(hub: desktop.core, currentWorkspaceID: workspace.id) { desktop.snapshot.workspaces }
+        }
+        showingSearch = true
+    }
+
+    private func closeSearch() {
+        showingSearch = false
+        globalSearch?.reset()
+    }
+
+    private func chooseSearchResult(_ result: SearchResult) {
+        closeSearch()
+        desktop.open(result.destination, workspaceID: result.workspaceID, from: windowID)
     }
 
     private var sidebar: some View {
@@ -1145,6 +1174,7 @@ struct DesktopWorkspaceView: View {
                 WorkspaceRunsView(session: session, hub: hub, github: desktop.github,
                                   selectedRunID: Binding(get: { state.selectedRunID }, set: { state.selectedRunID = $0 }),
                                   mode: Binding(get: { state.runsMode }, set: { state.runsMode = $0 }),
+                                  request: Binding(get: { state.runsRequest }, set: { state.runsRequest = $0 }),
                                   dismissals: desktop.hintDismissals,
                                   addConcurrency: { path in addConcurrency(path: path) })
             } else {

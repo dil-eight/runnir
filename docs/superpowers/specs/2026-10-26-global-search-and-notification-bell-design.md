@@ -1,6 +1,6 @@
 # Global search and the notification bell (B43, B44)
 
-Status: the bell (B44) is built: the list, the badge, the read rules and the reconcile; they have not been tried against real macOS notifications. The global search (B43) is drawn on one screen (S03 Overview, "Islands layout, proposal") and as the results layer (S20), not implemented. The bell's list is not drawn yet.
+Status: built, with the gaps listed under "Not built". The bell (B44): the list, the badge, the read rules and the reconcile; they have not been tried against real macOS notifications. The global search (B43): the field, the layer (S20), `SearchWorkspaces` in the Core, the settings list. The bell's list is not drawn on the canvas.
 
 ## The top strip
 
@@ -43,6 +43,12 @@ Reading in one window is read in all windows: the list is app-wide, not per work
 ## Storage
 
 The list is kept on this Mac, app-wide, and survives a restart; the latest 100 entries or 30 days, whichever is fewer. It is device-private like the other local data and goes through no server.
+
+## Built, and not built
+
+- Built: the field in the strip (⌘K), the layer with the scope control, kind tabs with counts and results grouped by kind (runs, pull requests, workflows by name and path, local runs, settings), the window's workspace first, "saved N days ago" for a closed workspace, a note for a workspace that could not be read, a row "Show all N runs" and a footer link that open the Runs list with the query typed in (the deep search on GitHub starts there, from its button).
+- Where a result leads: a run → the Runs list with it selected (a run the saved list does not hold is found by searching its number); a workflow → the Overview with it selected; a local run → the Workspace section's local run; a pull request → GitHub in the browser, as the window has no pull request screen; a setting → Settings at its section.
+- Not built: workflow file *contents* and jobs (they need the folder grant and a scan of the files, which the Core does not do for a closed workspace); opening a setting at its item (the list knows the section only); opening one particular local run (the history is not shown anywhere in the app yet).
 
 ## Not decided
 

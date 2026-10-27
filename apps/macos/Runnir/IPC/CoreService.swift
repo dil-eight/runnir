@@ -168,6 +168,9 @@ protocol CoreServicing: Sendable {
     func loadOlderRuns(repositoryID: String) async throws -> CoreOlderRuns
     /// The saved runs and the search index for a query; nothing goes to GitHub.
     func searchRuns(repositoryID: String, query: String, limit: Int) async throws -> CoreRunSearch
+    /// The saved runs, pull requests, workflows and local runs of workspaces
+    /// (all when empty) for a query; nothing goes to GitHub.
+    func searchWorkspaces(query: String, workspaceIDs: [UUID], limitPerKind: Int) async throws -> CoreWorkspaceSearch
     /// One step of a deep search on GitHub, from `cursor` (nil for the newest runs).
     func searchRunsOnGitHub(repositoryID: String, query: String, cursor: Date?, pages: Int) async throws -> CoreGitHubRunSearch
     /// Forgets the search index of workspaces (all when empty).

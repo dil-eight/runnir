@@ -124,6 +124,63 @@ struct CoreRunSearch: Equatable, Sendable {
     var problems: [String] = []
 }
 
+/// What the global search found in the saved data of one workspace.
+struct CoreWorkspaceHits: Equatable, Identifiable, Sendable {
+    let workspaceID: UUID
+    var id: UUID { workspaceID }
+    /// The workspace is open in the Core; otherwise its data was read from
+    /// disk as the last session left it.
+    var isOpen = false
+    /// "owner/name" of the saved data; empty when nothing was saved.
+    var repository = ""
+    /// When the saved data was last read from GitHub.
+    var savedAt: Date?
+    /// Why the workspace could not be searched; nil when it was.
+    var problem: String?
+    var runs: [CoreWorkflowRun] = []
+    var runsMatched = 0
+    var pullRequests: [CoreSearchedPullRequest] = []
+    var pullRequestsMatched = 0
+    var workflows: [CoreGitHubWorkflow] = []
+    var workflowsMatched = 0
+    var localRuns: [CoreSearchedLocalRun] = []
+    var localRunsMatched = 0
+
+    var isEmpty: Bool { runsMatched + pullRequestsMatched + workflowsMatched + localRunsMatched == 0 }
+}
+
+/// A pull request as the activity cache saved it.
+struct CoreSearchedPullRequest: Equatable, Identifiable, Sendable {
+    let number: Int64
+    var id: Int64 { number }
+    let title: String
+    /// "open", "closed" or "merged".
+    let state: String
+    let isDraft: Bool
+    let author: String
+    let headRef: String
+    let htmlURL: URL?
+    let updatedAt: Date?
+}
+
+/// A local run as a workspace's history keeps it.
+struct CoreSearchedLocalRun: Equatable, Identifiable, Sendable {
+    let executionID: String
+    var id: String { executionID }
+    let workflowPath: String
+    let jobID: String
+    /// "queued", "running", "succeeded", "failed", "cancelled" or "interrupted".
+    let state: String
+    let message: String
+    let startedAt: Date?
+}
+
+struct CoreWorkspaceSearch: Equatable, Sendable {
+    var workspaces: [CoreWorkspaceHits] = []
+    /// Parts of the query that could not be used.
+    var problems: [String] = []
+}
+
 /// Why a step of a deep search on GitHub ended.
 enum CoreSearchStop: Equatable, Sendable {
     /// GitHub has no older run for the query.

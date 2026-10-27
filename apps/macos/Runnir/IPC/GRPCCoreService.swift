@@ -136,6 +136,36 @@ struct GRPCCoreService: CoreServicing {
                              problems: response.problems)
     }
 
+    func searchWorkspaces(query: String, workspaceIDs: [UUID], limitPerKind: Int) async throws -> CoreWorkspaceSearch {
+        let response = try await call {
+            try await client.searchWorkspaces(.with {
+                $0.query = query
+                $0.workspaceIds = workspaceIDs.map { $0.uuidString.lowercased() }
+                $0.limitPerKind = UInt32(clamping: max(0, limitPerKind))
+            }, options: Self.options(Self.callTimeout))
+        }
+        return CoreWorkspaceSearch(workspaces: response.workspaces.compactMap(Self.map), problems: response.problems)
+    }
+
+    static func map(_ hits: Runnir_Core_V1_WorkspaceSearchHits) -> CoreWorkspaceHits? {
+        guard let id = UUID(uuidString: hits.workspaceID) else { return nil }
+        return CoreWorkspaceHits(
+            workspaceID: id, isOpen: hits.open, repository: hits.repository,
+            savedAt: hits.hasSavedAt ? hits.savedAt.date : nil, problem: hits.problem.isEmpty ? nil : hits.problem,
+            runs: hits.runs.map(Self.map), runsMatched: Int(hits.runsMatched),
+            pullRequests: hits.pullRequests.map {
+                CoreSearchedPullRequest(number: $0.number, title: $0.title, state: $0.state, isDraft: $0.draft, author: $0.author,
+                                        headRef: $0.headRef, htmlURL: webURL($0.htmlURL), updatedAt: $0.hasUpdatedAt ? $0.updatedAt.date : nil)
+            },
+            pullRequestsMatched: Int(hits.pullRequestsMatched),
+            workflows: hits.workflows.map(Self.map), workflowsMatched: Int(hits.workflowsMatched),
+            localRuns: hits.localRuns.map {
+                CoreSearchedLocalRun(executionID: $0.executionID, workflowPath: $0.workflowPath, jobID: $0.jobID, state: $0.state,
+                                     message: $0.message, startedAt: $0.hasStartedAt ? $0.startedAt.date : nil)
+            },
+            localRunsMatched: Int(hits.localRunsMatched))
+    }
+
     /// A step reads up to 10 pages from GitHub, one after another.
     func searchRunsOnGitHub(repositoryID: String, query: String, cursor: Date?, pages: Int) async throws -> CoreGitHubRunSearch {
         let response = try await call {

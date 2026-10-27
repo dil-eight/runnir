@@ -40,6 +40,7 @@ private struct FakeService: CoreServicing {
     func refreshWorkspaceActivity(repositoryID: String, wait: Bool, limit: Int) async throws -> CoreWorkspaceActivity { throw CoreServiceError.unavailable }
     func loadOlderRuns(repositoryID: String) async throws -> CoreOlderRuns { throw CoreServiceError.unavailable }
     func searchRuns(repositoryID: String, query: String, limit: Int) async throws -> CoreRunSearch { throw CoreServiceError.unavailable }
+    func searchWorkspaces(query: String, workspaceIDs: [UUID], limitPerKind: Int) async throws -> CoreWorkspaceSearch { throw CoreServiceError.unavailable }
     func searchRunsOnGitHub(repositoryID: String, query: String, cursor: Date?, pages: Int) async throws -> CoreGitHubRunSearch { throw CoreServiceError.unavailable }
     func clearRunIndex(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] { throw CoreServiceError.unavailable }
     func insertWorkflowConcurrency(repositoryID: String, content: String) async throws -> CoreConcurrencyInsertion { throw CoreServiceError.unavailable }
