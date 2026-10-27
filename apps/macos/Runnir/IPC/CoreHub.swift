@@ -792,6 +792,13 @@ final class CoreHub {
         }
     }
 
+    /// The pipeline of the workspace's change in a scenario (nil: the
+    /// default one); nil when the Core cannot answer.
+    func flow(workspaceID: UUID, scenario: CoreScenario?) async -> CoreFlow? {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return nil }
+        return try? await service.flow(repositoryID: coreID, scenario: scenario)
+    }
+
     // MARK: Storage
 
     /// Where Settings › Storage keeps its choices (`StorageSettings`).

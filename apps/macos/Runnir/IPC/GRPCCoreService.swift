@@ -669,6 +669,71 @@ struct GRPCCoreService: CoreServicing {
         return CoreGitHubResult(access: Self.map(response.status), items: response.jobs.map { Self.map($0) })
     }
 
+    func flow(repositoryID: String, scenario: CoreScenario?) async throws -> CoreFlow {
+        let response = try await call {
+            try await client.getFlow(.with {
+                $0.repositoryID = repositoryID
+                if let scenario {
+                    $0.scenario = .with {
+                        $0.kind = Self.map(scenario.kind)
+                        $0.target = scenario.target
+                    }
+                }
+            }, options: Self.options(Self.callTimeout))
+        }
+        return CoreFlow(
+            scenarios: response.scenarios.compactMap(Self.map),
+            scenario: response.hasScenario ? Self.map(response.scenario) : nil,
+            changes: CoreFlowChanges(applies: response.changes.applies, known: response.changes.known, count: Int(response.changes.count),
+                                     against: response.changes.against, note: response.changes.note),
+            lanes: response.lanes.map { lane in
+                CoreFlowLane(
+                    path: lane.workflowPath, name: lane.workflowName,
+                    kind: Self.map(lane.kind),
+                    after: lane.after, afterPath: lane.afterPath, why: lane.why,
+                    jobs: lane.jobs.map {
+                        CoreFlowJob(id: $0.id, name: $0.name, needs: $0.needs, column: Int($0.column), matrix: Int($0.matrix),
+                                    environment: $0.environment, condition: $0.condition, skipped: $0.skipped, manual: $0.manual,
+                                    manualInputs: $0.manualInputs, uses: $0.uses)
+                    },
+                    run: lane.hasRun ? Self.map(lane.run) : nil, statusesFrom: lane.statusesFrom, parseError: lane.parseError)
+            },
+            skipped: response.skipped.map { CoreSkippedWorkflow(path: $0.workflowPath, name: $0.workflowName, reason: $0.reason) })
+    }
+
+    static func map(_ kind: Runnir_Core_V1_LaneKind) -> CoreFlowLane.Kind {
+        switch kind {
+        case .chained: .chained
+        case .byHand: .byHand
+        default: .direct
+        }
+    }
+
+    static func map(_ scenario: Runnir_Core_V1_Scenario) -> CoreScenario? {
+        let kind: CoreScenario.Kind
+        switch scenario.kind {
+        case .pullRequest: kind = .pullRequest
+        case .push: kind = .push
+        case .merge: kind = .merge
+        case .tag: kind = .tag
+        case .manual: kind = .manual
+        case .schedule: kind = .schedule
+        case .unspecified, .UNRECOGNIZED: return nil
+        }
+        return CoreScenario(kind: kind, target: scenario.target, title: scenario.title)
+    }
+
+    static func map(_ kind: CoreScenario.Kind) -> Runnir_Core_V1_ScenarioKind {
+        switch kind {
+        case .pullRequest: .pullRequest
+        case .push: .push
+        case .merge: .merge
+        case .tag: .tag
+        case .manual: .manual
+        case .schedule: .schedule
+        }
+    }
+
     func getRunWorkflow(repositoryID: String, runID: Int64) async throws -> CoreRunWorkflow {
         let response = try await call {
             try await client.getRunWorkflow(.with {

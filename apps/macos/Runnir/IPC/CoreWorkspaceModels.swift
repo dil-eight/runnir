@@ -124,6 +124,88 @@ struct CoreRunSearch: Equatable, Sendable {
     var problems: [String] = []
 }
 
+/// An event that happens to the current branch's change (B31).
+struct CoreScenario: Equatable, Hashable, Sendable {
+    enum Kind: Equatable, Hashable, Sendable { case pullRequest, push, merge, tag, manual, schedule }
+
+    let kind: Kind
+    /// The base, the branch pushed or merged into, the tag; empty for a manual start and the schedule.
+    let target: String
+    /// "Pull request → main".
+    let title: String
+}
+
+/// The files the change touches, as the scenario's paths filters read them.
+struct CoreFlowChanges: Equatable, Sendable {
+    /// The scenario reads paths filters at all.
+    var applies = false
+    /// git said which files changed; otherwise paths filters are unknown.
+    var known = false
+    var count = 0
+    var against = ""
+    var note = ""
+}
+
+/// A job of a lane, laid out by its needs.
+struct CoreFlowJob: Equatable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let needs: [String]
+    let column: Int
+    /// Runs of the matrix: 0 without one, -1 when known only at run time.
+    let matrix: Int
+    /// The environment a gate deploys to.
+    let environment: String
+    /// The if it depends on, when the scenario cannot tell.
+    let condition: String
+    /// Why it does not run in the scenario; empty when it runs.
+    let skipped: String
+    let manual: Bool
+    let manualInputs: [String: String]
+    let uses: String
+
+    var job: CoreJob { CoreJob(id: id, name: name, needs: needs, manual: manual, manualInputs: manualInputs) }
+}
+
+/// One workflow of a scenario.
+struct CoreFlowLane: Equatable, Identifiable, Sendable {
+    enum Kind: Equatable, Sendable { case direct, chained, byHand }
+
+    let path: String
+    let name: String
+    let kind: Kind
+    /// The lane a chained lane follows.
+    let after: String
+    let afterPath: String
+    /// What starts it: "pull_request · branches main · paths ✓".
+    let why: String
+    let jobs: [CoreFlowJob]
+    /// The newest saved run of the workflow for the scenario.
+    let run: CoreWorkflowRun?
+    /// The short SHA of the run when it is not the commit checked out.
+    let statusesFrom: String
+    let parseError: String
+
+    var id: String { path }
+}
+
+struct CoreSkippedWorkflow: Equatable, Identifiable, Sendable {
+    let path: String
+    let name: String
+    let reason: String
+    var id: String { path }
+}
+
+/// The pipeline of the change in one scenario.
+struct CoreFlow: Equatable, Sendable {
+    var scenarios: [CoreScenario] = []
+    /// nil when the workflows react to nothing.
+    var scenario: CoreScenario?
+    var changes = CoreFlowChanges()
+    var lanes: [CoreFlowLane] = []
+    var skipped: [CoreSkippedWorkflow] = []
+}
+
 /// What the global search found in the saved data of one workspace.
 struct CoreWorkspaceHits: Equatable, Identifiable, Sendable {
     let workspaceID: UUID
