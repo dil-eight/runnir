@@ -11,7 +11,10 @@ The strip above the two islands (menu, content) holds, left to right: the window
 - A field in the middle of the strip, opened with a shortcut (proposal: ⌘K) or a click. Results open in a layer over the window.
 - It searches everything the window can show: workflows and their jobs, runs (the same Core search as the runs list, so B33 and B40 results appear here), pull requests, workflow files and their contents, local runs, and **settings** (each setting, section and toggle by its name and description; choosing one opens Settings at that item).
 - Results are grouped by kind, with the kind's icon and its place ("Runs · mobile-app"). Return opens the first result, arrow keys move, Escape closes.
-- Scope is the repository of the window. Searching all registered workspaces is not decided.
+- Scope: **all registered workspaces**, with the window's own workspace first. Results are grouped by kind and name their workspace ("Runs · mobile-app"); a scope control in the field narrows the search to this workspace. Settings belong to no workspace.
+- It stays cheap because it only reads what is already saved on this Mac. The Core goes through the workspaces by id, as `Usage` and `ClearCache` already do: an open workspace answers from its live store, a closed one is read through `store.Peek` (the database opened read-only from disk, no lock, no migration). Nothing runs `git` and nothing goes to GitHub. Each database holds at most 5,000 runs, so a query is a few milliseconds per workspace and the databases are read in parallel.
+- What a closed workspace can give: its saved runs, pull requests, workflows (by name and path), local runs and dispatch history. Workflow file *contents* need access to the folder, so they come only from a workspace whose folder grant is valid; one with a stale or revoked grant, or a folder that moved, shows its names only, and the group says so.
+- Results from a closed workspace carry how old the data is ("saved 3 days ago"). Choosing one opens that workspace's window (or focuses it) and goes to the result.
 - Queries use the run search grammar where it applies (`branch:`, `author:`, `status:` and the rest of B40); other kinds match on words.
 - Settings are searched offline from a static list built in the app. Everything else comes from the Core's saved data; nothing goes to GitHub from the global search except through the deep run search of B40, started by the user.
 
@@ -44,10 +47,11 @@ The list is kept on this Mac, app-wide, and survives a restart; the latest 100 e
 ## Not decided
 
 - The shortcut for the search (⌘K is a proposal; it clashes with "clear" in some terminals).
-- Whether the search covers all registered workspaces, and whether it opens files in the editor or only the workflow files.
+- Whether it opens files in the editor or only the workflow files. A deep run search on GitHub stays per repository and is started by the user, never across all workspaces at once (it would spend the same rate limit).
 - Whether the bell lists failures only or successes as well when Settings › Notifications says "Failures only" (proposal: follow that setting).
 
 ## Tests
 
 - App: a notification becomes read on bell open, on a system click and on a system dismissal; reconcile on launch marks entries macOS no longer holds; read in one window shows in another; the badge counts only unread.
 - Search: settings are found by name and by description and open at the right item; run results match the runs list for the same query.
+- Core: a query over an open and a closed workspace returns both, the closed one without taking its lock; a workspace with a damaged or missing database is skipped with a note instead of failing the search; file contents are left out for a workspace without access.
