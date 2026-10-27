@@ -134,13 +134,11 @@ final class NotificationInbox {
 
 // MARK: The bell
 
-/// The bell in the title strip: the number of unread notifications and, on a
-/// click, the list.
+/// The bell in the title strip: the number of unread notifications; a click
+/// opens or closes the list, which the window shows (`NotificationPanel`).
 struct NotificationBell: View {
     let inbox: NotificationInbox
-    let open: (InboxEntry) -> Void
-    let openSettings: () -> Void
-    @State private var showing = false
+    @Binding var showing: Bool
 
     var body: some View {
         Button { showing.toggle() } label: {
@@ -166,15 +164,54 @@ struct NotificationBell: View {
         .help(inbox.unreadCount > 0 ? "\(inbox.unreadCount) unread notifications" : "Notifications")
         .accessibilityLabel("Notifications")
         .accessibilityValue(inbox.unreadCount > 0 ? "\(inbox.unreadCount) unread" : "none unread")
-        .popover(isPresented: $showing, arrowEdge: .bottom) {
+    }
+}
+
+/// The bell's list as a panel under the title strip, as drawn (S19): an
+/// opaque surface with a border and a shadow, no arrow. A click outside it,
+/// Escape or the bell closes it.
+struct NotificationPanel: View {
+    let inbox: NotificationInbox
+    let open: (InboxEntry) -> Void
+    let openSettings: () -> Void
+    let close: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            // No hand pointer: a click outside the panel closes it.
+            Color.clear.contentShape(Rectangle()).onTapGesture(perform: close).accessibilityHidden(true)
             NotificationList(inbox: inbox, open: { entry in
-                showing = false
+                close()
                 open(entry)
             }, openSettings: {
-                showing = false
+                close()
                 openSettings()
             })
+            .background(RunnirTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(RunnirTheme.border))
+            .shadow(color: .black.opacity(0.35), radius: 20, y: 10)
+            .padding(.top, 44).padding(.trailing, 16)
+            // Escape closes the panel.
+            Button("Close notifications", action: close)
+                .keyboardShortcut(.cancelAction).buttonStyle(.hit).opacity(0).frame(width: 0, height: 0).accessibilityHidden(true)
         }
+        .transition(.opacity)
+    }
+}
+
+/// When a notification was sent, as the list words it: "now", "12 min ago",
+/// "3 h ago", "Yesterday", "4 days ago", then the date.
+enum NotificationTime {
+    static func text(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
+        let seconds = max(0, now.timeIntervalSince(date))
+        if seconds < 60 { return "now" }
+        if seconds < 3600 { return "\(Int(seconds / 60)) min ago" }
+        if calendar.isDate(date, inSameDayAs: now) { return "\(Int(seconds / 3600)) h ago" }
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: now)).day ?? 0
+        if days <= 1 { return "Yesterday" }
+        if days < 7 { return "\(days) days ago" }
+        return date.formatted(.dateTime.day().month(.abbreviated))
     }
 }
 
@@ -190,10 +227,13 @@ struct NotificationList: View {
             HStack {
                 Text("Notifications").font(.system(size: 13, weight: .semibold))
                 Spacer()
-                Button("Mark all as read") { inbox.markAllRead() }
-                    .buttonStyle(.link).pointerStyle(.link).font(.system(size: 12)).disabled(inbox.unreadCount == 0)
+                Button { inbox.markAllRead() } label: {
+                    Text("Mark all as read").font(.system(size: 12))
+                        .foregroundStyle(inbox.unreadCount == 0 ? RunnirTheme.mutedForeground : RunnirTheme.primary)
+                }
+                .buttonStyle(.hit).disabled(inbox.unreadCount == 0)
             }
-            .padding(.horizontal, 14).padding(.vertical, 10)
+            .padding(.horizontal, 14).padding(.vertical, 11)
             DesignDivider()
             if inbox.entries.isEmpty {
                 VStack(spacing: 6) {
@@ -214,8 +254,10 @@ struct NotificationList: View {
                 }.frame(maxHeight: 480)
             }
             DesignDivider()
-            Button("Notification Settings\u{2026}") { openSettings() }
-                .buttonStyle(.link).pointerStyle(.link).font(.system(size: 12)).padding(.horizontal, 14).padding(.vertical, 9)
+            Button { openSettings() } label: {
+                Text("Notification Settings\u{2026}").font(.system(size: 12)).foregroundStyle(RunnirTheme.primary)
+            }
+            .buttonStyle(.hit).padding(.horizontal, 14).padding(.vertical, 10)
         }
         .frame(width: 360)
     }
@@ -230,8 +272,9 @@ struct NotificationList: View {
                     .accessibilityLabel(entry.succeeded ? "Passed" : "Failed")
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.title).font(.system(size: 12.5, weight: entry.read ? .regular : .semibold)).lineLimit(2)
-                    Text(entry.body).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(2)
-                    Text(entry.at.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)))
+                    Text(entry.body).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(NotificationTime.text(entry.at))
                         .font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground)
                 }
                 Spacer(minLength: 0)

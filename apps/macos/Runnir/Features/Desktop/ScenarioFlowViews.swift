@@ -31,7 +31,8 @@ struct ScenarioFlowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header.padding(.bottom, 14)
+            // Above the lanes, so the scenario list opens over them.
+            header.padding(.bottom, 14).zIndex(1)
             DesignDivider()
             content
         }
@@ -56,24 +57,7 @@ struct ScenarioFlowView: View {
 
     private var header: some View {
         HStack(spacing: 14) {
-            Menu {
-                ForEach(ScenarioFlowModel.groups(model.flow?.scenarios ?? []), id: \.title) { group in
-                    Section(group.title) {
-                        ForEach(group.scenarios, id: \.self) { scenario in
-                            Button(scenario.title) { model.choose(scenario) }
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Text(model.scenario?.title ?? "Scenario").font(.system(size: 15, weight: .semibold))
-                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(RunnirTheme.secondaryForeground)
-                }
-            }
-            .menuStyle(.button).buttonStyle(.plain).pointerStyle(.link).menuIndicator(.hidden).fixedSize()
-            .disabled((model.flow?.scenarios ?? []).isEmpty)
-            .help("What happens to this branch's change: a pull request, a push, a merge, a tag, a manual start, the schedule")
-            .accessibilityLabel("Scenario")
+            ScenarioPicker(scenarios: model.flow?.scenarios ?? [], selected: model.scenario) { model.choose($0) }
             if let text = model.flow.flatMap({ ScenarioFlowModel.changesText($0.changes) }) {
                 Text(text).font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
             }
@@ -368,5 +352,119 @@ struct ScenarioFlowView: View {
             }
         }
         .padding(.top, 6)
+    }
+}
+
+/// The scenario picker: the scenario's title with a chevron, and on a click a
+/// list of the scenarios by kind in Runnir's own panel, not the system menu.
+/// A choice, a click outside it, Escape or the title again closes it.
+struct ScenarioPicker: View {
+    let scenarios: [CoreScenario]
+    let selected: CoreScenario?
+    let choose: (CoreScenario) -> Void
+    @State private var open = false
+    @State private var hovered: CoreScenario?
+    @State private var buttonFrame: CGRect = .zero
+    @State private var panelFrame: CGRect = .zero
+    @State private var monitor: Any?
+
+    var body: some View {
+        Button { open.toggle() } label: {
+            HStack(spacing: 6) {
+                Text(selected?.title ?? "Scenario").font(.system(size: 15, weight: .semibold))
+                Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(RunnirTheme.secondaryForeground)
+                    .rotationEffect(.degrees(open ? 180 : 0))
+            }
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(open ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.hit)
+        .padding(.leading, -8)
+        .disabled(scenarios.isEmpty)
+        .help("What happens to this branch's change: a pull request, a push, a merge, a tag, a manual start, the schedule")
+        .accessibilityLabel("Scenario")
+        .accessibilityValue(selected?.title ?? "")
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { buttonFrame = $0 }
+        .overlay(alignment: .topLeading) {
+            if open {
+                panel
+                    .offset(x: -8, y: 34)
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { panelFrame = $0 }
+            }
+        }
+        .onChange(of: open) { _, isOpen in
+            if isOpen { watchOutside() } else { stopWatching() }
+        }
+        .onDisappear { stopWatching() }
+    }
+
+    private var panel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(ScenarioFlowModel.groups(scenarios).enumerated()), id: \.element.title) { index, group in
+                if index > 0 { DesignDivider().padding(.vertical, 4).padding(.horizontal, 8) }
+                Text(group.title.uppercased()).font(.system(size: 10.5, weight: .semibold)).tracking(0.5)
+                    .foregroundStyle(RunnirTheme.mutedForeground).padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 2)
+                ForEach(group.scenarios, id: \.self) { scenario in row(scenario) }
+            }
+        }
+        .padding(6)
+        .frame(minWidth: 260, alignment: .leading)
+        .fixedSize()
+        .background(RunnirTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(RunnirTheme.border))
+        .shadow(color: .black.opacity(0.35), radius: 20, y: 10)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Scenarios")
+    }
+
+    private func row(_ scenario: CoreScenario) -> some View {
+        let current = scenario == selected
+        return Button {
+            open = false
+            if !current { choose(scenario) }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(RunnirTheme.primary).opacity(current ? 1 : 0)
+                Text(scenario.title).font(.system(size: 13)).foregroundStyle(RunnirTheme.foreground).lineLimit(1)
+                Spacer(minLength: 12)
+            }
+            .padding(.horizontal, 10).frame(height: 30)
+            .background(hovered == scenario ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.hit)
+        .onHover { inside in
+            if inside { hovered = scenario } else if hovered == scenario { hovered = nil }
+        }
+        .accessibilityAddTraits(current ? .isSelected : [])
+    }
+
+    /// A click anywhere but the panel and its title, or Escape, closes it.
+    private func watchOutside() {
+        stopWatching()
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { event in
+            // Local monitors run on the main thread; only the decision leaves it.
+            let swallow = MainActor.assumeIsolated { () -> Bool in
+                if event.type == .keyDown {
+                    guard event.keyCode == 53 else { return false }
+                    open = false
+                    return true
+                }
+                if let view = event.window?.contentView {
+                    let point = CGPoint(x: event.locationInWindow.x, y: view.bounds.height - event.locationInWindow.y)
+                    if !panelFrame.contains(point) && !buttonFrame.contains(point) { open = false }
+                }
+                return false
+            }
+            return swallow ? nil : event
+        }
+    }
+
+    private func stopWatching() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
     }
 }

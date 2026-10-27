@@ -592,6 +592,7 @@ struct DesktopWorkspaceView: View {
     /// The global search, made when it is first opened.
     @State private var globalSearch: GlobalSearchModel?
     @State private var showingSearch = false
+    @State private var showingNotifications = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -628,6 +629,13 @@ struct DesktopWorkspaceView: View {
         .overlay {
             if showingSearch, let globalSearch {
                 GlobalSearchLayer(model: globalSearch, choose: chooseSearchResult, close: closeSearch)
+            }
+        }
+        .overlay {
+            if showingNotifications {
+                NotificationPanel(inbox: desktop.inbox, open: { desktop.openInboxEntry($0) },
+                                  openSettings: { desktop.showSettings(in: windowID, section: .notifications) },
+                                  close: { showingNotifications = false })
             }
         }
         .ignoresSafeArea()
@@ -1017,8 +1025,7 @@ struct DesktopWorkspaceView: View {
             Color.clear.frame(width: 16)
             // Runnir's repository, next to the bell: it belongs to the app, not to the workspace's toolbar.
             ProjectLink().buttonStyle(.hit).padding(.trailing, 6)
-            NotificationBell(inbox: desktop.inbox, open: { desktop.openInboxEntry($0) },
-                             openSettings: { desktop.showSettings(in: windowID, section: .notifications) })
+            NotificationBell(inbox: desktop.inbox, showing: $showingNotifications)
         }
         .padding(.leading, 12).padding(.trailing, 14).padding(.top, 3).frame(height: 40, alignment: .top)
         .overlay(alignment: .top) {
