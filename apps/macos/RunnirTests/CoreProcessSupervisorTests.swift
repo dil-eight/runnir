@@ -39,6 +39,10 @@ private struct FakeService: CoreServicing {
     func workspaceActivity(repositoryID: String, limit: Int) async throws -> CoreWorkspaceActivity { throw CoreServiceError.unavailable }
     func refreshWorkspaceActivity(repositoryID: String, wait: Bool, limit: Int) async throws -> CoreWorkspaceActivity { throw CoreServiceError.unavailable }
     func loadOlderRuns(repositoryID: String) async throws -> CoreOlderRuns { throw CoreServiceError.unavailable }
+    func searchRuns(repositoryID: String, query: String, limit: Int) async throws -> CoreRunSearch { throw CoreServiceError.unavailable }
+    func searchWorkspaces(query: String, workspaceIDs: [UUID], limitPerKind: Int) async throws -> CoreWorkspaceSearch { throw CoreServiceError.unavailable }
+    func searchRunsOnGitHub(repositoryID: String, query: String, cursor: Date?, pages: Int) async throws -> CoreGitHubRunSearch { throw CoreServiceError.unavailable }
+    func clearRunIndex(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] { throw CoreServiceError.unavailable }
     func insertWorkflowConcurrency(repositoryID: String, content: String) async throws -> CoreConcurrencyInsertion { throw CoreServiceError.unavailable }
     func storageUsage(workspaceIDs: [UUID]) async throws -> CoreStorageUsage { throw CoreServiceError.unavailable }
     func clearWorkspaceCache(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] { throw CoreServiceError.unavailable }
@@ -61,6 +65,8 @@ private struct FakeService: CoreServicing {
     func listGitHubWorkflows(target: CoreGitHubTarget) async throws -> CoreGitHubResult<CoreGitHubWorkflow> { CoreGitHubResult(access: .ok, items: []) }
     func listWorkflowRuns(target: CoreGitHubTarget, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> { CoreGitHubResult(access: .ok, items: []) }
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { CoreGitHubResult(access: .ok, items: []) }
+    func getRunWorkflow(repositoryID: String, runID: Int64) async throws -> CoreRunWorkflow { .failed(.ok) }
+    func flow(repositoryID: String, scenario: CoreScenario?) async throws -> CoreFlow { throw CoreServiceError.unavailable }
     func gitHubRepository(target: CoreGitHubTarget) async throws -> CoreGitHubRepository { .failed(.ok) }
     func listGitHubRefs(target: CoreGitHubTarget) async throws -> CoreGitHubRefs { CoreGitHubRefs(access: .ok, defaultBranch: "main", branches: ["main"], tags: []) }
     func describeWorkflowDispatch(target: CoreGitHubTarget, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition {

@@ -31,6 +31,23 @@ service RunnirCore {
   // stores it; nothing is read when the cache holds 5000 runs or the whole
   // history. Concurrent calls for one workspace share one request.
   rpc LoadOlderRuns(LoadOlderRunsRequest) returns (LoadOlderRunsResponse);
+  // Searches the workspace's runs on this Mac: the activity cache and the
+  // search index, which also holds runs the cache dropped or GitHub deleted.
+  // Reads nothing from GitHub, so it works offline. The query is words and
+  // qualifiers (branch:, author:, event:, workflow:, status:, after:, before:).
+  rpc SearchRuns(SearchRunsRequest) returns (SearchRunsResponse);
+  // One step of a deep search on GitHub: up to 10 pages of 100 runs, read by
+  // creation time from the cursor, filtered by GitHub where it can and by the
+  // Core for the rest. Every run read is added to the search index.
+  rpc SearchRunsOnGitHub(SearchRunsOnGitHubRequest) returns (SearchRunsOnGitHubResponse);
+  // Searches the saved data of several workspaces at once, for the global
+  // search: runs (with the query grammar of SearchRuns), pull requests,
+  // workflows and local runs. An open workspace answers from its live store,
+  // a closed one from its database opened read-only. Reads nothing from
+  // GitHub and takes no workspace lock.
+  rpc SearchWorkspaces(SearchWorkspacesRequest) returns (SearchWorkspacesResponse);
+  // Forgets the search index of workspaces (all when none are named).
+  rpc ClearRunIndex(ClearRunIndexRequest) returns (ClearRunIndexResponse);
   // What workspaces keep on this Mac, by id; empty ids: every workspace with
   // data and every open one.
   rpc GetStorageUsage(GetStorageUsageRequest) returns (GetStorageUsageResponse);
@@ -107,6 +124,20 @@ service RunnirCore {
   rpc GetGitHubRepository(GetGitHubRepositoryRequest) returns (GetGitHubRepositoryResponse);
   rpc ListWorkflowRuns(ListWorkflowRunsRequest) returns (ListWorkflowRunsResponse);
   rpc ListRunJobs(ListRunJobsRequest) returns (ListRunJobsResponse);
+  // The jobs of the workflow file a run used, read at the run's commit, with
+  // their needs: what the app draws as the run's graph. No jobs, with a
+  // problem, when the file cannot be read there (a commit GitHub no longer
+  // serves, a fork's run, a file that does not parse).
+  rpc GetRunWorkflow(GetRunWorkflowRequest) returns (GetRunWorkflowResponse);
+  // The pipeline of the current branch's change in a scenario (a pull
+  // request into a base, a push, a merge, a tag, a manual start, the
+  // schedule): the workflows it starts as lanes of jobs in columns by needs,
+  // chained workflows after their source, workflows run by hand, and the
+  // workflows it skips with the reason. Planned from the working tree's
+  // workflow files and the files the change touches (git); each lane carries
+  // the newest saved run of its workflow for the scenario. Reads nothing
+  // from GitHub.
+  rpc GetFlow(GetFlowRequest) returns (GetFlowResponse);
 
   // Branches and tags a workflow can run on.
   rpc ListGitHubRefs(ListGitHubRefsRequest) returns (ListGitHubRefsResponse);
@@ -683,6 +714,25 @@ message WorkflowRun {
   // The newest run of the same workflow and event on a newer commit of the
   // same pull request; 0 when not superseded. Workspace activity only.
   int64 superseded_by = 19;
+  // Which of the six statuses the run counts as, for the status filter and
+  // `status:` in a search. The Core owns this mapping; the app does not
+  // read it from status and conclusion itself.
+  RunStatusGroup status_group = 20;
+}
+
+// The six statuses runs are searched and filtered by.
+enum RunStatusGroup {
+  RUN_STATUS_GROUP_UNSPECIFIED = 0;
+  RUN_STATUS_GROUP_SUCCESS = 1;
+  // failure, timed_out and startup_failure.
+  RUN_STATUS_GROUP_FAILED = 2;
+  RUN_STATUS_GROUP_CANCELLED = 3;
+  RUN_STATUS_GROUP_RUNNING = 4;
+  // queued, waiting, pending, requested, and a run that waits for a person
+  // (action_required).
+  RUN_STATUS_GROUP_QUEUED = 5;
+  // skipped, neutral and stale.
+  RUN_STATUS_GROUP_SKIPPED = 6;
 }
 
 message ListRunJobsRequest {
@@ -693,6 +743,124 @@ message ListRunJobsRequest {
   string github_repository = 3;
   // Server id for github_repository; empty is github.com.
   string github_server = 4;
+}
+
+message GetRunWorkflowRequest {
+  string repository_id = 1;
+  int64 run_id = 2;
+  // As in ListRunJobsRequest.
+  string github_repository = 3;
+  string github_server = 4;
+}
+
+message GetRunWorkflowResponse {
+  GitHubStatus status = 1;
+  // ".github/workflows/<file>", empty when it was not found.
+  string workflow_path = 2;
+  repeated Job jobs = 3;
+  // Why there are no jobs; empty when the file was read and parsed.
+  string problem = 4;
+}
+
+message GetFlowRequest {
+  string repository_id = 1;
+  // Unset: the default scenario of the branch.
+  Scenario scenario = 2;
+}
+
+enum ScenarioKind {
+  SCENARIO_KIND_UNSPECIFIED = 0;
+  SCENARIO_KIND_PULL_REQUEST = 1;
+  SCENARIO_KIND_PUSH = 2;
+  SCENARIO_KIND_MERGE = 3;
+  SCENARIO_KIND_TAG = 4;
+  SCENARIO_KIND_MANUAL = 5;
+  SCENARIO_KIND_SCHEDULE = 6;
+}
+
+message Scenario {
+  ScenarioKind kind = 1;
+  // The pull request's base, the branch pushed or merged into, the tag;
+  // empty for a manual start and the schedule.
+  string target = 2;
+  // "Pull request → main"; set in responses.
+  string title = 3;
+}
+
+message FlowChanges {
+  // The scenario reads paths filters (pull requests, pushes, merges).
+  bool applies = 1;
+  // git said which files changed; otherwise paths filters are unknown.
+  bool known = 2;
+  uint32 count = 3;
+  // What the files were compared with: "origin/main".
+  string against = 4;
+  // Why the files are not known.
+  string note = 5;
+}
+
+enum LaneKind {
+  LANE_KIND_UNSPECIFIED = 0;
+  // The scenario's event starts it.
+  LANE_KIND_DIRECT = 1;
+  // workflow_run starts it after another lane.
+  LANE_KIND_CHAINED = 2;
+  // It starts only by hand, outside the scenario.
+  LANE_KIND_BY_HAND = 3;
+}
+
+message FlowJob {
+  string id = 1;
+  string name = 2;
+  repeated string needs = 3;
+  // The job's depth by needs.
+  int32 column = 4;
+  // Runs of the matrix; 0 without one, -1 when known only at run time.
+  int32 matrix = 5;
+  // The environment a gate deploys to.
+  string environment = 6;
+  // The if the job depends on, when the scenario cannot tell.
+  string condition = 7;
+  // Why the job does not run in the scenario; empty when it runs.
+  string skipped = 8;
+  // Started by hand: its if requires workflow_dispatch with these inputs.
+  bool manual = 9;
+  map<string, string> manual_inputs = 10;
+  // The reusable workflow the job calls.
+  string uses = 11;
+}
+
+message FlowLane {
+  string workflow_path = 1;
+  string workflow_name = 2;
+  LaneKind kind = 3;
+  // The lane a chained lane follows, by name and file.
+  string after = 4;
+  string after_path = 5;
+  // What starts it: "pull_request · branches main · paths ✓".
+  string why = 6;
+  repeated FlowJob jobs = 7;
+  // The newest saved run of the workflow for the scenario; unset for none.
+  WorkflowRun run = 8;
+  // The run is on another commit than the one checked out: its short SHA.
+  string statuses_from = 9;
+  string parse_error = 10;
+}
+
+message SkippedWorkflow {
+  string workflow_path = 1;
+  string workflow_name = 2;
+  string reason = 3;
+}
+
+message GetFlowResponse {
+  // The scenarios of the branch, the default first.
+  repeated Scenario scenarios = 1;
+  // The scenario planned; unset when the workflows react to nothing.
+  Scenario scenario = 2;
+  FlowChanges changes = 3;
+  repeated FlowLane lanes = 4;
+  repeated SkippedWorkflow skipped = 5;
 }
 
 message ListRunJobsResponse {
@@ -1404,6 +1572,134 @@ message LoadOlderRunsResponse {
   bool budget_reached = 4;
 }
 
+message SearchRunsRequest {
+  string repository_id = 1;
+  string query = 2;
+  // At most this many runs only the index knows are returned; 0 is 200.
+  uint32 limit = 3;
+}
+
+message SearchRunsResponse {
+  // The matching runs of the activity cache, newest first. The app holds
+  // those runs already and shows them by id.
+  repeated int64 cached_run_ids = 1;
+  // Matching runs only the search index knows, newest first.
+  repeated WorkflowRun indexed_runs = 2;
+  // How many runs were looked at in each.
+  uint32 cached_searched = 3;
+  uint32 indexed_searched = 4;
+  // Parts of the query that could not be used, as text for the person.
+  repeated string problems = 5;
+}
+
+message SearchRunsOnGitHubRequest {
+  string repository_id = 1;
+  string query = 2;
+  // Where the step starts: the creation time of the oldest run the previous
+  // step read. Unset for the newest runs.
+  google.protobuf.Timestamp cursor = 3;
+  // Pages of 100 to read, 1 to 10; 0 is 10.
+  uint32 pages = 4;
+}
+
+enum SearchStop {
+  SEARCH_STOP_UNSPECIFIED = 0;
+  // GitHub has no older run for the query.
+  SEARCH_STOP_DONE = 1;
+  // The pages of this step are read; ask again from next_cursor to go on.
+  SEARCH_STOP_BUDGET = 2;
+  SEARCH_STOP_RATE_LIMITED = 3;
+  SEARCH_STOP_UNAVAILABLE = 4;
+  // Another deep search of this repository is running.
+  SEARCH_STOP_BUSY = 5;
+}
+
+message SearchRunsOnGitHubResponse {
+  GitHubStatus status = 1;
+  // The matches of this step, newest first.
+  repeated WorkflowRun runs = 2;
+  google.protobuf.Timestamp next_cursor = 3;
+  // The creation time of the oldest run read so far.
+  google.protobuf.Timestamp looked_back_to = 4;
+  uint32 pages = 5;
+  uint32 runs_read = 6;
+  SearchStop stop = 7;
+  repeated string problems = 8;
+}
+
+message SearchWorkspacesRequest {
+  string query = 1;
+  // Empty: every workspace.
+  repeated string workspace_ids = 2;
+  // At most this many hits of each kind per workspace; 0 is 8, at most 50.
+  uint32 limit_per_kind = 3;
+}
+
+message SearchWorkspacesResponse {
+  // One entry per workspace searched, in the order of the request.
+  repeated WorkspaceSearchHits workspaces = 1;
+  repeated string problems = 2;
+  // The words of the query, lowercased, without its qualifiers: what a
+  // result is marked by.
+  repeated string words = 3;
+}
+
+message WorkspaceSearchHits {
+  string workspace_id = 1;
+  // The workspace is open in this process; otherwise its data was read from
+  // disk as the last session left it.
+  bool open = 2;
+  // "owner/name" of the saved data; empty when nothing was saved.
+  string repository = 3;
+  // When the saved data was last read from GitHub.
+  google.protobuf.Timestamp saved_at = 4;
+  // Set when the workspace could not be searched, as text for the person.
+  string problem = 5;
+  repeated WorkflowRun runs = 6;
+  uint32 runs_matched = 7;
+  repeated SearchedPullRequest pull_requests = 8;
+  uint32 pull_requests_matched = 9;
+  repeated GitHubWorkflow workflows = 10;
+  uint32 workflows_matched = 11;
+  repeated SearchedLocalRun local_runs = 12;
+  uint32 local_runs_matched = 13;
+}
+
+// A pull request as the activity cache saved it.
+message SearchedPullRequest {
+  int64 number = 1;
+  string title = 2;
+  // "open", "closed" or "merged".
+  string state = 3;
+  bool draft = 4;
+  string author = 5;
+  string head_ref = 6;
+  string base_ref = 7;
+  string html_url = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// A local run as the workspace's history keeps it; its output is not kept.
+message SearchedLocalRun {
+  string execution_id = 1;
+  string workflow_path = 2;
+  string job_id = 3;
+  string event = 4;
+  // "queued", "running", "succeeded", "failed", "cancelled" or "interrupted".
+  string state = 5;
+  string message = 6;
+  google.protobuf.Timestamp started_at = 7;
+}
+
+message ClearRunIndexRequest {
+  // Empty: every workspace.
+  repeated string workspace_ids = 1;
+}
+
+message ClearRunIndexResponse {
+  repeated WorkspaceStorage workspaces = 1;
+}
+
 message InsertWorkflowConcurrencyRequest {
   string repository_id = 1;
   // The editor's text, UTF-8, at most 1 MiB.
@@ -1451,6 +1747,8 @@ message WorkspaceStorage {
   uint32 cached_runs = 7;
   uint32 local_runs = 8;
   uint32 recovery_copies = 9;
+  // Runs in the search index.
+  uint32 indexed_runs = 10;
 }
 
 message GetStorageUsageRequest {

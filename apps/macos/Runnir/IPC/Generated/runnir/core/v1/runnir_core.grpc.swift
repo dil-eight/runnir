@@ -117,6 +117,58 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "SearchRuns" metadata.
+        internal enum SearchRuns: Sendable {
+            /// Request type for "SearchRuns".
+            internal typealias Input = Runnir_Core_V1_SearchRunsRequest
+            /// Response type for "SearchRuns".
+            internal typealias Output = Runnir_Core_V1_SearchRunsResponse
+            /// Descriptor for "SearchRuns".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "SearchRuns",
+                type: .unary
+            )
+        }
+        /// Namespace for "SearchRunsOnGitHub" metadata.
+        internal enum SearchRunsOnGitHub: Sendable {
+            /// Request type for "SearchRunsOnGitHub".
+            internal typealias Input = Runnir_Core_V1_SearchRunsOnGitHubRequest
+            /// Response type for "SearchRunsOnGitHub".
+            internal typealias Output = Runnir_Core_V1_SearchRunsOnGitHubResponse
+            /// Descriptor for "SearchRunsOnGitHub".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "SearchRunsOnGitHub",
+                type: .unary
+            )
+        }
+        /// Namespace for "SearchWorkspaces" metadata.
+        internal enum SearchWorkspaces: Sendable {
+            /// Request type for "SearchWorkspaces".
+            internal typealias Input = Runnir_Core_V1_SearchWorkspacesRequest
+            /// Response type for "SearchWorkspaces".
+            internal typealias Output = Runnir_Core_V1_SearchWorkspacesResponse
+            /// Descriptor for "SearchWorkspaces".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "SearchWorkspaces",
+                type: .unary
+            )
+        }
+        /// Namespace for "ClearRunIndex" metadata.
+        internal enum ClearRunIndex: Sendable {
+            /// Request type for "ClearRunIndex".
+            internal typealias Input = Runnir_Core_V1_ClearRunIndexRequest
+            /// Response type for "ClearRunIndex".
+            internal typealias Output = Runnir_Core_V1_ClearRunIndexResponse
+            /// Descriptor for "ClearRunIndex".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ClearRunIndex",
+                type: .unary
+            )
+        }
         /// Namespace for "GetStorageUsage" metadata.
         internal enum GetStorageUsage: Sendable {
             /// Request type for "GetStorageUsage".
@@ -416,6 +468,32 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "GetRunWorkflow" metadata.
+        internal enum GetRunWorkflow: Sendable {
+            /// Request type for "GetRunWorkflow".
+            internal typealias Input = Runnir_Core_V1_GetRunWorkflowRequest
+            /// Response type for "GetRunWorkflow".
+            internal typealias Output = Runnir_Core_V1_GetRunWorkflowResponse
+            /// Descriptor for "GetRunWorkflow".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "GetRunWorkflow",
+                type: .unary
+            )
+        }
+        /// Namespace for "GetFlow" metadata.
+        internal enum GetFlow: Sendable {
+            /// Request type for "GetFlow".
+            internal typealias Input = Runnir_Core_V1_GetFlowRequest
+            /// Response type for "GetFlow".
+            internal typealias Output = Runnir_Core_V1_GetFlowResponse
+            /// Descriptor for "GetFlow".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "GetFlow",
+                type: .unary
+            )
+        }
         /// Namespace for "ListGitHubRefs" metadata.
         internal enum ListGitHubRefs: Sendable {
             /// Request type for "ListGitHubRefs".
@@ -646,6 +724,10 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             GetWorkspaceActivity.descriptor,
             RefreshWorkspaceActivity.descriptor,
             LoadOlderRuns.descriptor,
+            SearchRuns.descriptor,
+            SearchRunsOnGitHub.descriptor,
+            SearchWorkspaces.descriptor,
+            ClearRunIndex.descriptor,
             GetStorageUsage.descriptor,
             ClearWorkspaceCache.descriptor,
             DeleteWorkspaceData.descriptor,
@@ -669,6 +751,8 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             GetGitHubRepository.descriptor,
             ListWorkflowRuns.descriptor,
             ListRunJobs.descriptor,
+            GetRunWorkflow.descriptor,
+            GetFlow.descriptor,
             ListGitHubRefs.descriptor,
             DescribeWorkflowDispatch.descriptor,
             PrepareWorkflowDispatch.descriptor,
@@ -831,6 +915,87 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_LoadOlderRunsRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_LoadOlderRunsResponse>
+
+        /// Handle the "SearchRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the workspace's runs on this Mac: the activity cache and the
+        /// > search index, which also holds runs the cache dropped or GitHub deleted.
+        /// > Reads nothing from GitHub, so it works offline. The query is words and
+        /// > qualifiers (branch:, author:, event:, workflow:, status:, after:, before:).
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_SearchRunsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_SearchRunsResponse` messages.
+        func searchRuns(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SearchRunsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SearchRunsResponse>
+
+        /// Handle the "SearchRunsOnGitHub" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > One step of a deep search on GitHub: up to 10 pages of 100 runs, read by
+        /// > creation time from the cursor, filtered by GitHub where it can and by the
+        /// > Core for the rest. Every run read is added to the search index.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_SearchRunsOnGitHubRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_SearchRunsOnGitHubResponse` messages.
+        func searchRunsOnGitHub(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SearchRunsOnGitHubRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse>
+
+        /// Handle the "SearchWorkspaces" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the saved data of several workspaces at once, for the global
+        /// > search: runs (with the query grammar of SearchRuns), pull requests,
+        /// > workflows and local runs. An open workspace answers from its live store,
+        /// > a closed one from its database opened read-only. Reads nothing from
+        /// > GitHub and takes no workspace lock.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_SearchWorkspacesRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_SearchWorkspacesResponse` messages.
+        func searchWorkspaces(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SearchWorkspacesRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SearchWorkspacesResponse>
+
+        /// Handle the "ClearRunIndex" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Forgets the search index of workspaces (all when none are named).
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ClearRunIndexRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ClearRunIndexResponse` messages.
+        func clearRunIndex(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ClearRunIndexRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ClearRunIndexResponse>
 
         /// Handle the "GetStorageUsage" method.
         ///
@@ -1252,6 +1417,52 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListRunJobsRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListRunJobsResponse>
+
+        /// Handle the "GetRunWorkflow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The jobs of the workflow file a run used, read at the run's commit, with
+        /// > their needs: what the app draws as the run's graph. No jobs, with a
+        /// > problem, when the file cannot be read there (a commit GitHub no longer
+        /// > serves, a fork's run, a file that does not parse).
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_GetRunWorkflowRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_GetRunWorkflowResponse` messages.
+        func getRunWorkflow(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetRunWorkflowResponse>
+
+        /// Handle the "GetFlow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The pipeline of the current branch's change in a scenario (a pull
+        /// > request into a base, a push, a merge, a tag, a manual start, the
+        /// > schedule): the workflows it starts as lanes of jobs in columns by needs,
+        /// > chained workflows after their source, workflows run by hand, and the
+        /// > workflows it skips with the reason. Planned from the working tree's
+        /// > workflow files and the files the change touches (git); each lane carries
+        /// > the newest saved run of its workflow for the scenario. Reads nothing
+        /// > from GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_GetFlowRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_GetFlowResponse` messages.
+        func getFlow(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetFlowRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetFlowResponse>
 
         /// Handle the "ListGitHubRefs" method.
         ///
@@ -1697,6 +1908,87 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_LoadOlderRunsResponse>
 
+        /// Handle the "SearchRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the workspace's runs on this Mac: the activity cache and the
+        /// > search index, which also holds runs the cache dropped or GitHub deleted.
+        /// > Reads nothing from GitHub, so it works offline. The query is words and
+        /// > qualifiers (branch:, author:, event:, workflow:, status:, after:, before:).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SearchRunsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_SearchRunsResponse` message.
+        func searchRuns(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_SearchRunsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SearchRunsResponse>
+
+        /// Handle the "SearchRunsOnGitHub" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > One step of a deep search on GitHub: up to 10 pages of 100 runs, read by
+        /// > creation time from the cursor, filtered by GitHub where it can and by the
+        /// > Core for the rest. Every run read is added to the search index.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SearchRunsOnGitHubRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_SearchRunsOnGitHubResponse` message.
+        func searchRunsOnGitHub(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_SearchRunsOnGitHubRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse>
+
+        /// Handle the "SearchWorkspaces" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the saved data of several workspaces at once, for the global
+        /// > search: runs (with the query grammar of SearchRuns), pull requests,
+        /// > workflows and local runs. An open workspace answers from its live store,
+        /// > a closed one from its database opened read-only. Reads nothing from
+        /// > GitHub and takes no workspace lock.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SearchWorkspacesRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_SearchWorkspacesResponse` message.
+        func searchWorkspaces(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_SearchWorkspacesRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SearchWorkspacesResponse>
+
+        /// Handle the "ClearRunIndex" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Forgets the search index of workspaces (all when none are named).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClearRunIndexRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ClearRunIndexResponse` message.
+        func clearRunIndex(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ClearRunIndexRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ClearRunIndexResponse>
+
         /// Handle the "GetStorageUsage" method.
         ///
         /// > Source IDL Documentation:
@@ -2117,6 +2409,52 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.ServerRequest<Runnir_Core_V1_ListRunJobsRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListRunJobsResponse>
+
+        /// Handle the "GetRunWorkflow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The jobs of the workflow file a run used, read at the run's commit, with
+        /// > their needs: what the app draws as the run's graph. No jobs, with a
+        /// > problem, when the file cannot be read there (a commit GitHub no longer
+        /// > serves, a fork's run, a file that does not parse).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetRunWorkflowRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_GetRunWorkflowResponse` message.
+        func getRunWorkflow(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetRunWorkflowResponse>
+
+        /// Handle the "GetFlow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The pipeline of the current branch's change in a scenario (a pull
+        /// > request into a base, a push, a merge, a tag, a manual start, the
+        /// > schedule): the workflows it starts as lanes of jobs in columns by needs,
+        /// > chained workflows after their source, workflows run by hand, and the
+        /// > workflows it skips with the reason. Planned from the working tree's
+        /// > workflow files and the files the change touches (git); each lane carries
+        /// > the newest saved run of its workflow for the scenario. Reads nothing
+        /// > from GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetFlowRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_GetFlowResponse` message.
+        func getFlow(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_GetFlowRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetFlowResponse>
 
         /// Handle the "ListGitHubRefs" method.
         ///
@@ -2560,6 +2898,87 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_LoadOlderRunsResponse
 
+        /// Handle the "SearchRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the workspace's runs on this Mac: the activity cache and the
+        /// > search index, which also holds runs the cache dropped or GitHub deleted.
+        /// > Reads nothing from GitHub, so it works offline. The query is words and
+        /// > qualifiers (branch:, author:, event:, workflow:, status:, after:, before:).
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_SearchRunsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_SearchRunsResponse` to respond with.
+        func searchRuns(
+            request: Runnir_Core_V1_SearchRunsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_SearchRunsResponse
+
+        /// Handle the "SearchRunsOnGitHub" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > One step of a deep search on GitHub: up to 10 pages of 100 runs, read by
+        /// > creation time from the cursor, filtered by GitHub where it can and by the
+        /// > Core for the rest. Every run read is added to the search index.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_SearchRunsOnGitHubRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_SearchRunsOnGitHubResponse` to respond with.
+        func searchRunsOnGitHub(
+            request: Runnir_Core_V1_SearchRunsOnGitHubRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_SearchRunsOnGitHubResponse
+
+        /// Handle the "SearchWorkspaces" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the saved data of several workspaces at once, for the global
+        /// > search: runs (with the query grammar of SearchRuns), pull requests,
+        /// > workflows and local runs. An open workspace answers from its live store,
+        /// > a closed one from its database opened read-only. Reads nothing from
+        /// > GitHub and takes no workspace lock.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_SearchWorkspacesRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_SearchWorkspacesResponse` to respond with.
+        func searchWorkspaces(
+            request: Runnir_Core_V1_SearchWorkspacesRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_SearchWorkspacesResponse
+
+        /// Handle the "ClearRunIndex" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Forgets the search index of workspaces (all when none are named).
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ClearRunIndexRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ClearRunIndexResponse` to respond with.
+        func clearRunIndex(
+            request: Runnir_Core_V1_ClearRunIndexRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ClearRunIndexResponse
+
         /// Handle the "GetStorageUsage" method.
         ///
         /// > Source IDL Documentation:
@@ -2982,6 +3401,52 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_ListRunJobsResponse
 
+        /// Handle the "GetRunWorkflow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The jobs of the workflow file a run used, read at the run's commit, with
+        /// > their needs: what the app draws as the run's graph. No jobs, with a
+        /// > problem, when the file cannot be read there (a commit GitHub no longer
+        /// > serves, a fork's run, a file that does not parse).
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_GetRunWorkflowRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_GetRunWorkflowResponse` to respond with.
+        func getRunWorkflow(
+            request: Runnir_Core_V1_GetRunWorkflowRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_GetRunWorkflowResponse
+
+        /// Handle the "GetFlow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The pipeline of the current branch's change in a scenario (a pull
+        /// > request into a base, a push, a merge, a tag, a manual start, the
+        /// > schedule): the workflows it starts as lanes of jobs in columns by needs,
+        /// > chained workflows after their source, workflows run by hand, and the
+        /// > workflows it skips with the reason. Planned from the working tree's
+        /// > workflow files and the files the change touches (git); each lane carries
+        /// > the newest saved run of its workflow for the scenario. Reads nothing
+        /// > from GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_GetFlowRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_GetFlowResponse` to respond with.
+        func getFlow(
+            request: Runnir_Core_V1_GetFlowRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_GetFlowResponse
+
         /// Handle the "ListGitHubRefs" method.
         ///
         /// > Source IDL Documentation:
@@ -3381,6 +3846,50 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.SearchRuns.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SearchRunsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SearchRunsResponse>(),
+            handler: { request, context in
+                try await self.searchRuns(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.SearchRunsOnGitHub.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SearchRunsOnGitHubRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SearchRunsOnGitHubResponse>(),
+            handler: { request, context in
+                try await self.searchRunsOnGitHub(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.SearchWorkspaces.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SearchWorkspacesRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SearchWorkspacesResponse>(),
+            handler: { request, context in
+                try await self.searchWorkspaces(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ClearRunIndex.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ClearRunIndexRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ClearRunIndexResponse>(),
+            handler: { request, context in
+                try await self.clearRunIndex(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.GetStorageUsage.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetStorageUsageRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetStorageUsageResponse>(),
@@ -3628,6 +4137,28 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListRunJobsResponse>(),
             handler: { request, context in
                 try await self.listRunJobs(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.GetRunWorkflow.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetRunWorkflowRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetRunWorkflowResponse>(),
+            handler: { request, context in
+                try await self.getRunWorkflow(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.GetFlow.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetFlowRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetFlowResponse>(),
+            handler: { request, context in
+                try await self.getFlow(
                     request: request,
                     context: context
                 )
@@ -3903,6 +4434,50 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
+    internal func searchRuns(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SearchRunsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SearchRunsResponse> {
+        let response = try await self.searchRuns(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func searchRunsOnGitHub(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SearchRunsOnGitHubRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse> {
+        let response = try await self.searchRunsOnGitHub(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func searchWorkspaces(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SearchWorkspacesRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SearchWorkspacesResponse> {
+        let response = try await self.searchWorkspaces(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func clearRunIndex(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ClearRunIndexRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ClearRunIndexResponse> {
+        let response = try await self.clearRunIndex(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
     internal func getStorageUsage(
         request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetStorageUsageRequest>,
         context: GRPCCore.ServerContext
@@ -4150,6 +4725,28 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListRunJobsResponse> {
         let response = try await self.listRunJobs(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func getRunWorkflow(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetRunWorkflowResponse> {
+        let response = try await self.getRunWorkflow(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func getFlow(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetFlowRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetFlowResponse> {
+        let response = try await self.getFlow(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -4431,6 +5028,58 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_LoadOlderRunsResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_LoadOlderRunsResponse>(
             message: try await self.loadOlderRuns(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func searchRuns(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_SearchRunsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SearchRunsResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_SearchRunsResponse>(
+            message: try await self.searchRuns(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func searchRunsOnGitHub(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_SearchRunsOnGitHubRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse>(
+            message: try await self.searchRunsOnGitHub(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func searchWorkspaces(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_SearchWorkspacesRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SearchWorkspacesResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_SearchWorkspacesResponse>(
+            message: try await self.searchWorkspaces(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func clearRunIndex(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ClearRunIndexRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ClearRunIndexResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ClearRunIndexResponse>(
+            message: try await self.clearRunIndex(
                 request: request.message,
                 context: context
             ),
@@ -4734,6 +5383,32 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListRunJobsResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_ListRunJobsResponse>(
             message: try await self.listRunJobs(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func getRunWorkflow(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetRunWorkflowResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_GetRunWorkflowResponse>(
+            message: try await self.getRunWorkflow(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func getFlow(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_GetFlowRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetFlowResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_GetFlowResponse>(
+            message: try await self.getFlow(
                 request: request.message,
                 context: context
             ),
@@ -5125,6 +5800,107 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_LoadOlderRunsResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_LoadOlderRunsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "SearchRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the workspace's runs on this Mac: the activity cache and the
+        /// > search index, which also holds runs the cache dropped or GitHub deleted.
+        /// > Reads nothing from GitHub, so it works offline. The query is words and
+        /// > qualifiers (branch:, author:, event:, workflow:, status:, after:, before:).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SearchRunsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SearchRunsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_SearchRunsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func searchRuns<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SearchRunsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SearchRunsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SearchRunsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchRunsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "SearchRunsOnGitHub" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > One step of a deep search on GitHub: up to 10 pages of 100 runs, read by
+        /// > creation time from the cursor, filtered by GitHub where it can and by the
+        /// > Core for the rest. Every run read is added to the search index.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SearchRunsOnGitHubRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SearchRunsOnGitHubRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_SearchRunsOnGitHubResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func searchRunsOnGitHub<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SearchRunsOnGitHubRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SearchRunsOnGitHubRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SearchRunsOnGitHubResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "SearchWorkspaces" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the saved data of several workspaces at once, for the global
+        /// > search: runs (with the query grammar of SearchRuns), pull requests,
+        /// > workflows and local runs. An open workspace answers from its live store,
+        /// > a closed one from its database opened read-only. Reads nothing from
+        /// > GitHub and takes no workspace lock.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SearchWorkspacesRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SearchWorkspacesRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_SearchWorkspacesResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func searchWorkspaces<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SearchWorkspacesRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SearchWorkspacesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SearchWorkspacesResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchWorkspacesResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ClearRunIndex" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Forgets the search index of workspaces (all when none are named).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClearRunIndexRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ClearRunIndexRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ClearRunIndexResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func clearRunIndex<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ClearRunIndexRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ClearRunIndexRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ClearRunIndexResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearRunIndexResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "GetStorageUsage" method.
@@ -5661,6 +6437,62 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListRunJobsResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListRunJobsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "GetRunWorkflow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The jobs of the workflow file a run used, read at the run's commit, with
+        /// > their needs: what the app draws as the run's graph. No jobs, with a
+        /// > problem, when the file cannot be read there (a commit GitHub no longer
+        /// > serves, a fork's run, a file that does not parse).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetRunWorkflowRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetRunWorkflowRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetRunWorkflowResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func getRunWorkflow<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetRunWorkflowRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetRunWorkflowResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetRunWorkflowResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "GetFlow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The pipeline of the current branch's change in a scenario (a pull
+        /// > request into a base, a push, a merge, a tag, a manual start, the
+        /// > schedule): the workflows it starts as lanes of jobs in columns by needs,
+        /// > chained workflows after their source, workflows run by hand, and the
+        /// > workflows it skips with the reason. Planned from the working tree's
+        /// > workflow files and the files the change touches (git); each lane carries
+        /// > the newest saved run of its workflow for the scenario. Reads nothing
+        /// > from GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetFlowRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetFlowRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetFlowResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func getFlow<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetFlowRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetFlowRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetFlowResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetFlowResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "ListGitHubRefs" method.
@@ -6305,6 +7137,151 @@ extension Runnir_Core_V1_RunnirCore {
             try await self.client.unary(
                 request: request,
                 descriptor: Runnir_Core_V1_RunnirCore.Method.LoadOlderRuns.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "SearchRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the workspace's runs on this Mac: the activity cache and the
+        /// > search index, which also holds runs the cache dropped or GitHub deleted.
+        /// > Reads nothing from GitHub, so it works offline. The query is words and
+        /// > qualifiers (branch:, author:, event:, workflow:, status:, after:, before:).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SearchRunsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SearchRunsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_SearchRunsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func searchRuns<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SearchRunsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SearchRunsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SearchRunsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchRunsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.SearchRuns.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "SearchRunsOnGitHub" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > One step of a deep search on GitHub: up to 10 pages of 100 runs, read by
+        /// > creation time from the cursor, filtered by GitHub where it can and by the
+        /// > Core for the rest. Every run read is added to the search index.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SearchRunsOnGitHubRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SearchRunsOnGitHubRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_SearchRunsOnGitHubResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func searchRunsOnGitHub<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SearchRunsOnGitHubRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SearchRunsOnGitHubRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SearchRunsOnGitHubResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.SearchRunsOnGitHub.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "SearchWorkspaces" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the saved data of several workspaces at once, for the global
+        /// > search: runs (with the query grammar of SearchRuns), pull requests,
+        /// > workflows and local runs. An open workspace answers from its live store,
+        /// > a closed one from its database opened read-only. Reads nothing from
+        /// > GitHub and takes no workspace lock.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SearchWorkspacesRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SearchWorkspacesRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_SearchWorkspacesResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func searchWorkspaces<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SearchWorkspacesRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SearchWorkspacesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SearchWorkspacesResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchWorkspacesResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.SearchWorkspaces.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ClearRunIndex" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Forgets the search index of workspaces (all when none are named).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClearRunIndexRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ClearRunIndexRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ClearRunIndexResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func clearRunIndex<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ClearRunIndexRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ClearRunIndexRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ClearRunIndexResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearRunIndexResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ClearRunIndex.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -7092,6 +8069,84 @@ extension Runnir_Core_V1_RunnirCore {
             try await self.client.unary(
                 request: request,
                 descriptor: Runnir_Core_V1_RunnirCore.Method.ListRunJobs.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "GetRunWorkflow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The jobs of the workflow file a run used, read at the run's commit, with
+        /// > their needs: what the app draws as the run's graph. No jobs, with a
+        /// > problem, when the file cannot be read there (a commit GitHub no longer
+        /// > serves, a fork's run, a file that does not parse).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetRunWorkflowRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetRunWorkflowRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetRunWorkflowResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func getRunWorkflow<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetRunWorkflowRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetRunWorkflowResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetRunWorkflowResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.GetRunWorkflow.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "GetFlow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The pipeline of the current branch's change in a scenario (a pull
+        /// > request into a base, a push, a merge, a tag, a manual start, the
+        /// > schedule): the workflows it starts as lanes of jobs in columns by needs,
+        /// > chained workflows after their source, workflows run by hand, and the
+        /// > workflows it skips with the reason. Planned from the working tree's
+        /// > workflow files and the files the change touches (git); each lane carries
+        /// > the newest saved run of its workflow for the scenario. Reads nothing
+        /// > from GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetFlowRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetFlowRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetFlowResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func getFlow<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetFlowRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetFlowRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetFlowResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetFlowResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.GetFlow.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -7888,6 +8943,131 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "SearchRuns" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Searches the workspace's runs on this Mac: the activity cache and the
+    /// > search index, which also holds runs the cache dropped or GitHub deleted.
+    /// > Reads nothing from GitHub, so it works offline. The query is words and
+    /// > qualifiers (branch:, author:, event:, workflow:, status:, after:, before:).
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_SearchRunsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func searchRuns<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_SearchRunsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchRunsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.searchRuns(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SearchRunsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SearchRunsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SearchRunsOnGitHub" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > One step of a deep search on GitHub: up to 10 pages of 100 runs, read by
+    /// > creation time from the cursor, filtered by GitHub where it can and by the
+    /// > Core for the rest. Every run read is added to the search index.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_SearchRunsOnGitHubRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func searchRunsOnGitHub<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_SearchRunsOnGitHubRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.searchRunsOnGitHub(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SearchRunsOnGitHubRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SearchRunsOnGitHubResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SearchWorkspaces" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Searches the saved data of several workspaces at once, for the global
+    /// > search: runs (with the query grammar of SearchRuns), pull requests,
+    /// > workflows and local runs. An open workspace answers from its live store,
+    /// > a closed one from its database opened read-only. Reads nothing from
+    /// > GitHub and takes no workspace lock.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_SearchWorkspacesRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func searchWorkspaces<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_SearchWorkspacesRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchWorkspacesResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.searchWorkspaces(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SearchWorkspacesRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SearchWorkspacesResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ClearRunIndex" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Forgets the search index of workspaces (all when none are named).
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ClearRunIndexRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func clearRunIndex<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ClearRunIndexRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearRunIndexResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.clearRunIndex(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ClearRunIndexRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ClearRunIndexResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "GetStorageUsage" method.
     ///
     /// > Source IDL Documentation:
@@ -8555,6 +9735,74 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListRunJobsRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListRunJobsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetRunWorkflow" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The jobs of the workflow file a run used, read at the run's commit, with
+    /// > their needs: what the app draws as the run's graph. No jobs, with a
+    /// > problem, when the file cannot be read there (a commit GitHub no longer
+    /// > serves, a fork's run, a file that does not parse).
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_GetRunWorkflowRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getRunWorkflow<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetRunWorkflowResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.getRunWorkflow(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetRunWorkflowRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetRunWorkflowResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetFlow" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The pipeline of the current branch's change in a scenario (a pull
+    /// > request into a base, a push, a merge, a tag, a manual start, the
+    /// > schedule): the workflows it starts as lanes of jobs in columns by needs,
+    /// > chained workflows after their source, workflows run by hand, and the
+    /// > workflows it skips with the reason. Planned from the working tree's
+    /// > workflow files and the files the change touches (git); each lane carries
+    /// > the newest saved run of its workflow for the scenario. Reads nothing
+    /// > from GitHub.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_GetFlowRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getFlow<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_GetFlowRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetFlowResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.getFlow(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetFlowRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetFlowResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -9285,6 +10533,147 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.loadOlderRuns(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SearchRuns" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Searches the workspace's runs on this Mac: the activity cache and the
+    /// > search index, which also holds runs the cache dropped or GitHub deleted.
+    /// > Reads nothing from GitHub, so it works offline. The query is words and
+    /// > qualifiers (branch:, author:, event:, workflow:, status:, after:, before:).
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func searchRuns<Result>(
+        _ message: Runnir_Core_V1_SearchRunsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchRunsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_SearchRunsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.searchRuns(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SearchRunsOnGitHub" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > One step of a deep search on GitHub: up to 10 pages of 100 runs, read by
+    /// > creation time from the cursor, filtered by GitHub where it can and by the
+    /// > Core for the rest. Every run read is added to the search index.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func searchRunsOnGitHub<Result>(
+        _ message: Runnir_Core_V1_SearchRunsOnGitHubRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_SearchRunsOnGitHubRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.searchRunsOnGitHub(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SearchWorkspaces" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Searches the saved data of several workspaces at once, for the global
+    /// > search: runs (with the query grammar of SearchRuns), pull requests,
+    /// > workflows and local runs. An open workspace answers from its live store,
+    /// > a closed one from its database opened read-only. Reads nothing from
+    /// > GitHub and takes no workspace lock.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func searchWorkspaces<Result>(
+        _ message: Runnir_Core_V1_SearchWorkspacesRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchWorkspacesResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_SearchWorkspacesRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.searchWorkspaces(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ClearRunIndex" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Forgets the search index of workspaces (all when none are named).
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func clearRunIndex<Result>(
+        _ message: Runnir_Core_V1_ClearRunIndexRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClearRunIndexResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ClearRunIndexRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.clearRunIndex(
             request: request,
             options: options,
             onResponse: handleResponse
@@ -10049,6 +11438,82 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.listRunJobs(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetRunWorkflow" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The jobs of the workflow file a run used, read at the run's commit, with
+    /// > their needs: what the app draws as the run's graph. No jobs, with a
+    /// > problem, when the file cannot be read there (a commit GitHub no longer
+    /// > serves, a fork's run, a file that does not parse).
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getRunWorkflow<Result>(
+        _ message: Runnir_Core_V1_GetRunWorkflowRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetRunWorkflowResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_GetRunWorkflowRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.getRunWorkflow(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetFlow" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The pipeline of the current branch's change in a scenario (a pull
+    /// > request into a base, a push, a merge, a tag, a manual start, the
+    /// > schedule): the workflows it starts as lanes of jobs in columns by needs,
+    /// > chained workflows after their source, workflows run by hand, and the
+    /// > workflows it skips with the reason. Planned from the working tree's
+    /// > workflow files and the files the change touches (git); each lane carries
+    /// > the newest saved run of its workflow for the scenario. Reads nothing
+    /// > from GitHub.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getFlow<Result>(
+        _ message: Runnir_Core_V1_GetFlowRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetFlowResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_GetFlowRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.getFlow(
             request: request,
             options: options,
             onResponse: handleResponse

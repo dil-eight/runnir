@@ -166,6 +166,15 @@ protocol CoreServicing: Sendable {
     func refreshWorkspaceActivity(repositoryID: String, wait: Bool, limit: Int) async throws -> CoreWorkspaceActivity
     /// Reads one page of older runs from GitHub into the workspace's cache.
     func loadOlderRuns(repositoryID: String) async throws -> CoreOlderRuns
+    /// The saved runs and the search index for a query; nothing goes to GitHub.
+    func searchRuns(repositoryID: String, query: String, limit: Int) async throws -> CoreRunSearch
+    /// The saved runs, pull requests, workflows and local runs of workspaces
+    /// (all when empty) for a query; nothing goes to GitHub.
+    func searchWorkspaces(query: String, workspaceIDs: [UUID], limitPerKind: Int) async throws -> CoreWorkspaceSearch
+    /// One step of a deep search on GitHub, from `cursor` (nil for the newest runs).
+    func searchRunsOnGitHub(repositoryID: String, query: String, cursor: Date?, pages: Int) async throws -> CoreGitHubRunSearch
+    /// Forgets the search index of workspaces (all when empty).
+    func clearRunIndex(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage]
     /// What workspaces keep on this Mac; empty ids: all with data and all open.
     func storageUsage(workspaceIDs: [UUID]) async throws -> CoreStorageUsage
     /// Deletes what can be downloaded again; empty ids: every workspace.
@@ -221,6 +230,10 @@ protocol CoreServicing: Sendable {
     func gitHubRepository(target: CoreGitHubTarget) async throws -> CoreGitHubRepository
     func listWorkflowRuns(target: CoreGitHubTarget, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun>
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob>
+    /// The workflow file the run used, at the run's commit, as jobs with their needs.
+    func getRunWorkflow(repositoryID: String, runID: Int64) async throws -> CoreRunWorkflow
+    /// The pipeline of the change in a scenario; nil scenario: the default one.
+    func flow(repositoryID: String, scenario: CoreScenario?) async throws -> CoreFlow
     func listGitHubRefs(target: CoreGitHubTarget) async throws -> CoreGitHubRefs
     func describeWorkflowDispatch(target: CoreGitHubTarget, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition
     /// Validates a dispatch in the Core; nothing is sent to GitHub yet.

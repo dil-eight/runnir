@@ -14,6 +14,7 @@ import (
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
 	"runnir/core/internal/joblog"
+	"runnir/core/internal/runsearch"
 	"runnir/core/internal/store"
 )
 
@@ -338,6 +339,24 @@ func runMessage(r github.Run) *corev1.WorkflowRun {
 		RunAttempt: r.RunAttempt, Event: r.Event, Status: r.Status, Conclusion: r.Conclusion, Branch: r.Branch,
 		HeadSha: r.HeadSHA, Actor: r.Actor, HtmlUrl: r.HTMLURL, CreatedAt: timestamp(r.CreatedAt), UpdatedAt: timestamp(r.UpdatedAt),
 		HeadRepository: r.HeadRepository, CommitTitle: r.CommitTitle,
+		StatusGroup: statusGroup(runsearch.StatusOf(r.Status, r.Conclusion)),
+	}
+}
+
+func statusGroup(status runsearch.Status) corev1.RunStatusGroup {
+	switch status {
+	case runsearch.Succeeded:
+		return corev1.RunStatusGroup_RUN_STATUS_GROUP_SUCCESS
+	case runsearch.Failed:
+		return corev1.RunStatusGroup_RUN_STATUS_GROUP_FAILED
+	case runsearch.Cancelled:
+		return corev1.RunStatusGroup_RUN_STATUS_GROUP_CANCELLED
+	case runsearch.Running:
+		return corev1.RunStatusGroup_RUN_STATUS_GROUP_RUNNING
+	case runsearch.Skipped:
+		return corev1.RunStatusGroup_RUN_STATUS_GROUP_SKIPPED
+	default:
+		return corev1.RunStatusGroup_RUN_STATUS_GROUP_QUEUED
 	}
 }
 

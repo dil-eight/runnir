@@ -134,7 +134,7 @@ func (s *Store) ApplySync(ctx context.Context, p Pass) (bool, error) {
 	}
 	if p.Runs != nil {
 		if !p.Runs.NotModified {
-			c, err := applyRuns(ctx, tx, p.Runs)
+			c, err := applyRuns(ctx, tx, p.Runs, p.Source)
 			if err != nil {
 				return false, err
 			}
@@ -294,7 +294,7 @@ func setHistory(ctx context.Context, tx *sql.Tx, complete bool) (bool, error) {
 	return n > 0, nil
 }
 
-func applyRuns(ctx context.Context, tx *sql.Tx, u *RunsUpdate) (bool, error) {
+func applyRuns(ctx context.Context, tx *sql.Tx, u *RunsUpdate, src Source) (bool, error) {
 	runs := u.Runs
 	changed := false
 	for _, r := range runs {
@@ -303,6 +303,12 @@ func applyRuns(ctx context.Context, tx *sql.Tx, u *RunsUpdate) (bool, error) {
 			return false, err
 		}
 		changed = changed || c
+		if err := indexRun(ctx, tx, src, r); err != nil {
+			return false, err
+		}
+	}
+	if err := evictIndex(ctx, tx, src); err != nil {
+		return false, err
 	}
 	ids := idsJSON(runs, func(r github.Run) int64 { return r.ID })
 	var statements []statement

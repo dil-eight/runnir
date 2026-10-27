@@ -200,8 +200,11 @@ struct WorkspaceManagerView: View {
 private struct WorkspaceRegistryRow: View {
     let workspace: WorkspaceRecord
     let desktop: DesktopCoordinator
+    @State private var hovering = false
+
     var body: some View {
         let count = desktop.openCount(workspace.id)
+        let action = count > 0 ? "Focus" : "Open"
         HStack(spacing: 14) {
             Image(systemName: "folder").font(.system(size: 18)).frame(width: 20).foregroundStyle(RunnirTheme.secondaryForeground)
             VStack(alignment: .leading, spacing: 4) {
@@ -211,15 +214,20 @@ private struct WorkspaceRegistryRow: View {
             if count > 0 {
                 Label("Open · \(count) \(count == 1 ? "window" : "windows")", systemImage: "macwindow")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.success).frame(width: 170, alignment: .leading)
-                Button("Focus") { desktop.focus(workspace.id) }
             } else {
                 Label("Registered", systemImage: "folder").font(.system(size: 12))
                     .foregroundStyle(RunnirTheme.secondaryForeground).frame(width: 170, alignment: .leading)
             }
-            if count != 1 {
-                Button(count > 0 ? "New Window" : "Open") { desktop.openRegistered(workspace) }
-                    .accessibilityIdentifier("open-workspace-\(workspace.id)")
-            }
+            // The row itself opens or focuses the workspace. What stays a button
+            // is the second action: another window of one that is open twice.
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                if count > 1 {
+                    Button("New Window") { desktop.openRegistered(workspace) }
+                } else if hovering {
+                    Text(action).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                }
+            }.frame(width: 112)
             Menu {
                 Button("Open New Window") { desktop.openRegistered(workspace) }
                 Button("Locate / Grant Access...") { desktop.importRepository(relinkID: workspace.id) }
@@ -227,8 +235,21 @@ private struct WorkspaceRegistryRow: View {
                     .help("Forget this workspace in Runnir and delete its saved activity and local run history on this Mac. The repository's files stay.")
             } label: { Image(systemName: "ellipsis") }
             .menuStyle(.button).buttonStyle(.plain).pointerStyle(.link).menuIndicator(.hidden).fixedSize().help("Workspace actions")
+            Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(hovering ? RunnirTheme.secondaryForeground : RunnirTheme.mutedForeground)
         }
         .buttonStyle(DesignButtonStyle()).padding(.horizontal, 12).frame(height: 62)
+        .background(hovering ? RunnirTheme.selected : Color.clear)
+        .onHover { hovering = $0 }
+        .clickable()
+        .onTapGesture { perform(count: count) }
+        .accessibilityElement(children: .contain)
+        .accessibilityAction(named: action) { perform(count: count) }
+        .accessibilityIdentifier("open-workspace-\(workspace.id)")
+    }
+
+    private func perform(count: Int) {
+        if count > 0 { desktop.focus(workspace.id) } else { desktop.openRegistered(workspace) }
     }
 }
 
@@ -568,32 +589,47 @@ struct DesktopWorkspaceView: View {
     @State private var openAfterSheet: String?
     @State private var hoveringSwitcher = false
     @State private var reportingBug = false
+    /// The global search, made when it is first opened.
+    @State private var globalSearch: GlobalSearchModel?
+    @State private var showingSearch = false
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-            DesignDivider(vertical: true)
-            VStack(spacing: 0) {
-                toolbar
-                DesignDivider()
-                if reader == nil {
-                    ContentUnavailableView {
-                        Label("Locate this repository", systemImage: "folder.badge.questionmark")
-                    } description: {
-                        Text("The folder is missing or its access needs to be renewed. Your saved workspace has been retained.")
-                    } actions: {
-                        Button("Locate / Grant Access...") { desktop.importRepository(relinkID: workspace.id, reuseWindowID: windowID) }
+        VStack(spacing: 0) {
+            titleStrip
+            // The menu and the content are two islands on the window's own colour.
+            HStack(spacing: 8) {
+                sidebar.clipShape(RoundedRectangle(cornerRadius: 12))
+                VStack(spacing: 0) {
+                    toolbar
+                    DesignDivider()
+                    if reader == nil {
+                        ContentUnavailableView {
+                            Label("Locate this repository", systemImage: "folder.badge.questionmark")
+                        } description: {
+                            Text("The folder is missing or its access needs to be renewed. Your saved workspace has been retained.")
+                        } actions: {
+                            Button("Locate / Grant Access...") { desktop.importRepository(relinkID: workspace.id, reuseWindowID: windowID) }
+                        }
+                        // Fills the column so the toolbar stays at the top.
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        coreBanner
+                        content
                     }
-                    // Fills the column so the toolbar stays at the top.
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    coreBanner
-                    content
                 }
-            }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(RunnirTheme.background)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .padding(.horizontal, 8).padding(.bottom, 8)
         }
-        .background(RunnirTheme.background).foregroundStyle(RunnirTheme.foreground).tint(RunnirTheme.primary)
+        .background(RunnirTheme.window).foregroundStyle(RunnirTheme.foreground).tint(RunnirTheme.primary)
         .overlay(alignment: .topLeading) { switcherPanel }
+        .overlay {
+            if showingSearch, let globalSearch {
+                GlobalSearchLayer(model: globalSearch, choose: chooseSearchResult, close: closeSearch)
+            }
+        }
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: windowID)
         .sheet(isPresented: $reportingBug) {
@@ -909,12 +945,11 @@ struct DesktopWorkspaceView: View {
                     }
                 }
                 .disabled(reader == nil || files.isLoading || session?.isRefreshing == true).help("Refresh local workflows")
-                Button { requestRun(workflowID: nil) } label: { Label("Run Workflow...", systemImage: "play") }
+                Button { requestRun(workflowID: nil) } label: { Label("Run Workflow...", systemImage: "play.fill") }
                     .buttonStyle(DesignButtonStyle(primary: true))
                     .disabled(session?.githubRepository == nil)
                     .help(runWorkflowHelp)
             }
-            ProjectLink().buttonStyle(.hit)
         }
         .buttonStyle(DesignButtonStyle()).padding(.horizontal, 20).frame(height: 52)
     }
@@ -939,7 +974,7 @@ struct DesktopWorkspaceView: View {
         } else {
             Button {
                 if let file = files.selected { state.localRunRequest = LocalRunRequest(workflowID: file.relativePath, jobID: nil) }
-            } label: { Label("Run Locally...", systemImage: "play") }
+            } label: { Label("Run Locally...", systemImage: "play.fill") }
                 .buttonStyle(DesignButtonStyle(primary: true))
                 .disabled(!canValidate || files.selected == nil || localRun.map { !$0.isFinished } == true)
                 .help(runLocallyHelp)
@@ -971,18 +1006,46 @@ struct DesktopWorkspaceView: View {
         }
     }
 
+    /// The strip above the islands, level with the window's buttons: the
+    /// workspace switcher next to them (centered on the buttons, y = 16), the
+    /// search in the middle, Runnir on GitHub and the bell on the right.
+    private var titleStrip: some View {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: 64)
+            workspaceSwitcherButton
+            Spacer(minLength: 0)
+            Color.clear.frame(width: 16)
+            // Runnir's repository, next to the bell: it belongs to the app, not to the workspace's toolbar.
+            ProjectLink().buttonStyle(.hit).padding(.trailing, 6)
+            NotificationBell(inbox: desktop.inbox, open: { desktop.openInboxEntry($0) },
+                             openSettings: { desktop.showSettings(in: windowID, section: .notifications) })
+        }
+        .padding(.leading, 12).padding(.trailing, 14).padding(.top, 3).frame(height: 40, alignment: .top)
+        .overlay(alignment: .top) {
+            GlobalSearchField(open: openSearch).frame(width: 420).padding(.top, 3)
+        }
+    }
+
+    private func openSearch() {
+        if globalSearch == nil {
+            globalSearch = GlobalSearchModel(hub: desktop.core, currentWorkspaceID: workspace.id) { desktop.snapshot.workspaces }
+        }
+        showingSearch = true
+    }
+
+    private func closeSearch() {
+        showingSearch = false
+        globalSearch?.reset()
+    }
+
+    private func chooseSearchResult(_ result: SearchResult) {
+        closeSearch()
+        desktop.open(result.destination, workspaceID: result.workspaceID, from: windowID)
+    }
+
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
-            // The title bar row: the window's buttons, then the workspace
-            // switcher next to them, centered on the buttons (y = 16).
-            HStack(spacing: 0) {
-                Color.clear.frame(width: 64)
-                workspaceSwitcherButton
-                Spacer(minLength: 0)
-            }
-            .frame(height: 32)
-            Color.clear.frame(height: 8)
-            BrandLogo(height: 47, width: 128).padding(.leading, 6).padding(.top, 2).padding(.bottom, 14)
+            // The logo lives on the splash and in the Manager only.
             VStack(spacing: 2) {
                 ForEach(AppSection.sidebarSections) { section in
                     Button { state.selectedSection = section } label: {
@@ -1013,7 +1076,7 @@ struct DesktopWorkspaceView: View {
             Button { desktop.showSettings(in: windowID) } label: { SidebarItemLabel(title: "Settings...", symbol: "gearshape") }
                 .buttonStyle(.hit)
         }
-        .padding(.horizontal, 12).padding(.bottom, 14).frame(width: 220)
+        .padding(.horizontal, 8).padding(.top, 12).padding(.bottom, 10).frame(width: 196)
         .frame(maxHeight: .infinity).background(RunnirTheme.sidebar)
     }
 
@@ -1113,6 +1176,7 @@ struct DesktopWorkspaceView: View {
                 WorkspaceRunsView(session: session, hub: hub, github: desktop.github,
                                   selectedRunID: Binding(get: { state.selectedRunID }, set: { state.selectedRunID = $0 }),
                                   mode: Binding(get: { state.runsMode }, set: { state.runsMode = $0 }),
+                                  request: Binding(get: { state.runsRequest }, set: { state.runsRequest = $0 }),
                                   dismissals: desktop.hintDismissals,
                                   addConcurrency: { path in addConcurrency(path: path) })
             } else {
@@ -1480,8 +1544,11 @@ struct SidebarItemLabel: View {
 
 struct SectionLabel: View {
     let title: String
+    /// The heading of a review sheet: a size up and spaced.
+    var large = false
     var body: some View {
-        Text(title).font(.system(size: 11, weight: .medium)).foregroundStyle(RunnirTheme.secondaryForeground)
+        Text(title).font(.system(size: large ? 12 : 11, weight: large ? .semibold : .medium))
+            .tracking(large ? 0.6 : 0).foregroundStyle(RunnirTheme.secondaryForeground)
     }
 }
 

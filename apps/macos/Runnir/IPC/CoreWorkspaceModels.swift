@@ -112,6 +112,190 @@ struct CoreConcurrencyHint: Equatable, Sendable {
 }
 
 /// What a request for older runs did.
+/// What a search over the runs saved on this Mac found: the matching runs of
+/// the activity cache, by id (the app holds them already), and the matches
+/// only the search index knows.
+struct CoreRunSearch: Equatable, Sendable {
+    var cachedRunIDs: [Int64] = []
+    var indexedRuns: [CoreWorkflowRun] = []
+    var cachedSearched = 0
+    var indexedSearched = 0
+    /// Parts of the query that could not be used.
+    var problems: [String] = []
+}
+
+/// An event that happens to the current branch's change (B31).
+struct CoreScenario: Equatable, Hashable, Sendable {
+    enum Kind: Equatable, Hashable, Sendable { case pullRequest, push, merge, tag, manual, schedule }
+
+    let kind: Kind
+    /// The base, the branch pushed or merged into, the tag; empty for a manual start and the schedule.
+    let target: String
+    /// "Pull request → main".
+    let title: String
+}
+
+/// The files the change touches, as the scenario's paths filters read them.
+struct CoreFlowChanges: Equatable, Sendable {
+    /// The scenario reads paths filters at all.
+    var applies = false
+    /// git said which files changed; otherwise paths filters are unknown.
+    var known = false
+    var count = 0
+    var against = ""
+    var note = ""
+}
+
+/// A job of a lane, laid out by its needs.
+struct CoreFlowJob: Equatable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let needs: [String]
+    let column: Int
+    /// Runs of the matrix: 0 without one, -1 when known only at run time.
+    let matrix: Int
+    /// The environment a gate deploys to.
+    let environment: String
+    /// The if it depends on, when the scenario cannot tell.
+    let condition: String
+    /// Why it does not run in the scenario; empty when it runs.
+    let skipped: String
+    let manual: Bool
+    let manualInputs: [String: String]
+    let uses: String
+
+    var job: CoreJob { CoreJob(id: id, name: name, needs: needs, manual: manual, manualInputs: manualInputs) }
+}
+
+/// One workflow of a scenario.
+struct CoreFlowLane: Equatable, Identifiable, Sendable {
+    enum Kind: Equatable, Sendable { case direct, chained, byHand }
+
+    let path: String
+    let name: String
+    let kind: Kind
+    /// The lane a chained lane follows.
+    let after: String
+    let afterPath: String
+    /// What starts it: "pull_request · branches main · paths ✓".
+    let why: String
+    let jobs: [CoreFlowJob]
+    /// The newest saved run of the workflow for the scenario.
+    let run: CoreWorkflowRun?
+    /// The short SHA of the run when it is not the commit checked out.
+    let statusesFrom: String
+    let parseError: String
+
+    var id: String { path }
+}
+
+struct CoreSkippedWorkflow: Equatable, Identifiable, Sendable {
+    let path: String
+    let name: String
+    let reason: String
+    var id: String { path }
+}
+
+/// The pipeline of the change in one scenario.
+struct CoreFlow: Equatable, Sendable {
+    var scenarios: [CoreScenario] = []
+    /// nil when the workflows react to nothing.
+    var scenario: CoreScenario?
+    var changes = CoreFlowChanges()
+    var lanes: [CoreFlowLane] = []
+    var skipped: [CoreSkippedWorkflow] = []
+}
+
+/// What the global search found in the saved data of one workspace.
+struct CoreWorkspaceHits: Equatable, Identifiable, Sendable {
+    let workspaceID: UUID
+    var id: UUID { workspaceID }
+    /// The workspace is open in the Core; otherwise its data was read from
+    /// disk as the last session left it.
+    var isOpen = false
+    /// "owner/name" of the saved data; empty when nothing was saved.
+    var repository = ""
+    /// When the saved data was last read from GitHub.
+    var savedAt: Date?
+    /// Why the workspace could not be searched; nil when it was.
+    var problem: String?
+    var runs: [CoreWorkflowRun] = []
+    var runsMatched = 0
+    var pullRequests: [CoreSearchedPullRequest] = []
+    var pullRequestsMatched = 0
+    var workflows: [CoreGitHubWorkflow] = []
+    var workflowsMatched = 0
+    var localRuns: [CoreSearchedLocalRun] = []
+    var localRunsMatched = 0
+
+    var isEmpty: Bool { runsMatched + pullRequestsMatched + workflowsMatched + localRunsMatched == 0 }
+}
+
+/// A pull request as the activity cache saved it.
+struct CoreSearchedPullRequest: Equatable, Identifiable, Sendable {
+    let number: Int64
+    var id: Int64 { number }
+    let title: String
+    /// "open", "closed" or "merged".
+    let state: String
+    let isDraft: Bool
+    let author: String
+    let headRef: String
+    let htmlURL: URL?
+    let updatedAt: Date?
+}
+
+/// A local run as a workspace's history keeps it.
+struct CoreSearchedLocalRun: Equatable, Identifiable, Sendable {
+    let executionID: String
+    var id: String { executionID }
+    let workflowPath: String
+    let jobID: String
+    /// "queued", "running", "succeeded", "failed", "cancelled" or "interrupted".
+    let state: String
+    let message: String
+    let startedAt: Date?
+}
+
+struct CoreWorkspaceSearch: Equatable, Sendable {
+    var workspaces: [CoreWorkspaceHits] = []
+    /// Parts of the query that could not be used.
+    var problems: [String] = []
+    /// The query's words without its qualifiers, as the Core read them: what
+    /// a result is marked by.
+    var words: [String] = []
+}
+
+/// Why a step of a deep search on GitHub ended.
+enum CoreSearchStop: Equatable, Sendable {
+    /// GitHub has no older run for the query.
+    case done
+    /// The pages of this step are read; going on starts from the cursor.
+    case budget
+    case rateLimited
+    case unavailable
+    /// Another deep search of this repository is running.
+    case busy
+}
+
+/// One step of a deep search on GitHub.
+struct CoreGitHubRunSearch: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    var runs: [CoreWorkflowRun] = []
+    /// Where the next step starts; nil when the search is done.
+    var nextCursor: Date?
+    /// The creation time of the oldest run read so far.
+    var lookedBackTo: Date?
+    var pages = 0
+    var runsRead = 0
+    var stop: CoreSearchStop = .unavailable
+    var problems: [String] = []
+
+    static func failed(_ access: CoreGitHubAccess) -> CoreGitHubRunSearch {
+        CoreGitHubRunSearch(access: access)
+    }
+}
+
 struct CoreOlderRuns: Equatable, Sendable {
     let access: CoreGitHubAccess
     let added: Int
@@ -159,6 +343,8 @@ struct CoreWorkspaceStorage: Equatable, Identifiable, Sendable {
     let cachedRuns: Int
     let localRuns: Int
     let recoveryCopies: Int
+    /// Runs in the search index.
+    var indexedRuns = 0
     var id: UUID { workspaceID }
 }
 

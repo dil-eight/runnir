@@ -58,6 +58,15 @@ final class StorageSettingsModel {
 
     func clearAll() async { await clear([]) }
 
+    /// Forgets the search index of workspaces; the saved activity stays.
+    func clearIndex(_ ids: [UUID]) async {
+        await hub?.clearRunIndex(workspaceIDs: ids)
+        await load()
+    }
+
+    /// Runs in the search indexes of every workspace.
+    var indexedRuns: Int { rows.reduce(0) { $0 + ($1.storage?.indexedRuns ?? 0) } }
+
     func delete(_ id: UUID) async {
         await hub?.deleteWorkspaceData(id)
         await load()
@@ -77,6 +86,7 @@ final class StorageSettingsModel {
         var parts = ["\(storage.cachedRuns) saved \(storage.cachedRuns == 1 ? "run" : "runs")",
                      "\(storage.localRuns) local \(storage.localRuns == 1 ? "run" : "runs")"]
         if storage.logBytes > 0 { parts.append("logs " + ByteCountFormatter.string(fromByteCount: Int64(storage.logBytes), countStyle: .file)) }
+        if storage.indexedRuns > 0 { parts.append("\(storage.indexedRuns.formatted()) in the search index") }
         parts.append(ByteCountFormatter.string(fromByteCount: Int64(storage.databaseBytes), countStyle: .file))
         if storage.recoveryCopies > 0 { parts.append("\(storage.recoveryCopies) recovery \(storage.recoveryCopies == 1 ? "copy" : "copies")") }
         return parts.joined(separator: " · ")
@@ -89,13 +99,14 @@ struct StorageSettingsSection: View {
     @State private var confirming: Confirmation?
 
     private enum Confirmation: Identifiable {
-        case clear(StorageRow), clearAll, delete(StorageRow), stopKeepingLogs
+        case clear(StorageRow), clearAll, delete(StorageRow), stopKeepingLogs, clearIndex
         var id: String {
             switch self {
             case .clear(let row): "clear-\(row.id)"
             case .clearAll: "clear-all"
             case .delete(let row): "delete-\(row.id)"
             case .stopKeepingLogs: "logs"
+            case .clearIndex: "index"
             }
         }
     }
@@ -134,12 +145,26 @@ struct StorageSettingsSection: View {
             }
         }
         .task { await model.load() }
+        Section("Search Index") {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Runs kept for search")
+                    Text("\(model.indexedRuns.formatted()) \(model.indexedRuns == 1 ? "run" : "runs") · titles, commits, branches and authors")
+                        .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                }
+                Spacer()
+                Button("Clear Search Index\u{2026}") { confirming = .clearIndex }.disabled(model.indexedRuns == 0)
+            }
+            Text("The index keeps what Runnir has read of a repository's runs, so a search still finds runs that GitHub deleted or that fell out of the saved runs. Clearing the cache keeps it.")
+                .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+        }
         .confirmationDialog(title, isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }), titleVisibility: .visible) {
             switch confirming {
             case .clear(let row): Button("Clear Cache") { Task { await model.clear([row.id]) } }
             case .clearAll: Button("Clear All Caches") { Task { await model.clearAll() } }
             case .delete(let row): Button("Delete", role: .destructive) { Task { await model.delete(row.id) } }
             case .stopKeepingLogs: Button("Stop and Delete Logs", role: .destructive) { Task { await model.setKeepJobLogs(false) } }
+            case .clearIndex: Button("Clear Search Index", role: .destructive) { Task { await model.clearIndex([]) } }
             case nil: EmptyView()
             }
             Button("Cancel", role: .cancel) { confirming = nil }
@@ -154,6 +179,7 @@ struct StorageSettingsSection: View {
         case .clearAll: "Clear every workspace's cache?"
         case .delete: "Delete this removed workspace's data?"
         case .stopKeepingLogs: "Stop keeping job logs?"
+        case .clearIndex: "Clear the search index?"
         case nil: ""
         }
     }
@@ -163,6 +189,7 @@ struct StorageSettingsSection: View {
         case .clear, .clearAll: "Saved runs, jobs, workflows and kept logs are deleted and download again. Local run history, presets, favorites and your sign-in stay."
         case .delete: "Its saved activity and local run history are deleted from this Mac. Nothing in any repository changes."
         case .stopKeepingLogs: "Logs kept so far are deleted from this Mac."
+        case .clearIndex: "Runs that GitHub no longer has, or that the saved runs dropped, can no longer be found by search. Saved activity and everything else stay."
         case nil: ""
         }
     }

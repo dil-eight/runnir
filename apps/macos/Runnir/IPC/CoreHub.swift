@@ -778,6 +778,27 @@ final class CoreHub {
         }
     }
 
+    /// The jobs of the workflow file one run used, with their needs, for the
+    /// run's graph. Without jobs and with a problem when the file cannot be read.
+    func runWorkflow(workspaceID: UUID, runID: Int64) async -> CoreRunWorkflow {
+        guard let coreID = sessions[workspaceID]?.coreID, isReady,
+              let service = try? await provider.service() else { return .failed(.unavailable) }
+        do {
+            let result = try await service.getRunWorkflow(repositoryID: coreID, runID: runID)
+            if result.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
+            return result
+        } catch {
+            return .failed(.unavailable)
+        }
+    }
+
+    /// The pipeline of the workspace's change in a scenario (nil: the
+    /// default one); nil when the Core cannot answer.
+    func flow(workspaceID: UUID, scenario: CoreScenario?) async -> CoreFlow? {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return nil }
+        return try? await service.flow(repositoryID: coreID, scenario: scenario)
+    }
+
     // MARK: Storage
 
     /// Where Settings › Storage keeps its choices (`StorageSettings`).
@@ -809,6 +830,40 @@ final class CoreHub {
     func clearCache(workspaceIDs: [UUID]) async -> Bool {
         guard isReady, let service = try? await provider.service() else { return false }
         return (try? await service.clearWorkspaceCache(workspaceIDs: workspaceIDs)) != nil
+    }
+
+    /// Forgets the search index of the workspaces (all when empty): the runs
+    /// it keeps that the cache has dropped or GitHub deleted.
+    @discardableResult
+    func clearRunIndex(workspaceIDs: [UUID]) async -> Bool {
+        guard isReady, let service = try? await provider.service() else { return false }
+        return (try? await service.clearRunIndex(workspaceIDs: workspaceIDs)) != nil
+    }
+
+    /// The saved runs and the search index for a query; nil when the Core
+    /// cannot answer. Nothing goes to GitHub, so it works offline.
+    func searchRuns(workspaceID: UUID, query: String) async -> CoreRunSearch? {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return nil }
+        return try? await service.searchRuns(repositoryID: coreID, query: query, limit: 200)
+    }
+
+    /// The global search over the saved data of workspaces (all when empty);
+    /// nil when the Core cannot answer. Nothing goes to GitHub.
+    func searchWorkspaces(query: String, workspaceIDs: [UUID] = []) async -> CoreWorkspaceSearch? {
+        guard isReady, let service = try? await provider.service() else { return nil }
+        return try? await service.searchWorkspaces(query: query, workspaceIDs: workspaceIDs, limitPerKind: 8)
+    }
+
+    /// One step of a deep search on GitHub.
+    func searchRunsOnGitHub(workspaceID: UUID, query: String, cursor: Date?) async -> CoreGitHubRunSearch {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return .failed(.unavailable) }
+        do {
+            let result = try await service.searchRunsOnGitHub(repositoryID: coreID, query: query, cursor: cursor, pages: 10)
+            if result.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
+            return result
+        } catch {
+            return .failed(.unavailable)
+        }
     }
 
     /// Deletes a closed workspace's data on this Mac, once the Core has

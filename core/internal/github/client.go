@@ -127,6 +127,10 @@ type Run struct {
 	// Pull requests GitHub lists on the run whose base is the run's own
 	// repository; in a fork GitHub also lists the upstream's, which are dropped.
 	PullRequests []int64
+	// WorkflowPath is the workflow file the run used, as GitHub names it
+	// (".github/workflows/ci.yml"), without a ref; empty when GitHub does not
+	// say. It is not stored with the cached runs.
+	WorkflowPath string
 }
 
 type Step struct {
@@ -238,6 +242,32 @@ func (c *Client) Runs(ctx context.Context, owner, name, branch string, limit int
 	return runs, nil
 }
 
+// RunsQuery reads one page of up to 100 runs by the filters of a search
+// (`actor`, `branch`, `event`, `status`, `head_sha`, `created`), newest first.
+// GitHub answers at most 1000 results of a filtered search; a caller that
+// goes deeper pages by `created` instead, as the older-runs read does.
+func (c *Client) RunsQuery(ctx context.Context, owner, name string, filters url.Values) ([]Run, error) {
+	query := url.Values{"per_page": {"100"}}
+	for key, values := range filters {
+		for _, value := range values {
+			if value != "" {
+				query.Set(key, value)
+			}
+		}
+	}
+	var body struct {
+		WorkflowRuns []runJSON `json:"workflow_runs"`
+	}
+	if err := c.get(ctx, repoPath(owner, name, "/actions/runs"), query, &body); err != nil {
+		return nil, err
+	}
+	runs := make([]Run, 0, len(body.WorkflowRuns))
+	for _, r := range body.WorkflowRuns {
+		runs = append(runs, r.run(owner, name))
+	}
+	return runs, nil
+}
+
 // RunsIfChanged reads the newest runs like Runs; with etag set GitHub
 // answers ErrNotModified when they did not change. It returns the new ETag.
 func (c *Client) RunsIfChanged(ctx context.Context, owner, name string, limit int, etag string) ([]Run, string, error) {
@@ -304,6 +334,7 @@ type runJSON struct {
 	HeadBranch   string    `json:"head_branch"`
 	HeadSHA      string    `json:"head_sha"`
 	HTMLURL      string    `json:"html_url"`
+	Path         string    `json:"path"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	Actor        *struct {
@@ -332,6 +363,8 @@ func (r runJSON) run(owner, name string) Run {
 		RunAttempt: r.RunAttempt, Event: r.Event, Status: r.Status, Branch: r.HeadBranch, HeadSHA: r.HeadSHA,
 		HTMLURL: r.HTMLURL, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
+	// GitHub may add the ref the file was read at: ".github/workflows/ci.yml@refs/heads/main".
+	run.WorkflowPath, _, _ = strings.Cut(r.Path, "@")
 	if r.Conclusion != nil {
 		run.Conclusion = *r.Conclusion
 	}

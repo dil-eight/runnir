@@ -10,6 +10,8 @@ protocol WorkspaceWindowManaging: AnyObject {
     func attach(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: any RepositoryGranting)
     func showWindow(_ sender: Any?)
     func showSwitcher()
+    /// Shows where a search result leads, in this window.
+    func navigate(to destination: SearchDestination)
     /// What has edits not saved: the workflow file in the editor and
     /// Secrets and Variables; empty when nothing does.
     var unsavedNames: [String] { get }
@@ -19,6 +21,7 @@ protocol WorkspaceWindowManaging: AnyObject {
 
 extension WorkspaceWindowManaging {
     func showSwitcher() {}
+    func navigate(to destination: SearchDestination) {}
     var unsavedNames: [String] { [] }
     func saveUnsavedChanges() async -> Bool { true }
 }
@@ -114,6 +117,8 @@ final class DesktopCoordinator {
     let shortcuts = GlobalShortcutCenter()
     /// Secrets and variables for local runs, per workspace.
     let localRunValues: any LocalRunValueStoring
+    /// The notifications Runnir sent, for the bell of every window.
+    let inbox: NotificationInbox
 
     init(store: (any DesktopStateStoring)? = nil,
          core: CoreHub? = nil,
@@ -124,6 +129,7 @@ final class DesktopCoordinator {
          repositoryFavorites: RepositoryFavorites = RepositoryFavorites(store: nil),
          pullRequests: PullRequestsModel = PullRequestsModel(store: nil),
          localRunValues: any LocalRunValueStoring = InMemoryLocalRunValueStore(),
+         inbox: NotificationInbox = NotificationInbox(store: nil),
          makeGrant: @escaping (WorkspaceRecord) throws -> any RepositoryGranting = { try RepositoryGrant(record: $0) },
          makeWorkspaceWindow: @escaping (WorkspaceWindowRecord, WorkspaceRecord, (any RepositoryGranting)?, DesktopCoordinator) -> any WorkspaceWindowManaging = {
              WorkspaceWindowController(record: $0, workspace: $1, grant: $2, desktop: $3)
@@ -137,6 +143,7 @@ final class DesktopCoordinator {
         self.repositoryFavorites = repositoryFavorites
         self.pullRequests = pullRequests
         self.localRunValues = localRunValues
+        self.inbox = inbox
         self.makeGrant = makeGrant
         self.makeWorkspaceWindow = makeWorkspaceWindow
     }
@@ -526,6 +533,38 @@ final class DesktopCoordinator {
         if changed { try? commit(candidate) }
     }
 
+    /// An entry of the bell's list was chosen: it is read, and what the
+    /// notification was about opens, as when its notification is clicked.
+    func openInboxEntry(_ entry: InboxEntry) {
+        inbox.markRead(entry.id)
+        if let url = entry.url {
+            NSWorkspace.shared.open(url)
+        } else if let id = entry.workspaceID, let workspace = snapshot.workspaces.first(where: { $0.id == id }) {
+            openOrFocus(workspace)
+        }
+    }
+
+    /// A search result was chosen in a window. Settings open over that window,
+    /// a pull request opens on GitHub, anything else is shown in a window of
+    /// the result's workspace: this one when it is the same, else the one
+    /// opened or brought forward for it.
+    func open(_ destination: SearchDestination, workspaceID: UUID?, from windowID: UUID) {
+        switch destination {
+        case .setting(let section):
+            showSettings(in: windowID, section: section)
+        case .pullRequest(let url):
+            if let url { NSWorkspace.shared.open(url) }
+        case .run, .runsList, .workflow, .localRuns:
+            guard let workspaceID, let workspace = snapshot.workspaces.first(where: { $0.id == workspaceID }) else { return }
+            if let own = windows[windowID], own.record.workspaceID == workspaceID {
+                own.navigate(to: destination)
+                return
+            }
+            openOrFocus(workspace)
+            windows.values.first { $0.record.workspaceID == workspaceID }?.navigate(to: destination)
+        }
+    }
+
     func openOrFocus(_ workspace: WorkspaceRecord) {
         if openCount(workspace.id) > 0 { focus(workspace.id) } else { openRegistered(workspace) }
     }
@@ -785,6 +824,11 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
         state?.showingSwitcher = true
     }
 
+    func navigate(to destination: SearchDestination) {
+        window?.makeKeyAndOrderFront(nil)
+        state?.go(to: destination)
+    }
+
     var unsavedNames: [String] {
         var names: [String] = []
         if let files = state?.files, files.isDirty, let name = files.selected?.name { names.append(name) }
@@ -844,7 +888,8 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
                                      favorites: WorkflowFavorites(store: try? FileWorkflowFavoritesStore.live()),
                                      repositoryFavorites: RepositoryFavorites(store: try? FileRepositoryFavoritesStore.live()),
                                      pullRequests: PullRequestsModel(store: try? FileDismissedPullRequestsStore.live()),
-                                     localRunValues: KeychainLocalRunValueStore())
+                                     localRunValues: KeychainLocalRunValueStore(),
+                                     inbox: NotificationInbox(store: try? FileNotificationInboxStore.live()))
         super.init()
         // The Core holds the token only while the user is signed in.
         hub.githubTokenProvider = { [github] in await github.currentToken() }
@@ -871,7 +916,7 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         desktop.shortcuts.action = { [desktop] in desktop.showPullRequests() }
         desktop.shortcuts.applySettings()
         // Notifications from this Mac when pull request checks or local runs finish.
-        let notifier = RunNotifier.live()
+        let notifier = RunNotifier.live(inbox: desktop.inbox)
         notifier.showWorkspace = { [desktop] id in
             if let workspace = desktop.snapshot.workspaces.first(where: { $0.id == id }) { desktop.openOrFocus(workspace) }
         }
@@ -886,6 +931,12 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         desktop.pullRequests.startPolling(hub: coreHub, isSignedIn: { [github, coreHub] in github.user != nil || !coreHub.signedInServers.isEmpty })
         // A failed start shows up as the hub's status, with a restart offer in each window.
         Task { [core] in _ = try? await core.start() }
+    }
+
+    /// What macOS no longer holds of the notifications it showed was closed
+    /// there, which reads it here too.
+    func applicationDidBecomeActive(_ notification: Notification) {
+        Task { [runNotifier] in await runNotifier?.reconcile() }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

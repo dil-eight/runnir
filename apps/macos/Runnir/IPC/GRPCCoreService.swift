@@ -123,6 +123,81 @@ struct GRPCCoreService: CoreServicing {
                              historyComplete: response.historyComplete, budgetReached: response.budgetReached)
     }
 
+    func searchRuns(repositoryID: String, query: String, limit: Int) async throws -> CoreRunSearch {
+        let response = try await call {
+            try await client.searchRuns(.with {
+                $0.repositoryID = repositoryID
+                $0.query = query
+                $0.limit = UInt32(clamping: max(0, limit))
+            }, options: Self.options(Self.callTimeout))
+        }
+        return CoreRunSearch(cachedRunIDs: response.cachedRunIds, indexedRuns: response.indexedRuns.map(Self.map),
+                             cachedSearched: Int(response.cachedSearched), indexedSearched: Int(response.indexedSearched),
+                             problems: response.problems)
+    }
+
+    func searchWorkspaces(query: String, workspaceIDs: [UUID], limitPerKind: Int) async throws -> CoreWorkspaceSearch {
+        let response = try await call {
+            try await client.searchWorkspaces(.with {
+                $0.query = query
+                $0.workspaceIds = workspaceIDs.map { $0.uuidString.lowercased() }
+                $0.limitPerKind = UInt32(clamping: max(0, limitPerKind))
+            }, options: Self.options(Self.callTimeout))
+        }
+        return CoreWorkspaceSearch(workspaces: response.workspaces.compactMap(Self.map), problems: response.problems, words: response.words)
+    }
+
+    static func map(_ hits: Runnir_Core_V1_WorkspaceSearchHits) -> CoreWorkspaceHits? {
+        guard let id = UUID(uuidString: hits.workspaceID) else { return nil }
+        return CoreWorkspaceHits(
+            workspaceID: id, isOpen: hits.open, repository: hits.repository,
+            savedAt: hits.hasSavedAt ? hits.savedAt.date : nil, problem: hits.problem.isEmpty ? nil : hits.problem,
+            runs: hits.runs.map(Self.map), runsMatched: Int(hits.runsMatched),
+            pullRequests: hits.pullRequests.map {
+                CoreSearchedPullRequest(number: $0.number, title: $0.title, state: $0.state, isDraft: $0.draft, author: $0.author,
+                                        headRef: $0.headRef, htmlURL: webURL($0.htmlURL), updatedAt: $0.hasUpdatedAt ? $0.updatedAt.date : nil)
+            },
+            pullRequestsMatched: Int(hits.pullRequestsMatched),
+            workflows: hits.workflows.map(Self.map), workflowsMatched: Int(hits.workflowsMatched),
+            localRuns: hits.localRuns.map {
+                CoreSearchedLocalRun(executionID: $0.executionID, workflowPath: $0.workflowPath, jobID: $0.jobID, state: $0.state,
+                                     message: $0.message, startedAt: $0.hasStartedAt ? $0.startedAt.date : nil)
+            },
+            localRunsMatched: Int(hits.localRunsMatched))
+    }
+
+    /// A step reads up to 10 pages from GitHub, one after another.
+    func searchRunsOnGitHub(repositoryID: String, query: String, cursor: Date?, pages: Int) async throws -> CoreGitHubRunSearch {
+        let response = try await call {
+            try await client.searchRunsOnGitHub(.with {
+                $0.repositoryID = repositoryID
+                $0.query = query
+                if let cursor { $0.cursor = .init(date: cursor) }
+                $0.pages = UInt32(clamping: max(0, pages))
+            }, options: Self.options(.seconds(330)))
+        }
+        let stop: CoreSearchStop = switch response.stop {
+        case .done: .done
+        case .budget: .budget
+        case .rateLimited: .rateLimited
+        case .busy: .busy
+        default: .unavailable
+        }
+        return CoreGitHubRunSearch(
+            access: Self.map(response.status),
+            runs: response.runs.map(Self.map), nextCursor: response.hasNextCursor ? response.nextCursor.date : nil,
+            lookedBackTo: response.hasLookedBackTo ? response.lookedBackTo.date : nil, pages: Int(response.pages),
+            runsRead: Int(response.runsRead), stop: stop, problems: response.problems)
+    }
+
+    func clearRunIndex(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] {
+        let response = try await call {
+            try await client.clearRunIndex(.with { $0.workspaceIds = workspaceIDs.map { $0.uuidString.lowercased() } },
+                                           options: Self.options(Self.callTimeout))
+        }
+        return response.workspaces.compactMap(Self.map)
+    }
+
     func insertWorkflowConcurrency(repositoryID: String, content: String) async throws -> CoreConcurrencyInsertion {
         let response = try await call {
             try await client.insertWorkflowConcurrency(.with {
@@ -266,7 +341,8 @@ struct GRPCCoreService: CoreServicing {
         }
         return CoreWorkspaceStorage(workspaceID: id, state: state, note: storage.note.isEmpty ? nil : storage.note, isOpen: storage.open,
                                     databaseBytes: storage.databaseBytes, logBytes: storage.logBytes, cachedRuns: Int(storage.cachedRuns),
-                                    localRuns: Int(storage.localRuns), recoveryCopies: Int(storage.recoveryCopies))
+                                    localRuns: Int(storage.localRuns), recoveryCopies: Int(storage.recoveryCopies),
+                                    indexedRuns: Int(storage.indexedRuns))
     }
 
     func refreshRepository(id: String) async throws -> CoreRepository {
@@ -566,8 +642,21 @@ struct GRPCCoreService: CoreServicing {
             runAttempt: max(1, run.runAttempt),
             headRepository: run.headRepository, commitTitle: run.commitTitle,
             link: run.hasLink ? Self.map(run.link) : .none,
-            supersededBy: run.supersededBy == 0 ? nil : run.supersededBy
+            supersededBy: run.supersededBy == 0 ? nil : run.supersededBy,
+            statusGroup: Self.map(run.statusGroup)
         )
+    }
+
+    static func map(_ group: Runnir_Core_V1_RunStatusGroup) -> CoreRunStatusGroup? {
+        switch group {
+        case .success: .succeeded
+        case .failed: .failed
+        case .cancelled: .cancelled
+        case .running: .running
+        case .queued: .queued
+        case .skipped: .skipped
+        case .unspecified, .UNRECOGNIZED: nil
+        }
     }
 
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> {
@@ -578,6 +667,84 @@ struct GRPCCoreService: CoreServicing {
             }, options: Self.options(Self.callTimeout))
         }
         return CoreGitHubResult(access: Self.map(response.status), items: response.jobs.map { Self.map($0) })
+    }
+
+    func flow(repositoryID: String, scenario: CoreScenario?) async throws -> CoreFlow {
+        let response = try await call {
+            try await client.getFlow(.with {
+                $0.repositoryID = repositoryID
+                if let scenario {
+                    $0.scenario = .with {
+                        $0.kind = Self.map(scenario.kind)
+                        $0.target = scenario.target
+                    }
+                }
+            }, options: Self.options(Self.callTimeout))
+        }
+        return CoreFlow(
+            scenarios: response.scenarios.compactMap(Self.map),
+            scenario: response.hasScenario ? Self.map(response.scenario) : nil,
+            changes: CoreFlowChanges(applies: response.changes.applies, known: response.changes.known, count: Int(response.changes.count),
+                                     against: response.changes.against, note: response.changes.note),
+            lanes: response.lanes.map { lane in
+                CoreFlowLane(
+                    path: lane.workflowPath, name: lane.workflowName,
+                    kind: Self.map(lane.kind),
+                    after: lane.after, afterPath: lane.afterPath, why: lane.why,
+                    jobs: lane.jobs.map {
+                        CoreFlowJob(id: $0.id, name: $0.name, needs: $0.needs, column: Int($0.column), matrix: Int($0.matrix),
+                                    environment: $0.environment, condition: $0.condition, skipped: $0.skipped, manual: $0.manual,
+                                    manualInputs: $0.manualInputs, uses: $0.uses)
+                    },
+                    run: lane.hasRun ? Self.map(lane.run) : nil, statusesFrom: lane.statusesFrom, parseError: lane.parseError)
+            },
+            skipped: response.skipped.map { CoreSkippedWorkflow(path: $0.workflowPath, name: $0.workflowName, reason: $0.reason) })
+    }
+
+    static func map(_ kind: Runnir_Core_V1_LaneKind) -> CoreFlowLane.Kind {
+        switch kind {
+        case .chained: .chained
+        case .byHand: .byHand
+        default: .direct
+        }
+    }
+
+    static func map(_ scenario: Runnir_Core_V1_Scenario) -> CoreScenario? {
+        let kind: CoreScenario.Kind
+        switch scenario.kind {
+        case .pullRequest: kind = .pullRequest
+        case .push: kind = .push
+        case .merge: kind = .merge
+        case .tag: kind = .tag
+        case .manual: kind = .manual
+        case .schedule: kind = .schedule
+        case .unspecified, .UNRECOGNIZED: return nil
+        }
+        return CoreScenario(kind: kind, target: scenario.target, title: scenario.title)
+    }
+
+    static func map(_ kind: CoreScenario.Kind) -> Runnir_Core_V1_ScenarioKind {
+        switch kind {
+        case .pullRequest: .pullRequest
+        case .push: .push
+        case .merge: .merge
+        case .tag: .tag
+        case .manual: .manual
+        case .schedule: .schedule
+        }
+    }
+
+    func getRunWorkflow(repositoryID: String, runID: Int64) async throws -> CoreRunWorkflow {
+        let response = try await call {
+            try await client.getRunWorkflow(.with {
+                $0.repositoryID = repositoryID
+                $0.runID = runID
+            }, options: Self.options(Self.callTimeout))
+        }
+        return CoreRunWorkflow(
+            access: Self.map(response.status), path: response.workflowPath,
+            jobs: response.jobs.map { CoreJob(id: $0.id, name: $0.name, needs: $0.needs, manual: $0.manual, manualInputs: $0.manualInputs) },
+            problem: response.problem)
     }
 
     static func map(_ job: Runnir_Core_V1_RunJob) -> CoreRunJob {

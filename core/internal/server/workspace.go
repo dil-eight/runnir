@@ -153,7 +153,7 @@ func storageMessages(usage []workspace.Usage) []*corev1.WorkspaceStorage {
 		out = append(out, &corev1.WorkspaceStorage{
 			WorkspaceId: u.WorkspaceID, State: state, Note: u.Note, Open: u.Open,
 			DatabaseBytes: u.DatabaseBytes, LogBytes: u.LogBytes, CachedRuns: uint32(u.CachedRuns),
-			LocalRuns: uint32(u.LocalRuns), RecoveryCopies: uint32(u.RecoveryCopies),
+			LocalRuns: uint32(u.LocalRuns), RecoveryCopies: uint32(u.RecoveryCopies), IndexedRuns: uint32(u.IndexedRuns),
 		})
 	}
 	return out

@@ -436,6 +436,10 @@ func readBounded(file string, limit int64) ([]byte, error) {
 	return data, nil
 }
 
+// ParseWorkflow reads one workflow file's bytes: its name, triggers and jobs
+// with their needs. A file that does not parse comes back with ParseError set.
+func ParseWorkflow(id string, data []byte) repository.Workflow { return parse(id, data) }
+
 func parse(id string, data []byte) repository.Workflow {
 	workflow := repository.Workflow{ID: id, Name: id}
 	names := references.Find(data)

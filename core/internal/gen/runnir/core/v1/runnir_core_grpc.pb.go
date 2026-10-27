@@ -32,6 +32,10 @@ const (
 	RunnirCore_GetWorkspaceActivity_FullMethodName      = "/runnir.core.v1.RunnirCore/GetWorkspaceActivity"
 	RunnirCore_RefreshWorkspaceActivity_FullMethodName  = "/runnir.core.v1.RunnirCore/RefreshWorkspaceActivity"
 	RunnirCore_LoadOlderRuns_FullMethodName             = "/runnir.core.v1.RunnirCore/LoadOlderRuns"
+	RunnirCore_SearchRuns_FullMethodName                = "/runnir.core.v1.RunnirCore/SearchRuns"
+	RunnirCore_SearchRunsOnGitHub_FullMethodName        = "/runnir.core.v1.RunnirCore/SearchRunsOnGitHub"
+	RunnirCore_SearchWorkspaces_FullMethodName          = "/runnir.core.v1.RunnirCore/SearchWorkspaces"
+	RunnirCore_ClearRunIndex_FullMethodName             = "/runnir.core.v1.RunnirCore/ClearRunIndex"
 	RunnirCore_GetStorageUsage_FullMethodName           = "/runnir.core.v1.RunnirCore/GetStorageUsage"
 	RunnirCore_ClearWorkspaceCache_FullMethodName       = "/runnir.core.v1.RunnirCore/ClearWorkspaceCache"
 	RunnirCore_DeleteWorkspaceData_FullMethodName       = "/runnir.core.v1.RunnirCore/DeleteWorkspaceData"
@@ -55,6 +59,8 @@ const (
 	RunnirCore_GetGitHubRepository_FullMethodName       = "/runnir.core.v1.RunnirCore/GetGitHubRepository"
 	RunnirCore_ListWorkflowRuns_FullMethodName          = "/runnir.core.v1.RunnirCore/ListWorkflowRuns"
 	RunnirCore_ListRunJobs_FullMethodName               = "/runnir.core.v1.RunnirCore/ListRunJobs"
+	RunnirCore_GetRunWorkflow_FullMethodName            = "/runnir.core.v1.RunnirCore/GetRunWorkflow"
+	RunnirCore_GetFlow_FullMethodName                   = "/runnir.core.v1.RunnirCore/GetFlow"
 	RunnirCore_ListGitHubRefs_FullMethodName            = "/runnir.core.v1.RunnirCore/ListGitHubRefs"
 	RunnirCore_DescribeWorkflowDispatch_FullMethodName  = "/runnir.core.v1.RunnirCore/DescribeWorkflowDispatch"
 	RunnirCore_PrepareWorkflowDispatch_FullMethodName   = "/runnir.core.v1.RunnirCore/PrepareWorkflowDispatch"
@@ -95,6 +101,23 @@ type RunnirCoreClient interface {
 	// stores it; nothing is read when the cache holds 5000 runs or the whole
 	// history. Concurrent calls for one workspace share one request.
 	LoadOlderRuns(ctx context.Context, in *LoadOlderRunsRequest, opts ...grpc.CallOption) (*LoadOlderRunsResponse, error)
+	// Searches the workspace's runs on this Mac: the activity cache and the
+	// search index, which also holds runs the cache dropped or GitHub deleted.
+	// Reads nothing from GitHub, so it works offline. The query is words and
+	// qualifiers (branch:, author:, event:, workflow:, status:, after:, before:).
+	SearchRuns(ctx context.Context, in *SearchRunsRequest, opts ...grpc.CallOption) (*SearchRunsResponse, error)
+	// One step of a deep search on GitHub: up to 10 pages of 100 runs, read by
+	// creation time from the cursor, filtered by GitHub where it can and by the
+	// Core for the rest. Every run read is added to the search index.
+	SearchRunsOnGitHub(ctx context.Context, in *SearchRunsOnGitHubRequest, opts ...grpc.CallOption) (*SearchRunsOnGitHubResponse, error)
+	// Searches the saved data of several workspaces at once, for the global
+	// search: runs (with the query grammar of SearchRuns), pull requests,
+	// workflows and local runs. An open workspace answers from its live store,
+	// a closed one from its database opened read-only. Reads nothing from
+	// GitHub and takes no workspace lock.
+	SearchWorkspaces(ctx context.Context, in *SearchWorkspacesRequest, opts ...grpc.CallOption) (*SearchWorkspacesResponse, error)
+	// Forgets the search index of workspaces (all when none are named).
+	ClearRunIndex(ctx context.Context, in *ClearRunIndexRequest, opts ...grpc.CallOption) (*ClearRunIndexResponse, error)
 	// What workspaces keep on this Mac, by id; empty ids: every workspace with
 	// data and every open one.
 	GetStorageUsage(ctx context.Context, in *GetStorageUsageRequest, opts ...grpc.CallOption) (*GetStorageUsageResponse, error)
@@ -163,6 +186,20 @@ type RunnirCoreClient interface {
 	GetGitHubRepository(ctx context.Context, in *GetGitHubRepositoryRequest, opts ...grpc.CallOption) (*GetGitHubRepositoryResponse, error)
 	ListWorkflowRuns(ctx context.Context, in *ListWorkflowRunsRequest, opts ...grpc.CallOption) (*ListWorkflowRunsResponse, error)
 	ListRunJobs(ctx context.Context, in *ListRunJobsRequest, opts ...grpc.CallOption) (*ListRunJobsResponse, error)
+	// The jobs of the workflow file a run used, read at the run's commit, with
+	// their needs: what the app draws as the run's graph. No jobs, with a
+	// problem, when the file cannot be read there (a commit GitHub no longer
+	// serves, a fork's run, a file that does not parse).
+	GetRunWorkflow(ctx context.Context, in *GetRunWorkflowRequest, opts ...grpc.CallOption) (*GetRunWorkflowResponse, error)
+	// The pipeline of the current branch's change in a scenario (a pull
+	// request into a base, a push, a merge, a tag, a manual start, the
+	// schedule): the workflows it starts as lanes of jobs in columns by needs,
+	// chained workflows after their source, workflows run by hand, and the
+	// workflows it skips with the reason. Planned from the working tree's
+	// workflow files and the files the change touches (git); each lane carries
+	// the newest saved run of its workflow for the scenario. Reads nothing
+	// from GitHub.
+	GetFlow(ctx context.Context, in *GetFlowRequest, opts ...grpc.CallOption) (*GetFlowResponse, error)
 	// Branches and tags a workflow can run on.
 	ListGitHubRefs(ctx context.Context, in *ListGitHubRefsRequest, opts ...grpc.CallOption) (*ListGitHubRefsResponse, error)
 	// Whether a workflow can be started by hand at a ref, and its inputs, read
@@ -289,6 +326,46 @@ func (c *runnirCoreClient) LoadOlderRuns(ctx context.Context, in *LoadOlderRunsR
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LoadOlderRunsResponse)
 	err := c.cc.Invoke(ctx, RunnirCore_LoadOlderRuns_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) SearchRuns(ctx context.Context, in *SearchRunsRequest, opts ...grpc.CallOption) (*SearchRunsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchRunsResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_SearchRuns_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) SearchRunsOnGitHub(ctx context.Context, in *SearchRunsOnGitHubRequest, opts ...grpc.CallOption) (*SearchRunsOnGitHubResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchRunsOnGitHubResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_SearchRunsOnGitHub_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) SearchWorkspaces(ctx context.Context, in *SearchWorkspacesRequest, opts ...grpc.CallOption) (*SearchWorkspacesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchWorkspacesResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_SearchWorkspaces_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) ClearRunIndex(ctx context.Context, in *ClearRunIndexRequest, opts ...grpc.CallOption) (*ClearRunIndexResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearRunIndexResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ClearRunIndex_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -534,6 +611,26 @@ func (c *runnirCoreClient) ListRunJobs(ctx context.Context, in *ListRunJobsReque
 	return out, nil
 }
 
+func (c *runnirCoreClient) GetRunWorkflow(ctx context.Context, in *GetRunWorkflowRequest, opts ...grpc.CallOption) (*GetRunWorkflowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRunWorkflowResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_GetRunWorkflow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) GetFlow(ctx context.Context, in *GetFlowRequest, opts ...grpc.CallOption) (*GetFlowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetFlowResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_GetFlow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnirCoreClient) ListGitHubRefs(ctx context.Context, in *ListGitHubRefsRequest, opts ...grpc.CallOption) (*ListGitHubRefsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListGitHubRefsResponse)
@@ -725,6 +822,23 @@ type RunnirCoreServer interface {
 	// stores it; nothing is read when the cache holds 5000 runs or the whole
 	// history. Concurrent calls for one workspace share one request.
 	LoadOlderRuns(context.Context, *LoadOlderRunsRequest) (*LoadOlderRunsResponse, error)
+	// Searches the workspace's runs on this Mac: the activity cache and the
+	// search index, which also holds runs the cache dropped or GitHub deleted.
+	// Reads nothing from GitHub, so it works offline. The query is words and
+	// qualifiers (branch:, author:, event:, workflow:, status:, after:, before:).
+	SearchRuns(context.Context, *SearchRunsRequest) (*SearchRunsResponse, error)
+	// One step of a deep search on GitHub: up to 10 pages of 100 runs, read by
+	// creation time from the cursor, filtered by GitHub where it can and by the
+	// Core for the rest. Every run read is added to the search index.
+	SearchRunsOnGitHub(context.Context, *SearchRunsOnGitHubRequest) (*SearchRunsOnGitHubResponse, error)
+	// Searches the saved data of several workspaces at once, for the global
+	// search: runs (with the query grammar of SearchRuns), pull requests,
+	// workflows and local runs. An open workspace answers from its live store,
+	// a closed one from its database opened read-only. Reads nothing from
+	// GitHub and takes no workspace lock.
+	SearchWorkspaces(context.Context, *SearchWorkspacesRequest) (*SearchWorkspacesResponse, error)
+	// Forgets the search index of workspaces (all when none are named).
+	ClearRunIndex(context.Context, *ClearRunIndexRequest) (*ClearRunIndexResponse, error)
 	// What workspaces keep on this Mac, by id; empty ids: every workspace with
 	// data and every open one.
 	GetStorageUsage(context.Context, *GetStorageUsageRequest) (*GetStorageUsageResponse, error)
@@ -793,6 +907,20 @@ type RunnirCoreServer interface {
 	GetGitHubRepository(context.Context, *GetGitHubRepositoryRequest) (*GetGitHubRepositoryResponse, error)
 	ListWorkflowRuns(context.Context, *ListWorkflowRunsRequest) (*ListWorkflowRunsResponse, error)
 	ListRunJobs(context.Context, *ListRunJobsRequest) (*ListRunJobsResponse, error)
+	// The jobs of the workflow file a run used, read at the run's commit, with
+	// their needs: what the app draws as the run's graph. No jobs, with a
+	// problem, when the file cannot be read there (a commit GitHub no longer
+	// serves, a fork's run, a file that does not parse).
+	GetRunWorkflow(context.Context, *GetRunWorkflowRequest) (*GetRunWorkflowResponse, error)
+	// The pipeline of the current branch's change in a scenario (a pull
+	// request into a base, a push, a merge, a tag, a manual start, the
+	// schedule): the workflows it starts as lanes of jobs in columns by needs,
+	// chained workflows after their source, workflows run by hand, and the
+	// workflows it skips with the reason. Planned from the working tree's
+	// workflow files and the files the change touches (git); each lane carries
+	// the newest saved run of its workflow for the scenario. Reads nothing
+	// from GitHub.
+	GetFlow(context.Context, *GetFlowRequest) (*GetFlowResponse, error)
 	// Branches and tags a workflow can run on.
 	ListGitHubRefs(context.Context, *ListGitHubRefsRequest) (*ListGitHubRefsResponse, error)
 	// Whether a workflow can be started by hand at a ref, and its inputs, read
@@ -876,6 +1004,18 @@ func (UnimplementedRunnirCoreServer) RefreshWorkspaceActivity(context.Context, *
 func (UnimplementedRunnirCoreServer) LoadOlderRuns(context.Context, *LoadOlderRunsRequest) (*LoadOlderRunsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method LoadOlderRuns not implemented")
 }
+func (UnimplementedRunnirCoreServer) SearchRuns(context.Context, *SearchRunsRequest) (*SearchRunsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchRuns not implemented")
+}
+func (UnimplementedRunnirCoreServer) SearchRunsOnGitHub(context.Context, *SearchRunsOnGitHubRequest) (*SearchRunsOnGitHubResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchRunsOnGitHub not implemented")
+}
+func (UnimplementedRunnirCoreServer) SearchWorkspaces(context.Context, *SearchWorkspacesRequest) (*SearchWorkspacesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchWorkspaces not implemented")
+}
+func (UnimplementedRunnirCoreServer) ClearRunIndex(context.Context, *ClearRunIndexRequest) (*ClearRunIndexResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClearRunIndex not implemented")
+}
 func (UnimplementedRunnirCoreServer) GetStorageUsage(context.Context, *GetStorageUsageRequest) (*GetStorageUsageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetStorageUsage not implemented")
 }
@@ -944,6 +1084,12 @@ func (UnimplementedRunnirCoreServer) ListWorkflowRuns(context.Context, *ListWork
 }
 func (UnimplementedRunnirCoreServer) ListRunJobs(context.Context, *ListRunJobsRequest) (*ListRunJobsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRunJobs not implemented")
+}
+func (UnimplementedRunnirCoreServer) GetRunWorkflow(context.Context, *GetRunWorkflowRequest) (*GetRunWorkflowResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRunWorkflow not implemented")
+}
+func (UnimplementedRunnirCoreServer) GetFlow(context.Context, *GetFlowRequest) (*GetFlowResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetFlow not implemented")
 }
 func (UnimplementedRunnirCoreServer) ListGitHubRefs(context.Context, *ListGitHubRefsRequest) (*ListGitHubRefsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListGitHubRefs not implemented")
@@ -1139,6 +1285,78 @@ func _RunnirCore_LoadOlderRuns_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnirCoreServer).LoadOlderRuns(ctx, req.(*LoadOlderRunsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_SearchRuns_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRunsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).SearchRuns(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_SearchRuns_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).SearchRuns(ctx, req.(*SearchRunsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_SearchRunsOnGitHub_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRunsOnGitHubRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).SearchRunsOnGitHub(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_SearchRunsOnGitHub_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).SearchRunsOnGitHub(ctx, req.(*SearchRunsOnGitHubRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_SearchWorkspaces_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchWorkspacesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).SearchWorkspaces(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_SearchWorkspaces_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).SearchWorkspaces(ctx, req.(*SearchWorkspacesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_ClearRunIndex_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearRunIndexRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ClearRunIndex(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ClearRunIndex_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ClearRunIndex(ctx, req.(*ClearRunIndexRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1550,6 +1768,42 @@ func _RunnirCore_ListRunJobs_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_GetRunWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRunWorkflowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).GetRunWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_GetRunWorkflow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).GetRunWorkflow(ctx, req.(*GetRunWorkflowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_GetFlow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetFlowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).GetFlow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_GetFlow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).GetFlow(ctx, req.(*GetFlowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnirCore_ListGitHubRefs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListGitHubRefsRequest)
 	if err := dec(in); err != nil {
@@ -1892,6 +2146,22 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _RunnirCore_LoadOlderRuns_Handler,
 		},
 		{
+			MethodName: "SearchRuns",
+			Handler:    _RunnirCore_SearchRuns_Handler,
+		},
+		{
+			MethodName: "SearchRunsOnGitHub",
+			Handler:    _RunnirCore_SearchRunsOnGitHub_Handler,
+		},
+		{
+			MethodName: "SearchWorkspaces",
+			Handler:    _RunnirCore_SearchWorkspaces_Handler,
+		},
+		{
+			MethodName: "ClearRunIndex",
+			Handler:    _RunnirCore_ClearRunIndex_Handler,
+		},
+		{
 			MethodName: "GetStorageUsage",
 			Handler:    _RunnirCore_GetStorageUsage_Handler,
 		},
@@ -1978,6 +2248,14 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListRunJobs",
 			Handler:    _RunnirCore_ListRunJobs_Handler,
+		},
+		{
+			MethodName: "GetRunWorkflow",
+			Handler:    _RunnirCore_GetRunWorkflow_Handler,
+		},
+		{
+			MethodName: "GetFlow",
+			Handler:    _RunnirCore_GetFlow_Handler,
 		},
 		{
 			MethodName: "ListGitHubRefs",

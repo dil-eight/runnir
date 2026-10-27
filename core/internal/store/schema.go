@@ -165,6 +165,35 @@ CREATE TABLE dispatch_history (
 );
 CREATE INDEX dispatch_history_sent ON dispatch_history (sent_at DESC);
 CREATE INDEX dispatch_history_workflow ON dispatch_history (repository, workflow_path, sent_at DESC);
+-- local: what is known of the runs of each repository, kept after the cache
+-- drops them (the 5000-run budget, a run GitHub deleted), so a search can
+-- still find them. Filled by everything the Core reads; the newest 50000 per
+-- repository stay. Clear Cache keeps it, and it is not in the backup of local
+-- data: the next reads fill it again. pulls is a JSON array of numbers.
+CREATE TABLE run_index (
+	server_id TEXT NOT NULL,
+	repository TEXT NOT NULL,
+	id INTEGER NOT NULL,
+	workflow_id INTEGER NOT NULL,
+	name TEXT NOT NULL,
+	display_title TEXT NOT NULL,
+	run_number INTEGER NOT NULL,
+	run_attempt INTEGER NOT NULL,
+	event TEXT NOT NULL,
+	status TEXT NOT NULL,
+	conclusion TEXT NOT NULL,
+	branch TEXT NOT NULL,
+	head_sha TEXT NOT NULL,
+	head_repository TEXT NOT NULL,
+	commit_title TEXT NOT NULL,
+	actor TEXT NOT NULL,
+	html_url TEXT NOT NULL,
+	created_at INTEGER NOT NULL,
+	updated_at INTEGER NOT NULL,
+	pulls TEXT NOT NULL DEFAULT '[]',
+	PRIMARY KEY (server_id, repository, id)
+);
+CREATE INDEX run_index_created ON run_index (server_id, repository, created_at DESC);
 -- local: running totals of what this Mac saved, one per kind ("local_runs").
 -- They outlive local_runs, which keeps only the newest records.
 CREATE TABLE savings (

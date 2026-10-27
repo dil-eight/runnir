@@ -92,6 +92,17 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         return result
     }
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { lock.withLock { jobsResult } }
+    var runWorkflowResult = CoreRunWorkflow.failed(.ok)
+    func getRunWorkflow(repositoryID: String, runID: Int64) async throws -> CoreRunWorkflow { lock.withLock { runWorkflowResult } }
+    var flowResult = CoreFlow()
+    private var _flowScenarios: [CoreScenario?] = []
+    var flowScenarios: [CoreScenario?] { lock.withLock { _flowScenarios } }
+    func flow(repositoryID: String, scenario: CoreScenario?) async throws -> CoreFlow {
+        lock.withLock {
+            _flowScenarios.append(scenario)
+            return flowResult
+        }
+    }
     var validationResult: Result<CoreValidationReport, CoreServiceError> = .success(CoreValidationReport(
         workflows: [CoreWorkflowValidation(workflowID: ".github/workflows/ci.yml",
                                            diagnostics: [CoreWorkflowDiagnostic(line: 4, column: 3, kind: "job-needs", message: "job \"build\" needs job \"test\" which does not exist")],
@@ -385,6 +396,46 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
             _olderRunsCalls.append(repositoryID)
             return olderRunsResult
         }
+    }
+    var workspaceSearchResult = CoreWorkspaceSearch()
+    private var _workspaceSearches: [String] = []
+    var workspaceSearches: [String] { lock.withLock { _workspaceSearches } }
+    private var _workspaceSearchScopes: [[UUID]] = []
+    var workspaceSearchScopes: [[UUID]] { lock.withLock { _workspaceSearchScopes } }
+    func searchWorkspaces(query: String, workspaceIDs: [UUID], limitPerKind: Int) async throws -> CoreWorkspaceSearch {
+        lock.withLock {
+            _workspaceSearches.append(query)
+            _workspaceSearchScopes.append(workspaceIDs)
+            return workspaceSearchResult
+        }
+    }
+    var runSearchResult = CoreRunSearch()
+    private var _searchQueries: [String] = []
+    var searchQueries: [String] { lock.withLock { _searchQueries } }
+    /// The Core does not answer run searches.
+    var runSearchFails = false
+    func searchRuns(repositoryID: String, query: String, limit: Int) async throws -> CoreRunSearch {
+        try lock.withLock {
+            _searchQueries.append(query)
+            if runSearchFails { throw CoreServiceError.unavailable }
+            return runSearchResult
+        }
+    }
+    /// The steps of a deep search, answered in order.
+    var githubSearchSteps: [CoreGitHubRunSearch] = []
+    private var _githubSearchCursors: [Date?] = []
+    var githubSearchCursors: [Date?] { lock.withLock { _githubSearchCursors } }
+    func searchRunsOnGitHub(repositoryID: String, query: String, cursor: Date?, pages: Int) async throws -> CoreGitHubRunSearch {
+        lock.withLock {
+            _githubSearchCursors.append(cursor)
+            return githubSearchSteps.isEmpty ? .failed(.unavailable) : githubSearchSteps.removeFirst()
+        }
+    }
+    private var _clearedIndexes = 0
+    var clearedIndexes: Int { lock.withLock { _clearedIndexes } }
+    func clearRunIndex(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] {
+        lock.withLock { _clearedIndexes += 1 }
+        return []
     }
     var concurrencyInsertion: CoreConcurrencyInsertion = .refused(.alreadyPresent)
     private var _insertions: [String] = []

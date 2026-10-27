@@ -87,7 +87,12 @@ final class RunNotifier: NSObject, UNUserNotificationCenterDelegate {
     var deliver: (RunNotification) -> Void
     var open: (URL) -> Void = { NSWorkspace.shared.open($0) }
     var showWorkspace: (UUID) -> Void = { _ in }
+    /// The bell's list: every notification Runnir sends is recorded in it.
+    var inbox: NotificationInbox?
     private let defaults: UserDefaults
+    /// The category of run notifications: macOS tells the delegate when one
+    /// is dismissed, which reads it in the bell too.
+    static let categoryID = "dev.runnir.run"
 
     init(defaults: UserDefaults = .standard, deliver: ((RunNotification) -> Void)? = nil) {
         self.defaults = defaults
@@ -97,15 +102,28 @@ final class RunNotifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     /// The live notifier, the notification center's delegate.
-    static func live() -> RunNotifier {
+    static func live(inbox: NotificationInbox? = nil) -> RunNotifier {
         let notifier = RunNotifier()
-        UNUserNotificationCenter.current().delegate = notifier
+        notifier.inbox = inbox
+        let center = UNUserNotificationCenter.current()
+        center.delegate = notifier
+        center.setNotificationCategories([
+            UNNotificationCategory(identifier: categoryID, actions: [], intentIdentifiers: [], options: [.customDismissAction]),
+        ])
         return notifier
     }
 
     func notify(_ notification: RunNotification?) {
         guard let notification, NotificationSettings.allows(notification, in: defaults) else { return }
+        inbox?.record(notification)
         deliver(notification)
+    }
+
+    /// Reads in the bell what macOS no longer holds of what it showed.
+    func reconcile() async {
+        let asked = Date()
+        let delivered = await UNUserNotificationCenter.current().deliveredNotifications()
+        inbox?.reconcile(stillDelivered: Set(delivered.map { $0.request.identifier }), checkedAt: asked)
     }
 
     private func post(_ notification: RunNotification) {
@@ -114,16 +132,20 @@ final class RunNotifier: NSObject, UNUserNotificationCenterDelegate {
         content.body = notification.body
         content.sound = notification.succeeded ? nil : .default
         content.threadIdentifier = notification.kind == .pullRequestChecks ? "pull-request-checks" : "local-runs"
+        content.categoryIdentifier = Self.categoryID
         var info: [String: String] = [:]
         if let url = notification.url { info["url"] = url.absoluteString }
         if let workspace = notification.workspaceID { info["workspace"] = workspace.uuidString }
         content.userInfo = info
         let request = UNNotificationRequest(identifier: notification.id, content: content, trigger: nil)
         let center = UNUserNotificationCenter.current()
-        Task {
-            // macOS asks once; a refusal leaves notifications off.
+        let id = notification.id
+        Task { [weak self] in
+            // macOS asks once; a refusal leaves notifications off, and the entry
+            // stays in the bell, unread until it is opened there.
             guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return }
-            try? await center.add(request)
+            guard (try? await center.add(request)) != nil else { return }
+            await MainActor.run { self?.inbox?.markDelivered(id) }
         }
     }
 
@@ -138,8 +160,13 @@ final class RunNotifier: NSObject, UNUserNotificationCenterDelegate {
         let info = response.notification.request.content.userInfo
         let url = (info["url"] as? String).flatMap(URL.init(string:))
         let workspace = (info["workspace"] as? String).flatMap(UUID.init(uuidString:))
+        let id = response.notification.request.identifier
+        // Closed in the system without opening it: read, and nothing opens.
+        let dismissed = response.actionIdentifier == UNNotificationDismissActionIdentifier
         completionHandler()
         Task { @MainActor in
+            self.inbox?.markRead(id)
+            guard !dismissed else { return }
             if let url { self.open(url) } else if let workspace { self.showWorkspace(workspace) }
         }
     }

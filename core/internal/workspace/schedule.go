@@ -17,6 +17,9 @@ type Intervals struct {
 	JobsReuse time.Duration
 	// FetchTimeout bounds a shared jobs or log download.
 	FetchTimeout time.Duration
+	// PullsRetry is how long after GitHub refused pull requests a pass asks
+	// again, so access granted on GitHub shows without a refresh.
+	PullsRetry time.Duration
 }
 
 func DefaultIntervals() Intervals {
@@ -25,6 +28,7 @@ func DefaultIntervals() Intervals {
 		Backoff:      []time.Duration{30 * time.Second, time.Minute, 2 * time.Minute, 5 * time.Minute},
 		RateLimitMin: 30 * time.Second, RateLimitMax: time.Hour,
 		JobsReuse: 10 * time.Second, FetchTimeout: 2 * time.Minute,
+		PullsRetry: 2 * time.Minute,
 	}
 }
 

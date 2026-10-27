@@ -357,6 +357,36 @@ func (m *Runtimes) clearCache(ctx context.Context, id string) error {
 	return clearErr
 }
 
+// ClearRunIndex forgets the search index of each workspace (all when none are
+// named) and returns their usage afterwards.
+func (m *Runtimes) ClearRunIndex(ctx context.Context, requested []string) ([]Usage, error) {
+	ids, err := m.ids(requested)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		if err := m.clearRunIndex(ctx, id); err != nil {
+			return nil, err
+		}
+	}
+	return m.Usage(ctx, ids)
+}
+
+func (m *Runtimes) clearRunIndex(ctx context.Context, id string) error {
+	rt, release := m.claim(id)
+	defer release()
+	if rt != nil {
+		return rt.cfg.store.ClearRunIndex(ctx)
+	}
+	st, ok, err := m.openClosed(id)
+	if err != nil || !ok {
+		return err
+	}
+	clearErr := st.ClearRunIndex(ctx)
+	_ = st.Close()
+	return clearErr
+}
+
 // Delete removes a workspace's whole directory; refused while it is open.
 func (m *Runtimes) Delete(raw string) error {
 	id, ok := store.NormalizeWorkspaceID(raw)

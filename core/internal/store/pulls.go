@@ -215,6 +215,12 @@ func (s *Store) AddOlderRuns(ctx context.Context, src Source, before time.Time, 
 		if _, err := upsertRun(ctx, tx, r); err != nil {
 			return 0, err
 		}
+		if err := indexRun(ctx, tx, src, r); err != nil {
+			return 0, err
+		}
+	}
+	if err := evictIndex(ctx, tx, src); err != nil {
+		return 0, err
 	}
 	if len(runs) > 0 {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM runs WHERE created_at > ? AND created_at <= ? AND id NOT IN (SELECT value FROM json_each(?))",
