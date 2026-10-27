@@ -119,6 +119,9 @@ struct WorkspaceOverview: View {
     @Binding var selectedPath: String?
     /// The scenario and its plan, made once the Core is there.
     @State private var flow: ScenarioFlowModel?
+    /// A job's log over the Overview, as on Runs, and the run it belongs to.
+    @State private var logLayer: RunLayerModel?
+    @State private var logRun: CoreWorkflowRun?
 
     /// GitHub could not be reached, so what is shown is the last data read.
     private var isStale: Bool {
@@ -153,7 +156,7 @@ struct WorkspaceOverview: View {
                                            symbol: "point.3.connected.trianglepath.dotted")
                     } else if let flow {
                         ScenarioFlowView(model: flow, session: session, hub: hub, favorites: favorites, selectedPath: selectedPath,
-                                         openRun: openRun, openFile: { openFile(LocalWorkflowFile(relativePath: $0)) })
+                                         openRun: openRun, openJob: openJob, openFile: { openFile(LocalWorkflowFile(relativePath: $0)) })
                             // Above the sections after it, which the scenario list may open over.
                             .zIndex(1)
                     }
@@ -174,6 +177,15 @@ struct WorkspaceOverview: View {
                 withAnimation { proxy.scrollTo(path, anchor: .center) }
             }
         }
+        .overlay {
+            if let logLayer, logLayer.isOpen, let logRun, let hub {
+                RunLogLayer(model: logLayer, run: logRun, workspaceID: workspaceID, hub: hub)
+            }
+        }
+        // The jobs of the open run, read again as it goes on, keep the layer current.
+        .onChange(of: logRun.flatMap { flow?.jobs[$0.id] }) { _, jobs in
+            if let jobs { logLayer?.apply(jobs: (jobs: jobs, stale: false)) }
+        }
         .task(id: flowKey) {
             if flow == nil, let hub { flow = ScenarioFlowModel(hub: hub, workspaceID: workspaceID) }
             await flow?.load()
@@ -181,6 +193,17 @@ struct WorkspaceOverview: View {
         // The presets file is read on first use; reading it here keeps the
         // view from loading it while it draws.
         .task { presets.prepare() }
+    }
+
+    /// A job of a lane was clicked: its log opens over the Overview.
+    private func openJob(_ run: CoreWorkflowRun, _ job: CoreRunJob, _ jobs: CoreGitHubResult<CoreRunJob>) {
+        guard let hub else { return }
+        let layer = logLayer ?? RunLayerModel(hub: hub, workspaceID: workspaceID)
+        logLayer = layer
+        layer.show(run: run.id)
+        layer.apply(jobs: (jobs: jobs, stale: false))
+        layer.open(job)
+        logRun = session?.runs.first { $0.id == run.id } ?? run
     }
 
     // MARK: Runs and presets

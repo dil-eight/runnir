@@ -13,6 +13,8 @@ struct ScenarioFlowView: View {
     /// The workflow to point at, kept by the window: set by the global search.
     let selectedPath: String?
     let openRun: (CoreWorkflowRun) -> Void
+    /// Opens a job's log over the Overview: the run, the job, the run's jobs.
+    let openJob: (CoreWorkflowRun, CoreRunJob, CoreGitHubResult<CoreRunJob>) -> Void
     let openFile: (String) -> Void
     @State private var showingSkipped = true
     /// What starting a manual job did, by workflow path.
@@ -261,7 +263,11 @@ struct ScenarioFlowView: View {
                                                             style: StrokeStyle(lineWidth: 1, dash: job.condition.isEmpty ? [] : [4, 3])))
         .opacity(job.skipped.isEmpty ? 1 : 0.5)
         .contentShape(RoundedRectangle(cornerRadius: 6))
-        .clickable().onTapGesture { if let run = lane.run { openRun(run) } }
+        .clickable().onTapGesture {
+            // The job's log opens over the Overview; a job the run does not have opens the run.
+            guard let run = lane.run else { return }
+            if let read, let target = RunGraph.jobToOpen(matched) { openJob(run, target, read) } else { openRun(run) }
+        }
         .help(hint(job, matched: matched, read: read, start: start))
     }
 
