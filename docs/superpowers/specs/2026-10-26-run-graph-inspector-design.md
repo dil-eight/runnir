@@ -8,9 +8,9 @@ The run inspector no longer opens on a jobs list with a log beside it. It opens 
 
 ## Behaviour
 
-- The graph is the default body of the inspector: no log is loaded until a job is selected. A failed run shows a failure line below the graph ("Failed in build-ios › Archive", the first error line) with "Open the log"; an active run shows where it is and "Follow the log".
-- Selecting a job opens the layer: a sheet over the dimmed graph, with the jobs and the steps of the selected job on the left and the log on the right, the log's search, follow and wrap controls in its header, and Expand and Close. Jobs can be switched inside the layer.
-- Expand makes the layer fill the whole inspector, the toolbar included; the same control restores it. Close returns to the graph. Escape closes.
+- The runs list keeps its place and width (about 28% of the window, 300 pt). The inspector takes the rest, and the graph is its default body: no log is loaded until a job is selected. A failed run shows a failure line below the graph ("Failed in build-ios › Archive", the first error line) with "Open the log"; an active run shows where it is and "Follow the log".
+- Selecting a job opens the layer: a sheet over the dimmed runs list and graph, with the jobs and the steps of the selected job on the left and the log on the right, the log's search, follow and wrap controls in its header, and Expand and Close. Jobs can be switched inside the layer.
+- Expand makes the layer fill the whole content area, the runs list and the toolbar included; the same control restores it. Close returns to the graph. Escape closes.
 - Inspect failure opens the layer on the failed step.
 - An active run updates the graph and, when the layer is open, follows the log.
 - Logs that expired show their message inside the layer; the graph is still there.
