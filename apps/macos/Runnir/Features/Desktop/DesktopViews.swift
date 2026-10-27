@@ -950,7 +950,6 @@ struct DesktopWorkspaceView: View {
                     .disabled(session?.githubRepository == nil)
                     .help(runWorkflowHelp)
             }
-            ProjectLink().buttonStyle(.hit)
         }
         .buttonStyle(DesignButtonStyle()).padding(.horizontal, 20).frame(height: 52)
     }
@@ -1008,13 +1007,16 @@ struct DesktopWorkspaceView: View {
     }
 
     /// The strip above the islands, level with the window's buttons: the
-    /// workspace switcher next to them (centered on the buttons, y = 16).
+    /// workspace switcher next to them (centered on the buttons, y = 16), the
+    /// search in the middle, Runnir on GitHub and the bell on the right.
     private var titleStrip: some View {
         HStack(spacing: 0) {
             Color.clear.frame(width: 64)
             workspaceSwitcherButton
             Spacer(minLength: 0)
             Color.clear.frame(width: 16)
+            // Runnir's repository, next to the bell: it belongs to the app, not to the workspace's toolbar.
+            ProjectLink().buttonStyle(.hit).padding(.trailing, 6)
             NotificationBell(inbox: desktop.inbox, open: { desktop.openInboxEntry($0) },
                              openSettings: { desktop.showSettings(in: windowID, section: .notifications) })
         }

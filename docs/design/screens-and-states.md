@@ -30,7 +30,7 @@ S06 is a sheet, S08 a detail destination, S10 a sheet/detail review, S11 part of
 
 FR-07 additions: S13 is a feedback sheet reached from Help/Settings or a non-blocking unexpected-session notice. It is not a navigation destination. S12 gains Privacy & Diagnostics: analytics off/on/withdrawn, destination not yet configured (delivery unavailable), payload inspection and clear local records. A separate optional analytics invitation has Not Now and Enable; no preselection or effect on crash sharing. Define declined/dismissed states without repeated nagging.
 
-S01/C03 gains a trailing GitHub action linking to https://github.com/dil-eight/runnir, with Open Runnir on GitHub tooltip/accessibility label, separate from Run/Stop. At compact width use native toolbar overflow and a Help-menu fallback. No authenticated/star-count widget or background fetch. S13 states must say Draft Opened rather than Report Sent until publication is verified.
+S01 has a GitHub action linking to https://github.com/dil-eight/runnir, with Open Runnir on GitHub tooltip/accessibility label: in a workspace window it sits in the top strip left of the notification bell, apart from the section toolbar and Run/Stop; the Workspace Manager keeps it in its header. No authenticated/star-count widget or background fetch. S13 states must say Draft Opened rather than Report Sent until publication is verified.
 
 ## Desktop Lifecycle Amendments (2026-10-14)
 
