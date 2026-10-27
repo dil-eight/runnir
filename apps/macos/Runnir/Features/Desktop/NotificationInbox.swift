@@ -148,7 +148,8 @@ struct NotificationBell: View {
                 .font(.system(size: 14))
                 .foregroundStyle(inbox.unreadCount > 0 ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
                 .frame(width: 30, height: 30)
-                .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 9))
+                // Pressed while its list is open.
+                .background(showing ? RunnirTheme.selected : RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 9))
                 .overlay(RoundedRectangle(cornerRadius: 9).stroke(RunnirTheme.border))
                 .overlay(alignment: .topTrailing) {
                     if inbox.unreadCount > 0 {
@@ -181,6 +182,8 @@ struct NotificationList: View {
     let inbox: NotificationInbox
     let open: (InboxEntry) -> Void
     let openSettings: () -> Void
+    /// The entry under the pointer, drawn as the one a click opens.
+    @State private var hovered: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -208,31 +211,40 @@ struct NotificationList: View {
                             DesignDivider()
                         }
                     }
-                }.frame(maxHeight: 360)
+                }.frame(maxHeight: 480)
             }
             DesignDivider()
             Button("Notification Settings\u{2026}") { openSettings() }
                 .buttonStyle(.link).pointerStyle(.link).font(.system(size: 12)).padding(.horizontal, 14).padding(.vertical, 9)
         }
-        .frame(width: 340)
+        .frame(width: 360)
     }
 
     private func row(_ entry: InboxEntry) -> some View {
         Button { open(entry) } label: {
             HStack(alignment: .top, spacing: 10) {
                 Circle().fill(entry.read ? Color.clear : RunnirTheme.primary).frame(width: 7, height: 7).padding(.top, 6)
-                Image(systemName: entry.succeeded ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .foregroundStyle(entry.succeeded ? RunnirTheme.success : RunnirTheme.destructive).padding(.top, 2)
+                Image(systemName: entry.succeeded ? "checkmark.circle" : "xmark.circle")
+                    .font(.system(size: 14))
+                    .foregroundStyle(entry.succeeded ? RunnirTheme.success : RunnirTheme.destructive).padding(.top, 1)
+                    .accessibilityLabel(entry.succeeded ? "Passed" : "Failed")
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.title).font(.system(size: 12.5, weight: entry.read ? .regular : .semibold)).lineLimit(2)
                     Text(entry.body).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(2)
-                    Text(entry.at.formatted(.relative(presentation: .named))).font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground)
+                    Text(entry.at.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)))
+                        .font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground)
                 }
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14).padding(.vertical, 9).contentShape(Rectangle())
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(hovered == entry.id ? RunnirTheme.selected : .clear)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.hit)
+        .onHover { inside in
+            if inside { hovered = entry.id } else if hovered == entry.id { hovered = nil }
+        }
+        .accessibilityValue(entry.read ? "read" : "unread")
     }
 }
