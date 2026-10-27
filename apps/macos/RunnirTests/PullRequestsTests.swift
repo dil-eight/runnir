@@ -278,6 +278,16 @@ struct RunNotificationTests {
         notifier.notify(failed)
         #expect(sent.count == 2)
     }
+
+    @Test func failedChecksOfferOpenRun() {
+        let run = URL(string: "https://github.com/o/r/actions/runs/7")
+        let failed = RunNotification(id: "a", kind: .pullRequestChecks, succeeded: false, title: "Checks failed", body: "", url: run)
+        let passed = RunNotification(id: "b", kind: .pullRequestChecks, succeeded: true, title: "Checks passed", body: "", url: run)
+        let local = RunNotification(id: "c", kind: .localRun, succeeded: false, title: "Local run failed", body: "", workspaceID: UUID())
+        #expect(RunNotifier.category(of: failed) == RunNotifier.failedChecksCategoryID)
+        #expect(RunNotifier.category(of: passed) == RunNotifier.categoryID)
+        #expect(RunNotifier.category(of: local) == RunNotifier.categoryID, "a local run has no run on GitHub to open")
+    }
 }
 
 @MainActor
