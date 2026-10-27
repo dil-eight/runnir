@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"time"
 
+	"runnir/core/internal/changes"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
 	"runnir/core/internal/runsearch"
@@ -17,6 +18,8 @@ type SavedSearch struct {
 	Cached []int64
 	// CachedRuns are those runs.
 	CachedRuns []github.Run
+	// IndexedMatched counts every match in the index, also those beyond the limit.
+	IndexedMatched int
 	// Indexed are the matching runs only the search index knows: older than
 	// the cache, dropped from it, or deleted on GitHub.
 	Indexed []github.Run
@@ -43,19 +46,34 @@ func record(run github.Run, extra []int64, text map[int64][]string) runsearch.Re
 // SearchSaved searches the activity cache and the search index. Both are
 // read from this Mac: nothing goes to GitHub, so it works offline.
 func (r *Runtime) SearchSaved(ctx context.Context, q runsearch.Query, limit int) (SavedSearch, error) {
-	var out SavedSearch
 	if !q.Active() {
-		return out, nil
+		return SavedSearch{}, nil
 	}
-	snap, err := r.Snapshot(ctx, store.MaxRuns)
+	a, err := r.cfg.store.Activity(ctx, store.MaxRuns)
 	if err != nil {
-		return out, err
+		return SavedSearch{}, err
 	}
 	source, hasSource := r.searchSource(ctx)
-	return searchSaved(ctx, r.cfg.store, q, limit, savedData{
-		Source: source, HasSource: hasSource, Runs: snap.Runs, PullRequests: snap.PullRequests,
-		LinkedPullRequest: func(id int64) int64 { return snap.Analysis.Links[id].PullRequest },
+	data := savedData{Source: source, HasSource: hasSource, LinkedPullRequest: func(int64) int64 { return 0 }}
+	// The cached runs count only when they are of the repository searched.
+	if hasSource && a.HasSource && a.Source == source {
+		data = activityData(a, r.cfg.now())
+	}
+	return searchSaved(ctx, r.cfg.store, q, limit, data)
+}
+
+// activityData is the saved activity as a search reads it: the runs, the
+// pull requests and the pull request each run is linked to. Only the links
+// are worked out; the changes the runs list groups are not.
+func activityData(a store.Activity, now time.Time) savedData {
+	analysis := changes.Analyze(changes.Input{
+		Runs: a.Runs, PullRequests: a.PullRequests, Lookups: a.Lookups, DefaultBranch: a.DefaultBranch,
+		Repository: a.Source.Repository, Now: now,
 	})
+	return savedData{
+		Source: a.Source, HasSource: a.HasSource, Runs: a.Runs, PullRequests: a.PullRequests,
+		LinkedPullRequest: func(id int64) int64 { return analysis.Links[id].PullRequest },
+	}
 }
 
 // savedData is what a search over a workspace's saved runs reads besides
@@ -92,13 +110,13 @@ func searchSaved(ctx context.Context, st *store.Store, q runsearch.Query, limit 
 	if !data.HasSource {
 		return out, nil
 	}
-	indexed, looked, err := st.SearchIndex(ctx, data.Source, skip, limit, func(run github.Run) bool {
+	indexed, err := st.SearchIndex(ctx, data.Source, skip, limit, func(run github.Run) bool {
 		return q.Matches(record(run, nil, text))
 	})
 	if err != nil {
 		return out, err
 	}
-	out.Indexed, out.IndexedSearched = indexed, looked
+	out.Indexed, out.IndexedSearched, out.IndexedMatched = indexed.Runs, indexed.Looked, indexed.Matched
 	return out, nil
 }
 

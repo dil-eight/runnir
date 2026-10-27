@@ -127,6 +127,10 @@ type Run struct {
 	// Pull requests GitHub lists on the run whose base is the run's own
 	// repository; in a fork GitHub also lists the upstream's, which are dropped.
 	PullRequests []int64
+	// WorkflowPath is the workflow file the run used, as GitHub names it
+	// (".github/workflows/ci.yml"), without a ref; empty when GitHub does not
+	// say. It is not stored with the cached runs.
+	WorkflowPath string
 }
 
 type Step struct {
@@ -330,6 +334,7 @@ type runJSON struct {
 	HeadBranch   string    `json:"head_branch"`
 	HeadSHA      string    `json:"head_sha"`
 	HTMLURL      string    `json:"html_url"`
+	Path         string    `json:"path"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	Actor        *struct {
@@ -358,6 +363,8 @@ func (r runJSON) run(owner, name string) Run {
 		RunAttempt: r.RunAttempt, Event: r.Event, Status: r.Status, Branch: r.HeadBranch, HeadSHA: r.HeadSHA,
 		HTMLURL: r.HTMLURL, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
+	// GitHub may add the ref the file was read at: ".github/workflows/ci.yml@refs/heads/main".
+	run.WorkflowPath, _, _ = strings.Cut(r.Path, "@")
 	if r.Conclusion != nil {
 		run.Conclusion = *r.Conclusion
 	}

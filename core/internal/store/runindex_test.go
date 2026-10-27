@@ -11,7 +11,8 @@ import (
 
 func indexed(t *testing.T, s *Store, src Source) []int64 {
 	t.Helper()
-	runs, _, err := s.SearchIndex(context.Background(), src, nil, 0, func(github.Run) bool { return true })
+	found, err := s.SearchIndex(context.Background(), src, nil, 0, func(github.Run) bool { return true })
+	runs := found.Runs
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +56,8 @@ func TestARunTheCacheDroppedStaysInTheIndex(t *testing.T) {
 		t.Fatalf("cache = %v, %v", a.Runs, err)
 	}
 	skip := map[int64]bool{2: true}
-	only, looked, err := s.SearchIndex(ctx, source, skip, 0, func(github.Run) bool { return true })
+	result, err := s.SearchIndex(ctx, source, skip, 0, func(github.Run) bool { return true })
+	only, looked := result.Runs, result.Looked
 	if err != nil || looked != 2 || len(only) != 1 || only[0].ID != 1 {
 		t.Fatalf("index only = %v, looked %d, %v", only, looked, err)
 	}
@@ -118,7 +120,8 @@ func TestPullRequestNumbersAreIndexedAndNotLostByALaterReadWithoutThem(t *testin
 	if err := s.IndexRuns(ctx, source, []github.Run{r}); err != nil {
 		t.Fatal(err)
 	}
-	got, _, _ := s.SearchIndex(ctx, source, nil, 0, func(github.Run) bool { return true })
+	result, _ := s.SearchIndex(ctx, source, nil, 0, func(github.Run) bool { return true })
+	got := result.Runs
 	if len(got) != 1 || len(got[0].PullRequests) != 1 || got[0].PullRequests[0] != 142 {
 		t.Fatalf("pulls = %+v", got)
 	}

@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+// The tests read days in UTC unless they set another zone.
+func init() { zone = time.UTC }
+
 func record(id int64) Record {
 	return Record{ID: id, RunNumber: id, Title: "Fix build", Workflow: "CI", Branch: "main", SHA: "a3f9c21ffee0", Author: "eugene",
 		Event: "push", Status: "completed", Conclusion: "success", CreatedAt: time.Date(2026, 3, 12, 10, 0, 0, 0, time.UTC)}
@@ -116,6 +119,24 @@ func TestDatesBoundTheDayARunWasCreated(t *testing.T) {
 	}
 }
 
+func TestDaysAreThisMacsDays(t *testing.T) {
+	defer func(saved *time.Location) { zone = saved }(zone)
+	zone = time.FixedZone("UTC+3", 3*3600)
+	a, b := record(1), record(2)
+	a.CreatedAt = time.Date(2026, 3, 11, 22, 30, 0, 0, time.UTC) // 01:30 on Mar 12 here
+	b.CreatedAt = time.Date(2026, 3, 12, 21, 30, 0, 0, time.UTC) // 00:30 on Mar 13 here
+	for query, want := range map[string][]int64{
+		"after:2026-03-12": {1, 2}, "before:2026-03-12": {1}, "after:2026-03-13": {2},
+	} {
+		if got := found(query, a, b); !reflect.DeepEqual(got, want) {
+			t.Errorf("%q = %v, want %v", query, got, want)
+		}
+	}
+	if f := Parse("after:2026-03-12").GitHub(time.Time{}); f.Created != ">=2026-03-11T21:00:00Z" {
+		t.Fatalf("GitHub gets the local day's start in UTC: %q", f.Created)
+	}
+}
+
 func TestAWordWithAColonIsAWordUnlessItIsAQualifier(t *testing.T) {
 	q := Parse("fix: retry foo:bar branch:")
 	if !reflect.DeepEqual(q.Words, []string{"fix:", "retry", "foo:bar", "branch:"}) || q.Branch != "" {
@@ -141,10 +162,21 @@ func TestStatusMapsEveryPairToOneOfSix(t *testing.T) {
 }
 
 func TestGitHubGetsWhatItCanFilter(t *testing.T) {
-	q := Parse("branch:main author:Octo event:push status:failed after:2026-03-01 deploy")
+	q := Parse("branch:Feature/Login author:Octo event:push status:success after:2026-03-01 deploy")
 	f := q.GitHub(time.Time{})
-	if f.Branch != "main" || f.Actor != "octo" || f.Event != "push" || f.Status != "failure" || f.Created != ">=2026-03-01T00:00:00Z" {
-		t.Fatalf("filter = %+v", f)
+	if f.Branch != "Feature/Login" || f.Actor != "Octo" || f.Event != "push" || f.Status != "success" || f.Created != ">=2026-03-01T00:00:00Z" {
+		t.Fatalf("filter = %+v; GitHub compares a branch exactly, so its case is kept", f)
+	}
+	// A status GitHub's one value covers only in part is matched here.
+	for _, status := range []string{"failed", "queued", "skipped"} {
+		if f := Parse("status:" + status).GitHub(time.Time{}); f.Status != "" {
+			t.Errorf("status:%s sent as %q, which would leave out runs of that status", status, f.Status)
+		}
+	}
+	for status, want := range map[string]string{"success": "success", "cancelled": "cancelled", "running": "in_progress"} {
+		if f := Parse("status:" + status).GitHub(time.Time{}); f.Status != want {
+			t.Errorf("status:%s = %q, want %q", status, f.Status, want)
+		}
 	}
 	upper := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
 	if f := q.GitHub(upper); f.Created != "2026-03-01T00:00:00Z..2026-03-10T12:00:00Z" {

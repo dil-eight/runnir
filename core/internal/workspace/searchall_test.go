@@ -174,14 +174,23 @@ func TestSearchAllLimitsEachKindAndCountsTheRest(t *testing.T) {
 	for i := 30; i >= 1; i-- {
 		runs = append(runs, github.Run{ID: int64(i), Name: "CI", DisplayTitle: "Build", RunNumber: int64(i), Status: "completed", Conclusion: "success", CreatedAt: at.Add(time.Duration(i) * time.Minute)})
 	}
-	if _, err := st.ApplySync(context.Background(), store.Pass{Source: store.Source{Repository: "o/r"}, At: at, OK: true, Runs: &store.RunsUpdate{Runs: runs}}); err != nil {
+	src := store.Source{Repository: "o/r"}
+	if _, err := st.ApplySync(context.Background(), store.Pass{Source: src, At: at, OK: true, Runs: &store.RunsUpdate{Runs: runs}}); err != nil {
+		t.Fatal(err)
+	}
+	// Older runs only the index knows, more than one kind's limit.
+	var older []github.Run
+	for i := 100; i < 120; i++ {
+		older = append(older, github.Run{ID: int64(i), Name: "CI", DisplayTitle: "Build", RunNumber: int64(i), Status: "completed", Conclusion: "success", CreatedAt: at.Add(-time.Duration(i) * time.Hour)})
+	}
+	if err := st.IndexRuns(context.Background(), src, older); err != nil {
 		t.Fatal(err)
 	}
 	_ = st.Close()
 	m := newRuntimes(t, data)
 	hits, _ := m.SearchAll(context.Background(), []string{wsClosed}, "build", 5)
-	if c := hits[0]; len(c.Runs) != 5 || c.RunsMatched != 30 || c.Runs[0].ID != 30 {
-		t.Fatalf("limited = %d shown of %d, first %d", len(c.Runs), c.RunsMatched, c.Runs[0].ID)
+	if c := hits[0]; len(c.Runs) != 5 || c.RunsMatched != 50 || c.Runs[0].ID != 30 {
+		t.Fatalf("limited = %d shown of %d, first %d; the index's matches beyond the limit are counted", len(c.Runs), c.RunsMatched, c.Runs[0].ID)
 	}
 }
 

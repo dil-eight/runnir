@@ -217,23 +217,22 @@ func (s *service) GetRunWorkflow(ctx context.Context, request *corev1.GetRunWork
 		return &corev1.GetRunWorkflowResponse{Status: problem}, err
 	}
 	client := target.account.Client
-	run, fetchErr := client.Run(ctx, target.owner, target.name, request.GetRunId())
-	var path string
-	var data []byte
-	if fetchErr == nil {
-		key := workflowFileKey{server: target.account.Server.ID, owner: target.owner, name: target.name, sha: run.HeadSHA, workflowID: run.WorkflowID}
-		if cached, ok := s.workflowFiles.get(key); ok {
-			path, data = cached.path, cached.data
-		} else {
-			path, fetchErr = client.WorkflowPath(ctx, target.owner, target.name, run.WorkflowID)
-			if fetchErr == nil {
-				data, fetchErr = client.File(ctx, target.owner, target.name, path, run.HeadSHA)
-			}
-			if fetchErr == nil {
-				s.workflowFiles.put(key, workflowFile{path: path, data: data})
-			}
+	key := workflowFileKey{server: target.account.Server.ID, owner: target.owner, name: target.name, runID: request.GetRunId()}
+	file, cached := s.workflowFiles.get(key)
+	var fetchErr error
+	if cached && file.missing {
+		fetchErr = github.ErrNotVisible
+	} else if !cached {
+		file, fetchErr = readRunWorkflow(ctx, client, target.owner, target.name, request.GetRunId())
+		switch {
+		case fetchErr == nil:
+			s.workflowFiles.put(key, file)
+		case errors.Is(fetchErr, github.ErrNotVisible) && file.path != "":
+			// The run was read and its file is not at its commit: that stays so.
+			s.workflowFiles.put(key, workflowFile{path: file.path, missing: true})
 		}
 	}
+	path, data := file.path, file.data
 	result, err := s.githubStatus(target.account, fetchErr)
 	if err != nil {
 		return nil, err
@@ -263,16 +262,38 @@ func (s *service) GetRunWorkflow(ctx context.Context, request *corev1.GetRunWork
 	return out, nil
 }
 
-// workflowFileKey names a workflow file at a commit: it cannot change, so
-// the app can ask for it every time a run is selected.
+// readRunWorkflow reads the workflow file a run used, at the run's commit.
+// The path is the run's own; a run that does not say has the workflow's
+// current path, which a file renamed since may not have at that commit.
+// A file GitHub does not serve comes back with its path and ErrNotVisible.
+func readRunWorkflow(ctx context.Context, client *github.Client, owner, name string, runID int64) (workflowFile, error) {
+	run, err := client.Run(ctx, owner, name, runID)
+	if err != nil {
+		return workflowFile{}, err
+	}
+	path := run.WorkflowPath
+	if !strings.HasPrefix(path, ".github/workflows/") {
+		if path, err = client.WorkflowPath(ctx, owner, name, run.WorkflowID); err != nil {
+			return workflowFile{}, err
+		}
+	}
+	data, err := client.File(ctx, owner, name, path, run.HeadSHA)
+	return workflowFile{path: path, data: data}, err
+}
+
+// workflowFileKey names the workflow file of one run: the file at the run's
+// commit cannot change (a re-run uses the same commit), so the app can ask
+// for it every time the run is selected without reading GitHub again.
 type workflowFileKey struct {
-	server, owner, name, sha string
-	workflowID               int64
+	server, owner, name string
+	runID               int64
 }
 
 type workflowFile struct {
 	path string
 	data []byte
+	// missing: GitHub does not serve the file at the run's commit.
+	missing bool
 }
 
 // workflowFileCache keeps the newest few workflow files read for run graphs.

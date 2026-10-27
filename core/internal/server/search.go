@@ -97,7 +97,7 @@ func (s *service) SearchWorkspaces(ctx context.Context, request *corev1.SearchWo
 	if err != nil {
 		return nil, storageError(err)
 	}
-	out := &corev1.SearchWorkspacesResponse{Problems: q.Problems}
+	out := &corev1.SearchWorkspacesResponse{Problems: q.Problems, Words: q.Words}
 	for _, w := range found {
 		hits := &corev1.WorkspaceSearchHits{
 			WorkspaceId: w.WorkspaceID, Open: w.Open, Repository: w.Repository, SavedAt: timestamp(w.SavedAt), Problem: w.Problem,

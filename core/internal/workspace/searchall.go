@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"runnir/core/internal/changes"
 	"runnir/core/internal/github"
 	"runnir/core/internal/runsearch"
 	"runnir/core/internal/store"
@@ -115,18 +114,11 @@ func searchStore(ctx context.Context, st *store.Store, q runsearch.Query, perKin
 	hits.SavedAt = a.SyncedAt
 	if a.HasSource {
 		hits.Repository = a.Source.Repository
-		analysis := changes.Analyze(changes.Input{
-			Runs: a.Runs, PullRequests: a.PullRequests, Lookups: a.Lookups, DefaultBranch: a.DefaultBranch,
-			Repository: a.Source.Repository, Now: now,
-		})
-		found, err := searchSaved(ctx, st, q, perKind, savedData{
-			Source: a.Source, HasSource: true, Runs: a.Runs, PullRequests: a.PullRequests,
-			LinkedPullRequest: func(id int64) int64 { return analysis.Links[id].PullRequest },
-		})
+		found, err := searchSaved(ctx, st, q, perKind, activityData(a, now))
 		if err != nil {
 			return err
 		}
-		hits.RunsMatched = len(found.CachedRuns) + len(found.Indexed)
+		hits.RunsMatched = len(found.CachedRuns) + found.IndexedMatched
 		hits.Runs = append(append(hits.Runs, found.CachedRuns...), found.Indexed...)
 		if len(hits.Runs) > perKind {
 			hits.Runs = hits.Runs[:perKind]

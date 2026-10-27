@@ -1510,6 +1510,9 @@ message SearchWorkspacesResponse {
   // One entry per workspace searched, in the order of the request.
   repeated WorkspaceSearchHits workspaces = 1;
   repeated string problems = 2;
+  // The words of the query, lowercased, without its qualifiers: what a
+  // result is marked by.
+  repeated string words = 3;
 }
 
 message WorkspaceSearchHits {

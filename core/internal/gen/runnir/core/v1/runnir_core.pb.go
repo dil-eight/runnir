@@ -9877,8 +9877,11 @@ func (x *SearchWorkspacesRequest) GetLimitPerKind() uint32 {
 type SearchWorkspacesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// One entry per workspace searched, in the order of the request.
-	Workspaces    []*WorkspaceSearchHits `protobuf:"bytes,1,rep,name=workspaces,proto3" json:"workspaces,omitempty"`
-	Problems      []string               `protobuf:"bytes,2,rep,name=problems,proto3" json:"problems,omitempty"`
+	Workspaces []*WorkspaceSearchHits `protobuf:"bytes,1,rep,name=workspaces,proto3" json:"workspaces,omitempty"`
+	Problems   []string               `protobuf:"bytes,2,rep,name=problems,proto3" json:"problems,omitempty"`
+	// The words of the query, lowercased, without its qualifiers: what a
+	// result is marked by.
+	Words         []string `protobuf:"bytes,3,rep,name=words,proto3" json:"words,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9923,6 +9926,13 @@ func (x *SearchWorkspacesResponse) GetWorkspaces() []*WorkspaceSearchHits {
 func (x *SearchWorkspacesResponse) GetProblems() []string {
 	if x != nil {
 		return x.Problems
+	}
+	return nil
+}
+
+func (x *SearchWorkspacesResponse) GetWords() []string {
+	if x != nil {
+		return x.Words
 	}
 	return nil
 }
@@ -11894,12 +11904,13 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x17SearchWorkspacesRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12#\n" +
 	"\rworkspace_ids\x18\x02 \x03(\tR\fworkspaceIds\x12$\n" +
-	"\x0elimit_per_kind\x18\x03 \x01(\rR\flimitPerKind\"{\n" +
+	"\x0elimit_per_kind\x18\x03 \x01(\rR\flimitPerKind\"\x91\x01\n" +
 	"\x18SearchWorkspacesResponse\x12C\n" +
 	"\n" +
 	"workspaces\x18\x01 \x03(\v2#.runnir.core.v1.WorkspaceSearchHitsR\n" +
 	"workspaces\x12\x1a\n" +
-	"\bproblems\x18\x02 \x03(\tR\bproblems\"\xe9\x04\n" +
+	"\bproblems\x18\x02 \x03(\tR\bproblems\x12\x14\n" +
+	"\x05words\x18\x03 \x03(\tR\x05words\"\xe9\x04\n" +
 	"\x13WorkspaceSearchHits\x12!\n" +
 	"\fworkspace_id\x18\x01 \x01(\tR\vworkspaceId\x12\x12\n" +
 	"\x04open\x18\x02 \x01(\bR\x04open\x12\x1e\n" +

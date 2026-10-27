@@ -4381,6 +4381,10 @@ nonisolated struct Runnir_Core_V1_SearchWorkspacesResponse: Sendable {
 
   var problems: [String] = []
 
+  /// The words of the query, lowercased, without its qualifiers: what a
+  /// result is marked by.
+  var words: [String] = []
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -10849,7 +10853,7 @@ nonisolated extension Runnir_Core_V1_SearchWorkspacesRequest: SwiftProtobuf.Mess
 
 nonisolated extension Runnir_Core_V1_SearchWorkspacesResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".SearchWorkspacesResponse"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}workspaces\0\u{1}problems\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}workspaces\0\u{1}problems\0\u{1}words\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -10859,6 +10863,7 @@ nonisolated extension Runnir_Core_V1_SearchWorkspacesResponse: SwiftProtobuf.Mes
       switch fieldNumber {
       case 1: try { try decoder.decodeRepeatedMessageField(value: &self.workspaces) }()
       case 2: try { try decoder.decodeRepeatedStringField(value: &self.problems) }()
+      case 3: try { try decoder.decodeRepeatedStringField(value: &self.words) }()
       default: break
       }
     }
@@ -10871,12 +10876,16 @@ nonisolated extension Runnir_Core_V1_SearchWorkspacesResponse: SwiftProtobuf.Mes
     if !self.problems.isEmpty {
       try visitor.visitRepeatedStringField(value: self.problems, fieldNumber: 2)
     }
+    if !self.words.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.words, fieldNumber: 3)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_SearchWorkspacesResponse, rhs: Runnir_Core_V1_SearchWorkspacesResponse) -> Bool {
     if lhs.workspaces != rhs.workspaces {return false}
     if lhs.problems != rhs.problems {return false}
+    if lhs.words != rhs.words {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

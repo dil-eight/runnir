@@ -181,7 +181,7 @@ func TestSearchWorkspacesAnswersFromTheSavedDataOfEveryWorkspace(t *testing.T) {
 	}
 
 	got, err := client.SearchWorkspaces(ctx, &corev1.SearchWorkspacesRequest{Query: "deploy status:success after:soon", WorkspaceIds: []string{testWorkspace}, LimitPerKind: 1})
-	if err != nil || len(got.Workspaces) != 1 || len(got.Problems) != 1 {
+	if err != nil || len(got.Workspaces) != 1 || len(got.Problems) != 1 || len(got.Words) != 1 || got.Words[0] != "deploy" {
 		t.Fatalf("got = %v, %v", got, err)
 	}
 	hits := got.Workspaces[0]

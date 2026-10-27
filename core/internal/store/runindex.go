@@ -67,37 +67,49 @@ func (s *Store) IndexRuns(ctx context.Context, src Source, runs []github.Run) er
 	return tx.Commit()
 }
 
+// IndexSearch is what a search of the index found.
+type IndexSearch struct {
+	// Runs are the first matches, newest first, at most the limit asked for.
+	Runs []github.Run
+	// Looked counts the indexed runs looked at; Matched every match, also
+	// those beyond the limit.
+	Looked, Matched int
+}
+
 // SearchIndex returns the indexed runs of src's repository, newest first,
 // that match accepts and that are not in skip (the runs of the activity
-// cache, which are searched there), and how many indexed runs were looked at.
-func (s *Store) SearchIndex(ctx context.Context, src Source, skip map[int64]bool, limit int, match func(github.Run) bool) ([]github.Run, int, error) {
+// cache, which are searched there).
+func (s *Store) SearchIndex(ctx context.Context, src Source, skip map[int64]bool, limit int, match func(github.Run) bool) (IndexSearch, error) {
+	var out IndexSearch
 	rows, err := s.db.QueryContext(ctx, "SELECT "+indexColumns+" FROM run_index WHERE server_id = ? AND repository = ? ORDER BY created_at DESC, id DESC",
 		src.ServerID, src.Repository)
 	if err != nil {
-		return nil, 0, err
+		return out, err
 	}
 	defer rows.Close()
-	var out []github.Run
-	looked := 0
 	for rows.Next() {
 		var r github.Run
 		var created, updated int64
 		var pulls string
 		if err := rows.Scan(&r.ID, &r.WorkflowID, &r.Name, &r.DisplayTitle, &r.RunNumber, &r.RunAttempt, &r.Event, &r.Status, &r.Conclusion,
 			&r.Branch, &r.HeadSHA, &r.HeadRepository, &r.CommitTitle, &r.Actor, &r.HTMLURL, &created, &updated, &pulls); err != nil {
-			return out, looked, err
+			return out, err
 		}
-		looked++
+		out.Looked++
 		if skip[r.ID] {
 			continue
 		}
 		r.CreatedAt, r.UpdatedAt = fromMillis(created), fromMillis(updated)
 		_ = json.Unmarshal([]byte(pulls), &r.PullRequests)
-		if match(r) && (limit <= 0 || len(out) < limit) {
-			out = append(out, r)
+		if !match(r) {
+			continue
+		}
+		out.Matched++
+		if limit <= 0 || len(out.Runs) < limit {
+			out.Runs = append(out.Runs, r)
 		}
 	}
-	return out, looked, rows.Err()
+	return out, rows.Err()
 }
 
 // IndexedRuns counts the runs of every repository in the index.

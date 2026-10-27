@@ -9,7 +9,7 @@
 // request with that number, and a bare number the run with that number.
 // Qualifiers narrow it: `branch:`, `author:`, `event:`, `workflow:`,
 // `status:` (success, failed, cancelled, running, queued, skipped) and the
-// dates `after:` and `before:` (2026-03-12).
+// dates `after:` and `before:` (2026-03-12, a day in this Mac's time zone).
 package runsearch
 
 import (
@@ -83,15 +83,21 @@ func Label(status, conclusion string) string {
 type Query struct {
 	// Words are lowercased; every one has to match.
 	Words []string
-	// Qualifiers, lowercased; empty when not given.
+	// Qualifiers; empty when not given. Branch and Author keep their case,
+	// because GitHub compares a branch exactly; they match here in any case.
+	// Event and Workflow are lowercased.
 	Branch, Author, Event, Workflow string
 	Statuses                        []Status
-	// After and Before bound the day a run was created: from the start of
-	// After to the end of Before. Zero when not given.
+	// After and Before bound the day a run was created, in this Mac's time
+	// zone: from the start of After to the end of Before. Zero when not given.
 	After, Before time.Time
 	// Problems are parts of the query that could not be used, to show.
 	Problems []string
 }
+
+// zone is where the days of after: and before: start and end: the time
+// zone of this Mac, which the person means by a date.
+var zone = time.Local
 
 // Parse reads a typed query.
 func Parse(text string) Query {
@@ -105,9 +111,9 @@ func Parse(text string) Query {
 		}
 		switch key {
 		case "branch":
-			q.Branch = strings.ToLower(value)
+			q.Branch = value
 		case "author", "actor":
-			q.Author = strings.ToLower(value)
+			q.Author = value
 		case "event":
 			q.Event = strings.ToLower(value)
 		case "workflow":
@@ -119,14 +125,15 @@ func Parse(text string) Query {
 				q.Problems = append(q.Problems, "status: wants success, failed, cancelled, running, queued or skipped")
 			}
 		case "after", "before":
-			day, err := time.Parse("2006-01-02", value)
+			day, err := time.ParseInLocation("2006-01-02", value, zone)
 			switch {
 			case err != nil:
 				q.Problems = append(q.Problems, key+": wants a date like 2026-03-12")
 			case key == "after":
 				q.After = day
 			default:
-				q.Before = day.Add(24*time.Hour - time.Millisecond)
+				// The next day's start, so a day of 23 or 25 hours ends right.
+				q.Before = day.AddDate(0, 0, 1).Add(-time.Millisecond)
 			}
 		}
 	}
@@ -307,20 +314,18 @@ type GitHubFilter struct {
 // reads pages by the time of the oldest run it has read.
 func (q Query) GitHub(before time.Time) GitHubFilter {
 	f := GitHubFilter{Branch: q.Branch, Actor: q.Author, Event: q.Event}
+	// GitHub's `status` takes one value. It is sent only where that value is
+	// the whole status: failed also covers timed_out and startup_failure,
+	// queued covers waiting, pending and requested, skipped covers neutral
+	// and stale, so those are matched here on every page instead.
 	if len(q.Statuses) == 1 {
 		switch q.Statuses[0] {
 		case Succeeded:
 			f.Status = "success"
-		case Failed:
-			f.Status = "failure"
 		case Cancelled:
 			f.Status = "cancelled"
 		case Running:
 			f.Status = "in_progress"
-		case Queued:
-			f.Status = "queued"
-		case Skipped:
-			f.Status = "skipped"
 		}
 	}
 	for _, word := range q.Words {

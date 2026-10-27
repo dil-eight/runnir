@@ -158,7 +158,12 @@ func TestClearingTheHistoryForgetsItsEntries(t *testing.T) {
 }
 
 func TestARunsWorkflowIsReadAtItsCommit(t *testing.T) {
-	client, id, _, ctx := historyRig(t)
+	client, id, fake, ctx := historyRig(t)
+	reads := func() int {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		return fake.workflowReads
+	}
 	got, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 31})
 	if err != nil || got.Problem != "" || got.WorkflowPath != ".github/workflows/deploy.yml" {
 		t.Fatalf("workflow = %v, %v", got, err)
@@ -177,5 +182,23 @@ func TestARunsWorkflowIsReadAtItsCommit(t *testing.T) {
 	}
 	if _, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("no run = %v", err)
+	}
+
+	// The run's own path counts: a file renamed since is read where the run found it.
+	renamed, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 34})
+	if err != nil || renamed.Problem != "" || renamed.WorkflowPath != ".github/workflows/old-deploy.yml" || len(renamed.Jobs) != 3 {
+		t.Fatalf("renamed = %v, %v", renamed, err)
+	}
+
+	// Selecting a run again reads nothing from GitHub, whether its file was there or not.
+	before := reads()
+	for _, run := range []int64{31, 32, 34} {
+		again, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: run})
+		if err != nil || (run == 32) != (again.Problem != "") {
+			t.Fatalf("run %d again = %v, %v", run, again, err)
+		}
+	}
+	if after := reads(); after != before {
+		t.Fatalf("a run read again made %d GitHub requests", after-before)
 	}
 }

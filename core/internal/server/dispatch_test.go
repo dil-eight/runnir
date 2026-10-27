@@ -69,14 +69,21 @@ jobs: {}
 `
 
 type fakeDispatchGitHub struct {
-	mu         sync.Mutex
-	dispatches []map[string]any
-	reject     string
-	runID      int64
+	mu sync.Mutex
+	// workflowReads counts the reads of runs and files a run's graph makes.
+	workflowReads int
+	dispatches    []map[string]any
+	reject        string
+	runID         int64
 }
 
 func (f *fakeDispatchGitHub) handler(t *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/repos/o/r/actions/runs/3") || strings.HasPrefix(r.URL.Path, "/repos/o/r/contents/") {
+			f.mu.Lock()
+			f.workflowReads++
+			f.mu.Unlock()
+		}
 		switch {
 		case r.URL.Path == "/repos/o/r":
 			_, _ = w.Write([]byte(`{"full_name":"O/r","private":true,"visibility":"private","default_branch":"main","html_url":"https://github.com/O/r"}`))
@@ -94,6 +101,11 @@ func (f *fakeDispatchGitHub) handler(t *testing.T) http.HandlerFunc {
 			_, _ = w.Write([]byte(`{"id":32,"workflow_id":7,"head_sha":"gone","status":"completed","conclusion":"success"}`))
 		case r.URL.Path == "/repos/o/r/actions/runs/33":
 			_, _ = w.Write([]byte(`{"id":33,"workflow_id":7,"head_sha":"broken","status":"completed","conclusion":"success"}`))
+		case r.URL.Path == "/repos/o/r/actions/runs/34":
+			// A run of the file before it was renamed to deploy.yml.
+			_, _ = w.Write([]byte(`{"id":34,"workflow_id":7,"head_sha":"renamed","path":".github/workflows/old-deploy.yml@refs/heads/main","status":"completed","conclusion":"success"}`))
+		case r.URL.Path == "/repos/o/r/contents/.github/workflows/old-deploy.yml" && r.URL.Query().Get("ref") == "renamed":
+			_, _ = w.Write([]byte(pipelineWorkflow))
 		case r.URL.Path == "/repos/o/r/contents/.github/workflows/deploy.yml":
 			if r.Header.Get("Accept") != "application/vnd.github.raw+json" {
 				t.Errorf("accept = %q", r.Header.Get("Accept"))
