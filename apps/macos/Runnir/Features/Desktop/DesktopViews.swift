@@ -200,8 +200,11 @@ struct WorkspaceManagerView: View {
 private struct WorkspaceRegistryRow: View {
     let workspace: WorkspaceRecord
     let desktop: DesktopCoordinator
+    @State private var hovering = false
+
     var body: some View {
         let count = desktop.openCount(workspace.id)
+        let action = count > 0 ? "Focus" : "Open"
         HStack(spacing: 14) {
             Image(systemName: "folder").font(.system(size: 18)).frame(width: 20).foregroundStyle(RunnirTheme.secondaryForeground)
             VStack(alignment: .leading, spacing: 4) {
@@ -211,15 +214,20 @@ private struct WorkspaceRegistryRow: View {
             if count > 0 {
                 Label("Open · \(count) \(count == 1 ? "window" : "windows")", systemImage: "macwindow")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.success).frame(width: 170, alignment: .leading)
-                Button("Focus") { desktop.focus(workspace.id) }
             } else {
                 Label("Registered", systemImage: "folder").font(.system(size: 12))
                     .foregroundStyle(RunnirTheme.secondaryForeground).frame(width: 170, alignment: .leading)
             }
-            if count != 1 {
-                Button(count > 0 ? "New Window" : "Open") { desktop.openRegistered(workspace) }
-                    .accessibilityIdentifier("open-workspace-\(workspace.id)")
-            }
+            // The row itself opens or focuses the workspace. What stays a button
+            // is the second action: another window of one that is open twice.
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                if count > 1 {
+                    Button("New Window") { desktop.openRegistered(workspace) }
+                } else if hovering {
+                    Text(action).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                }
+            }.frame(width: 112)
             Menu {
                 Button("Open New Window") { desktop.openRegistered(workspace) }
                 Button("Locate / Grant Access...") { desktop.importRepository(relinkID: workspace.id) }
@@ -227,8 +235,21 @@ private struct WorkspaceRegistryRow: View {
                     .help("Forget this workspace in Runnir and delete its saved activity and local run history on this Mac. The repository's files stay.")
             } label: { Image(systemName: "ellipsis") }
             .menuStyle(.button).buttonStyle(.plain).pointerStyle(.link).menuIndicator(.hidden).fixedSize().help("Workspace actions")
+            Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(hovering ? RunnirTheme.secondaryForeground : RunnirTheme.mutedForeground)
         }
         .buttonStyle(DesignButtonStyle()).padding(.horizontal, 12).frame(height: 62)
+        .background(hovering ? RunnirTheme.selected : Color.clear)
+        .onHover { hovering = $0 }
+        .clickable()
+        .onTapGesture { perform(count: count) }
+        .accessibilityElement(children: .contain)
+        .accessibilityAction(named: action) { perform(count: count) }
+        .accessibilityIdentifier("open-workspace-\(workspace.id)")
+    }
+
+    private func perform(count: Int) {
+        if count > 0 { desktop.focus(workspace.id) } else { desktop.openRegistered(workspace) }
     }
 }
 
@@ -909,7 +930,7 @@ struct DesktopWorkspaceView: View {
                     }
                 }
                 .disabled(reader == nil || files.isLoading || session?.isRefreshing == true).help("Refresh local workflows")
-                Button { requestRun(workflowID: nil) } label: { Label("Run Workflow...", systemImage: "play") }
+                Button { requestRun(workflowID: nil) } label: { Label("Run Workflow...", systemImage: "play.fill") }
                     .buttonStyle(DesignButtonStyle(primary: true))
                     .disabled(session?.githubRepository == nil)
                     .help(runWorkflowHelp)
@@ -939,7 +960,7 @@ struct DesktopWorkspaceView: View {
         } else {
             Button {
                 if let file = files.selected { state.localRunRequest = LocalRunRequest(workflowID: file.relativePath, jobID: nil) }
-            } label: { Label("Run Locally...", systemImage: "play") }
+            } label: { Label("Run Locally...", systemImage: "play.fill") }
                 .buttonStyle(DesignButtonStyle(primary: true))
                 .disabled(!canValidate || files.selected == nil || localRun.map { !$0.isFinished } == true)
                 .help(runLocallyHelp)
@@ -981,8 +1002,8 @@ struct DesktopWorkspaceView: View {
                 Spacer(minLength: 0)
             }
             .frame(height: 32)
-            Color.clear.frame(height: 8)
-            BrandLogo(height: 47, width: 128).padding(.leading, 6).padding(.top, 2).padding(.bottom, 14)
+            // The logo lives on the splash and in the Manager only.
+            Color.clear.frame(height: 14)
             VStack(spacing: 2) {
                 ForEach(AppSection.sidebarSections) { section in
                     Button { state.selectedSection = section } label: {
@@ -1480,8 +1501,11 @@ struct SidebarItemLabel: View {
 
 struct SectionLabel: View {
     let title: String
+    /// The heading of a review sheet: a size up and spaced.
+    var large = false
     var body: some View {
-        Text(title).font(.system(size: 11, weight: .medium)).foregroundStyle(RunnirTheme.secondaryForeground)
+        Text(title).font(.system(size: large ? 12 : 11, weight: large ? .semibold : .medium))
+            .tracking(large ? 0.6 : 0).foregroundStyle(RunnirTheme.secondaryForeground)
     }
 }
 

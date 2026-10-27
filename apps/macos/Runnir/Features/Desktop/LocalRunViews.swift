@@ -179,18 +179,43 @@ struct ToolReadinessRow<Action: View>: View {
     let state: CoreToolState
     var untested = false
     let detail: String
+    /// The larger row of the review sheet.
+    var large = false
     @ViewBuilder let action: () -> Action
 
     var body: some View {
-        HStack(spacing: 10) {
-            ToolStateIcon(state: state, untested: untested).font(.system(size: 12))
-            Text(title).font(.system(size: 13, weight: .medium))
-            Text(detail).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+        HStack(spacing: large ? 12 : 10) {
+            ToolStateIcon(state: state, untested: untested).font(.system(size: large ? 18 : 12))
+            Text(title).font(.system(size: large ? 15 : 13, weight: large ? .semibold : .medium))
+                .frame(width: large ? 150 : nil, alignment: .leading)
+            Text(detail).font(.system(size: large ? 13 : 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                 .lineLimit(2).truncationMode(.middle).help(detail)
             Spacer(minLength: 8)
             action()
         }
-        .padding(.horizontal, 10).frame(minHeight: 30)
+        .padding(.horizontal, large ? 14 : 10).frame(minHeight: large ? 46 : 30)
+    }
+}
+
+/// One check of the compatibility card: what it is about, what was found,
+/// and the verdict at the right.
+struct CompatibilityRow: View {
+    let symbol: String
+    let tint: Color
+    let title: String
+    let detail: String
+    var verdict = ""
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Image(systemName: symbol).font(.system(size: 17)).foregroundStyle(tint).frame(width: 20)
+            Text(title).font(.system(size: 14, weight: .semibold)).frame(width: 150, alignment: .leading).lineLimit(1)
+            Text(detail).font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground)
+                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+            Spacer(minLength: 8)
+            if !verdict.isEmpty { Text(verdict).font(.system(size: 12, weight: .medium)).foregroundStyle(tint) }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 11)
     }
 }
 
@@ -299,23 +324,26 @@ struct LocalRunSheet: View {
 
     @ViewBuilder private var tools: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel(title: "ENGINE AND TOOLS")
+            SectionLabel(title: "ENGINE AND TOOLS", large: true)
             if let readiness = model.prepared?.readiness {
                 let act = readiness.act(useInstalled: model.prepared?.plan.installedAct ?? false)
-                VStack(spacing: 2) {
-                    ToolReadinessRow(title: "Docker CLI", state: readiness.dockerCLI.state, detail: LocalRunText.tool(readiness.dockerCLI)) {
+                VStack(spacing: 0) {
+                    ToolReadinessRow(title: "Docker CLI", state: readiness.dockerCLI.state, detail: LocalRunText.tool(readiness.dockerCLI), large: true) {
                         Button("Recheck", action: recheck)
                     }
-                    ToolReadinessRow(title: "Container engine", state: readiness.engine.state, detail: LocalRunText.engine(readiness.engine)) {
+                    DesignDivider()
+                    ToolReadinessRow(title: "Container engine", state: readiness.engine.state, detail: LocalRunText.engine(readiness.engine), large: true) {
                         EngineSetupButton(engine: readiness.engine, recheck: recheck)
                     }
+                    DesignDivider()
                     ToolReadinessRow(title: "act", state: act.status.state, untested: act.status.untested,
-                                     detail: LocalRunText.tool(act.status) + (act.installed ? " · installed (experimental)" : " · bundled")) {
+                                     detail: LocalRunText.tool(act.status) + (act.installed ? " · installed (experimental)" : " · bundled"), large: true) {
                         Button("Recheck", action: recheck)
                     }
                 }
                 .buttonStyle(DesignButtonStyle())
-                .padding(.vertical, 4).background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
+                .background(RunnirTheme.background, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(RunnirTheme.border))
             } else if model.isPreparing {
                 HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Checking tools...").font(.system(size: 12)) }
             }
@@ -325,37 +353,58 @@ struct LocalRunSheet: View {
     @ViewBuilder private var compatibility: some View {
         if let plan = model.prepared?.plan {
             VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(title: "COMPATIBILITY")
-                ForEach(plan.blockers, id: \.self) { blocker in
-                    line(blocker, symbol: "xmark.octagon", tint: RunnirTheme.destructive)
-                }
-                if let engine = model.prepared?.readiness.engine, engine.state != .found || !engine.local {
-                    line("Static validation still works without an engine.", symbol: "info.circle", tint: RunnirTheme.secondaryForeground)
-                }
-                ForEach(plan.jobs) { job in
-                    switch job.support {
-                    case .supported:
-                        line("\(job.id): runs-on \(job.runsOn.joined(separator: ", ")) in \(job.image).", symbol: "checkmark.circle", tint: RunnirTheme.success)
-                    case .unsupported:
-                        line("\(job.id): \(job.reason). act skips it.", symbol: "minus.circle", tint: RunnirTheme.mutedForeground)
-                    case .unknown:
-                        line("\(job.id): \(job.reason).", symbol: "questionmark.circle", tint: RunnirTheme.warning)
+                SectionLabel(title: "COMPATIBILITY", large: true)
+                let rows = compatibilityRows(plan)
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                        if index > 0 { DesignDivider() }
+                        row
                     }
                 }
-                ForEach(plan.images.filter { !$0.present }, id: \.reference) { image in
-                    line("Image download needed: \(image.reference).", symbol: "arrow.down.circle", tint: RunnirTheme.warning)
-                }
-                ForEach(plan.notes, id: \.self) { note in
-                    line(note, symbol: "info.circle", tint: RunnirTheme.secondaryForeground)
-                }
+                .background(RunnirTheme.background, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(RunnirTheme.border))
             }
         }
+    }
+
+    /// What the card lists: what stops the run, then every job with the verdict
+    /// on it, the images that have to be downloaded, and the plan's notes.
+    private func compatibilityRows(_ plan: CoreLocalRunPlan) -> [CompatibilityRow] {
+        var rows: [CompatibilityRow] = []
+        for blocker in plan.blockers {
+            rows.append(CompatibilityRow(symbol: "xmark.octagon", tint: RunnirTheme.destructive, title: "Cannot start", detail: blocker))
+        }
+        if let engine = model.prepared?.readiness.engine, engine.state != .found || !engine.local {
+            rows.append(CompatibilityRow(symbol: "info.circle", tint: RunnirTheme.secondaryForeground, title: "Static validation",
+                                         detail: "Still works without an engine.", verdict: "No engine needed"))
+        }
+        for job in plan.jobs {
+            switch job.support {
+            case .supported:
+                rows.append(CompatibilityRow(symbol: "checkmark.circle", tint: RunnirTheme.success, title: job.id,
+                                             detail: "Runs on \(job.runsOn.joined(separator: ", ")) in \(job.image)", verdict: "Supported"))
+            case .unsupported:
+                rows.append(CompatibilityRow(symbol: "minus.circle", tint: RunnirTheme.mutedForeground, title: job.id,
+                                             detail: job.reason, verdict: "act skips it"))
+            case .unknown:
+                rows.append(CompatibilityRow(symbol: "questionmark.circle", tint: RunnirTheme.warning, title: job.id,
+                                             detail: job.reason, verdict: "Unclear"))
+            }
+        }
+        for image in plan.images where !image.present {
+            rows.append(CompatibilityRow(symbol: "arrow.down.circle", tint: RunnirTheme.warning, title: "Image",
+                                         detail: image.reference, verdict: "Download needed"))
+        }
+        for note in plan.notes {
+            rows.append(CompatibilityRow(symbol: "info.circle", tint: RunnirTheme.secondaryForeground, title: "Note", detail: note))
+        }
+        return rows
     }
 
     @ViewBuilder private var access: some View {
         if let plan = model.prepared?.plan {
             VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(title: "WHAT THIS RUN CAN ACCESS")
+                SectionLabel(title: "WHAT THIS RUN CAN ACCESS", large: true)
                 accessRow("folder", "Workspace", "Copy of \(LocalRunText.abbreviated(repositoryPath)) made by actions/checkout, with uncommitted changes and without .gitignore'd files; not mounted live")
                 accessRow("globe", "Network", "On (bridge network): downloads images and actions; workflow steps may send data")
                 accessRow(model.runKeys.isEmpty ? "key.slash" : "key", "Secrets", model.accessSummary)
@@ -370,7 +419,7 @@ struct LocalRunSheet: View {
     @ViewBuilder private var values: some View {
         if !model.runKeys.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(title: "SECRETS AND VARIABLES")
+                SectionLabel(title: "SECRETS AND VARIABLES", large: true)
                 VStack(spacing: 0) {
                     ForEach(model.runKeys, id: \.self) { key in
                         valueRow(key)
@@ -447,19 +496,12 @@ struct LocalRunSheet: View {
         }.buttonStyle(DesignButtonStyle())
     }
 
-    private func line(_ text: String, symbol: String, tint: Color) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: symbol).foregroundStyle(tint).frame(width: 14)
-            Text(text).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
-        }.font(.system(size: 13))
-    }
-
     private func accessRow(_ symbol: String, _ title: String, _ detail: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Image(systemName: symbol).foregroundStyle(RunnirTheme.secondaryForeground).frame(width: 16)
-            Text(title).foregroundStyle(RunnirTheme.secondaryForeground).frame(width: 110, alignment: .leading)
+            Image(systemName: symbol).foregroundStyle(RunnirTheme.secondaryForeground).frame(width: 18)
+            Text(title).foregroundStyle(RunnirTheme.secondaryForeground).frame(width: 130, alignment: .leading)
             Text(detail).fixedSize(horizontal: false, vertical: true)
-        }.font(.system(size: 13))
+        }.font(.system(size: 14))
     }
 }
 
