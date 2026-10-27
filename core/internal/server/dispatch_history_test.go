@@ -156,3 +156,26 @@ func TestClearingTheHistoryForgetsItsEntries(t *testing.T) {
 		t.Fatalf("clearing nothing = %v, %v", again, err)
 	}
 }
+
+func TestARunsWorkflowIsReadAtItsCommit(t *testing.T) {
+	client, id, _, ctx := historyRig(t)
+	got, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 31})
+	if err != nil || got.Problem != "" || got.WorkflowPath != ".github/workflows/deploy.yml" {
+		t.Fatalf("workflow = %v, %v", got, err)
+	}
+	if len(got.Jobs) != 3 || got.Jobs[2].Id != "build" || len(got.Jobs[2].Needs) != 2 || got.Jobs[1].Name != "unit-tests" {
+		t.Fatalf("jobs = %v", got.Jobs)
+	}
+	// A commit GitHub no longer serves is a problem to show, not a failure.
+	gone, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 32})
+	if err != nil || gone.Problem == "" || len(gone.Jobs) != 0 || gone.Status.GetAccess() != corev1.GithubAccess_GITHUB_ACCESS_OK {
+		t.Fatalf("gone = %v, %v", gone, err)
+	}
+	broken, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 33})
+	if err != nil || !strings.Contains(broken.Problem, "does not parse") {
+		t.Fatalf("broken = %v, %v", broken, err)
+	}
+	if _, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("no run = %v", err)
+	}
+}

@@ -221,6 +221,8 @@ protocol CoreServicing: Sendable {
     func gitHubRepository(target: CoreGitHubTarget) async throws -> CoreGitHubRepository
     func listWorkflowRuns(target: CoreGitHubTarget, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun>
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob>
+    /// The workflow file the run used, at the run's commit, as jobs with their needs.
+    func getRunWorkflow(repositoryID: String, runID: Int64) async throws -> CoreRunWorkflow
     func listGitHubRefs(target: CoreGitHubTarget) async throws -> CoreGitHubRefs
     func describeWorkflowDispatch(target: CoreGitHubTarget, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition
     /// Validates a dispatch in the Core; nothing is sent to GitHub yet.

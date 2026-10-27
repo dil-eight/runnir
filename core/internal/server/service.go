@@ -49,6 +49,8 @@ type service struct {
 	actCache string
 	// saveMu serializes workflow file saves.
 	saveMu sync.Mutex
+	// workflowFiles keeps the workflow files read at a run's commit.
+	workflowFiles workflowFileCache
 }
 
 func (s *service) HealthCheck(context.Context, *corev1.HealthCheckRequest) (*corev1.HealthCheckResponse, error) {

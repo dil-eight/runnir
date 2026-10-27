@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -201,6 +202,109 @@ func (s *service) ListRunJobs(ctx context.Context, request *corev1.ListRunJobsRe
 		out.Jobs = append(out.Jobs, jobMessage(j))
 	}
 	return out, nil
+}
+
+// GetRunWorkflow reads the workflow file a run used at the run's commit and
+// returns its jobs with their needs. Anything that stops it (a commit or file
+// GitHub does not serve, a file that does not parse) is a problem to show,
+// not an error: the app lists the run's jobs without their order instead.
+func (s *service) GetRunWorkflow(ctx context.Context, request *corev1.GetRunWorkflowRequest) (*corev1.GetRunWorkflowResponse, error) {
+	if request.GetRunId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "run_id is required")
+	}
+	target, problem, err := s.githubTarget(request.GetRepositoryId(), request.GetGithubServer(), request.GetGithubRepository())
+	if err != nil || problem != nil {
+		return &corev1.GetRunWorkflowResponse{Status: problem}, err
+	}
+	client := target.account.Client
+	run, fetchErr := client.Run(ctx, target.owner, target.name, request.GetRunId())
+	var path string
+	var data []byte
+	if fetchErr == nil {
+		key := workflowFileKey{server: target.account.Server.ID, owner: target.owner, name: target.name, sha: run.HeadSHA, workflowID: run.WorkflowID}
+		if cached, ok := s.workflowFiles.get(key); ok {
+			path, data = cached.path, cached.data
+		} else {
+			path, fetchErr = client.WorkflowPath(ctx, target.owner, target.name, run.WorkflowID)
+			if fetchErr == nil {
+				data, fetchErr = client.File(ctx, target.owner, target.name, path, run.HeadSHA)
+			}
+			if fetchErr == nil {
+				s.workflowFiles.put(key, workflowFile{path: path, data: data})
+			}
+		}
+	}
+	result, err := s.githubStatus(target.account, fetchErr)
+	if err != nil {
+		return nil, err
+	}
+	out := &corev1.GetRunWorkflowResponse{Status: result}
+	switch {
+	case errors.Is(fetchErr, github.ErrNotVisible):
+		out.Problem = "GitHub does not serve the workflow file at this run's commit."
+		// The commit or the file is gone: a lookup that finds nothing, not a refused read.
+		out.Status = statusMessage(corev1.GithubAccess_GITHUB_ACCESS_OK, time.Time{})
+		return out, nil
+	case fetchErr != nil:
+		return out, nil
+	}
+	workflow := scanner.ParseWorkflow(path, data)
+	out.WorkflowPath = path
+	if workflow.ParseError != "" {
+		out.Problem = "The workflow file at this run's commit does not parse: " + workflow.ParseError
+		return out, nil
+	}
+	for _, j := range workflow.Jobs {
+		out.Jobs = append(out.Jobs, &corev1.Job{Id: j.ID, Name: j.Name, Needs: j.Needs, Manual: j.Manual, ManualInputs: j.ManualInputs})
+	}
+	if len(out.Jobs) == 0 {
+		out.Problem = "The workflow file at this run's commit has no jobs."
+	}
+	return out, nil
+}
+
+// workflowFileKey names a workflow file at a commit: it cannot change, so
+// the app can ask for it every time a run is selected.
+type workflowFileKey struct {
+	server, owner, name, sha string
+	workflowID               int64
+}
+
+type workflowFile struct {
+	path string
+	data []byte
+}
+
+// workflowFileCache keeps the newest few workflow files read for run graphs.
+type workflowFileCache struct {
+	mu    sync.Mutex
+	files map[workflowFileKey]workflowFile
+	order []workflowFileKey
+}
+
+const maxWorkflowFiles = 64
+
+func (c *workflowFileCache) get(key workflowFileKey) (workflowFile, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	file, ok := c.files[key]
+	return file, ok
+}
+
+func (c *workflowFileCache) put(key workflowFileKey, file workflowFile) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.files == nil {
+		c.files = map[workflowFileKey]workflowFile{}
+	}
+	if _, ok := c.files[key]; !ok {
+		c.order = append(c.order, key)
+		if len(c.order) > maxWorkflowFiles {
+			delete(c.files, c.order[0])
+			c.order = c.order[1:]
+		}
+	}
+	c.files[key] = file
 }
 
 func jobMessage(j github.Job) *corev1.RunJob {

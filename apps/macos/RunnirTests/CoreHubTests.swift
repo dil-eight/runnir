@@ -92,6 +92,8 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         return result
     }
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { lock.withLock { jobsResult } }
+    var runWorkflowResult = CoreRunWorkflow.failed(.ok)
+    func getRunWorkflow(repositoryID: String, runID: Int64) async throws -> CoreRunWorkflow { lock.withLock { runWorkflowResult } }
     var validationResult: Result<CoreValidationReport, CoreServiceError> = .success(CoreValidationReport(
         workflows: [CoreWorkflowValidation(workflowID: ".github/workflows/ci.yml",
                                            diagnostics: [CoreWorkflowDiagnostic(line: 4, column: 3, kind: "job-needs", message: "job \"build\" needs job \"test\" which does not exist")],

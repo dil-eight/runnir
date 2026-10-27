@@ -55,6 +55,7 @@ const (
 	RunnirCore_GetGitHubRepository_FullMethodName       = "/runnir.core.v1.RunnirCore/GetGitHubRepository"
 	RunnirCore_ListWorkflowRuns_FullMethodName          = "/runnir.core.v1.RunnirCore/ListWorkflowRuns"
 	RunnirCore_ListRunJobs_FullMethodName               = "/runnir.core.v1.RunnirCore/ListRunJobs"
+	RunnirCore_GetRunWorkflow_FullMethodName            = "/runnir.core.v1.RunnirCore/GetRunWorkflow"
 	RunnirCore_ListGitHubRefs_FullMethodName            = "/runnir.core.v1.RunnirCore/ListGitHubRefs"
 	RunnirCore_DescribeWorkflowDispatch_FullMethodName  = "/runnir.core.v1.RunnirCore/DescribeWorkflowDispatch"
 	RunnirCore_PrepareWorkflowDispatch_FullMethodName   = "/runnir.core.v1.RunnirCore/PrepareWorkflowDispatch"
@@ -163,6 +164,11 @@ type RunnirCoreClient interface {
 	GetGitHubRepository(ctx context.Context, in *GetGitHubRepositoryRequest, opts ...grpc.CallOption) (*GetGitHubRepositoryResponse, error)
 	ListWorkflowRuns(ctx context.Context, in *ListWorkflowRunsRequest, opts ...grpc.CallOption) (*ListWorkflowRunsResponse, error)
 	ListRunJobs(ctx context.Context, in *ListRunJobsRequest, opts ...grpc.CallOption) (*ListRunJobsResponse, error)
+	// The jobs of the workflow file a run used, read at the run's commit, with
+	// their needs: what the app draws as the run's graph. No jobs, with a
+	// problem, when the file cannot be read there (a commit GitHub no longer
+	// serves, a fork's run, a file that does not parse).
+	GetRunWorkflow(ctx context.Context, in *GetRunWorkflowRequest, opts ...grpc.CallOption) (*GetRunWorkflowResponse, error)
 	// Branches and tags a workflow can run on.
 	ListGitHubRefs(ctx context.Context, in *ListGitHubRefsRequest, opts ...grpc.CallOption) (*ListGitHubRefsResponse, error)
 	// Whether a workflow can be started by hand at a ref, and its inputs, read
@@ -534,6 +540,16 @@ func (c *runnirCoreClient) ListRunJobs(ctx context.Context, in *ListRunJobsReque
 	return out, nil
 }
 
+func (c *runnirCoreClient) GetRunWorkflow(ctx context.Context, in *GetRunWorkflowRequest, opts ...grpc.CallOption) (*GetRunWorkflowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRunWorkflowResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_GetRunWorkflow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnirCoreClient) ListGitHubRefs(ctx context.Context, in *ListGitHubRefsRequest, opts ...grpc.CallOption) (*ListGitHubRefsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListGitHubRefsResponse)
@@ -793,6 +809,11 @@ type RunnirCoreServer interface {
 	GetGitHubRepository(context.Context, *GetGitHubRepositoryRequest) (*GetGitHubRepositoryResponse, error)
 	ListWorkflowRuns(context.Context, *ListWorkflowRunsRequest) (*ListWorkflowRunsResponse, error)
 	ListRunJobs(context.Context, *ListRunJobsRequest) (*ListRunJobsResponse, error)
+	// The jobs of the workflow file a run used, read at the run's commit, with
+	// their needs: what the app draws as the run's graph. No jobs, with a
+	// problem, when the file cannot be read there (a commit GitHub no longer
+	// serves, a fork's run, a file that does not parse).
+	GetRunWorkflow(context.Context, *GetRunWorkflowRequest) (*GetRunWorkflowResponse, error)
 	// Branches and tags a workflow can run on.
 	ListGitHubRefs(context.Context, *ListGitHubRefsRequest) (*ListGitHubRefsResponse, error)
 	// Whether a workflow can be started by hand at a ref, and its inputs, read
@@ -944,6 +965,9 @@ func (UnimplementedRunnirCoreServer) ListWorkflowRuns(context.Context, *ListWork
 }
 func (UnimplementedRunnirCoreServer) ListRunJobs(context.Context, *ListRunJobsRequest) (*ListRunJobsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRunJobs not implemented")
+}
+func (UnimplementedRunnirCoreServer) GetRunWorkflow(context.Context, *GetRunWorkflowRequest) (*GetRunWorkflowResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRunWorkflow not implemented")
 }
 func (UnimplementedRunnirCoreServer) ListGitHubRefs(context.Context, *ListGitHubRefsRequest) (*ListGitHubRefsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListGitHubRefs not implemented")
@@ -1550,6 +1574,24 @@ func _RunnirCore_ListRunJobs_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_GetRunWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRunWorkflowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).GetRunWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_GetRunWorkflow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).GetRunWorkflow(ctx, req.(*GetRunWorkflowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnirCore_ListGitHubRefs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListGitHubRefsRequest)
 	if err := dec(in); err != nil {
@@ -1978,6 +2020,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListRunJobs",
 			Handler:    _RunnirCore_ListRunJobs_Handler,
+		},
+		{
+			MethodName: "GetRunWorkflow",
+			Handler:    _RunnirCore_GetRunWorkflow_Handler,
 		},
 		{
 			MethodName: "ListGitHubRefs",

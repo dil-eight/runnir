@@ -335,6 +335,20 @@ struct CoreRunJob: Equatable, Identifiable, Sendable {
     var outcome: CoreRunOutcome { CoreRunOutcome(status: status, conclusion: conclusion) }
 }
 
+/// The jobs of the workflow file a run used, read at the run's commit, with
+/// their needs: what the run's graph is drawn from.
+struct CoreRunWorkflow: Equatable, Sendable {
+    let access: CoreGitHubAccess
+    let path: String
+    let jobs: [CoreJob]
+    /// Why there are no jobs; empty when the file was read and parsed.
+    let problem: String
+
+    static func failed(_ access: CoreGitHubAccess) -> CoreRunWorkflow {
+        CoreRunWorkflow(access: access, path: "", jobs: [], problem: "")
+    }
+}
+
 /// The one thing a person wants to know about a run, job or step.
 enum CoreRunOutcome: Equatable, Sendable {
     case queued

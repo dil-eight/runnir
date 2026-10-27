@@ -1,6 +1,6 @@
 # Run graph in the run inspector (B41)
 
-Status: design agreed, states drawn in Pen (S08, Row — Run inspector), not implemented.
+Status: built (Core `GetRunWorkflow`, the graph, the log layer over the list and the graph); not yet tried against a real run. States drawn in Pen (S08, Row — Run inspector).
 
 ## Change
 

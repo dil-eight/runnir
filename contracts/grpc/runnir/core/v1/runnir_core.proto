@@ -107,6 +107,11 @@ service RunnirCore {
   rpc GetGitHubRepository(GetGitHubRepositoryRequest) returns (GetGitHubRepositoryResponse);
   rpc ListWorkflowRuns(ListWorkflowRunsRequest) returns (ListWorkflowRunsResponse);
   rpc ListRunJobs(ListRunJobsRequest) returns (ListRunJobsResponse);
+  // The jobs of the workflow file a run used, read at the run's commit, with
+  // their needs: what the app draws as the run's graph. No jobs, with a
+  // problem, when the file cannot be read there (a commit GitHub no longer
+  // serves, a fork's run, a file that does not parse).
+  rpc GetRunWorkflow(GetRunWorkflowRequest) returns (GetRunWorkflowResponse);
 
   // Branches and tags a workflow can run on.
   rpc ListGitHubRefs(ListGitHubRefsRequest) returns (ListGitHubRefsResponse);
@@ -693,6 +698,23 @@ message ListRunJobsRequest {
   string github_repository = 3;
   // Server id for github_repository; empty is github.com.
   string github_server = 4;
+}
+
+message GetRunWorkflowRequest {
+  string repository_id = 1;
+  int64 run_id = 2;
+  // As in ListRunJobsRequest.
+  string github_repository = 3;
+  string github_server = 4;
+}
+
+message GetRunWorkflowResponse {
+  GitHubStatus status = 1;
+  // ".github/workflows/<file>", empty when it was not found.
+  string workflow_path = 2;
+  repeated Job jobs = 3;
+  // Why there are no jobs; empty when the file was read and parsed.
+  string problem = 4;
 }
 
 message ListRunJobsResponse {

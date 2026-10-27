@@ -580,6 +580,19 @@ struct GRPCCoreService: CoreServicing {
         return CoreGitHubResult(access: Self.map(response.status), items: response.jobs.map { Self.map($0) })
     }
 
+    func getRunWorkflow(repositoryID: String, runID: Int64) async throws -> CoreRunWorkflow {
+        let response = try await call {
+            try await client.getRunWorkflow(.with {
+                $0.repositoryID = repositoryID
+                $0.runID = runID
+            }, options: Self.options(Self.callTimeout))
+        }
+        return CoreRunWorkflow(
+            access: Self.map(response.status), path: response.workflowPath,
+            jobs: response.jobs.map { CoreJob(id: $0.id, name: $0.name, needs: $0.needs, manual: $0.manual, manualInputs: $0.manualInputs) },
+            problem: response.problem)
+    }
+
     static func map(_ job: Runnir_Core_V1_RunJob) -> CoreRunJob {
         CoreRunJob(
             id: job.id, name: job.name, status: job.status, conclusion: job.conclusion.isEmpty ? nil : job.conclusion,

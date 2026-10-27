@@ -286,28 +286,26 @@ struct RunInspectorView: View {
     let select: (Int64) -> Void
     let addConcurrency: (String) -> Void
     let dismissHint: (String) -> Void
-    @State private var actions: RunActionModel
-    @State private var jobs: CoreGitHubResult<CoreRunJob>?
-    @State private var jobsStale = false
-    @State private var selectedJobID: Int64?
-    @State private var selectedStep: Int64?
+    /// The jobs, the workflow file and the open log of this run, shared with
+    /// the layer the runs list shows over the graph.
+    @Bindable var layer: RunLayerModel
     @Environment(\.openURL) private var openURL
 
-    init(run: CoreWorkflowRun, workspaceID: UUID, hub: CoreHub, github: GitHubSession? = nil,
+    init(run: CoreWorkflowRun, workspaceID: UUID, hub: CoreHub, layer: RunLayerModel, github: GitHubSession? = nil,
          context: RunInspectorContext = RunInspectorContext(), select: @escaping (Int64) -> Void = { _ in },
          addConcurrency: @escaping (String) -> Void = { _ in }, dismissHint: @escaping (String) -> Void = { _ in }) {
         self.run = run
         self.workspaceID = workspaceID
         self.hub = hub
+        self.layer = layer
         self.github = github
         self.context = context
         self.select = select
         self.addConcurrency = addConcurrency
         self.dismissHint = dismissHint
-        _actions = State(initialValue: RunActionModel(hub: hub, workspaceID: workspaceID))
     }
 
-    private var selectedJob: CoreRunJob? { jobs?.items.first { $0.id == selectedJobID } }
+    private var actions: RunActionModel { layer.actions }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -317,28 +315,23 @@ struct RunInspectorView: View {
             links
             if let text = actions.statusText { actionStatus(text) }
             DesignDivider()
-            HStack(spacing: 0) {
-                jobList.frame(width: 250)
-                DesignDivider(vertical: true)
-                Group {
-                    if let job = selectedJob {
-                        JobLogView(job: job, step: selectedStep, workspaceID: workspaceID, hub: hub) { selectedStep = nil }
-                            .id(job.id)
-                    } else {
-                        Color.clear
-                    }
-                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            RunGraphView(model: layer, run: run).frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        // The workflow file is read once for a run: it is the file at the run's commit.
+        .task(id: run.id) {
+            layer.show(run: run.id)
+            if layer.workflow == nil {
+                let workflow = await hub.runWorkflow(workspaceID: workspaceID, runID: run.id)
+                guard !Task.isCancelled, layer.runID == run.id else { return }
+                layer.workflow = workflow
             }
         }
+        // The jobs are read again whenever the run changes.
         .task(id: "\(run.id)-\(run.status)-\(run.runAttempt)-\(run.updatedAt?.timeIntervalSince1970 ?? 0)") {
-            let reloaded = LogFilter.reloadedJobs(previous: jobs, new: await hub.jobs(workspaceID: workspaceID, runID: run.id))
-            jobs = reloaded.jobs
-            jobsStale = reloaded.stale
-            let result = reloaded.jobs
-            if !result.items.contains(where: { $0.id == selectedJobID }), let job = LogFilter.defaultJob(result.items) {
-                selectedJobID = job.id
-                selectedStep = LogFilter.defaultStep(job)
-            }
+            layer.show(run: run.id)
+            let result = await hub.jobs(workspaceID: workspaceID, runID: run.id)
+            guard !Task.isCancelled, layer.runID == run.id else { return }
+            layer.apply(jobs: LogFilter.reloadedJobs(previous: layer.jobs, new: result))
         }
         .onDisappear { actions.stopFollowing() }
         .githubAccessAlert(Binding(get: { actions.accessHelp }, set: { actions.accessHelp = $0 }), github: github)
@@ -483,122 +476,17 @@ struct RunInspectorView: View {
         .font(.system(size: 12)).padding(.horizontal, 20).padding(.vertical, 8)
         .background(RunnirTheme.surface)
     }
-
-    // MARK: Jobs and steps
-
-    private var jobList: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
-                switch jobs {
-                case nil:
-                    HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Loading jobs...") }
-                        .font(.system(size: 12)).padding(10)
-                case .some(let result) where result.access != .ok:
-                    Text(RunActionModel.describeRead(result.access))
-                        .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(10)
-                case .some(let result) where result.items.isEmpty:
-                    Text("This run has no jobs yet.").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(10)
-                case .some(let result):
-                    ForEach(result.items) { job in
-                        jobRow(job)
-                        if job.id == selectedJobID {
-                            ForEach(job.steps) { step in stepRow(step) }
-                        }
-                    }
-                    if jobsStale {
-                        Label("Could not reload from GitHub; showing the last jobs.", systemImage: "exclamationmark.triangle")
-                            .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).padding(10)
-                    }
-                }
-            }
-            .padding(8)
-        }
-    }
-
-    /// Only a finished run can have a job re-run, and only a job that has finished.
-    private func canRerun(_ job: CoreRunJob) -> Bool {
-        !run.outcome.isActive && job.status == "completed"
-    }
-
-    private func rerunJob(_ job: CoreRunJob) {
-        Task { await actions.prepare(.rerunJob(id: job.id), for: run) }
-    }
-
-    private func jobRow(_ job: CoreRunJob) -> some View {
-        HStack(spacing: 2) {
-            jobSelectionButton(job)
-            if canRerun(job) {
-                Button { rerunJob(job) } label: {
-                    Image(systemName: "arrow.clockwise").font(.system(size: 11))
-                        .frame(width: 28, height: 28).contentShape(Rectangle())
-                }
-                .buttonStyle(.hit).disabled(actions.isBusy)
-                .help("Re-run this job and the jobs that need it")
-                .accessibilityLabel("Re-run job \(job.name)")
-            }
-        }
-        .contextMenu {
-            if canRerun(job) {
-                Button("Re-run job") { rerunJob(job) }.disabled(actions.isBusy)
-            }
-        }
-    }
-
-    private func jobSelectionButton(_ job: CoreRunJob) -> some View {
-        Button {
-            if selectedJobID == job.id {
-                selectedStep = nil
-            } else {
-                selectedJobID = job.id
-                selectedStep = LogFilter.defaultStep(job)
-            }
-        } label: {
-            HStack(spacing: 8) {
-                RunOutcomeIcon(outcome: job.outcome, size: 13)
-                Text(job.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                Spacer(minLength: 6)
-                Text(timing(job.outcome, from: job.startedAt, to: job.completedAt))
-                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
-            }
-            .padding(.horizontal, 8).frame(maxWidth: .infinity).frame(height: 30).contentShape(Rectangle())
-            .background(job.id == selectedJobID && selectedStep == nil ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.hit)
-        .help(job.id == selectedJobID ? "Show the whole job log" : "Show this job")
-    }
-
-    private func stepRow(_ step: CoreRunStep) -> some View {
-        Button { selectedStep = step.number } label: {
-            HStack(spacing: 8) {
-                RunOutcomeIcon(outcome: step.outcome, size: 11)
-                Text(step.name).font(.system(size: 12)).lineLimit(1)
-                Spacer(minLength: 6)
-                Text(timing(step.outcome, from: step.startedAt, to: step.completedAt))
-                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
-            }
-            .padding(.leading, 28).padding(.trailing, 8).frame(height: 26).contentShape(Rectangle())
-            .background(step.number == selectedStep ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.hit)
-    }
-
-    private func timing(_ outcome: CoreRunOutcome, from start: Date?, to end: Date?) -> String {
-        switch outcome {
-        case .running: "running"
-        case .queued: "queued"
-        case .skipped: "skipped"
-        default: RunDuration.text(from: start, to: end) ?? ""
-        }
-    }
 }
 
 /// The selected job's log, filtered to one step, with search and wrapping.
-private struct JobLogView: View {
+struct JobLogView: View {
     let job: CoreRunJob
     let step: Int64?
     let workspaceID: UUID
     let hub: CoreHub
     let showWholeJob: () -> Void
+    /// Set when the log is shown in the layer over the runs: its expand and close buttons.
+    var layer: LogLayerControls? = nil
     @State private var log: CoreJobLog?
     /// The shown lines (the end of the selection), kept so that a render or
     /// keystroke does not filter up to 50,000 lines again.
@@ -692,6 +580,18 @@ private struct JobLogView: View {
             .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
             Toggle("Wrap", isOn: $wrap).toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12))
+            if let layer {
+                Button { layer.toggleExpanded() } label: {
+                    Image(systemName: layer.expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 12)).frame(width: 26, height: 26).contentShape(Rectangle())
+                }
+                .buttonStyle(.hit).help(layer.expanded ? "Back to the floating layer" : "Fill the whole section")
+                .accessibilityLabel(layer.expanded ? "Restore the log" : "Expand the log")
+                Button { layer.close() } label: {
+                    Image(systemName: "xmark").font(.system(size: 12, weight: .semibold)).frame(width: 26, height: 26).contentShape(Rectangle())
+                }
+                .buttonStyle(.hit).help("Close the log").accessibilityLabel("Close the log")
+            }
         }
         .padding(.horizontal, 14).frame(height: 44)
     }

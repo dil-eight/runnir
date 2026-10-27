@@ -135,6 +135,20 @@ struct WorkspaceRunsView: View {
     @State private var expanded: Set<String> = []
     @State private var query = ""
     @State private var statuses: Set<RunStatusFilter> = []
+    /// The log of a job, opened over the list and the graph.
+    @State private var layer: RunLayerModel
+
+    init(session: RepositorySession, hub: CoreHub, github: GitHubSession?, selectedRunID: Binding<Int64?>, mode: Binding<RunsMode>,
+         dismissals: ConcurrencyHintDismissals? = nil, addConcurrency: @escaping (String) -> Void = { _ in }) {
+        self.session = session
+        self.hub = hub
+        self.github = github
+        _selectedRunID = selectedRunID
+        _mode = mode
+        self.dismissals = dismissals
+        self.addConcurrency = addConcurrency
+        _layer = State(initialValue: RunLayerModel(hub: hub, workspaceID: session.workspaceID))
+    }
 
     private var branch: String? { onlyCurrentBranch && !session.branch.isEmpty ? session.branch : nil }
     private var runsByID: [Int64: CoreWorkflowRun] {
@@ -189,6 +203,11 @@ struct WorkspaceRunsView: View {
             .frame(width: 300)
             DesignDivider(vertical: true)
             inspector.frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .overlay {
+            if layer.isOpen, let run = session.runs.first(where: { $0.id == selectedRunID }) {
+                RunLogLayer(model: layer, run: run, workspaceID: session.workspaceID, hub: hub)
+            }
         }
         .onAppear { if selectedRunID == nil { selectedRunID = session.runs.first?.id } }
         // Runs the cache gets while the search is open (a sync, or a window that
@@ -322,7 +341,7 @@ struct WorkspaceRunsView: View {
 
     @ViewBuilder private var inspector: some View {
         if let run = session.runs.first(where: { $0.id == selectedRunID }) {
-            RunInspectorView(run: run, workspaceID: session.workspaceID, hub: hub, github: github,
+            RunInspectorView(run: run, workspaceID: session.workspaceID, hub: hub, layer: layer, github: github,
                              context: RunPresentation.context(for: run, runs: runsByID, pullRequests: pullRequests, hints: hints,
                                                               workflowName: workflowName(run.workflowID)),
                              select: { selectedRunID = $0 }, addConcurrency: addConcurrency, dismissHint: dismissHint)

@@ -416,6 +416,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "GetRunWorkflow" metadata.
+        internal enum GetRunWorkflow: Sendable {
+            /// Request type for "GetRunWorkflow".
+            internal typealias Input = Runnir_Core_V1_GetRunWorkflowRequest
+            /// Response type for "GetRunWorkflow".
+            internal typealias Output = Runnir_Core_V1_GetRunWorkflowResponse
+            /// Descriptor for "GetRunWorkflow".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "GetRunWorkflow",
+                type: .unary
+            )
+        }
         /// Namespace for "ListGitHubRefs" metadata.
         internal enum ListGitHubRefs: Sendable {
             /// Request type for "ListGitHubRefs".
@@ -669,6 +682,7 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             GetGitHubRepository.descriptor,
             ListWorkflowRuns.descriptor,
             ListRunJobs.descriptor,
+            GetRunWorkflow.descriptor,
             ListGitHubRefs.descriptor,
             DescribeWorkflowDispatch.descriptor,
             PrepareWorkflowDispatch.descriptor,
@@ -1252,6 +1266,27 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListRunJobsRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListRunJobsResponse>
+
+        /// Handle the "GetRunWorkflow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The jobs of the workflow file a run used, read at the run's commit, with
+        /// > their needs: what the app draws as the run's graph. No jobs, with a
+        /// > problem, when the file cannot be read there (a commit GitHub no longer
+        /// > serves, a fork's run, a file that does not parse).
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_GetRunWorkflowRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_GetRunWorkflowResponse` messages.
+        func getRunWorkflow(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetRunWorkflowResponse>
 
         /// Handle the "ListGitHubRefs" method.
         ///
@@ -2118,6 +2153,27 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListRunJobsResponse>
 
+        /// Handle the "GetRunWorkflow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The jobs of the workflow file a run used, read at the run's commit, with
+        /// > their needs: what the app draws as the run's graph. No jobs, with a
+        /// > problem, when the file cannot be read there (a commit GitHub no longer
+        /// > serves, a fork's run, a file that does not parse).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetRunWorkflowRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_GetRunWorkflowResponse` message.
+        func getRunWorkflow(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetRunWorkflowResponse>
+
         /// Handle the "ListGitHubRefs" method.
         ///
         /// > Source IDL Documentation:
@@ -2982,6 +3038,27 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_ListRunJobsResponse
 
+        /// Handle the "GetRunWorkflow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The jobs of the workflow file a run used, read at the run's commit, with
+        /// > their needs: what the app draws as the run's graph. No jobs, with a
+        /// > problem, when the file cannot be read there (a commit GitHub no longer
+        /// > serves, a fork's run, a file that does not parse).
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_GetRunWorkflowRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_GetRunWorkflowResponse` to respond with.
+        func getRunWorkflow(
+            request: Runnir_Core_V1_GetRunWorkflowRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_GetRunWorkflowResponse
+
         /// Handle the "ListGitHubRefs" method.
         ///
         /// > Source IDL Documentation:
@@ -3634,6 +3711,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.GetRunWorkflow.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetRunWorkflowRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetRunWorkflowResponse>(),
+            handler: { request, context in
+                try await self.getRunWorkflow(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.ListGitHubRefs.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListGitHubRefsRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListGitHubRefsResponse>(),
@@ -4150,6 +4238,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListRunJobsResponse> {
         let response = try await self.listRunJobs(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func getRunWorkflow(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetRunWorkflowResponse> {
+        let response = try await self.getRunWorkflow(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -4734,6 +4833,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListRunJobsResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_ListRunJobsResponse>(
             message: try await self.listRunJobs(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func getRunWorkflow(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetRunWorkflowResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_GetRunWorkflowResponse>(
+            message: try await self.getRunWorkflow(
                 request: request.message,
                 context: context
             ),
@@ -5661,6 +5773,32 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListRunJobsResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListRunJobsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "GetRunWorkflow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The jobs of the workflow file a run used, read at the run's commit, with
+        /// > their needs: what the app draws as the run's graph. No jobs, with a
+        /// > problem, when the file cannot be read there (a commit GitHub no longer
+        /// > serves, a fork's run, a file that does not parse).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetRunWorkflowRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetRunWorkflowRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetRunWorkflowResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func getRunWorkflow<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetRunWorkflowRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetRunWorkflowResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetRunWorkflowResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "ListGitHubRefs" method.
@@ -7092,6 +7230,43 @@ extension Runnir_Core_V1_RunnirCore {
             try await self.client.unary(
                 request: request,
                 descriptor: Runnir_Core_V1_RunnirCore.Method.ListRunJobs.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "GetRunWorkflow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The jobs of the workflow file a run used, read at the run's commit, with
+        /// > their needs: what the app draws as the run's graph. No jobs, with a
+        /// > problem, when the file cannot be read there (a commit GitHub no longer
+        /// > serves, a fork's run, a file that does not parse).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetRunWorkflowRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetRunWorkflowRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetRunWorkflowResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func getRunWorkflow<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetRunWorkflowRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetRunWorkflowResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetRunWorkflowResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.GetRunWorkflow.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -8555,6 +8730,38 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListRunJobsRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListRunJobsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetRunWorkflow" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The jobs of the workflow file a run used, read at the run's commit, with
+    /// > their needs: what the app draws as the run's graph. No jobs, with a
+    /// > problem, when the file cannot be read there (a commit GitHub no longer
+    /// > serves, a fork's run, a file that does not parse).
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_GetRunWorkflowRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getRunWorkflow<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetRunWorkflowResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.getRunWorkflow(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetRunWorkflowRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetRunWorkflowResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -10049,6 +10256,42 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.listRunJobs(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetRunWorkflow" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The jobs of the workflow file a run used, read at the run's commit, with
+    /// > their needs: what the app draws as the run's graph. No jobs, with a
+    /// > problem, when the file cannot be read there (a commit GitHub no longer
+    /// > serves, a fork's run, a file that does not parse).
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getRunWorkflow<Result>(
+        _ message: Runnir_Core_V1_GetRunWorkflowRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetRunWorkflowResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_GetRunWorkflowRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.getRunWorkflow(
             request: request,
             options: options,
             onResponse: handleResponse
