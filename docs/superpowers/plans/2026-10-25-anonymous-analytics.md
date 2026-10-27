@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Working copy: `/Users/dilbarov/projects/runnir/.claude/worktrees/local-run-savings`, branch `dilbarov/anonymous-analytics` (from `main` at `a8cd36b`). All paths below are relative to it.
+- Working copy: a new branch from `main`; paths below are relative to the repository root. The plan was written against `main` at `a8cd36b` (2026-10-25), so check each file a task names before changing it: the app and the contract have changed since.
 - No new dependencies in Go or Swift. No telemetry SDK. UUIDs come from `crypto/rand`.
 - Contract changes in place: no versions, aliases or migrations (AGENTS.md, before the first release tag). The workspace schema change edits `schemaV1` in place, as B31 did.
 - Destination: `https://us.i.posthog.com/batch/`. The PostHog key is set only in Release builds (`-ldflags`); without it nothing is sent.
@@ -39,7 +39,7 @@ Task 10 writes these into the spec:
 **Files:**
 - Modify: `contracts/grpc/runnir/core/v1/runnir_core.proto`
 - Regenerate: `core/internal/gen/runnir/core/v1/*.go`, `apps/macos/Runnir/IPC/Generated/runnir/core/v1/*.swift`
-- Modify: `core/internal/buildinfo/buildinfo.go` (the file holding `var Version`)
+- Modify: `core/internal/buildinfo/version.go` (the file holding `var Version`)
 - Modify: `scripts/build-core-macos.sh`, `.github/workflows/release.yml`
 
 **Interfaces:**
@@ -151,7 +151,7 @@ message RecordUsageResponse {}
 Run: `PATH="$SCRATCH_BIN:$HOME/go/bin:$PATH" scripts/generate-contracts.sh`
 Expected: `buf lint` prints nothing; `git status` shows the proto and the generated Go and Swift files changed.
 
-- [ ] **Step 4: Add the build values** to `core/internal/buildinfo/buildinfo.go`, after `var Version`:
+- [ ] **Step 4: Add the build values** to `core/internal/buildinfo/version.go`, after `var Version`:
 
 ```go
 // Build is the app's CFBundleVersion, set with -ldflags by the app build;
@@ -3837,7 +3837,7 @@ git commit -m "App: count sections and actions at the Usage analytics level (B21
 **Files:**
 - Modify: `AGENTS.md`, `docs/product/specification.md`, `docs/legal/security-privacy-policy.md`, `docs/design/screens-and-states.md`, `docs/product/mvp-implementation-checklist.md`, `docs/architecture/grpc-api.md`, `docs/architecture/workspace-persistence.md`, `docs/product/analytics-and-crash-reporting.md`, `docs/superpowers/specs/2026-10-25-anonymous-analytics-design.md`, `apps/macos/Runnir/Features/Settings/SettingsOverlay.swift` (nothing else mentions "does not enable telemetry by default"; check with `grep -rn "telemetry by default" .`)
 
-- [ ] **Step 1: AGENTS.md.** Replace `- Do not add telemetry by default.` with:
+- [ ] **Step 1: AGENTS.md.** Replace the line that starts `- Do not add telemetry by default.` (with its note on this design) with:
 
 ```markdown
 - Analytics follow docs/product/analytics-and-crash-reporting.md: anonymous counts without an id (first launch, saved minutes) are on by default, said so in the consent prompt and can be turned off; anything else needs consent. No other telemetry.

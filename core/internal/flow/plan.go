@@ -87,8 +87,8 @@ func Scenarios(workflows []Workflow, repo Repo) []Scenario {
 					continue
 				}
 				for _, b := range e.Branches {
-					if literalName(b) {
-						count[b]++
+					if name, ok := exactName(b); ok {
+						count[name]++
 					} else if !strings.HasPrefix(b, "!") && !contains(patterns, b) {
 						patterns = append(patterns, b)
 					}
@@ -248,15 +248,21 @@ func Plan(s Scenario, workflows []Workflow, repo Repo, changes Changes) Flow {
 		}
 		lane, reason := match(s, w, repo, changes)
 		if reason == "" {
-			lane.Jobs = plannedJobs(w, runContext(s, repo, lane.Why, false))
+			lane.Jobs = plannedJobs(w, runContext(s, repo, lane.Why, nil))
 			direct = append(direct, lane)
 			in[w.Path] = true
 		}
 	}
-	// Chained lanes go right after the lane they follow, their own chains after them.
+	// Chained lanes go right after the lane they follow, their own chains
+	// after them. A chain its source's ref filters out keeps the reason.
 	var lanes []Lane
-	var chain func(source Lane, branch string)
-	chain = func(source Lane, branch string) {
+	chainSkipped := map[string]string{}
+	noun := "branch"
+	if s.Kind == Tag {
+		noun = "tag"
+	}
+	var chain func(source Lane, ref string)
+	chain = func(source Lane, ref string) {
 		for _, w := range workflows {
 			if in[w.Path] {
 				continue
@@ -265,7 +271,10 @@ func Plan(s Scenario, workflows []Workflow, repo Repo, changes Changes) Flow {
 			if !ok || !contains(e.Workflows, source.Name) {
 				continue
 			}
-			if ok, _, _ := refFilter(e.Branches, e.BranchesIgnore, branch, "branch"); !ok {
+			if ok, _, reason := refFilter("branches", e.Branches, e.BranchesIgnore, ref, noun); !ok {
+				if chainSkipped[w.Path] == "" {
+					chainSkipped[w.Path] = "after " + source.Name + ": " + reason
+				}
 				continue
 			}
 			// requested and in_progress start it with the source, not after it:
@@ -275,10 +284,10 @@ func Plan(s Scenario, workflows []Workflow, repo Repo, changes Changes) Flow {
 				why = joinWhy(why, "types "+strings.Join(e.Types, ", "))
 			}
 			lane := Lane{Path: w.Path, Name: w.Name, Kind: Chained, After: source.Name, AfterPath: source.Path, Why: why, ParseError: w.ParseError}
-			lane.Jobs = plannedJobs(w, runContext(s, repo, "workflow_run", true))
+			lane.Jobs = plannedJobs(w, runContext(s, repo, "workflow_run", &e))
 			in[w.Path] = true
 			lanes = append(lanes, lane)
-			chain(lane, branch)
+			chain(lane, ref)
 		}
 	}
 	for _, lane := range direct {
@@ -292,7 +301,7 @@ func Plan(s Scenario, workflows []Workflow, repo Repo, changes Changes) Flow {
 			continue
 		}
 		lane := Lane{Path: w.Path, Name: w.Name, Kind: ByHand, Why: "workflow_dispatch", ParseError: w.ParseError}
-		lane.Jobs = plannedJobs(w, runContext(Scenario{Manual, ""}, repo, "workflow_dispatch", false))
+		lane.Jobs = plannedJobs(w, runContext(Scenario{Manual, ""}, repo, "workflow_dispatch", nil))
 		in[w.Path] = true
 		lanes = append(lanes, lane)
 	}
@@ -307,23 +316,23 @@ func Plan(s Scenario, workflows []Workflow, repo Repo, changes Changes) Flow {
 			continue
 		}
 		if e, ok := w.Events["workflow_run"]; ok && len(w.Events) == 1 {
-			reason = chainReason(e, lanes, refName(s, repo))
+			reason = chainSkipped[w.Path]
+			if reason == "" {
+				reason = unchained(e, lanes)
+			}
 		}
 		f.Skipped = append(f.Skipped, SkippedWorkflow{w.Path, w.Name, reason})
 	}
 	return f
 }
 
-// chainReason says why a workflow_run workflow is not in the scenario: the
-// branch of a source in it is filtered out, or no source is in it.
-func chainReason(e Event, lanes []Lane, branch string) string {
+// unchained says why a workflow_run workflow follows no lane: its source is
+// started only by hand, or is not in the scenario.
+func unchained(e Event, lanes []Lane) string {
 	for _, source := range e.Workflows {
 		for _, l := range lanes {
-			if l.Name != source || l.Kind == ByHand {
-				continue
-			}
-			if ok, _, reason := refFilter(e.Branches, e.BranchesIgnore, branch, "branch"); !ok {
-				return "after " + source + ": " + reason
+			if l.Name == source && l.Kind == ByHand {
+				return "after " + source + ", which is started by hand"
 			}
 		}
 	}
@@ -384,10 +393,13 @@ func match(s Scenario, w Workflow, repo Repo, changes Changes) (Lane, string) {
 		e, push := w.Events["push"]
 		switch {
 		case push && (len(e.Tags) > 0 || len(e.TagsIgnore) > 0):
-			if ok, decided, reason := refFilter(e.Tags, e.TagsIgnore, s.Target, "tag"); ok {
+			ok, decided, reason := refFilter("tags", e.Tags, e.TagsIgnore, s.Target, "tag")
+			if ok {
 				lane.Why = joinWhy("push", tagsWhy(decided))
 				return lane, ""
-			} else {
+			}
+			// Publishing a release still starts it.
+			if _, release := w.Events["release"]; !release {
 				return lane, reason
 			}
 		case push && len(e.Branches) == 0 && len(e.BranchesIgnore) == 0:
@@ -409,7 +421,7 @@ func match(s Scenario, w Workflow, repo Repo, changes Changes) (Lane, string) {
 
 // checkEvent applies an event's ref and paths filters.
 func checkEvent(name string, e Event, ref, noun string, paths bool, changes Changes) (why, reason string) {
-	ok, decided, reason := refFilter(e.Branches, e.BranchesIgnore, ref, noun)
+	ok, decided, reason := refFilter("branches", e.Branches, e.BranchesIgnore, ref, noun)
 	if !ok {
 		return "", reason
 	}
@@ -498,14 +510,20 @@ func refName(s Scenario, repo Repo) string {
 	return s.Target
 }
 
-// runContext is the github context a scenario's run of a workflow sees.
-func runContext(s Scenario, repo Repo, why string, chained bool) Context {
+// runContext is the github context a scenario's run of a workflow sees. A
+// run chained by workflow_run (chain is its trigger) sees its source as the
+// plan does: succeeded once it completed, with no conclusion yet when it is
+// requested or in progress.
+func runContext(s Scenario, repo Repo, why string, chain *Event) Context {
 	ctx := Context{}
 	event := strings.SplitN(why, " ", 2)[0]
 	switch {
-	case chained:
+	case chain != nil:
 		ctx["github.event_name"] = "workflow_run"
-		ctx["github.event.workflow_run.conclusion"] = "success"
+		ctx["github.event.workflow_run.conclusion"] = nil
+		if completes(chain.Types) {
+			ctx["github.event.workflow_run.conclusion"] = "success"
+		}
 	case event != "":
 		ctx["github.event_name"] = event
 	}

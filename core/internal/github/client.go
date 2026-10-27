@@ -133,6 +133,13 @@ type Run struct {
 	WorkflowPath string
 }
 
+// OtherRepository: head, a lowercased "owner/name" a run's or a pull
+// request's head came from, is not repository (a fork's head). A head or a
+// repository GitHub did not say counts as the same.
+func OtherRepository(head, repository string) bool {
+	return head != "" && repository != "" && head != repository
+}
+
 type Step struct {
 	Number      int64
 	Name        string

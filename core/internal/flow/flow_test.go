@@ -30,6 +30,9 @@ func TestGitHubFilterPatterns(t *testing.T) {
 		{"*.js", "js/app.js", false}, {"**.js", "js/app.js", true},
 		{`\*`, "*", true}, {`\*`, "a", false}, {`docs/\*\*`, "docs/**", true}, {`docs/\*\*`, "docs/a", false},
 		{"a+", "aaa", true}, {"ab+", "a", false}, {"[", "[", true},
+		{"фича/*", "фича/x", true}, {"café", "café", true}, {"docs/日本語/**", "docs/日本語/a.md", true}, {"café?", "caf", true},
+		{`[\]]`, "]", true}, {`[\]]`, `\]`, false}, {`v[0\-9]`, "v-", true}, {`v[0\-9]`, "v5", false},
+		{"[]", "[]", true}, {"[a-c]", "b", true}, {`[\d]`, "d", true}, {`[\d]`, "5", false},
 	}
 	for _, c := range cases {
 		if got := globMatch(c.pattern, c.value); got != c.want {
@@ -45,16 +48,20 @@ func TestGitHubFilterPatterns(t *testing.T) {
 			t.Errorf("a later pattern takes %q back: %v, want %v", value, in, want)
 		}
 	}
-	for name, want := range map[string]bool{"main": true, "feature/x-1.2": true, "release/*": false, "v[0-9]": false, "!old": false, "": false} {
-		if literalName(name) != want {
-			t.Errorf("literalName(%q) = %v", name, !want)
+	for pattern, want := range map[string]string{"main": "main", "feature/x-1.2": "feature/x-1.2", `feature\-x`: "feature-x", "feat!x": "feat!x",
+		"release/*": "", "v[0-9]": "", "!old": "", "ab+": "", "": ""} {
+		if name, ok := exactName(pattern); name != want || ok != (want != "") {
+			t.Errorf("exactName(%q) = %q, %v", pattern, name, ok)
 		}
 	}
-	if ok, _, reason := refFilter([]string{"main"}, nil, "dev", "branch"); ok || reason != "branch dev does not match main" {
+	if ok, _, reason := refFilter("branches", []string{"main"}, nil, "dev", "branch"); ok || reason != "branch dev does not match main" {
 		t.Fatalf("reason = %q", reason)
 	}
-	if ok, _, reason := refFilter(nil, []string{"docs/**"}, "docs/x", "branch"); ok || reason != "branches-ignore docs/**" {
+	if ok, _, reason := refFilter("branches", nil, []string{"docs/**"}, "docs/x", "branch"); ok || reason != "branches-ignore docs/**" {
 		t.Fatalf("ignore reason = %q", reason)
+	}
+	if ok, _, reason := refFilter("branches", nil, []string{"v*"}, "v1", "tag"); ok || reason != "branches-ignore v*" {
+		t.Fatalf("a tag against branches-ignore = %q", reason)
 	}
 	if ok, reason := pathFilter(nil, []string{"**.md"}, []string{"README.md", "docs/a.md"}); ok || !strings.Contains(reason, "every changed file") {
 		t.Fatalf("paths-ignore = %v %q", ok, reason)
@@ -90,6 +97,7 @@ func TestConditionsReadWhatTheScenarioKnows(t *testing.T) {
 		"github.repository == 'o/r' || github.event_name == 'pull_request'": True,
 		"!cancelled()": Unknown,
 		"github.event['pull_request'].draft == false":                                    True,
+		"github['event.pull_request.draft'] == false":                                    Unknown,
 		"github['event_name'] == 'pull_request'":                                         True,
 		"format('{0}/{1}', github.base_ref, 'x') == 'main/x'":                            True,
 		"github.event_name == 'workflow_dispatch' && inputs.environment == 'production'": False,
@@ -349,13 +357,15 @@ func TestTargetsComeByNameThenTheDefaultThenPatterns(t *testing.T) {
 	ws := []Workflow{
 		Parse(".github/workflows/a.yml", []byte("on:\n  pull_request:\n    branches: [develop, 'release/**', '!release/old']\njobs: {a: {runs-on: x, steps: [{run: x}]}}\n")),
 		Parse(".github/workflows/b.yml", []byte("on:\n  pull_request:\n    branches: [develop, stable]\njobs: {a: {runs-on: x, steps: [{run: x}]}}\n")),
+		Parse(".github/workflows/c.yml", []byte("on:\n  pull_request:\n    branches: ['hot\\-fix']\njobs: {a: {runs-on: x, steps: [{run: x}]}}\n")),
 	}
 	var titles []string
 	for _, s := range Scenarios(ws, Repo{CurrentBranch: "feature/x", DefaultBranch: "main"}) {
 		titles = append(titles, s.Title())
 	}
 	// The default comes first, then names by how many workflows name them; !release/old is no target.
-	if want := []string{"Pull request → main", "Pull request → develop", "Pull request → stable", "Pull request → release/**"}; !reflect.DeepEqual(titles, want) {
+	// An escaped name is a name: the target is the branch, without the backslash.
+	if want := []string{"Pull request → main", "Pull request → develop", "Pull request → hot-fix", "Pull request → stable", "Pull request → release/**"}; !reflect.DeepEqual(titles, want) {
 		t.Fatalf("titles = %v", titles)
 	}
 }
@@ -493,6 +503,7 @@ func TestATagStartsPushesWithoutRefFilters(t *testing.T) {
 		Parse(".github/workflows/c.yml", []byte("name: Release\non:\n  release:\n    types: [published]\n"+job)),
 		Parse(".github/workflows/d.yml", []byte("name: Every push\non: push\n"+job)),
 		Parse(".github/workflows/e.yml", []byte("name: Go\non:\n  push:\n    paths: ['core/**']\n"+job)),
+		Parse(".github/workflows/f.yml", []byte("name: After tags\non:\n  workflow_run:\n    workflows: [Tags]\n    branches: [main]\n"+job)),
 	}
 	repo := Repo{CurrentBranch: "feature/x", DefaultBranch: "main"}
 	tag := Plan(Scenario{Tag, "v1.0"}, ws, repo, Changes{Known: true})
@@ -504,8 +515,17 @@ func TestATagStartsPushesWithoutRefFilters(t *testing.T) {
 	if want := []string{"Tags:push · tags v*", "Release:release", "Every push:push", "Go:push"}; !reflect.DeepEqual(lanes, want) {
 		t.Fatalf("lanes = %v", lanes)
 	}
-	if len(tag.Skipped) != 1 || tag.Skipped[0].Name != "Main" || tag.Skipped[0].Reason != "runs on branch pushes" {
-		t.Fatalf("skipped = %+v", tag.Skipped)
+	skipped := map[string]string{}
+	for _, s := range tag.Skipped {
+		skipped[s.Name] = s.Reason
+	}
+	// A tagged run's head_branch is the tag: workflow_run reads its branches filter against it.
+	if want := map[string]string{"Main": "runs on branch pushes", "After tags": "after Tags: tag v1.0 does not match main"}; !reflect.DeepEqual(skipped, want) {
+		t.Fatalf("skipped = %v", skipped)
+	}
+	both := Parse(".github/workflows/g.yml", []byte("name: Both\non:\n  push:\n    tags: ['v*']\n  release:\n    types: [published]\n"+job))
+	if f := Plan(Scenario{Tag, "2.0"}, []Workflow{both}, repo, Changes{Known: true}); len(f.Lanes) != 1 || f.Lanes[0].Why != "release" {
+		t.Fatalf("a release starts it although the tag does not match: %+v", f)
 	}
 	merge := Plan(Scenario{Merge, "main"}, ws, repo, Changes{Known: true, Files: []string{"README.md"}})
 	var names []string
@@ -519,14 +539,18 @@ func TestATagStartsPushesWithoutRefFilters(t *testing.T) {
 
 func TestChainsFollowTheirSourceOnItsBranch(t *testing.T) {
 	job := "jobs: {a: {runs-on: x, steps: [{run: x}]}}\n"
+	succeeded := "jobs:\n  a:\n    if: github.event.workflow_run.conclusion == 'success'\n    runs-on: x\n    steps: [{run: x}]\n"
 	ws := []Workflow{
 		Parse(".github/workflows/a.yml", []byte("name: CI\non: pull_request\n"+job)),
 		Parse(".github/workflows/b.yml", []byte("name: Report\non:\n  workflow_run:\n    workflows: [CI]\n    types: [completed]\n"+job)),
 		Parse(".github/workflows/c.yml", []byte("name: Notify\non:\n  workflow_run:\n    workflows: [Report]\n"+job)),
 		Parse(".github/workflows/d.yml", []byte("name: Main only\non:\n  workflow_run:\n    workflows: [CI]\n    branches: [main]\n"+job)),
-		Parse(".github/workflows/e.yml", []byte("name: Requested\non:\n  workflow_run:\n    workflows: [CI]\n    types: [requested]\n"+job)),
+		Parse(".github/workflows/e.yml", []byte("name: Requested\non:\n  workflow_run:\n    workflows: [CI]\n    types: [requested]\n"+succeeded)),
 		Parse(".github/workflows/f.yml", []byte("name: Nowhere\non:\n  workflow_run:\n    workflows: [Build]\n"+job)),
 		Parse(".github/workflows/g.yml", []byte("name: Lib\non: workflow_call\n"+job)),
+		Parse(".github/workflows/h.yml", []byte("name: Deploy\non: workflow_dispatch\n"+job)),
+		Parse(".github/workflows/i.yml", []byte("name: After deploy\non:\n  workflow_run:\n    workflows: [Deploy]\n"+job)),
+		Parse(".github/workflows/j.yml", []byte("name: Completed\non:\n  workflow_run:\n    workflows: [Notify]\n"+succeeded)),
 	}
 	f := Plan(Scenario{PullRequest, "main"}, ws, Repo{CurrentBranch: "feature/x", DefaultBranch: "main"}, Changes{Known: true})
 	var lanes []string
@@ -534,19 +558,26 @@ func TestChainsFollowTheirSourceOnItsBranch(t *testing.T) {
 		lanes = append(lanes, l.Name+"<"+l.After+":"+l.Why)
 	}
 	// requested starts with CI rather than after it, but in the scenario all the same.
-	if want := []string{"CI<:pull_request", "Report<CI:workflow_run", "Notify<Report:workflow_run", "Requested<CI:workflow_run · types requested"}; !reflect.DeepEqual(lanes, want) {
+	want := []string{"CI<:pull_request", "Report<CI:workflow_run", "Notify<Report:workflow_run", "Completed<Notify:workflow_run",
+		"Requested<CI:workflow_run · types requested", "Deploy<:workflow_dispatch"}
+	if !reflect.DeepEqual(lanes, want) {
 		t.Fatalf("lanes = %v", lanes)
+	}
+	// A requested run's source has no conclusion yet; a completed one succeeded in the plan.
+	if f.Lanes[4].Jobs[0].Skipped != "if: github.event.workflow_run.conclusion == 'success'" || f.Lanes[3].Jobs[0].Skipped != "" {
+		t.Fatalf("conditions = %+v / %+v", f.Lanes[4].Jobs, f.Lanes[3].Jobs)
 	}
 	skipped := map[string]string{}
 	for _, s := range f.Skipped {
 		skipped[s.Name] = s.Reason
 	}
-	want := map[string]string{
-		"Main only": "after CI: branch feature/x does not match main",
-		"Nowhere":   "after Build, which is not in this scenario",
-		"Lib":       "called by other workflows",
+	reasons := map[string]string{
+		"Main only":    "after CI: branch feature/x does not match main",
+		"Nowhere":      "after Build, which is not in this scenario",
+		"Lib":          "called by other workflows",
+		"After deploy": "after Deploy, which is started by hand",
 	}
-	if !reflect.DeepEqual(skipped, want) {
+	if !reflect.DeepEqual(skipped, reasons) {
 		t.Fatalf("skipped = %v", skipped)
 	}
 }
@@ -634,6 +665,18 @@ func TestGitListsTheFilesOfTheChange(t *testing.T) {
 	}
 	if head := g.Head(context.Background()); len(head) != 40 {
 		t.Fatalf("head = %q", head)
+	}
+	if up := g.UpstreamHead(context.Background()); up != "" {
+		t.Fatalf("an upstream without one: %q", up)
+	}
+	run("config", "branch.feature.remote", ".")
+	run("config", "branch.feature.merge", "refs/heads/main")
+	run("tag", "v1.0", "main")
+	if up := g.UpstreamHead(context.Background()); len(up) != 40 || up == g.Head(context.Background()) {
+		t.Fatalf("upstream head = %q", up)
+	}
+	if tags := g.Tags(context.Background()); !reflect.DeepEqual(tags, map[string]bool{"v1.0": true}) {
+		t.Fatalf("tags = %v", tags)
 	}
 	if none := (Git{Root: root}).Changes(context.Background(), "origin/main"); none.Known || none.Note != "git not found, so paths filters are unknown" {
 		t.Fatalf("without git = %+v", none)

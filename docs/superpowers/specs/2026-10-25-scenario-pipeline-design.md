@@ -63,10 +63,10 @@ Without `git`, or when it fails, `paths` filters are "unknown" and the summary s
 
 For each workflow and the scenario's event:
 
-1. The event is among its triggers (`pull_request` also matches `pull_request_target`; `MERGE` and `TAG` match `push`, and `TAG` also `release`; a `push` with tag filters only skips a merge, one with branch filters only skips a tag, one with neither runs for both). `types` that exclude the scenario's activity (`opened`/`synchronize` for pull requests) skip the workflow.
-2. Branch and tag filters (`branches`, `branches-ignore`, `tags`, `tags-ignore`) against the target, with GitHub's glob syntax (`*`, `**`, `?`, `+`, `[]`, `!`, `\` before a special character): the last matching pattern decides. For pull requests the filter is against the base.
+1. The event is among its triggers (`pull_request` also matches `pull_request_target`; `MERGE` and `TAG` match `push`, and `TAG` also `release`; a `push` with tag filters only skips a merge, one with branch filters only skips a tag, one with neither runs for both; a tag that misses the `tags` filter of a workflow with `release` too leaves it to the release). `types` that exclude the scenario's activity (`opened`/`synchronize` for pull requests) skip the workflow.
+2. Branch and tag filters (`branches`, `branches-ignore`, `tags`, `tags-ignore`) against the target, with GitHub's glob syntax (`*`, `**`, `?`, `+`, `[]`, `!`, `\` before a special character, inside a set too): the last matching pattern decides. An entry with escapes only (`hot\-fix`) names one branch, offered as a target without the backslash. For pull requests the filter is against the base.
 3. Path filters (`paths`, `paths-ignore`) against the changed files, same rules: the workflow runs if at least one file is included.
-4. Chains: a workflow with `workflow_run: {workflows: [...], types: [completed]}` naming a lane's workflow (by `name:`) becomes a chained lane after it, with its own `branches` filter against the source run's branch. `requested` or `in_progress` start it with the source rather than after it; it is a chained lane all the same, its reason naming the types. When the source is in the scenario and the branch filter is not met, the reason says so ("after CI: branch feature/x does not match main").
+4. Chains: a workflow with `workflow_run: {workflows: [...], types: [completed]}` naming a lane's workflow (by `name:`) becomes a chained lane after it, with its own `branches` filter against the source run's branch. `requested` or `in_progress` start it with the source rather than after it; it is a chained lane all the same, its reason naming the types. Its jobs' conditions see the source succeeded once it completed, and no conclusion yet for `requested` or `in_progress`. In a Tag scenario the `branches` filter is read against the tag, which is what a tagged run's `head_branch` holds. When the source is in the scenario and the filter is not met, the reason says so ("after CI: branch feature/x does not match main"); after a workflow started only by hand it reads "after Deploy, which is started by hand".
 5. Manual: workflows with only `workflow_dispatch` form the Manual section of every scenario; in the Manual scenario every `workflow_dispatch` workflow is a direct lane.
 
 A skipped workflow keeps a reason: "schedule only", "branch main does not match release/**", "excluded by !release/old/**", "paths apps/**: no changed file matches", "types: closed".
@@ -87,10 +87,10 @@ A skipped workflow keeps a reason: "schedule only", "branch main does not match 
 
 The Core adds statuses to a flow from the workspace cache (B26/B27, B30 links):
 
-- **Pull request → base**: the open pull request of the current branch into that base; its runs on its latest head commit. A fork's pull request or run from a branch of the same name is not the branch's. No such pull request: no status ("not run yet").
+- **Pull request → base**: the open pull request of the current branch into that base; its runs on its latest head commit. The branch's pull request is the one whose head is the commit checked out or last pushed, from this repository or the user's fork; else the one from this repository. Another fork's pull request or run from a branch of the same name is not the branch's. No such pull request: no status ("not run yet").
 - **Push**: the latest `push` runs on the branch.
 - **Merge into X**: when the branch's pull request was merged into X, the runs after merge on the merge commit; otherwise the latest `push` runs on X, labelled "last merge into X, not yours".
-- **Tag**: the latest runs on a tag or of `release`.
+- **Tag**: the latest runs on a tag or of `release`. GitHub names a push run by its ref only, so a push run counts as a tag's when the tag is known in the local repository or the workflow pushes only tags; a tag not fetched yet has no status.
 - **Manual**: the latest `workflow_dispatch` run of each manual workflow on the ref.
 - **Schedule**: the latest `schedule` run of each workflow.
 

@@ -9,7 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"runnir/core/internal/flow"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
+	"runnir/core/internal/github"
 )
 
 func TestTheFlowOfAScenarioCarriesTheNewestRunOfEachLane(t *testing.T) {
@@ -85,5 +87,59 @@ func TestTheFlowOfAScenarioCarriesTheNewestRunOfEachLane(t *testing.T) {
 	}
 	if _, err := client.GetFlow(ctx, &corev1.GetFlowRequest{RepositoryId: "repo_nope"}); err == nil {
 		t.Fatal("an unknown repository is refused")
+	}
+}
+
+func TestTheBranchsPullRequestIsKnownByItsHead(t *testing.T) {
+	own := github.RepositoryPullRequest{Number: 1, State: "open", HeadRef: "feature", HeadSHA: "a1", HeadRepository: "o/r", BaseRef: "main"}
+	mine := github.RepositoryPullRequest{Number: 2, State: "open", HeadRef: "feature", HeadSHA: "b2", HeadRepository: "me/r", BaseRef: "develop"}
+	stranger := github.RepositoryPullRequest{Number: 3, State: "open", HeadRef: "feature", HeadSHA: "c3", HeadRepository: "they/r", BaseRef: "release"}
+	closed := github.RepositoryPullRequest{Number: 4, State: "closed", HeadRef: "feature", HeadSHA: "b2", HeadRepository: "me/r"}
+	pulls := []github.RepositoryPullRequest{closed, stranger, mine, own}
+	// The user's fork: its head is the commit pushed last.
+	if p, ok := branchPullRequest(pulls, "feature", "o/r", "local", "b2"); !ok || p.Number != 2 {
+		t.Fatalf("pushed head = %+v %v", p, ok)
+	}
+	// Another head: the repository's own pull request, not a stranger's fork.
+	if p, ok := branchPullRequest(pulls, "feature", "o/r", "zz"); !ok || p.Number != 1 {
+		t.Fatalf("own = %+v %v", p, ok)
+	}
+	if p, ok := branchPullRequest([]github.RepositoryPullRequest{stranger}, "feature", "o/r", "zz"); ok {
+		t.Fatalf("a stranger's fork = %+v", p)
+	}
+	if _, ok := branchPullRequest(pulls, "", "o/r", "b2"); ok {
+		t.Fatal("a detached head has no pull request")
+	}
+}
+
+func TestALanesRunsAreItsScenarios(t *testing.T) {
+	runs := []github.Run{
+		{ID: 6, WorkflowID: 1, Event: "push", Branch: "v2-cleanup"},
+		{ID: 5, WorkflowID: 1, Event: "pull_request", Branch: "feature", HeadRepository: "they/r"},
+		{ID: 4, WorkflowID: 1, Event: "push", Branch: "v1.0"},
+		{ID: 3, WorkflowID: 1, Event: "pull_request", Branch: "feature", HeadRepository: "me/r"},
+		{ID: 2, WorkflowID: 1, Event: "pull_request", Branch: "feature", HeadRepository: "o/r"},
+	}
+	repo := flow.Repo{CurrentBranch: "feature", DefaultBranch: "main"}
+	newest := func(m laneRuns, tagsOnly bool) int64 {
+		r, _ := m.newest(flow.Direct, tagsOnly, 1, runs)
+		return r.ID
+	}
+	if id := newest(laneRuns{scenario: flow.Scenario{Kind: flow.PullRequest, Target: "main"}, repo: repo, headRepository: "o/r"}, false); id != 2 {
+		t.Fatalf("own repository = %d", id)
+	}
+	if id := newest(laneRuns{scenario: flow.Scenario{Kind: flow.PullRequest, Target: "main"}, repo: repo, headRepository: "me/r"}, false); id != 3 {
+		t.Fatalf("the user's fork = %d", id)
+	}
+	tag := flow.Scenario{Kind: flow.Tag, Target: "v*"}
+	// v2-cleanup is a branch: only a tag known here or a workflow of tags only says a push is a tag's.
+	if id := newest(laneRuns{scenario: tag, repo: repo, tags: map[string]bool{"v1.0": true}}, false); id != 4 {
+		t.Fatalf("known tag = %d", id)
+	}
+	if id := newest(laneRuns{scenario: tag, repo: repo}, false); id != 0 {
+		t.Fatalf("no tag known = %d", id)
+	}
+	if id := newest(laneRuns{scenario: tag, repo: repo}, true); id != 6 {
+		t.Fatalf("a workflow of tags only = %d", id)
 	}
 }

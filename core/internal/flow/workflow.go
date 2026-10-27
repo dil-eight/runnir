@@ -92,6 +92,13 @@ func (w Workflow) OnlyDispatch() bool {
 	return ok && len(w.Events) == 1
 }
 
+// PushesTagsOnly: its push trigger filters tags and no branches, so each of
+// its push runs is of a tag.
+func (w Workflow) PushesTagsOnly() bool {
+	e, ok := w.Events["push"]
+	return ok && (len(e.Tags) > 0 || len(e.TagsIgnore) > 0) && len(e.Branches) == 0 && len(e.BranchesIgnore) == 0
+}
+
 // events accepts every form of "on": a name, a list of names, or a mapping
 // of names to their filters.
 func events(node *yaml.Node) map[string]Event {

@@ -258,14 +258,15 @@ func (p *parser) primary() val {
 		return p.call(t.text)
 	}
 	// An index by a string, github['event_name'], reads as a property; any
-	// other index is beyond what the plan knows.
+	// other index, and a key with a dot, which no property name the plan
+	// knows has, is beyond what the plan knows.
 	name, known := strings.ToLower(t.text), true
 	for p.peek("[") {
 		p.pos++
 		key := p.or()
 		p.expect("]")
 		s, ok := key.value.(string)
-		known = known && ok && !key.unknown
+		known = known && ok && !key.unknown && !strings.Contains(s, ".")
 		name += "." + strings.ToLower(s)
 		if p.pos < len(p.tokens) && p.tokens[p.pos].kind == "ident" && strings.HasPrefix(p.tokens[p.pos].text, ".") {
 			name += strings.ToLower(p.tokens[p.pos].text)

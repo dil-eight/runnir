@@ -3,6 +3,8 @@ package changes
 import (
 	"fmt"
 	"strings"
+
+	"runnir/core/internal/github"
 )
 
 type NeedKind int
@@ -54,7 +56,7 @@ func Missing(in Input, a Analysis, max int) []Need {
 		switch {
 		case !isPullRequestEvent(r.Event) && in.DefaultBranch != "" && r.Branch == in.DefaultBranch && r.HeadSHA != "":
 			add(Need{Kind: NeedCommit, Key: "commit:" + r.HeadSHA, SHA: r.HeadSHA})
-		case r.Event == "pull_request" && r.HeadRepository != "" && r.HeadRepository != in.Repository && r.Branch != "":
+		case r.Event == "pull_request" && github.OtherRepository(r.HeadRepository, in.Repository) && r.Branch != "":
 			owner, _, _ := strings.Cut(r.HeadRepository, "/")
 			add(Need{Kind: NeedHead, Key: headKey(r.HeadRepository, r.Branch), HeadOwner: owner, Branch: r.Branch})
 		}
