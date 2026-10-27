@@ -45,7 +45,7 @@ jobs:
 
 func plan(t *testing.T, source, job, event string, report tools.Report, present func(string) bool) Plan {
 	t.Helper()
-	p, err := NewPlan(Request{WorkflowID: ".github/workflows/ci.yml", Source: []byte(source), JobID: job, Event: event}, report, false, present)
+	p, err := NewPlan(Request{WorkflowID: ".github/workflows/ci.yml", Source: []byte(source), JobID: job, Event: event}, report, false, present, Choose(nil, CeilingFor(report.Engine)))
 	if err != nil {
 		t.Fatalf("NewPlan = %v", err)
 	}
@@ -115,10 +115,10 @@ func TestChoosingAnUnsupportedJobBlocksTheRun(t *testing.T) {
 
 func TestUnknownJobAndEventAreErrors(t *testing.T) {
 	report := readyReport()
-	if _, err := NewPlan(Request{Source: []byte(ciWorkflow), JobID: "deploy"}, report, false, nil); !errors.Is(err, ErrUnknownJob) {
+	if _, err := NewPlan(Request{Source: []byte(ciWorkflow), JobID: "deploy"}, report, false, nil, Limits{}); !errors.Is(err, ErrUnknownJob) {
 		t.Fatalf("job err = %v", err)
 	}
-	if _, err := NewPlan(Request{Source: []byte(ciWorkflow), Event: "release"}, report, false, nil); !errors.Is(err, ErrUnknownEvent) {
+	if _, err := NewPlan(Request{Source: []byte(ciWorkflow), Event: "release"}, report, false, nil, Limits{}); !errors.Is(err, ErrUnknownEvent) {
 		t.Fatalf("event err = %v", err)
 	}
 }
@@ -196,11 +196,11 @@ jobs:
 }
 
 func TestLimitsFollowTheEngine(t *testing.T) {
-	limits := LimitsFor(tools.Engine{CPUs: 2, MemoryBytes: 4 << 30})
+	limits := Choose(nil, CeilingFor(tools.Engine{CPUs: 2, MemoryBytes: 4 << 30}))
 	if limits.CPUs != 2 || limits.MemoryBytes != 4<<30 {
 		t.Fatalf("limits = %+v", limits)
 	}
-	limits = LimitsFor(tools.Engine{})
+	limits = Choose(nil, CeilingFor(tools.Engine{}))
 	if limits.CPUs != DefaultCPUs || limits.MemoryBytes != DefaultMemoryBytes {
 		t.Fatalf("limits = %+v", limits)
 	}
@@ -214,7 +214,7 @@ func TestOddEventNamesAndJobIDsNeverReachAct(t *testing.T) {
 	if len(p.Events) != 1 || p.Events[0] != "push" {
 		t.Fatalf("events = %v", p.Events)
 	}
-	if _, err := NewPlan(Request{Source: []byte(source), Event: "--bind"}, readyReport(), false, nil); !errors.Is(err, ErrUnknownEvent) {
+	if _, err := NewPlan(Request{Source: []byte(source), Event: "--bind"}, readyReport(), false, nil, Limits{}); !errors.Is(err, ErrUnknownEvent) {
 		t.Fatalf("flag-like event = %v", err)
 	}
 

@@ -83,7 +83,7 @@ func e2eSpec(t *testing.T, jobID string) (*Spec, *Outputs, execution.Job) {
 		}
 	}
 
-	plan, err := NewPlan(Request{WorkflowID: ".github/workflows/e2e.yml", Source: []byte(e2eWorkflow), JobID: jobID}, report, false, nil)
+	plan, err := NewPlan(Request{WorkflowID: ".github/workflows/e2e.yml", Source: []byte(e2eWorkflow), JobID: jobID}, report, false, nil, Choose(nil, CeilingFor(report.Engine)))
 	if err != nil || !plan.Runnable() {
 		t.Fatalf("plan = %+v, %v", plan, err)
 	}

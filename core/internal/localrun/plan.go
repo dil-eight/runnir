@@ -78,18 +78,6 @@ type Limits struct {
 	Timeout     time.Duration
 }
 
-// LimitsFor caps the defaults at what the engine reports.
-func LimitsFor(engine tools.Engine) Limits {
-	limits := Limits{CPUs: DefaultCPUs, MemoryBytes: DefaultMemoryBytes, Timeout: DefaultTimeout}
-	if engine.CPUs > 0 && engine.CPUs < limits.CPUs {
-		limits.CPUs = engine.CPUs
-	}
-	if engine.MemoryBytes > 0 && engine.MemoryBytes < limits.MemoryBytes {
-		limits.MemoryBytes = engine.MemoryBytes
-	}
-	return limits
-}
-
 type Image struct {
 	Ref     string
 	Present bool
@@ -115,6 +103,13 @@ type Plan struct {
 	Notes          []string
 	Blockers       []string
 	Limits         Limits
+	// Ceiling is the most the engine allows; OwnLimits: the limits are the
+	// workspace's, not the defaults. LimitWarnings say what they risk and
+	// LimitNote what is worth reading about the engine; neither blocks a run.
+	Ceiling       Ceiling
+	OwnLimits     bool
+	LimitWarnings []string
+	LimitNote     string
 	// Digest is the SHA-256 of the workflow file the plan was made from.
 	Digest string
 }
@@ -130,13 +125,13 @@ type Request struct {
 	Event      string
 }
 
-// NewPlan reads the workflow and decides what a run would do. imagePresent
-// is only asked when the tools are ready, and may be nil. It returns ErrUnknownJob or
-// ErrUnknownEvent for a request that does not fit the workflow.
-func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePresent func(string) bool) (Plan, error) {
+// NewPlan reads the workflow and decides what a run would do with limits
+// (`Choose` makes them). imagePresent is only asked when the tools are ready,
+// and may be nil. It returns ErrUnknownJob or ErrUnknownEvent for a request
+// that does not fit the workflow.
+func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePresent func(string) bool, limits Limits) (Plan, error) {
 	digest := sha256.Sum256(request.Source)
-	plan := Plan{WorkflowID: request.WorkflowID, JobID: request.JobID, Digest: hex.EncodeToString(digest[:]),
-		Limits: LimitsFor(report.Engine)}
+	plan := Plan{WorkflowID: request.WorkflowID, JobID: request.JobID, Digest: hex.EncodeToString(digest[:]), Limits: limits}
 	plan.Blockers = toolBlockers(report, useInstalledAct)
 	if !report.Ready(useInstalledAct) {
 		imagePresent = nil

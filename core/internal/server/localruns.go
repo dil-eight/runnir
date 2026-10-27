@@ -77,7 +77,7 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 	}
 	plan, err := localrun.NewPlan(localrun.Request{
 		WorkflowID: workflow.ID, Source: source, JobID: request.GetJobId(), Event: request.GetEvent(),
-	}, report, useInstalled, imagePresent)
+	}, report, useInstalled, imagePresent, localrun.Choose(nil, localrun.CeilingFor(report.Engine)))
 	switch {
 	case errors.Is(err, localrun.ErrUnknownJob):
 		return nil, status.Error(codes.NotFound, "the workflow has no job with this id")
