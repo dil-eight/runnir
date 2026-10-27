@@ -92,4 +92,17 @@ import Testing
         #expect(second.entries.first?.read == true && second.unreadCount == 1)
         #expect(second.entries.last?.url?.absoluteString == "https://github.com/o/r/pull/1")
     }
+
+    @Test func timesAreWordedAsTheListShowsThem() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let now = Date(timeIntervalSince1970: 1_800_000_000) // a Friday, 08:00 UTC
+        func text(_ secondsAgo: TimeInterval) -> String { NotificationTime.text(now.addingTimeInterval(-secondsAgo), now: now, calendar: calendar) }
+        #expect(text(20) == "now")
+        #expect(text(2 * 60) == "2 min ago")
+        #expect(text(3 * 3600) == "3 h ago")
+        #expect(text(10 * 3600) == "Yesterday", "the evening before is yesterday, though not 24 hours ago")
+        #expect(text(2 * 86_400) == "2 days ago")
+        #expect(text(30 * 86_400) != "30 days ago", "a month back shows the date")
+    }
 }
