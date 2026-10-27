@@ -93,6 +93,15 @@ final class RunNotifier: NSObject, UNUserNotificationCenterDelegate {
     /// The category of run notifications: macOS tells the delegate when one
     /// is dismissed, which reads it in the bell too.
     static let categoryID = "dev.runnir.run"
+    /// Failed pull request checks also offer Open Run: the failed run, as a
+    /// click on the notification opens it.
+    static let failedChecksCategoryID = "dev.runnir.checks.failed"
+    static let openRunActionID = "dev.runnir.open-run"
+
+    /// The category a notification is posted in.
+    static func category(of notification: RunNotification) -> String {
+        notification.kind == .pullRequestChecks && !notification.succeeded && notification.url != nil ? failedChecksCategoryID : categoryID
+    }
 
     init(defaults: UserDefaults = .standard, deliver: ((RunNotification) -> Void)? = nil) {
         self.defaults = defaults
@@ -109,6 +118,9 @@ final class RunNotifier: NSObject, UNUserNotificationCenterDelegate {
         center.delegate = notifier
         center.setNotificationCategories([
             UNNotificationCategory(identifier: categoryID, actions: [], intentIdentifiers: [], options: [.customDismissAction]),
+            UNNotificationCategory(identifier: failedChecksCategoryID,
+                                   actions: [UNNotificationAction(identifier: openRunActionID, title: "Open Run", options: [.foreground])],
+                                   intentIdentifiers: [], options: [.customDismissAction]),
         ])
         return notifier
     }
@@ -132,7 +144,7 @@ final class RunNotifier: NSObject, UNUserNotificationCenterDelegate {
         content.body = notification.body
         content.sound = notification.succeeded ? nil : .default
         content.threadIdentifier = notification.kind == .pullRequestChecks ? "pull-request-checks" : "local-runs"
-        content.categoryIdentifier = Self.categoryID
+        content.categoryIdentifier = Self.category(of: notification)
         var info: [String: String] = [:]
         if let url = notification.url { info["url"] = url.absoluteString }
         if let workspace = notification.workspaceID { info["workspace"] = workspace.uuidString }

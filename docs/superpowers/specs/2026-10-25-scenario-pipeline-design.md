@@ -105,7 +105,7 @@ A local scenario run (below) replaces the GitHub statuses while it runs and afte
 - Header: the scenario picker (`Pull request → main ▾`, sections Pull request, Push, Merge into, Tag, Manual, Schedule; targets ordered as above), the branch, "12 files changed against main", **Run locally** and **Run Workflow…**.
 - Canvas, scrolling horizontally when wide. A lane: on the left its name, file, the latest run's status and why it runs (`pull_request · paths ✓`); then job columns with arrows. A node: status dot, name, duration, `×3` for a matrix, a hand icon and the environment for a gate, a dashed outline for "depends on a condition" (the condition in its help). Chained lanes sit under their source with an arrow from its last column and "after CI (success)". The Manual section lists manual lanes with **▷ Run** (GitHub's Run Workflow sheet, or locally in a local run).
 - "Not in this scenario": a folded row listing skipped workflows with their reasons.
-- A job opens its latest run's job in the Runs inspector, or its local output during a local run. A lane's name opens its file in the Workspace editor.
+- A job opens its log in a layer over the Overview, the same layer the Runs list shows over the run graph (the run's jobs and steps on the left, the log on the right), at its failed variant when it has one; a job the run does not have opens the run in Runs. During a local run it is to open the local output (not built). A lane's name opens its file in the Workspace editor.
 - Recent runs and Run manually stay below the canvas.
 - States: no workflows; a file that does not parse (its lane shows the error); `git` missing (paths "unknown"); cached or offline ("saved" statuses); statuses from another commit; a local run in progress.
 

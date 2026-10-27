@@ -23,6 +23,7 @@ The strip above the two islands (menu, content) holds, left to right: the window
 - The bell shows how many notifications are unread (a badge with the number; none when zero). A click opens a list over the window: newest first, each with a kind icon, title, body, time and an unread dot; **Mark all as read**; a link to Settings › Notifications.
 - It lists what Runnir sends as system notifications (S19): pull request checks and local runs. Kinds turned off in Settings are not sent and so are not listed.
 - Choosing an entry does what clicking the system notification does (opens the pull request on GitHub, or shows the workspace of a local run) and marks it read.
+- A system notification of failed pull request checks also has an Open Run button (S19): it opens the failed run, as a click on the notification does, and reads the entry. The list matches the canvas: a panel of Runnir's own under the top strip (an opaque surface with a border and a shadow, no arrow), closed by a click outside it, Escape or the bell; the bell is pressed while it is open, the entry under the pointer is highlighted, passed and failed show as outlined icons, times read "2 min ago", "Yesterday", "2 days ago".
 
 ### When a notification counts as read
 
