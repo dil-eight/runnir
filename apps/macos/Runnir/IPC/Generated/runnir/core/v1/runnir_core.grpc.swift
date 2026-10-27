@@ -481,6 +481,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "GetFlow" metadata.
+        internal enum GetFlow: Sendable {
+            /// Request type for "GetFlow".
+            internal typealias Input = Runnir_Core_V1_GetFlowRequest
+            /// Response type for "GetFlow".
+            internal typealias Output = Runnir_Core_V1_GetFlowResponse
+            /// Descriptor for "GetFlow".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "GetFlow",
+                type: .unary
+            )
+        }
         /// Namespace for "ListGitHubRefs" metadata.
         internal enum ListGitHubRefs: Sendable {
             /// Request type for "ListGitHubRefs".
@@ -739,6 +752,7 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             ListWorkflowRuns.descriptor,
             ListRunJobs.descriptor,
             GetRunWorkflow.descriptor,
+            GetFlow.descriptor,
             ListGitHubRefs.descriptor,
             DescribeWorkflowDispatch.descriptor,
             PrepareWorkflowDispatch.descriptor,
@@ -1424,6 +1438,31 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetRunWorkflowRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetRunWorkflowResponse>
+
+        /// Handle the "GetFlow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The pipeline of the current branch's change in a scenario (a pull
+        /// > request into a base, a push, a merge, a tag, a manual start, the
+        /// > schedule): the workflows it starts as lanes of jobs in columns by needs,
+        /// > chained workflows after their source, workflows run by hand, and the
+        /// > workflows it skips with the reason. Planned from the working tree's
+        /// > workflow files and the files the change touches (git); each lane carries
+        /// > the newest saved run of its workflow for the scenario. Reads nothing
+        /// > from GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_GetFlowRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_GetFlowResponse` messages.
+        func getFlow(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetFlowRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetFlowResponse>
 
         /// Handle the "ListGitHubRefs" method.
         ///
@@ -2392,6 +2431,31 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetRunWorkflowResponse>
 
+        /// Handle the "GetFlow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The pipeline of the current branch's change in a scenario (a pull
+        /// > request into a base, a push, a merge, a tag, a manual start, the
+        /// > schedule): the workflows it starts as lanes of jobs in columns by needs,
+        /// > chained workflows after their source, workflows run by hand, and the
+        /// > workflows it skips with the reason. Planned from the working tree's
+        /// > workflow files and the files the change touches (git); each lane carries
+        /// > the newest saved run of its workflow for the scenario. Reads nothing
+        /// > from GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetFlowRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_GetFlowResponse` message.
+        func getFlow(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_GetFlowRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetFlowResponse>
+
         /// Handle the "ListGitHubRefs" method.
         ///
         /// > Source IDL Documentation:
@@ -3358,6 +3422,31 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_GetRunWorkflowResponse
 
+        /// Handle the "GetFlow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The pipeline of the current branch's change in a scenario (a pull
+        /// > request into a base, a push, a merge, a tag, a manual start, the
+        /// > schedule): the workflows it starts as lanes of jobs in columns by needs,
+        /// > chained workflows after their source, workflows run by hand, and the
+        /// > workflows it skips with the reason. Planned from the working tree's
+        /// > workflow files and the files the change touches (git); each lane carries
+        /// > the newest saved run of its workflow for the scenario. Reads nothing
+        /// > from GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_GetFlowRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_GetFlowResponse` to respond with.
+        func getFlow(
+            request: Runnir_Core_V1_GetFlowRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_GetFlowResponse
+
         /// Handle the "ListGitHubRefs" method.
         ///
         /// > Source IDL Documentation:
@@ -4065,6 +4154,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.GetFlow.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetFlowRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetFlowResponse>(),
+            handler: { request, context in
+                try await self.getFlow(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.ListGitHubRefs.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListGitHubRefsRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListGitHubRefsResponse>(),
@@ -4636,6 +4736,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetRunWorkflowResponse> {
         let response = try await self.getRunWorkflow(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func getFlow(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetFlowRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_GetFlowResponse> {
+        let response = try await self.getFlow(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -5285,6 +5396,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetRunWorkflowResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_GetRunWorkflowResponse>(
             message: try await self.getRunWorkflow(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func getFlow(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_GetFlowRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_GetFlowResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_GetFlowResponse>(
+            message: try await self.getFlow(
                 request: request.message,
                 context: context
             ),
@@ -6339,6 +6463,36 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetRunWorkflowResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetRunWorkflowResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "GetFlow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The pipeline of the current branch's change in a scenario (a pull
+        /// > request into a base, a push, a merge, a tag, a manual start, the
+        /// > schedule): the workflows it starts as lanes of jobs in columns by needs,
+        /// > chained workflows after their source, workflows run by hand, and the
+        /// > workflows it skips with the reason. Planned from the working tree's
+        /// > workflow files and the files the change touches (git); each lane carries
+        /// > the newest saved run of its workflow for the scenario. Reads nothing
+        /// > from GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetFlowRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetFlowRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetFlowResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func getFlow<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetFlowRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetFlowRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetFlowResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetFlowResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "ListGitHubRefs" method.
@@ -7959,6 +8113,47 @@ extension Runnir_Core_V1_RunnirCore {
             )
         }
 
+        /// Call the "GetFlow" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The pipeline of the current branch's change in a scenario (a pull
+        /// > request into a base, a push, a merge, a tag, a manual start, the
+        /// > schedule): the workflows it starts as lanes of jobs in columns by needs,
+        /// > chained workflows after their source, workflows run by hand, and the
+        /// > workflows it skips with the reason. Planned from the working tree's
+        /// > workflow files and the files the change touches (git); each lane carries
+        /// > the newest saved run of its workflow for the scenario. Reads nothing
+        /// > from GitHub.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetFlowRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetFlowRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_GetFlowResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func getFlow<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetFlowRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetFlowRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_GetFlowResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetFlowResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.GetFlow.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
         /// Call the "ListGitHubRefs" method.
         ///
         /// > Source IDL Documentation:
@@ -9572,6 +9767,42 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetRunWorkflowRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetRunWorkflowResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetFlow" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The pipeline of the current branch's change in a scenario (a pull
+    /// > request into a base, a push, a merge, a tag, a manual start, the
+    /// > schedule): the workflows it starts as lanes of jobs in columns by needs,
+    /// > chained workflows after their source, workflows run by hand, and the
+    /// > workflows it skips with the reason. Planned from the working tree's
+    /// > workflow files and the files the change touches (git); each lane carries
+    /// > the newest saved run of its workflow for the scenario. Reads nothing
+    /// > from GitHub.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_GetFlowRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getFlow<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_GetFlowRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetFlowResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.getFlow(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetFlowRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetFlowResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -11243,6 +11474,46 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.getRunWorkflow(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetFlow" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The pipeline of the current branch's change in a scenario (a pull
+    /// > request into a base, a push, a merge, a tag, a manual start, the
+    /// > schedule): the workflows it starts as lanes of jobs in columns by needs,
+    /// > chained workflows after their source, workflows run by hand, and the
+    /// > workflows it skips with the reason. Planned from the working tree's
+    /// > workflow files and the files the change touches (git); each lane carries
+    /// > the newest saved run of its workflow for the scenario. Reads nothing
+    /// > from GitHub.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getFlow<Result>(
+        _ message: Runnir_Core_V1_GetFlowRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_GetFlowResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_GetFlowRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.getFlow(
             request: request,
             options: options,
             onResponse: handleResponse

@@ -446,6 +446,108 @@ nonisolated enum Runnir_Core_V1_RunStatusGroup: SwiftProtobuf.Enum, Swift.CaseIt
 
 }
 
+nonisolated enum Runnir_Core_V1_ScenarioKind: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+  case pullRequest // = 1
+  case push // = 2
+  case merge // = 3
+  case tag // = 4
+  case manual // = 5
+  case schedule // = 6
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .pullRequest
+    case 2: self = .push
+    case 3: self = .merge
+    case 4: self = .tag
+    case 5: self = .manual
+    case 6: self = .schedule
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .pullRequest: return 1
+    case .push: return 2
+    case .merge: return 3
+    case .tag: return 4
+    case .manual: return 5
+    case .schedule: return 6
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_ScenarioKind] = [
+    .unspecified,
+    .pullRequest,
+    .push,
+    .merge,
+    .tag,
+    .manual,
+    .schedule,
+  ]
+
+}
+
+nonisolated enum Runnir_Core_V1_LaneKind: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+
+  /// The scenario's event starts it.
+  case direct // = 1
+
+  /// workflow_run starts it after another lane.
+  case chained // = 2
+
+  /// It starts only by hand, outside the scenario.
+  case byHand // = 3
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .direct
+    case 2: self = .chained
+    case 3: self = .byHand
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .direct: return 1
+    case .chained: return 2
+    case .byHand: return 3
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_LaneKind] = [
+    .unspecified,
+    .direct,
+    .chained,
+    .byHand,
+  ]
+
+}
+
 nonisolated enum Runnir_Core_V1_DispatchInputType: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
   case unspecified // = 0
@@ -2508,6 +2610,210 @@ nonisolated struct Runnir_Core_V1_GetRunWorkflowResponse: Sendable {
   init() {}
 
   fileprivate var _status: Runnir_Core_V1_GitHubStatus? = nil
+}
+
+nonisolated struct Runnir_Core_V1_GetFlowRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var repositoryID: String = String()
+
+  /// Unset: the default scenario of the branch.
+  var scenario: Runnir_Core_V1_Scenario {
+    get {_scenario ?? Runnir_Core_V1_Scenario()}
+    set {_scenario = newValue}
+  }
+  /// Returns true if `scenario` has been explicitly set.
+  var hasScenario: Bool {self._scenario != nil}
+  /// Clears the value of `scenario`. Subsequent reads from it will return its default value.
+  mutating func clearScenario() {self._scenario = nil}
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _scenario: Runnir_Core_V1_Scenario? = nil
+}
+
+nonisolated struct Runnir_Core_V1_Scenario: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var kind: Runnir_Core_V1_ScenarioKind = .unspecified
+
+  /// The pull request's base, the branch pushed or merged into, the tag;
+  /// empty for a manual start and the schedule.
+  var target: String = String()
+
+  /// "Pull request → main"; set in responses.
+  var title: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_FlowChanges: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// The scenario reads paths filters (pull requests, pushes, merges).
+  var applies: Bool = false
+
+  /// git said which files changed; otherwise paths filters are unknown.
+  var known: Bool = false
+
+  var count: UInt32 = 0
+
+  /// What the files were compared with: "origin/main".
+  var against: String = String()
+
+  /// Why the files are not known.
+  var note: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_FlowJob: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var id: String = String()
+
+  var name: String = String()
+
+  var needs: [String] = []
+
+  /// The job's depth by needs.
+  var column: Int32 = 0
+
+  /// Runs of the matrix; 0 without one, -1 when known only at run time.
+  var matrix: Int32 = 0
+
+  /// The environment a gate deploys to.
+  var environment: String = String()
+
+  /// The if the job depends on, when the scenario cannot tell.
+  var condition: String = String()
+
+  /// Why the job does not run in the scenario; empty when it runs.
+  var skipped: String = String()
+
+  /// Started by hand: its if requires workflow_dispatch with these inputs.
+  var manual: Bool = false
+
+  var manualInputs: Dictionary<String,String> = [:]
+
+  /// The reusable workflow the job calls.
+  var uses: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_FlowLane: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var workflowPath: String = String()
+
+  var workflowName: String = String()
+
+  var kind: Runnir_Core_V1_LaneKind = .unspecified
+
+  /// The lane a chained lane follows, by name and file.
+  var after: String = String()
+
+  var afterPath: String = String()
+
+  /// What starts it: "pull_request · branches main · paths ✓".
+  var why: String = String()
+
+  var jobs: [Runnir_Core_V1_FlowJob] = []
+
+  /// The newest saved run of the workflow for the scenario; unset for none.
+  var run: Runnir_Core_V1_WorkflowRun {
+    get {_run ?? Runnir_Core_V1_WorkflowRun()}
+    set {_run = newValue}
+  }
+  /// Returns true if `run` has been explicitly set.
+  var hasRun: Bool {self._run != nil}
+  /// Clears the value of `run`. Subsequent reads from it will return its default value.
+  mutating func clearRun() {self._run = nil}
+
+  /// The run is on another commit than the one checked out: its short SHA.
+  var statusesFrom: String = String()
+
+  var parseError: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _run: Runnir_Core_V1_WorkflowRun? = nil
+}
+
+nonisolated struct Runnir_Core_V1_SkippedWorkflow: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var workflowPath: String = String()
+
+  var workflowName: String = String()
+
+  var reason: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_GetFlowResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// The scenarios of the branch, the default first.
+  var scenarios: [Runnir_Core_V1_Scenario] = []
+
+  /// The scenario planned; unset when the workflows react to nothing.
+  var scenario: Runnir_Core_V1_Scenario {
+    get {_scenario ?? Runnir_Core_V1_Scenario()}
+    set {_scenario = newValue}
+  }
+  /// Returns true if `scenario` has been explicitly set.
+  var hasScenario: Bool {self._scenario != nil}
+  /// Clears the value of `scenario`. Subsequent reads from it will return its default value.
+  mutating func clearScenario() {self._scenario = nil}
+
+  var changes: Runnir_Core_V1_FlowChanges {
+    get {_changes ?? Runnir_Core_V1_FlowChanges()}
+    set {_changes = newValue}
+  }
+  /// Returns true if `changes` has been explicitly set.
+  var hasChanges: Bool {self._changes != nil}
+  /// Clears the value of `changes`. Subsequent reads from it will return its default value.
+  mutating func clearChanges() {self._changes = nil}
+
+  var lanes: [Runnir_Core_V1_FlowLane] = []
+
+  var skipped: [Runnir_Core_V1_SkippedWorkflow] = []
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _scenario: Runnir_Core_V1_Scenario? = nil
+  fileprivate var _changes: Runnir_Core_V1_FlowChanges? = nil
 }
 
 nonisolated struct Runnir_Core_V1_ListRunJobsResponse: Sendable {
@@ -4868,6 +5174,14 @@ nonisolated extension Runnir_Core_V1_PullRequestCi: SwiftProtobuf._ProtoNameProv
 
 nonisolated extension Runnir_Core_V1_RunStatusGroup: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0RUN_STATUS_GROUP_UNSPECIFIED\0\u{1}RUN_STATUS_GROUP_SUCCESS\0\u{1}RUN_STATUS_GROUP_FAILED\0\u{1}RUN_STATUS_GROUP_CANCELLED\0\u{1}RUN_STATUS_GROUP_RUNNING\0\u{1}RUN_STATUS_GROUP_QUEUED\0\u{1}RUN_STATUS_GROUP_SKIPPED\0")
+}
+
+nonisolated extension Runnir_Core_V1_ScenarioKind: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0SCENARIO_KIND_UNSPECIFIED\0\u{1}SCENARIO_KIND_PULL_REQUEST\0\u{1}SCENARIO_KIND_PUSH\0\u{1}SCENARIO_KIND_MERGE\0\u{1}SCENARIO_KIND_TAG\0\u{1}SCENARIO_KIND_MANUAL\0\u{1}SCENARIO_KIND_SCHEDULE\0")
+}
+
+nonisolated extension Runnir_Core_V1_LaneKind: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0LANE_KIND_UNSPECIFIED\0\u{1}LANE_KIND_DIRECT\0\u{1}LANE_KIND_CHAINED\0\u{1}LANE_KIND_BY_HAND\0")
 }
 
 nonisolated extension Runnir_Core_V1_DispatchInputType: SwiftProtobuf._ProtoNameProviding {
@@ -7384,6 +7698,388 @@ nonisolated extension Runnir_Core_V1_GetRunWorkflowResponse: SwiftProtobuf.Messa
     if lhs.workflowPath != rhs.workflowPath {return false}
     if lhs.jobs != rhs.jobs {return false}
     if lhs.problem != rhs.problem {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_GetFlowRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".GetFlowRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{1}scenario\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.repositoryID) }()
+      case 2: try { try decoder.decodeSingularMessageField(value: &self._scenario) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if !self.repositoryID.isEmpty {
+      try visitor.visitSingularStringField(value: self.repositoryID, fieldNumber: 1)
+    }
+    try { if let v = self._scenario {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_GetFlowRequest, rhs: Runnir_Core_V1_GetFlowRequest) -> Bool {
+    if lhs.repositoryID != rhs.repositoryID {return false}
+    if lhs._scenario != rhs._scenario {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_Scenario: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".Scenario"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}kind\0\u{1}target\0\u{1}title\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.kind) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.target) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.title) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.kind != .unspecified {
+      try visitor.visitSingularEnumField(value: self.kind, fieldNumber: 1)
+    }
+    if !self.target.isEmpty {
+      try visitor.visitSingularStringField(value: self.target, fieldNumber: 2)
+    }
+    if !self.title.isEmpty {
+      try visitor.visitSingularStringField(value: self.title, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_Scenario, rhs: Runnir_Core_V1_Scenario) -> Bool {
+    if lhs.kind != rhs.kind {return false}
+    if lhs.target != rhs.target {return false}
+    if lhs.title != rhs.title {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_FlowChanges: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".FlowChanges"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}applies\0\u{1}known\0\u{1}count\0\u{1}against\0\u{1}note\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularBoolField(value: &self.applies) }()
+      case 2: try { try decoder.decodeSingularBoolField(value: &self.known) }()
+      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.count) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.against) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.note) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.applies != false {
+      try visitor.visitSingularBoolField(value: self.applies, fieldNumber: 1)
+    }
+    if self.known != false {
+      try visitor.visitSingularBoolField(value: self.known, fieldNumber: 2)
+    }
+    if self.count != 0 {
+      try visitor.visitSingularUInt32Field(value: self.count, fieldNumber: 3)
+    }
+    if !self.against.isEmpty {
+      try visitor.visitSingularStringField(value: self.against, fieldNumber: 4)
+    }
+    if !self.note.isEmpty {
+      try visitor.visitSingularStringField(value: self.note, fieldNumber: 5)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_FlowChanges, rhs: Runnir_Core_V1_FlowChanges) -> Bool {
+    if lhs.applies != rhs.applies {return false}
+    if lhs.known != rhs.known {return false}
+    if lhs.count != rhs.count {return false}
+    if lhs.against != rhs.against {return false}
+    if lhs.note != rhs.note {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_FlowJob: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".FlowJob"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}needs\0\u{1}column\0\u{1}matrix\0\u{1}environment\0\u{1}condition\0\u{1}skipped\0\u{1}manual\0\u{3}manual_inputs\0\u{1}uses\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 3: try { try decoder.decodeRepeatedStringField(value: &self.needs) }()
+      case 4: try { try decoder.decodeSingularInt32Field(value: &self.column) }()
+      case 5: try { try decoder.decodeSingularInt32Field(value: &self.matrix) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.environment) }()
+      case 7: try { try decoder.decodeSingularStringField(value: &self.condition) }()
+      case 8: try { try decoder.decodeSingularStringField(value: &self.skipped) }()
+      case 9: try { try decoder.decodeSingularBoolField(value: &self.manual) }()
+      case 10: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.manualInputs) }()
+      case 11: try { try decoder.decodeSingularStringField(value: &self.uses) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.id.isEmpty {
+      try visitor.visitSingularStringField(value: self.id, fieldNumber: 1)
+    }
+    if !self.name.isEmpty {
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 2)
+    }
+    if !self.needs.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.needs, fieldNumber: 3)
+    }
+    if self.column != 0 {
+      try visitor.visitSingularInt32Field(value: self.column, fieldNumber: 4)
+    }
+    if self.matrix != 0 {
+      try visitor.visitSingularInt32Field(value: self.matrix, fieldNumber: 5)
+    }
+    if !self.environment.isEmpty {
+      try visitor.visitSingularStringField(value: self.environment, fieldNumber: 6)
+    }
+    if !self.condition.isEmpty {
+      try visitor.visitSingularStringField(value: self.condition, fieldNumber: 7)
+    }
+    if !self.skipped.isEmpty {
+      try visitor.visitSingularStringField(value: self.skipped, fieldNumber: 8)
+    }
+    if self.manual != false {
+      try visitor.visitSingularBoolField(value: self.manual, fieldNumber: 9)
+    }
+    if !self.manualInputs.isEmpty {
+      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.manualInputs, fieldNumber: 10)
+    }
+    if !self.uses.isEmpty {
+      try visitor.visitSingularStringField(value: self.uses, fieldNumber: 11)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_FlowJob, rhs: Runnir_Core_V1_FlowJob) -> Bool {
+    if lhs.id != rhs.id {return false}
+    if lhs.name != rhs.name {return false}
+    if lhs.needs != rhs.needs {return false}
+    if lhs.column != rhs.column {return false}
+    if lhs.matrix != rhs.matrix {return false}
+    if lhs.environment != rhs.environment {return false}
+    if lhs.condition != rhs.condition {return false}
+    if lhs.skipped != rhs.skipped {return false}
+    if lhs.manual != rhs.manual {return false}
+    if lhs.manualInputs != rhs.manualInputs {return false}
+    if lhs.uses != rhs.uses {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_FlowLane: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".FlowLane"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_path\0\u{3}workflow_name\0\u{1}kind\0\u{1}after\0\u{3}after_path\0\u{1}why\0\u{1}jobs\0\u{1}run\0\u{3}statuses_from\0\u{3}parse_error\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.workflowPath) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.workflowName) }()
+      case 3: try { try decoder.decodeSingularEnumField(value: &self.kind) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.after) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.afterPath) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.why) }()
+      case 7: try { try decoder.decodeRepeatedMessageField(value: &self.jobs) }()
+      case 8: try { try decoder.decodeSingularMessageField(value: &self._run) }()
+      case 9: try { try decoder.decodeSingularStringField(value: &self.statusesFrom) }()
+      case 10: try { try decoder.decodeSingularStringField(value: &self.parseError) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if !self.workflowPath.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowPath, fieldNumber: 1)
+    }
+    if !self.workflowName.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowName, fieldNumber: 2)
+    }
+    if self.kind != .unspecified {
+      try visitor.visitSingularEnumField(value: self.kind, fieldNumber: 3)
+    }
+    if !self.after.isEmpty {
+      try visitor.visitSingularStringField(value: self.after, fieldNumber: 4)
+    }
+    if !self.afterPath.isEmpty {
+      try visitor.visitSingularStringField(value: self.afterPath, fieldNumber: 5)
+    }
+    if !self.why.isEmpty {
+      try visitor.visitSingularStringField(value: self.why, fieldNumber: 6)
+    }
+    if !self.jobs.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.jobs, fieldNumber: 7)
+    }
+    try { if let v = self._run {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 8)
+    } }()
+    if !self.statusesFrom.isEmpty {
+      try visitor.visitSingularStringField(value: self.statusesFrom, fieldNumber: 9)
+    }
+    if !self.parseError.isEmpty {
+      try visitor.visitSingularStringField(value: self.parseError, fieldNumber: 10)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_FlowLane, rhs: Runnir_Core_V1_FlowLane) -> Bool {
+    if lhs.workflowPath != rhs.workflowPath {return false}
+    if lhs.workflowName != rhs.workflowName {return false}
+    if lhs.kind != rhs.kind {return false}
+    if lhs.after != rhs.after {return false}
+    if lhs.afterPath != rhs.afterPath {return false}
+    if lhs.why != rhs.why {return false}
+    if lhs.jobs != rhs.jobs {return false}
+    if lhs._run != rhs._run {return false}
+    if lhs.statusesFrom != rhs.statusesFrom {return false}
+    if lhs.parseError != rhs.parseError {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_SkippedWorkflow: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".SkippedWorkflow"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_path\0\u{3}workflow_name\0\u{1}reason\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.workflowPath) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.workflowName) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.reason) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.workflowPath.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowPath, fieldNumber: 1)
+    }
+    if !self.workflowName.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowName, fieldNumber: 2)
+    }
+    if !self.reason.isEmpty {
+      try visitor.visitSingularStringField(value: self.reason, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_SkippedWorkflow, rhs: Runnir_Core_V1_SkippedWorkflow) -> Bool {
+    if lhs.workflowPath != rhs.workflowPath {return false}
+    if lhs.workflowName != rhs.workflowName {return false}
+    if lhs.reason != rhs.reason {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_GetFlowResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".GetFlowResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}scenarios\0\u{1}scenario\0\u{1}changes\0\u{1}lanes\0\u{1}skipped\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeRepeatedMessageField(value: &self.scenarios) }()
+      case 2: try { try decoder.decodeSingularMessageField(value: &self._scenario) }()
+      case 3: try { try decoder.decodeSingularMessageField(value: &self._changes) }()
+      case 4: try { try decoder.decodeRepeatedMessageField(value: &self.lanes) }()
+      case 5: try { try decoder.decodeRepeatedMessageField(value: &self.skipped) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if !self.scenarios.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.scenarios, fieldNumber: 1)
+    }
+    try { if let v = self._scenario {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+    } }()
+    try { if let v = self._changes {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
+    } }()
+    if !self.lanes.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.lanes, fieldNumber: 4)
+    }
+    if !self.skipped.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.skipped, fieldNumber: 5)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_GetFlowResponse, rhs: Runnir_Core_V1_GetFlowResponse) -> Bool {
+    if lhs.scenarios != rhs.scenarios {return false}
+    if lhs._scenario != rhs._scenario {return false}
+    if lhs._changes != rhs._changes {return false}
+    if lhs.lanes != rhs.lanes {return false}
+    if lhs.skipped != rhs.skipped {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

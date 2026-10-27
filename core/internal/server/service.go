@@ -51,6 +51,9 @@ type service struct {
 	saveMu sync.Mutex
 	// workflowFiles keeps the workflow files read at a run's commit.
 	workflowFiles workflowFileCache
+	// gitPath is the git binary scenarios read changed files with, found on first use.
+	gitOnce sync.Once
+	gitPath string
 }
 
 func (s *service) HealthCheck(context.Context, *corev1.HealthCheckRequest) (*corev1.HealthCheckResponse, error) {

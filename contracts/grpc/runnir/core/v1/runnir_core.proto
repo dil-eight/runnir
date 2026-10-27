@@ -129,6 +129,15 @@ service RunnirCore {
   // problem, when the file cannot be read there (a commit GitHub no longer
   // serves, a fork's run, a file that does not parse).
   rpc GetRunWorkflow(GetRunWorkflowRequest) returns (GetRunWorkflowResponse);
+  // The pipeline of the current branch's change in a scenario (a pull
+  // request into a base, a push, a merge, a tag, a manual start, the
+  // schedule): the workflows it starts as lanes of jobs in columns by needs,
+  // chained workflows after their source, workflows run by hand, and the
+  // workflows it skips with the reason. Planned from the working tree's
+  // workflow files and the files the change touches (git); each lane carries
+  // the newest saved run of its workflow for the scenario. Reads nothing
+  // from GitHub.
+  rpc GetFlow(GetFlowRequest) returns (GetFlowResponse);
 
   // Branches and tags a workflow can run on.
   rpc ListGitHubRefs(ListGitHubRefsRequest) returns (ListGitHubRefsResponse);
@@ -751,6 +760,107 @@ message GetRunWorkflowResponse {
   repeated Job jobs = 3;
   // Why there are no jobs; empty when the file was read and parsed.
   string problem = 4;
+}
+
+message GetFlowRequest {
+  string repository_id = 1;
+  // Unset: the default scenario of the branch.
+  Scenario scenario = 2;
+}
+
+enum ScenarioKind {
+  SCENARIO_KIND_UNSPECIFIED = 0;
+  SCENARIO_KIND_PULL_REQUEST = 1;
+  SCENARIO_KIND_PUSH = 2;
+  SCENARIO_KIND_MERGE = 3;
+  SCENARIO_KIND_TAG = 4;
+  SCENARIO_KIND_MANUAL = 5;
+  SCENARIO_KIND_SCHEDULE = 6;
+}
+
+message Scenario {
+  ScenarioKind kind = 1;
+  // The pull request's base, the branch pushed or merged into, the tag;
+  // empty for a manual start and the schedule.
+  string target = 2;
+  // "Pull request → main"; set in responses.
+  string title = 3;
+}
+
+message FlowChanges {
+  // The scenario reads paths filters (pull requests, pushes, merges).
+  bool applies = 1;
+  // git said which files changed; otherwise paths filters are unknown.
+  bool known = 2;
+  uint32 count = 3;
+  // What the files were compared with: "origin/main".
+  string against = 4;
+  // Why the files are not known.
+  string note = 5;
+}
+
+enum LaneKind {
+  LANE_KIND_UNSPECIFIED = 0;
+  // The scenario's event starts it.
+  LANE_KIND_DIRECT = 1;
+  // workflow_run starts it after another lane.
+  LANE_KIND_CHAINED = 2;
+  // It starts only by hand, outside the scenario.
+  LANE_KIND_BY_HAND = 3;
+}
+
+message FlowJob {
+  string id = 1;
+  string name = 2;
+  repeated string needs = 3;
+  // The job's depth by needs.
+  int32 column = 4;
+  // Runs of the matrix; 0 without one, -1 when known only at run time.
+  int32 matrix = 5;
+  // The environment a gate deploys to.
+  string environment = 6;
+  // The if the job depends on, when the scenario cannot tell.
+  string condition = 7;
+  // Why the job does not run in the scenario; empty when it runs.
+  string skipped = 8;
+  // Started by hand: its if requires workflow_dispatch with these inputs.
+  bool manual = 9;
+  map<string, string> manual_inputs = 10;
+  // The reusable workflow the job calls.
+  string uses = 11;
+}
+
+message FlowLane {
+  string workflow_path = 1;
+  string workflow_name = 2;
+  LaneKind kind = 3;
+  // The lane a chained lane follows, by name and file.
+  string after = 4;
+  string after_path = 5;
+  // What starts it: "pull_request · branches main · paths ✓".
+  string why = 6;
+  repeated FlowJob jobs = 7;
+  // The newest saved run of the workflow for the scenario; unset for none.
+  WorkflowRun run = 8;
+  // The run is on another commit than the one checked out: its short SHA.
+  string statuses_from = 9;
+  string parse_error = 10;
+}
+
+message SkippedWorkflow {
+  string workflow_path = 1;
+  string workflow_name = 2;
+  string reason = 3;
+}
+
+message GetFlowResponse {
+  // The scenarios of the branch, the default first.
+  repeated Scenario scenarios = 1;
+  // The scenario planned; unset when the workflows react to nothing.
+  Scenario scenario = 2;
+  FlowChanges changes = 3;
+  repeated FlowLane lanes = 4;
+  repeated SkippedWorkflow skipped = 5;
 }
 
 message ListRunJobsResponse {

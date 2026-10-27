@@ -425,6 +425,13 @@ func (r *Runtime) Snapshot(ctx context.Context, limit int) (Snapshot, error) {
 	return snap, nil
 }
 
+// Saved reads the workspace's saved activity as it is: the newest runs, the
+// workflows, the pull requests and the default branch, whatever the access
+// to GitHub now.
+func (r *Runtime) Saved(ctx context.Context) (store.Activity, error) {
+	return r.cfg.store.Activity(ctx, store.MaxRuns)
+}
+
 // ClearCache empties the workspace's cache and syncs again.
 func (r *Runtime) ClearCache(ctx context.Context) error {
 	if err := r.cfg.store.ClearCache(ctx); err != nil {
