@@ -1,6 +1,6 @@
 # Global search and the notification bell (B43, B44)
 
-Status: built, with the gaps listed under "Not built". The bell (B44): the list, the badge, the read rules and the reconcile; they have not been tried against real macOS notifications. The global search (B43): the field, the layer (S20), `SearchWorkspaces` in the Core, the settings list. The bell's list is not drawn on the canvas.
+Status: built, with the gaps listed under "Not built". The bell (B44): the list, the badge, the read rules and the reconcile; they have not been tried against real macOS notifications. The global search (B43): the field, the layer (S20), `SearchWorkspaces` in the Core, the settings list. The bell's list is drawn in journey F of the canvas (Row — Notification bell: unread, all read, nothing yet, and when an entry counts as read).
 
 ## The top strip
 

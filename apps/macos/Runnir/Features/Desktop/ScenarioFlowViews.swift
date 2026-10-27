@@ -18,8 +18,14 @@ struct ScenarioFlowView: View {
     /// What starting a manual job did, by workflow path.
     @State private var manualMessages: [String: String] = [:]
     @State private var startingJobID: String?
+    /// The width the view has, for the layout below.
+    @State private var width: CGFloat = 0
 
     static let headerWidth: CGFloat = 300
+    static let headerGap: CGFloat = 24
+    static let nodeWidth: CGFloat = 200
+    /// Between two columns: the gaps around the arrow and the arrow.
+    static let columnGap: CGFloat = 31
 
     private var workspaceID: UUID { model.workspaceID }
 
@@ -29,6 +35,21 @@ struct ScenarioFlowView: View {
             DesignDivider()
             content
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+    }
+
+    /// How wide a lane's jobs are: their columns of nodes with the arrows between.
+    static func jobsWidth(_ jobs: [CoreFlowJob]) -> CGFloat {
+        let columns = CGFloat(ScenarioFlowModel.columns(jobs).count)
+        return columns * nodeWidth + max(0, columns - 1) * columnGap
+    }
+
+    /// Too narrow for the widest lane beside its heading: every heading goes
+    /// above its jobs, which then scroll sideways when they still do not fit.
+    /// All lanes switch together, so they keep one layout.
+    private var stacked: Bool {
+        guard width > 0, let widest = model.flow?.lanes.map({ Self.jobsWidth($0.jobs) }).max() else { return false }
+        return Self.headerWidth + Self.headerGap + widest + 16 > width
     }
 
     // MARK: Scenario
@@ -99,20 +120,35 @@ struct ScenarioFlowView: View {
 
     // MARK: A lane
 
-    private func laneRow(_ lane: CoreFlowLane) -> some View {
-        HStack(alignment: .top, spacing: 24) {
-            laneHeader(lane).frame(width: Self.headerWidth, alignment: .leading)
-            VStack(alignment: .leading, spacing: 8) {
-                ScrollView(.horizontal) { jobColumns(lane) }.scrollIndicators(.hidden)
-                if let message = manualMessages[lane.path] {
-                    Label(message, systemImage: "play.circle")
-                        .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).textSelection(.enabled)
+    @ViewBuilder private func laneRow(_ lane: CoreFlowLane) -> some View {
+        Group {
+            if stacked {
+                VStack(alignment: .leading, spacing: 12) {
+                    laneHeader(lane).frame(maxWidth: .infinity, alignment: .leading)
+                    laneJobs(lane)
+                }
+            } else {
+                HStack(alignment: .top, spacing: Self.headerGap) {
+                    laneHeader(lane).frame(width: Self.headerWidth, alignment: .leading)
+                    laneJobs(lane)
                 }
             }
         }
         .padding(.vertical, 16).padding(.horizontal, 8)
         .background(selectedPath == lane.path ? RunnirTheme.selected.opacity(0.6) : .clear, in: RoundedRectangle(cornerRadius: 8))
         .id(lane.path)
+    }
+
+    private func laneJobs(_ lane: CoreFlowLane) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Jobs wider than the room scroll sideways, with a visible bar.
+            ScrollView(.horizontal) { jobColumns(lane).padding(.bottom, stacked ? 10 : 0) }
+                .scrollIndicators(stacked ? .visible : .hidden)
+            if let message = manualMessages[lane.path] {
+                Label(message, systemImage: "play.circle")
+                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).textSelection(.enabled)
+            }
+        }
     }
 
     private func laneHeader(_ lane: CoreFlowLane) -> some View {
@@ -308,16 +344,24 @@ struct ScenarioFlowView: View {
             .buttonStyle(.hit)
             if showingSkipped {
                 ForEach(workflows) { workflow in
-                    HStack(alignment: .firstTextBaseline, spacing: 24) {
-                        Button { openFile(workflow.path) } label: {
-                            Text(workflow.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                        }
-                        .buttonStyle(.hit).help("Open \(workflow.path) in the Workspace editor")
-                        .padding(.leading, 18).frame(width: Self.headerWidth, alignment: .leading)
-                        Text(workflow.reason).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
+                    let name = Button { openFile(workflow.path) } label: {
+                        Text(workflow.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
                     }
+                    .buttonStyle(.hit).help("Open \(workflow.path) in the Workspace editor")
+                    let reason = Text(workflow.reason).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        .fixedSize(horizontal: false, vertical: true)
+                    // The reason lines up with the jobs above, or goes under the name with them.
+                    Group {
+                        if stacked {
+                            VStack(alignment: .leading, spacing: 4) { name; reason }.padding(.leading, 18)
+                        } else {
+                            HStack(alignment: .firstTextBaseline, spacing: Self.headerGap) {
+                                name.padding(.leading, 18).frame(width: Self.headerWidth, alignment: .leading)
+                                reason
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 8).padding(.horizontal, 8)
                     DesignDivider()
                 }
