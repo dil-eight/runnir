@@ -1,6 +1,6 @@
 # Global search and the notification bell (B43, B44)
 
-Status: design agreed, drawn on one screen only (S03 Overview, "Islands layout, proposal"), not implemented.
+Status: design agreed, drawn on one screen only (S03 Overview, "Islands layout, proposal") and as the results layer (S20), not implemented. The bell's list is not drawn yet.
 
 ## The top strip
 
