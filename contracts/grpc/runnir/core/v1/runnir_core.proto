@@ -1257,6 +1257,19 @@ message LocalRunPlan {
   // The workflow reads secrets it does not name (toJSON(secrets), secrets:
   // inherit); only the listed ones can be passed.
   bool unnamed_secrets = 19;
+  // The most a run gets here: the engine's CPUs and memory (0 when it did
+  // not say) and 6 hours.
+  uint32 max_cpus = 20;
+  uint64 max_memory_bytes = 21;
+  uint32 max_timeout_seconds = 22;
+  // The limits are the workspace's own, not the defaults; confirming the run
+  // keeps them for the workspace.
+  bool own_limits = 23;
+  // What these limits risk on this engine; they never block the run.
+  repeated string limit_warnings = 24;
+  // A line worth reading without opening the limits: an engine smaller than
+  // a default, or one that does not say what it has.
+  string limit_note = 25;
 }
 
 message PrepareLocalRunRequest {
@@ -1270,6 +1283,18 @@ message PrepareLocalRunRequest {
   // Experimental: run with the act installed on this computer when one is
   // usable, instead of the bundled act.
   bool use_installed_act = 5;
+  // Limits asked for; unset: the workspace's, else the defaults. The Core
+  // caps them at the engine and rounds them to their steps.
+  LocalRunLimits limits = 6;
+  // Plan with the defaults; confirming the run forgets the workspace's limits.
+  bool reset_limits = 7;
+}
+
+// CPUs, memory and timeout of a local run.
+message LocalRunLimits {
+  uint32 cpus = 1;
+  uint64 memory_bytes = 2;
+  uint32 timeout_seconds = 3;
 }
 
 message PrepareLocalRunResponse {

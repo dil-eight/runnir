@@ -322,3 +322,66 @@ func TestLocalRunTakesValuesForPlanNamesOnly(t *testing.T) {
 		t.Fatal("a value is in the run's output message")
 	}
 }
+
+func TestLocalRunLimitsAreAskedCappedAndKeptForTheWorkspace(t *testing.T) {
+	path := socketPath(t)
+	fake := readyTools()
+	done := execution.RunnerFunc(func(context.Context, execution.Job) error { return nil })
+	stop := startWith(t, path, Options{Runner: done, Tools: fake, Home: "/Users/me", ActCache: "/cache/act", DataDir: t.TempDir()})
+	defer stop()
+	client := connect(t, path)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	root := repoWithWorkflows(t, map[string]string{"ci.yml": localWorkflow})
+	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: root, WorkspaceId: testWorkspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepare := func(request *corev1.PrepareLocalRunRequest) *corev1.PrepareLocalRunResponse {
+		t.Helper()
+		request.RepositoryId, request.WorkflowId, request.JobId = opened.Repository.Id, ".github/workflows/ci.yml", "lint"
+		prepared, err := client.PrepareLocalRun(ctx, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return prepared
+	}
+	confirm := func(prepared *corev1.PrepareLocalRunResponse) {
+		t.Helper()
+		if _, err := client.ConfirmLocalRun(ctx, &corev1.ConfirmLocalRunRequest{ConfirmationId: prepared.ConfirmationId}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	defaults := prepare(&corev1.PrepareLocalRunRequest{}).Plan
+	if defaults.Cpus != 4 || defaults.MemoryBytes != 8<<30 || defaults.OwnLimits || defaults.MaxCpus != 8 ||
+		defaults.MaxMemoryBytes != 16<<30 || defaults.MaxTimeoutSeconds != 6*3600 || len(defaults.LimitWarnings) != 0 || defaults.LimitNote != "" {
+		t.Fatalf("defaults = %v", defaults)
+	}
+
+	// Asked above the engine: capped, with what it risks.
+	asked := prepare(&corev1.PrepareLocalRunRequest{Limits: &corev1.LocalRunLimits{Cpus: 12, MemoryBytes: 15 << 30, TimeoutSeconds: 3600}})
+	plan := asked.Plan
+	if plan.Cpus != 8 || plan.MemoryBytes != 15<<30 || plan.TimeoutSeconds != 3600 || !plan.OwnLimits || len(plan.LimitWarnings) != 2 {
+		t.Fatalf("asked = %v", plan)
+	}
+	// Not kept until a run with them is confirmed.
+	if again := prepare(&corev1.PrepareLocalRunRequest{}).Plan; again.OwnLimits {
+		t.Fatalf("kept before a confirmed run: %v", again)
+	}
+	confirm(asked)
+	kept := prepare(&corev1.PrepareLocalRunRequest{}).Plan
+	if !kept.OwnLimits || kept.Cpus != 8 || kept.MemoryBytes != 15<<30 || kept.TimeoutSeconds != 3600 {
+		t.Fatalf("kept = %v", kept)
+	}
+
+	// Reset plans the defaults and, once confirmed, forgets the workspace's.
+	reset := prepare(&corev1.PrepareLocalRunRequest{ResetLimits: true})
+	if reset.Plan.OwnLimits || reset.Plan.Cpus != 4 {
+		t.Fatalf("reset = %v", reset.Plan)
+	}
+	confirm(reset)
+	if after := prepare(&corev1.PrepareLocalRunRequest{}).Plan; after.OwnLimits || after.Cpus != 4 {
+		t.Fatalf("after reset = %v", after)
+	}
+}
