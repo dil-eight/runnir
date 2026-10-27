@@ -40,6 +40,12 @@ service RunnirCore {
   // creation time from the cursor, filtered by GitHub where it can and by the
   // Core for the rest. Every run read is added to the search index.
   rpc SearchRunsOnGitHub(SearchRunsOnGitHubRequest) returns (SearchRunsOnGitHubResponse);
+  // Searches the saved data of several workspaces at once, for the global
+  // search: runs (with the query grammar of SearchRuns), pull requests,
+  // workflows and local runs. An open workspace answers from its live store,
+  // a closed one from its database opened read-only. Reads nothing from
+  // GitHub and takes no workspace lock.
+  rpc SearchWorkspaces(SearchWorkspacesRequest) returns (SearchWorkspacesResponse);
   // Forgets the search index of workspaces (all when none are named).
   rpc ClearRunIndex(ClearRunIndexRequest) returns (ClearRunIndexResponse);
   // What workspaces keep on this Mac, by id; empty ids: every workspace with
@@ -1490,6 +1496,67 @@ message SearchRunsOnGitHubResponse {
   uint32 runs_read = 6;
   SearchStop stop = 7;
   repeated string problems = 8;
+}
+
+message SearchWorkspacesRequest {
+  string query = 1;
+  // Empty: every workspace.
+  repeated string workspace_ids = 2;
+  // At most this many hits of each kind per workspace; 0 is 8, at most 50.
+  uint32 limit_per_kind = 3;
+}
+
+message SearchWorkspacesResponse {
+  // One entry per workspace searched, in the order of the request.
+  repeated WorkspaceSearchHits workspaces = 1;
+  repeated string problems = 2;
+}
+
+message WorkspaceSearchHits {
+  string workspace_id = 1;
+  // The workspace is open in this process; otherwise its data was read from
+  // disk as the last session left it.
+  bool open = 2;
+  // "owner/name" of the saved data; empty when nothing was saved.
+  string repository = 3;
+  // When the saved data was last read from GitHub.
+  google.protobuf.Timestamp saved_at = 4;
+  // Set when the workspace could not be searched, as text for the person.
+  string problem = 5;
+  repeated WorkflowRun runs = 6;
+  uint32 runs_matched = 7;
+  repeated SearchedPullRequest pull_requests = 8;
+  uint32 pull_requests_matched = 9;
+  repeated GitHubWorkflow workflows = 10;
+  uint32 workflows_matched = 11;
+  repeated SearchedLocalRun local_runs = 12;
+  uint32 local_runs_matched = 13;
+}
+
+// A pull request as the activity cache saved it.
+message SearchedPullRequest {
+  int64 number = 1;
+  string title = 2;
+  // "open", "closed" or "merged".
+  string state = 3;
+  bool draft = 4;
+  string author = 5;
+  string head_ref = 6;
+  string base_ref = 7;
+  string html_url = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// A local run as the workspace's history keeps it; its output is not kept.
+message SearchedLocalRun {
+  string execution_id = 1;
+  string workflow_path = 2;
+  string job_id = 3;
+  string event = 4;
+  // "queued", "running", "succeeded", "failed", "cancelled" or "interrupted".
+  string state = 5;
+  string message = 6;
+  google.protobuf.Timestamp started_at = 7;
 }
 
 message ClearRunIndexRequest {

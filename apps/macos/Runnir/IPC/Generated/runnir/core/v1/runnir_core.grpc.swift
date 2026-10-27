@@ -143,6 +143,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "SearchWorkspaces" metadata.
+        internal enum SearchWorkspaces: Sendable {
+            /// Request type for "SearchWorkspaces".
+            internal typealias Input = Runnir_Core_V1_SearchWorkspacesRequest
+            /// Response type for "SearchWorkspaces".
+            internal typealias Output = Runnir_Core_V1_SearchWorkspacesResponse
+            /// Descriptor for "SearchWorkspaces".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "SearchWorkspaces",
+                type: .unary
+            )
+        }
         /// Namespace for "ClearRunIndex" metadata.
         internal enum ClearRunIndex: Sendable {
             /// Request type for "ClearRunIndex".
@@ -700,6 +713,7 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             LoadOlderRuns.descriptor,
             SearchRuns.descriptor,
             SearchRunsOnGitHub.descriptor,
+            SearchWorkspaces.descriptor,
             ClearRunIndex.descriptor,
             GetStorageUsage.descriptor,
             ClearWorkspaceCache.descriptor,
@@ -928,6 +942,28 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SearchRunsOnGitHubRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse>
+
+        /// Handle the "SearchWorkspaces" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the saved data of several workspaces at once, for the global
+        /// > search: runs (with the query grammar of SearchRuns), pull requests,
+        /// > workflows and local runs. An open workspace answers from its live store,
+        /// > a closed one from its database opened read-only. Reads nothing from
+        /// > GitHub and takes no workspace lock.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_SearchWorkspacesRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_SearchWorkspacesResponse` messages.
+        func searchWorkspaces(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SearchWorkspacesRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SearchWorkspacesResponse>
 
         /// Handle the "ClearRunIndex" method.
         ///
@@ -1874,6 +1910,28 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse>
 
+        /// Handle the "SearchWorkspaces" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the saved data of several workspaces at once, for the global
+        /// > search: runs (with the query grammar of SearchRuns), pull requests,
+        /// > workflows and local runs. An open workspace answers from its live store,
+        /// > a closed one from its database opened read-only. Reads nothing from
+        /// > GitHub and takes no workspace lock.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SearchWorkspacesRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_SearchWorkspacesResponse` message.
+        func searchWorkspaces(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_SearchWorkspacesRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SearchWorkspacesResponse>
+
         /// Handle the "ClearRunIndex" method.
         ///
         /// > Source IDL Documentation:
@@ -2817,6 +2875,28 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_SearchRunsOnGitHubResponse
 
+        /// Handle the "SearchWorkspaces" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the saved data of several workspaces at once, for the global
+        /// > search: runs (with the query grammar of SearchRuns), pull requests,
+        /// > workflows and local runs. An open workspace answers from its live store,
+        /// > a closed one from its database opened read-only. Reads nothing from
+        /// > GitHub and takes no workspace lock.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_SearchWorkspacesRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_SearchWorkspacesResponse` to respond with.
+        func searchWorkspaces(
+            request: Runnir_Core_V1_SearchWorkspacesRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_SearchWorkspacesResponse
+
         /// Handle the "ClearRunIndex" method.
         ///
         /// > Source IDL Documentation:
@@ -3699,6 +3779,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.SearchWorkspaces.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SearchWorkspacesRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SearchWorkspacesResponse>(),
+            handler: { request, context in
+                try await self.searchWorkspaces(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.ClearRunIndex.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ClearRunIndexRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ClearRunIndexResponse>(),
@@ -4259,6 +4350,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse> {
         let response = try await self.searchRunsOnGitHub(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func searchWorkspaces(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SearchWorkspacesRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SearchWorkspacesResponse> {
+        let response = try await self.searchWorkspaces(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -4841,6 +4943,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse>(
             message: try await self.searchRunsOnGitHub(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func searchWorkspaces(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_SearchWorkspacesRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SearchWorkspacesResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_SearchWorkspacesResponse>(
+            message: try await self.searchWorkspaces(
                 request: request.message,
                 context: context
             ),
@@ -5612,6 +5727,33 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SearchRunsOnGitHubResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchRunsOnGitHubResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "SearchWorkspaces" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the saved data of several workspaces at once, for the global
+        /// > search: runs (with the query grammar of SearchRuns), pull requests,
+        /// > workflows and local runs. An open workspace answers from its live store,
+        /// > a closed one from its database opened read-only. Reads nothing from
+        /// > GitHub and takes no workspace lock.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SearchWorkspacesRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SearchWorkspacesRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_SearchWorkspacesResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func searchWorkspaces<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SearchWorkspacesRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SearchWorkspacesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SearchWorkspacesResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchWorkspacesResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "ClearRunIndex" method.
@@ -6914,6 +7056,44 @@ extension Runnir_Core_V1_RunnirCore {
             try await self.client.unary(
                 request: request,
                 descriptor: Runnir_Core_V1_RunnirCore.Method.SearchRunsOnGitHub.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "SearchWorkspaces" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Searches the saved data of several workspaces at once, for the global
+        /// > search: runs (with the query grammar of SearchRuns), pull requests,
+        /// > workflows and local runs. An open workspace answers from its live store,
+        /// > a closed one from its database opened read-only. Reads nothing from
+        /// > GitHub and takes no workspace lock.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SearchWorkspacesRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SearchWorkspacesRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_SearchWorkspacesResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func searchWorkspaces<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SearchWorkspacesRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SearchWorkspacesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SearchWorkspacesResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchWorkspacesResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.SearchWorkspaces.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -8631,6 +8811,39 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "SearchWorkspaces" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Searches the saved data of several workspaces at once, for the global
+    /// > search: runs (with the query grammar of SearchRuns), pull requests,
+    /// > workflows and local runs. An open workspace answers from its live store,
+    /// > a closed one from its database opened read-only. Reads nothing from
+    /// > GitHub and takes no workspace lock.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_SearchWorkspacesRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func searchWorkspaces<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_SearchWorkspacesRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchWorkspacesResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.searchWorkspaces(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SearchWorkspacesRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SearchWorkspacesResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "ClearRunIndex" method.
     ///
     /// > Source IDL Documentation:
@@ -10160,6 +10373,43 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.searchRunsOnGitHub(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SearchWorkspaces" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Searches the saved data of several workspaces at once, for the global
+    /// > search: runs (with the query grammar of SearchRuns), pull requests,
+    /// > workflows and local runs. An open workspace answers from its live store,
+    /// > a closed one from its database opened read-only. Reads nothing from
+    /// > GitHub and takes no workspace lock.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func searchWorkspaces<Result>(
+        _ message: Runnir_Core_V1_SearchWorkspacesRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SearchWorkspacesResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_SearchWorkspacesRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.searchWorkspaces(
             request: request,
             options: options,
             onResponse: handleResponse

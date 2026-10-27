@@ -264,6 +264,26 @@ func wordMatches(r Record, word string) bool {
 	return false
 }
 
+// MatchFields says whether every word of the query is found in one of the
+// fields, for things that are not runs: pull requests, workflows, local
+// runs. A word "#12" also matches the number 12. A query of qualifiers only,
+// which only runs have, matches none of them.
+func (q Query) MatchFields(number int64, fields ...string) bool {
+	if len(q.Words) == 0 {
+		return false
+	}
+	for _, word := range q.Words {
+		found := number > 0 && (word == "#"+strconv.FormatInt(number, 10) || word == strconv.FormatInt(number, 10))
+		for _, field := range fields {
+			found = found || strings.Contains(strings.ToLower(field), word)
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
 func isHex(word string) bool {
 	for _, r := range word {
 		if !unicode.Is(unicode.ASCII_Hex_Digit, r) {

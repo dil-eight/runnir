@@ -90,3 +90,39 @@ func (s *service) ClearRunIndex(ctx context.Context, request *corev1.ClearRunInd
 	}
 	return &corev1.ClearRunIndexResponse{Workspaces: storageMessages(usage)}, nil
 }
+
+func (s *service) SearchWorkspaces(ctx context.Context, request *corev1.SearchWorkspacesRequest) (*corev1.SearchWorkspacesResponse, error) {
+	q := runsearch.Parse(request.GetQuery())
+	found, err := s.workspaces.SearchAll(ctx, request.GetWorkspaceIds(), request.GetQuery(), int(request.GetLimitPerKind()))
+	if err != nil {
+		return nil, storageError(err)
+	}
+	out := &corev1.SearchWorkspacesResponse{Problems: q.Problems}
+	for _, w := range found {
+		hits := &corev1.WorkspaceSearchHits{
+			WorkspaceId: w.WorkspaceID, Open: w.Open, Repository: w.Repository, SavedAt: timestamp(w.SavedAt), Problem: w.Problem,
+			RunsMatched: uint32(w.RunsMatched), PullRequestsMatched: uint32(w.PullRequestsMatched),
+			WorkflowsMatched: uint32(w.WorkflowsMatched), LocalRunsMatched: uint32(w.LocalRunsMatched),
+		}
+		for _, run := range w.Runs {
+			hits.Runs = append(hits.Runs, runMessage(run))
+		}
+		for _, p := range w.PullRequests {
+			hits.PullRequests = append(hits.PullRequests, &corev1.SearchedPullRequest{
+				Number: p.Number, Title: p.Title, State: p.State, Draft: p.Draft, Author: p.Author, HeadRef: p.HeadRef,
+				BaseRef: p.BaseRef, HtmlUrl: p.HTMLURL, UpdatedAt: timestamp(p.UpdatedAt),
+			})
+		}
+		for _, wf := range w.Workflows {
+			hits.Workflows = append(hits.Workflows, &corev1.GitHubWorkflow{Id: wf.ID, Name: wf.Name, Path: wf.Path, State: wf.State, HtmlUrl: wf.HTMLURL})
+		}
+		for _, r := range w.LocalRuns {
+			hits.LocalRuns = append(hits.LocalRuns, &corev1.SearchedLocalRun{
+				ExecutionId: r.ExecutionID, WorkflowPath: r.WorkflowPath, JobId: r.JobID, Event: r.Event, State: r.State,
+				Message: r.Message, StartedAt: timestamp(r.StartedAt),
+			})
+		}
+		out.Workspaces = append(out.Workspaces, hits)
+	}
+	return out, nil
+}

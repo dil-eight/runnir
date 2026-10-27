@@ -63,6 +63,8 @@ type Store struct {
 	lock   *fileLock
 	now    func() time.Time
 	report Report
+	// readOnly: opened by OpenReadOnly; Close leaves the files as they are.
+	readOnly bool
 
 	closeOnce sync.Once
 	closeErr  error
@@ -274,7 +276,7 @@ func (s *Store) Dir() string { return s.dir }
 // Calling it again does nothing.
 func (s *Store) Close() error {
 	s.closeOnce.Do(func() {
-		if s.dir != "" {
+		if s.dir != "" && !s.readOnly {
 			_ = s.writeLocalBackup(context.Background())
 			_, _ = s.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
 		}
@@ -461,3 +463,29 @@ func fromMillis(ms int64) time.Time {
 
 // joinNotes joins the sentences of a Report note.
 func joinNotes(notes []string) string { return strings.Join(notes, " ") }
+
+// OpenReadOnly opens the database of a workspace that is not open, only to
+// read it: no lock, no migration, no recovery and no backup, as Peek reads
+// it. A closed store is checkpointed, so the file holds everything. ok is
+// false when the directory has no database Runnir made; a database that
+// cannot be read is an error.
+func OpenReadOnly(dir string) (st *Store, ok bool, err error) {
+	path := filepath.Join(dir, databaseName)
+	info, statErr := os.Lstat(path)
+	if statErr != nil || !info.Mode().IsRegular() {
+		return nil, false, nil
+	}
+	db, err := openDSN(fileURI(path, "mode=ro&immutable=1"))
+	if err != nil {
+		return nil, true, err
+	}
+	var version int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != len(migrations) {
+		_ = db.Close()
+		if err == nil {
+			err = errors.New("the database is from another version of Runnir")
+		}
+		return nil, true, err
+	}
+	return &Store{db: db, now: time.Now, readOnly: true}, true, nil
+}

@@ -15,6 +15,8 @@ import (
 type SavedSearch struct {
 	// Cached are the ids of the matching runs of the activity cache, newest first.
 	Cached []int64
+	// CachedRuns are those runs.
+	CachedRuns []github.Run
 	// Indexed are the matching runs only the search index knows: older than
 	// the cache, dropped from it, or deleted on GitHub.
 	Indexed []github.Run
@@ -49,27 +51,48 @@ func (r *Runtime) SearchSaved(ctx context.Context, q runsearch.Query, limit int)
 	if err != nil {
 		return out, err
 	}
+	source, hasSource := r.searchSource(ctx)
+	return searchSaved(ctx, r.cfg.store, q, limit, savedData{
+		Source: source, HasSource: hasSource, Runs: snap.Runs, PullRequests: snap.PullRequests,
+		LinkedPullRequest: func(id int64) int64 { return snap.Analysis.Links[id].PullRequest },
+	})
+}
+
+// savedData is what a search over a workspace's saved runs reads besides
+// the search index.
+type savedData struct {
+	Source       store.Source
+	HasSource    bool
+	Runs         []github.Run
+	PullRequests []github.RepositoryPullRequest
+	// LinkedPullRequest is the number of the pull request a run was linked to
+	// by its commit or branch; 0 for none.
+	LinkedPullRequest func(runID int64) int64
+}
+
+func searchSaved(ctx context.Context, st *store.Store, q runsearch.Query, limit int, data savedData) (SavedSearch, error) {
+	var out SavedSearch
 	text := map[int64][]string{}
-	for _, p := range snap.PullRequests {
+	for _, p := range data.PullRequests {
 		text[p.Number] = []string{p.Title, p.Author, p.HeadRef, p.BaseRef, p.State}
 	}
-	skip := make(map[int64]bool, len(snap.Runs))
-	for _, run := range snap.Runs {
+	skip := make(map[int64]bool, len(data.Runs))
+	for _, run := range data.Runs {
 		skip[run.ID] = true
 		var extra []int64
-		if link := snap.Analysis.Links[run.ID]; link.PullRequest > 0 {
-			extra = []int64{link.PullRequest}
+		if n := data.LinkedPullRequest(run.ID); n > 0 {
+			extra = []int64{n}
 		}
 		if q.Matches(record(run, extra, text)) {
 			out.Cached = append(out.Cached, run.ID)
+			out.CachedRuns = append(out.CachedRuns, run)
 		}
 	}
-	out.CachedSearched = len(snap.Runs)
-	source, ok := r.searchSource(ctx)
-	if !ok {
+	out.CachedSearched = len(data.Runs)
+	if !data.HasSource {
 		return out, nil
 	}
-	indexed, looked, err := r.cfg.store.SearchIndex(ctx, source, skip, limit, func(run github.Run) bool {
+	indexed, looked, err := st.SearchIndex(ctx, data.Source, skip, limit, func(run github.Run) bool {
 		return q.Matches(record(run, nil, text))
 	})
 	if err != nil {

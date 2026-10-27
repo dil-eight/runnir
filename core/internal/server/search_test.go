@@ -166,3 +166,46 @@ func TestADeepSearchNeedsAQuery(t *testing.T) {
 		t.Fatal("an empty query would read the whole history")
 	}
 }
+
+func TestSearchWorkspacesAnswersFromTheSavedDataOfEveryWorkspace(t *testing.T) {
+	fake := &searchGitHub{gone: map[int]bool{}}
+	server := fake.server(t)
+	client, stop, ctx := workspaceRig(t, t.TempDir(), server.URL)
+	defer stop()
+	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: linkedRepository(t, "git@github.com:o/r.git"), WorkspaceId: testWorkspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.RefreshWorkspaceActivity(ctx, &corev1.RefreshWorkspaceActivityRequest{RepositoryId: opened.Repository.Id, Wait: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := client.SearchWorkspaces(ctx, &corev1.SearchWorkspacesRequest{Query: "deploy status:success after:soon", WorkspaceIds: []string{testWorkspace}, LimitPerKind: 1})
+	if err != nil || len(got.Workspaces) != 1 || len(got.Problems) != 1 {
+		t.Fatalf("got = %v, %v", got, err)
+	}
+	hits := got.Workspaces[0]
+	if !strings.EqualFold(hits.WorkspaceId, testWorkspace) || !hits.Open || hits.Repository != "o/r" || hits.SavedAt == nil {
+		t.Fatalf("hits = %v", hits)
+	}
+	if hits.RunsMatched != 2 || len(hits.Runs) != 1 || hits.Runs[0].Id != 250 {
+		t.Fatalf("runs = %v of %d", ids(hits.Runs), hits.RunsMatched)
+	}
+
+	byName, err := client.SearchWorkspaces(ctx, &corev1.SearchWorkspacesRequest{Query: "ci"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workflows []string
+	for _, w := range byName.Workspaces {
+		for _, wf := range w.Workflows {
+			workflows = append(workflows, wf.Path)
+		}
+	}
+	if len(workflows) != 1 || workflows[0] != ".github/workflows/ci.yml" {
+		t.Fatalf("workflows = %v", workflows)
+	}
+	if _, err := client.SearchWorkspaces(ctx, &corev1.SearchWorkspacesRequest{Query: "x", WorkspaceIds: []string{"not-an-id"}}); err == nil {
+		t.Fatal("an invalid workspace id is refused")
+	}
+}
