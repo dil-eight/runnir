@@ -222,6 +222,10 @@ final class LocalRunReviewModel {
     /// Saved names whose value Keychain would not give.
     private(set) var refused: Set<LocalRunValueKey> = []
     private(set) var prepared: CorePreparedLocalRun?
+    /// Limits asked for in this review; nil keeps the workspace's (or the defaults).
+    private(set) var askedLimits: CoreLocalRunLimits?
+    /// Reset to defaults was chosen: the run is planned with the defaults.
+    private(set) var resettingLimits = false
     private(set) var error: String?
     private(set) var isPreparing = false
     private(set) var isStarting = false
@@ -294,7 +298,8 @@ final class LocalRunReviewModel {
         let current = generation
         isPreparing = true
         let result = await hub.prepareLocalRun(workspaceID: workspaceID, workflowID: workflowID, jobID: jobID,
-                                               event: event, useInstalledAct: useInstalledAct())
+                                               event: event, useInstalledAct: useInstalledAct(),
+                                               limits: askedLimits, resetLimits: resettingLimits)
         guard current == generation else { return }
         switch result {
         case .prepared(let prepared):
@@ -310,6 +315,25 @@ final class LocalRunReviewModel {
             error = message
         }
         isPreparing = false
+    }
+
+    /// New limits from the panel: the run is planned again and has to be
+    /// confirmed again.
+    func change(limits: CoreLocalRunLimits) async {
+        guard limits != prepared?.plan.limits || resettingLimits else { return }
+        askedLimits = limits
+        resettingLimits = false
+        trusted = false
+        await prepare()
+    }
+
+    /// Reset to defaults: the run is planned with the defaults; confirming it
+    /// forgets the workspace's limits.
+    func resetLimits() async {
+        askedLimits = nil
+        resettingLimits = true
+        trusted = false
+        await prepare()
     }
 
     /// Starts the reviewed run; nil and `error` when it did not start.
@@ -343,5 +367,34 @@ final class LocalRunReviewModel {
             error = message
             return nil
         }
+    }
+}
+
+/// The steps the limits panel moves by; the Core rounds to the same ones.
+enum LimitSteps {
+    static let memoryStep: UInt64 = 512 << 20
+    static let minMemory: UInt64 = 1 << 30
+    static let timeoutStep = 300
+    static let minTimeout = 300
+    static let maxTimeout = 6 * 3600
+
+    /// One CPU more or less, from 1 to `max` (0: the engine did not say).
+    static func cpus(_ value: Int, by delta: Int, max upper: Int) -> Int {
+        let next = Swift.max(1, value + delta)
+        return upper > 0 ? Swift.min(next, upper) : next
+    }
+
+    /// 512 MiB more or less, from 1 GB to `max` (0: the engine did not say);
+    /// a value between steps moves to the next one.
+    static func memory(_ value: UInt64, by delta: Int, max upper: UInt64) -> UInt64 {
+        let steps = Int(value / memoryStep) + (delta < 0 && value % memoryStep != 0 ? 1 : 0)
+        let next = UInt64(Swift.max(0, steps + delta)) * memoryStep
+        let floored = Swift.max(next, minMemory)
+        return upper > 0 ? Swift.min(floored, upper) : floored
+    }
+
+    /// Five minutes more or less, from 5 minutes to 6 hours.
+    static func timeout(_ seconds: Int, by delta: Int) -> Int {
+        Swift.min(Swift.max(seconds / timeoutStep * timeoutStep + delta * timeoutStep, minTimeout), maxTimeout)
     }
 }

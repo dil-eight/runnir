@@ -968,7 +968,7 @@ struct GRPCCoreService: CoreServicing {
     }
 
     func prepareLocalRun(repositoryID: String, workflowID: String, jobID: String?, event: String?,
-                         useInstalledAct: Bool) async throws -> CorePreparedLocalRun {
+                         useInstalledAct: Bool, limits: CoreLocalRunLimits?, resetLimits: Bool) async throws -> CorePreparedLocalRun {
         let response = try await call {
             try await client.prepareLocalRun(.with {
                 $0.repositoryID = repositoryID
@@ -976,6 +976,14 @@ struct GRPCCoreService: CoreServicing {
                 $0.jobID = jobID ?? ""
                 $0.event = event ?? ""
                 $0.useInstalledAct = useInstalledAct
+                if let limits {
+                    $0.limits = .with {
+                        $0.cpus = UInt32(clamping: max(0, limits.cpus))
+                        $0.memoryBytes = limits.memoryBytes
+                        $0.timeoutSeconds = UInt32(clamping: max(0, limits.timeoutSeconds))
+                    }
+                }
+                $0.resetLimits = resetLimits
             }, options: Self.options(.seconds(90)))
         }
         return CorePreparedLocalRun(
@@ -1101,7 +1109,9 @@ struct GRPCCoreService: CoreServicing {
             secrets: plan.secrets, variables: plan.variables, unnamedSecrets: plan.unnamedSecrets,
             notes: plan.notes, blockers: plan.blockers,
             cpus: Int(plan.cpus), memoryBytes: plan.memoryBytes, timeoutSeconds: Int(plan.timeoutSeconds),
-            actVersion: plan.actVersion, installedAct: plan.installedAct, engineName: plan.engineName, engineContext: plan.engineContext
+            actVersion: plan.actVersion, installedAct: plan.installedAct, engineName: plan.engineName, engineContext: plan.engineContext,
+            maxCPUs: Int(plan.maxCpus), maxMemoryBytes: plan.maxMemoryBytes, maxTimeoutSeconds: Int(plan.maxTimeoutSeconds),
+            ownLimits: plan.ownLimits, limitWarnings: plan.limitWarnings, limitNote: plan.limitNote
         )
     }
 
