@@ -38,7 +38,7 @@ enum RunnirPalette: UInt32, Sendable {
 }
 
 enum RunnirColorToken: String, CaseIterable, Sendable {
-    case background, sidebar, surface, selected, editor
+    case window, background, sidebar, surface, selected, editor
     case foreground, secondaryForeground, mutedForeground, border
     case primary, primaryForeground, primaryButtonText, secondary, secondaryContent
     case success, warning, destructive, info, focusRing
@@ -46,6 +46,8 @@ enum RunnirColorToken: String, CaseIterable, Sendable {
 
     var palette: (light: RunnirPalette, dark: RunnirPalette) {
         switch self {
+        // The window behind the islands, a step darker than they are.
+        case .window: (.neutral200, .neutral950)
         case .background: (.white, .neutral900)
         case .sidebar: (.neutral100, .neutral850)
         case .surface, .secondary: (.neutral50, .neutral800)
@@ -83,6 +85,7 @@ enum RunnirColorToken: String, CaseIterable, Sendable {
 
 enum RunnirTheme {
     static let contentPadding: CGFloat = 24
+    static let window = RunnirColorToken.window.color
     static let background = RunnirColorToken.background.color
     static let sidebar = RunnirColorToken.sidebar.color
     static let surface = RunnirColorToken.surface.color

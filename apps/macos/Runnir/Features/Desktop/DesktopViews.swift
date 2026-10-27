@@ -591,29 +591,36 @@ struct DesktopWorkspaceView: View {
     @State private var reportingBug = false
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-            DesignDivider(vertical: true)
-            VStack(spacing: 0) {
-                toolbar
-                DesignDivider()
-                if reader == nil {
-                    ContentUnavailableView {
-                        Label("Locate this repository", systemImage: "folder.badge.questionmark")
-                    } description: {
-                        Text("The folder is missing or its access needs to be renewed. Your saved workspace has been retained.")
-                    } actions: {
-                        Button("Locate / Grant Access...") { desktop.importRepository(relinkID: workspace.id, reuseWindowID: windowID) }
+        VStack(spacing: 0) {
+            titleStrip
+            // The menu and the content are two islands on the window's own colour.
+            HStack(spacing: 8) {
+                sidebar.clipShape(RoundedRectangle(cornerRadius: 12))
+                VStack(spacing: 0) {
+                    toolbar
+                    DesignDivider()
+                    if reader == nil {
+                        ContentUnavailableView {
+                            Label("Locate this repository", systemImage: "folder.badge.questionmark")
+                        } description: {
+                            Text("The folder is missing or its access needs to be renewed. Your saved workspace has been retained.")
+                        } actions: {
+                            Button("Locate / Grant Access...") { desktop.importRepository(relinkID: workspace.id, reuseWindowID: windowID) }
+                        }
+                        // Fills the column so the toolbar stays at the top.
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        coreBanner
+                        content
                     }
-                    // Fills the column so the toolbar stays at the top.
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    coreBanner
-                    content
                 }
-            }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(RunnirTheme.background)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .padding(.horizontal, 8).padding(.bottom, 8)
         }
-        .background(RunnirTheme.background).foregroundStyle(RunnirTheme.foreground).tint(RunnirTheme.primary)
+        .background(RunnirTheme.window).foregroundStyle(RunnirTheme.foreground).tint(RunnirTheme.primary)
         .overlay(alignment: .topLeading) { switcherPanel }
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: windowID)
@@ -992,18 +999,20 @@ struct DesktopWorkspaceView: View {
         }
     }
 
+    /// The strip above the islands, level with the window's buttons: the
+    /// workspace switcher next to them (centered on the buttons, y = 16).
+    private var titleStrip: some View {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: 64)
+            workspaceSwitcherButton
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, 12).padding(.top, 3).frame(height: 40, alignment: .top)
+    }
+
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
-            // The title bar row: the window's buttons, then the workspace
-            // switcher next to them, centered on the buttons (y = 16).
-            HStack(spacing: 0) {
-                Color.clear.frame(width: 64)
-                workspaceSwitcherButton
-                Spacer(minLength: 0)
-            }
-            .frame(height: 32)
             // The logo lives on the splash and in the Manager only.
-            Color.clear.frame(height: 14)
             VStack(spacing: 2) {
                 ForEach(AppSection.sidebarSections) { section in
                     Button { state.selectedSection = section } label: {
@@ -1034,7 +1043,7 @@ struct DesktopWorkspaceView: View {
             Button { desktop.showSettings(in: windowID) } label: { SidebarItemLabel(title: "Settings...", symbol: "gearshape") }
                 .buttonStyle(.hit)
         }
-        .padding(.horizontal, 12).padding(.bottom, 14).frame(width: 220)
+        .padding(.horizontal, 8).padding(.top, 12).padding(.bottom, 10).frame(width: 196)
         .frame(maxHeight: .infinity).background(RunnirTheme.sidebar)
     }
 

@@ -231,21 +231,26 @@ struct WorkspaceRunsView: View {
     }
 
     private var modeRow: some View {
-        HStack(spacing: 10) {
-            Picker("Show runs", selection: $mode) {
-                Text("List").tag(RunsMode.list)
-                Text("By change").tag(RunsMode.byChange)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Picker("Show runs", selection: $mode) {
+                    Text("List").tag(RunsMode.list)
+                    Text("By change").tag(RunsMode.byChange)
+                }
+                .pickerStyle(.segmented).pointerStyle(.link).labelsHidden().fixedSize()
+                .help("List shows runs newest first; By change groups them by pull request and commit")
+                Spacer()
+                Button {
+                    Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
+                } label: { Image(systemName: "arrow.clockwise") }
+                .buttonStyle(.borderless).pointerStyle(.link).disabled(session.isLoadingGitHub).help("Reload runs from GitHub")
             }
-            .pickerStyle(.segmented).pointerStyle(.link).labelsHidden().fixedSize()
-            .help("List shows runs newest first; By change groups them by pull request and commit")
+            // On a row of its own: a branch name such as dilbarov/docs-after-b33-b34 is long.
             Toggle(isOn: $onlyCurrentBranch) {
-                Text(session.branch.isEmpty ? "Current branch" : session.branch).lineLimit(1)
-            }.toggleStyle(.checkbox).pointerStyle(.link).disabled(session.branch.isEmpty)
-            Spacer()
-            Button {
-                Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
-            } label: { Image(systemName: "arrow.clockwise") }
-            .buttonStyle(.borderless).pointerStyle(.link).disabled(session.isLoadingGitHub).help("Reload runs from GitHub")
+                Text(session.branch.isEmpty ? "Current branch" : session.branch).lineLimit(1).truncationMode(.middle)
+            }
+            .toggleStyle(.checkbox).pointerStyle(.link).disabled(session.branch.isEmpty)
+            .help(session.branch.isEmpty ? "Only the runs of the branch checked out here" : "Only the runs of \(session.branch)")
         }
         .font(.system(size: 12))
     }
