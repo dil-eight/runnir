@@ -4,41 +4,37 @@ import Testing
 
 @MainActor
 @Suite struct RunStatusFilterTests {
-    private func run(_ id: Int64, title: String = "Fix build", branch: String = "main", status: String = "completed",
-                     conclusion: String? = "success") -> CoreWorkflowRun {
-        CoreWorkflowRun(id: id, workflowID: 3, name: "CI", displayTitle: title, runNumber: id, event: "push", status: status,
-                        conclusion: conclusion, branch: branch, headSHA: "a3f9c21ffee0", actor: "eugene", htmlURL: nil, createdAt: nil,
-                        updatedAt: nil, commitTitle: "", link: .none, supersededBy: nil)
+    /// A run as the Core sends it: its status group set by the Core. Status
+    /// and conclusion say nothing to the filter, so they are left alike.
+    private func run(_ id: Int64, title: String = "Fix build", branch: String = "main",
+                     group: CoreRunStatusGroup? = .succeeded) -> CoreWorkflowRun {
+        CoreWorkflowRun(id: id, workflowID: 3, name: "CI", displayTitle: title, runNumber: id, event: "push", status: "completed",
+                        conclusion: "success", branch: branch, headSHA: "a3f9c21ffee0", actor: "eugene", htmlURL: nil, createdAt: nil,
+                        updatedAt: nil, commitTitle: "", link: .none, supersededBy: nil, statusGroup: group)
     }
 
-    private func statuses(_ runs: [CoreWorkflowRun]) -> [RunStatusFilter] { runs.map(RunStatusFilter.of) }
-
-    @Test func everyStatusAndConclusionFallsInOneOfTheSix() {
-        #expect(RunStatusFilter.of(run(1, conclusion: "success")) == .succeeded)
-        for conclusion in ["failure", "timed_out", "startup_failure"] {
-            #expect(RunStatusFilter.of(run(1, conclusion: conclusion)) == .failed, "\(conclusion)")
-        }
-        #expect(RunStatusFilter.of(run(1, conclusion: "cancelled")) == .cancelled)
-        #expect(RunStatusFilter.of(run(1, status: "in_progress", conclusion: nil)) == .running)
-        for status in ["queued", "waiting", "requested", "pending"] {
-            #expect(RunStatusFilter.of(run(1, status: status, conclusion: nil)) == .queued, "\(status)")
-        }
-        #expect(RunStatusFilter.of(run(1, conclusion: "skipped")) == .skipped)
-        #expect(RunStatusFilter.of(run(1, conclusion: "neutral")) == .skipped)
-        #expect(RunStatusFilter.of(run(1, conclusion: "stale")) == .skipped)
-        #expect(RunStatusFilter.of(run(1, conclusion: "action_required")) == .queued, "it waits for a person")
+    @Test func theCoreSaysWhichStatusARunHas() {
+        let pairs: [(CoreRunStatusGroup, RunStatusFilter)] = [(.succeeded, .succeeded), (.failed, .failed), (.cancelled, .cancelled),
+                                                              (.running, .running), (.queued, .queued), (.skipped, .skipped)]
+        for (group, status) in pairs { #expect(RunStatusFilter.of(run(1, group: group)) == status) }
+        // A run the Core gave no status matches no ticked status and is not counted.
+        let unknown = run(9, group: nil)
+        #expect(RunStatusFilter.of(unknown) == nil)
+        #expect(RunStatusFilter.filter([unknown, run(1)], statuses: [.succeeded]).map(\.id) == [1])
+        #expect(RunStatusFilter.filter([unknown], statuses: []).map(\.id) == [9], "no status ticked keeps every run")
+        #expect(RunStatusFilter.counts([unknown, run(1)]) == [.succeeded: 1])
     }
 
     @Test func chosenStatusesCombineWithOrAndNoneMeansAll() {
-        let runs = [run(1), run(2, conclusion: "failure"), run(3, status: "in_progress", conclusion: nil), run(4, conclusion: "cancelled")]
+        let runs = [run(1), run(2, group: .failed), run(3, group: .running), run(4, group: .cancelled)]
         #expect(RunStatusFilter.filter(runs, statuses: []).map(\.id) == [1, 2, 3, 4])
         #expect(RunStatusFilter.filter(runs, statuses: [.failed]).map(\.id) == [2])
         #expect(RunStatusFilter.filter(runs, statuses: [.failed, .running]).map(\.id) == [2, 3])
     }
 
     @Test func theStatusFilterCombinesWithTheFoundRunsAndTheBranch() {
-        let runs = [run(1, title: "Release 1.4.0", conclusion: "failure"), run(2, title: "Release 1.3.9"),
-                    run(3, title: "Bump Go", conclusion: "failure"), run(4, title: "Release 1.4.1", branch: "dev", conclusion: "failure")]
+        let runs = [run(1, title: "Release 1.4.0", group: .failed), run(2, title: "Release 1.3.9"),
+                    run(3, title: "Bump Go", group: .failed), run(4, title: "Release 1.4.1", branch: "dev", group: .failed)]
         // The Core found the three Release runs for the query.
         let found: Set<Int64> = [1, 2, 4]
         let failed = RunPresentation.list(runs, branch: nil, matching: found, statuses: [.failed], showingSuperseded: false)
@@ -50,8 +46,8 @@ import Testing
     }
 
     @Test func theCountsFollowTheFoundRunsAndTheBranchWhateverIsTicked() {
-        let runs = [run(1, title: "Release 1.4.0", conclusion: "failure"), run(2, title: "Release 1.3.9"),
-                    run(3, title: "Bump Go", conclusion: "failure"), run(4, title: "Release 1.4.1", branch: "dev", conclusion: "failure")]
+        let runs = [run(1, title: "Release 1.4.0", group: .failed), run(2, title: "Release 1.3.9"),
+                    run(3, title: "Bump Go", group: .failed), run(4, title: "Release 1.4.1", branch: "dev", group: .failed)]
         let counts = RunStatusFilter.counts(RunPresentation.matching(runs, branch: nil, ids: [1, 2, 4]))
         #expect(counts[.failed] == 2)
         #expect(counts[.succeeded] == 1)
@@ -63,7 +59,7 @@ import Testing
     }
 
     @Test func aStatusFilterShowsSupersededRunsLikeASearchDoes() {
-        let runs = [run(1, conclusion: "failure"), run(2, conclusion: "failure")]
+        let runs = [run(1, group: .failed), run(2, group: .failed)]
         let hidden = RunPresentation.list(runs, branch: nil, statuses: [], showingSuperseded: false)
         let filtered = RunPresentation.list(runs, branch: nil, statuses: [.failed], showingSuperseded: false)
         #expect(filtered.count == 2)

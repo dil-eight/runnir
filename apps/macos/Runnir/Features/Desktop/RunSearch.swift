@@ -47,7 +47,7 @@ extension RunPresentation {
         return onBranch.filter { change in
             let members = (change.sections.flatMap { $0.runIDs + $0.repeatRunIDs } + change.olderRunIDs)
             let found = ids.map { ids in members.contains { ids.contains($0) } } ?? true
-            let status = statuses.isEmpty || members.compactMap { runs[$0] }.contains { statuses.contains(RunStatusFilter.of($0)) }
+            let status = statuses.isEmpty || members.compactMap { runs[$0] }.contains { RunStatusFilter.matches($0, statuses) }
             return found && status
         }
     }

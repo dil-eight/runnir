@@ -272,6 +272,11 @@ enum CoreRunLink: Equatable, Sendable {
     }
 }
 
+/// The six statuses runs are searched and filtered by, as the Core assigns them.
+enum CoreRunStatusGroup: Equatable, Sendable {
+    case succeeded, failed, cancelled, running, queued, skipped
+}
+
 struct CoreWorkflowRun: Equatable, Identifiable, Sendable {
     let id: Int64
     let workflowID: Int64
@@ -297,6 +302,9 @@ struct CoreWorkflowRun: Equatable, Identifiable, Sendable {
     /// The newest run of the same workflow on a newer commit of the pull
     /// request; nil when this run is not superseded.
     var supersededBy: Int64?
+    /// Which of the six statuses the Core counts the run as; nil when it did
+    /// not say. The app does not work it out from status and conclusion.
+    var statusGroup: CoreRunStatusGroup?
 
     var isSuperseded: Bool { supersededBy != nil }
     /// Superseded and still going: it uses runners for a commit the pull

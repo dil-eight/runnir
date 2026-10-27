@@ -705,6 +705,25 @@ message WorkflowRun {
   // The newest run of the same workflow and event on a newer commit of the
   // same pull request; 0 when not superseded. Workspace activity only.
   int64 superseded_by = 19;
+  // Which of the six statuses the run counts as, for the status filter and
+  // `status:` in a search. The Core owns this mapping; the app does not
+  // read it from status and conclusion itself.
+  RunStatusGroup status_group = 20;
+}
+
+// The six statuses runs are searched and filtered by.
+enum RunStatusGroup {
+  RUN_STATUS_GROUP_UNSPECIFIED = 0;
+  RUN_STATUS_GROUP_SUCCESS = 1;
+  // failure, timed_out and startup_failure.
+  RUN_STATUS_GROUP_FAILED = 2;
+  RUN_STATUS_GROUP_CANCELLED = 3;
+  RUN_STATUS_GROUP_RUNNING = 4;
+  // queued, waiting, pending, requested, and a run that waits for a person
+  // (action_required).
+  RUN_STATUS_GROUP_QUEUED = 5;
+  // skipped, neutral and stale.
+  RUN_STATUS_GROUP_SKIPPED = 6;
 }
 
 message ListRunJobsRequest {

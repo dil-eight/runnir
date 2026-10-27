@@ -12,6 +12,7 @@ import (
 	"time"
 
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
+	"runnir/core/internal/github"
 )
 
 // searchGitHub serves 250 runs of o/r, newest first, one a minute apart.
@@ -167,6 +168,24 @@ func TestADeepSearchNeedsAQuery(t *testing.T) {
 	}
 }
 
+func TestEveryRunSaysWhichOfTheSixStatusesItCountsAs(t *testing.T) {
+	cases := map[[2]string]corev1.RunStatusGroup{
+		{"completed", "success"}:         corev1.RunStatusGroup_RUN_STATUS_GROUP_SUCCESS,
+		{"completed", "timed_out"}:       corev1.RunStatusGroup_RUN_STATUS_GROUP_FAILED,
+		{"completed", "startup_failure"}: corev1.RunStatusGroup_RUN_STATUS_GROUP_FAILED,
+		{"completed", "cancelled"}:       corev1.RunStatusGroup_RUN_STATUS_GROUP_CANCELLED,
+		{"in_progress", ""}:              corev1.RunStatusGroup_RUN_STATUS_GROUP_RUNNING,
+		{"waiting", ""}:                  corev1.RunStatusGroup_RUN_STATUS_GROUP_QUEUED,
+		{"completed", "action_required"}: corev1.RunStatusGroup_RUN_STATUS_GROUP_QUEUED,
+		{"completed", "neutral"}:         corev1.RunStatusGroup_RUN_STATUS_GROUP_SKIPPED,
+	}
+	for pair, want := range cases {
+		if got := runMessage(github.Run{Status: pair[0], Conclusion: pair[1]}).StatusGroup; got != want {
+			t.Errorf("%s/%s = %v, want %v", pair[0], pair[1], got, want)
+		}
+	}
+}
+
 func TestSearchWorkspacesAnswersFromTheSavedDataOfEveryWorkspace(t *testing.T) {
 	fake := &searchGitHub{gone: map[int]bool{}}
 	server := fake.server(t)
@@ -188,7 +207,7 @@ func TestSearchWorkspacesAnswersFromTheSavedDataOfEveryWorkspace(t *testing.T) {
 	if !strings.EqualFold(hits.WorkspaceId, testWorkspace) || !hits.Open || hits.Repository != "o/r" || hits.SavedAt == nil {
 		t.Fatalf("hits = %v", hits)
 	}
-	if hits.RunsMatched != 2 || len(hits.Runs) != 1 || hits.Runs[0].Id != 250 {
+	if hits.RunsMatched != 2 || len(hits.Runs) != 1 || hits.Runs[0].Id != 250 || hits.Runs[0].StatusGroup != corev1.RunStatusGroup_RUN_STATUS_GROUP_SUCCESS {
 		t.Fatalf("runs = %v of %d", ids(hits.Runs), hits.RunsMatched)
 	}
 

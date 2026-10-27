@@ -1,6 +1,6 @@
 # Status filter on the runs list (B42)
 
-Status: built in the app (chips, menu, counts, the mapping and its tests); the mapping and counts move to the Core with B40. States drawn in Pen (S07 Runs list: menu open, filters applied).
+Status: built. The Core assigns each run its status (`WorkflowRun.status_group`, from `runsearch.StatusOf`); the app shows the chips and the menu and counts the runs it holds by that status. States drawn in Pen (S07 Runs list: menu open, filters applied).
 
 ## Behaviour
 
@@ -18,12 +18,15 @@ Status: built in the app (chips, menu, counts, the mapping and its tests); the m
 
 ## Where it lives
 
-- The Core owns the definition of a run's status (which of GitHub's `status` and `conclusion` values count as which of the six) and the counts, so the app only shows them. Until the matcher moves to the Core with B40, the app computes both from the saved runs with one shared mapping.
+- The Core owns the definition of a run's status (which of GitHub's `status` and `conclusion` values count as which of the six): every run it sends carries `status_group`, and the same mapping serves `status:` in a search. The app does not read status and conclusion for the filter; it counts the runs it holds by the status the Core gave, and a run without one matches no ticked status.
 - Chips and the filter are kept per window while the app runs, not across launches.
+
+## Decided since
+
+- `action_required` falls under Queued (it waits for a person), `neutral` and `stale` under Skipped.
 
 ## Not decided
 
-- Where `action_required`, `neutral` and `stale` fall; the proposal is `action_required` under Queued (it waits for a person), `neutral` and `stale` under Skipped.
 - B40's deep search on GitHub takes one `status` value per request: with several chips it makes one request per status, or reads unfiltered pages and filters here.
 
 ## Tests

@@ -39,29 +39,39 @@ enum RunStatusFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
         }
     }
 
-    /// A run that waits for a person (`action_required`) counts as queued;
-    /// `neutral` and `stale` conclusions count as skipped.
-    static func of(_ run: CoreWorkflowRun) -> RunStatusFilter {
-        if run.status == "completed", run.conclusion == "action_required" { return .queued }
-        switch run.outcome {
-        case .succeeded: return .succeeded
-        case .failed: return .failed
-        case .cancelled: return .cancelled
-        case .running: return .running
-        case .queued: return .queued
-        case .skipped, .neutral: return .skipped
+    init(_ group: CoreRunStatusGroup) {
+        switch group {
+        case .succeeded: self = .succeeded
+        case .failed: self = .failed
+        case .cancelled: self = .cancelled
+        case .running: self = .running
+        case .queued: self = .queued
+        case .skipped: self = .skipped
         }
+    }
+
+    /// The status the Core put the run in (`runsearch.StatusOf`); nil when it
+    /// gave none, and such a run matches no ticked status.
+    static func of(_ run: CoreWorkflowRun) -> RunStatusFilter? {
+        run.statusGroup.map(RunStatusFilter.init)
+    }
+
+    /// Whether the run has one of `statuses`.
+    static func matches(_ run: CoreWorkflowRun, _ statuses: Set<RunStatusFilter>) -> Bool {
+        of(run).map(statuses.contains) ?? false
     }
 
     /// The runs with one of `statuses`; all of them for none.
     static func filter(_ runs: [CoreWorkflowRun], statuses: Set<RunStatusFilter>) -> [CoreWorkflowRun] {
         guard !statuses.isEmpty else { return runs }
-        return runs.filter { statuses.contains(of($0)) }
+        return runs.filter { matches($0, statuses) }
     }
 
     /// How many runs have each status.
     static func counts(_ runs: [CoreWorkflowRun]) -> [RunStatusFilter: Int] {
-        runs.reduce(into: [:]) { $0[of($1), default: 0] += 1 }
+        runs.reduce(into: [:]) { counts, run in
+            if let status = of(run) { counts[status, default: 0] += 1 }
+        }
     }
 }
 

@@ -642,8 +642,21 @@ struct GRPCCoreService: CoreServicing {
             runAttempt: max(1, run.runAttempt),
             headRepository: run.headRepository, commitTitle: run.commitTitle,
             link: run.hasLink ? Self.map(run.link) : .none,
-            supersededBy: run.supersededBy == 0 ? nil : run.supersededBy
+            supersededBy: run.supersededBy == 0 ? nil : run.supersededBy,
+            statusGroup: Self.map(run.statusGroup)
         )
+    }
+
+    static func map(_ group: Runnir_Core_V1_RunStatusGroup) -> CoreRunStatusGroup? {
+        switch group {
+        case .success: .succeeded
+        case .failed: .failed
+        case .cancelled: .cancelled
+        case .running: .running
+        case .queued: .queued
+        case .skipped: .skipped
+        case .unspecified, .UNRECOGNIZED: nil
+        }
     }
 
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> {

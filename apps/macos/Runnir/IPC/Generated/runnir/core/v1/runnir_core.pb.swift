@@ -384,6 +384,68 @@ nonisolated enum Runnir_Core_V1_PullRequestCi: SwiftProtobuf.Enum, Swift.CaseIte
 
 }
 
+/// The six statuses runs are searched and filtered by.
+nonisolated enum Runnir_Core_V1_RunStatusGroup: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+  case success // = 1
+
+  /// failure, timed_out and startup_failure.
+  case failed // = 2
+  case cancelled // = 3
+  case running // = 4
+
+  /// queued, waiting, pending, requested, and a run that waits for a person
+  /// (action_required).
+  case queued // = 5
+
+  /// skipped, neutral and stale.
+  case skipped // = 6
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .success
+    case 2: self = .failed
+    case 3: self = .cancelled
+    case 4: self = .running
+    case 5: self = .queued
+    case 6: self = .skipped
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .success: return 1
+    case .failed: return 2
+    case .cancelled: return 3
+    case .running: return 4
+    case .queued: return 5
+    case .skipped: return 6
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_RunStatusGroup] = [
+    .unspecified,
+    .success,
+    .failed,
+    .cancelled,
+    .running,
+    .queued,
+    .skipped,
+  ]
+
+}
+
 nonisolated enum Runnir_Core_V1_DispatchInputType: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
   case unspecified // = 0
@@ -2362,6 +2424,14 @@ nonisolated struct Runnir_Core_V1_WorkflowRun: @unchecked Sendable {
   var supersededBy: Int64 {
     get {_storage._supersededBy}
     set {_uniqueStorage()._supersededBy = newValue}
+  }
+
+  /// Which of the six statuses the run counts as, for the status filter and
+  /// `status:` in a search. The Core owns this mapping; the app does not
+  /// read it from status and conclusion itself.
+  var statusGroup: Runnir_Core_V1_RunStatusGroup {
+    get {_storage._statusGroup}
+    set {_uniqueStorage()._statusGroup = newValue}
   }
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
@@ -4796,6 +4866,10 @@ nonisolated extension Runnir_Core_V1_PullRequestCi: SwiftProtobuf._ProtoNameProv
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0PULL_REQUEST_CI_UNSPECIFIED\0\u{1}PULL_REQUEST_CI_NONE\0\u{1}PULL_REQUEST_CI_RUNNING\0\u{1}PULL_REQUEST_CI_PASSED\0\u{1}PULL_REQUEST_CI_FAILED\0\u{1}PULL_REQUEST_CI_CANCELLED\0\u{1}PULL_REQUEST_CI_UNKNOWN\0")
 }
 
+nonisolated extension Runnir_Core_V1_RunStatusGroup: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0RUN_STATUS_GROUP_UNSPECIFIED\0\u{1}RUN_STATUS_GROUP_SUCCESS\0\u{1}RUN_STATUS_GROUP_FAILED\0\u{1}RUN_STATUS_GROUP_CANCELLED\0\u{1}RUN_STATUS_GROUP_RUNNING\0\u{1}RUN_STATUS_GROUP_QUEUED\0\u{1}RUN_STATUS_GROUP_SKIPPED\0")
+}
+
 nonisolated extension Runnir_Core_V1_DispatchInputType: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0DISPATCH_INPUT_TYPE_UNSPECIFIED\0\u{1}DISPATCH_INPUT_TYPE_STRING\0\u{1}DISPATCH_INPUT_TYPE_BOOLEAN\0\u{1}DISPATCH_INPUT_TYPE_CHOICE\0\u{1}DISPATCH_INPUT_TYPE_NUMBER\0\u{1}DISPATCH_INPUT_TYPE_ENVIRONMENT\0")
 }
@@ -6975,7 +7049,7 @@ nonisolated extension Runnir_Core_V1_ListWorkflowRunsResponse: SwiftProtobuf.Mes
 
 nonisolated extension Runnir_Core_V1_WorkflowRun: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".WorkflowRun"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{3}workflow_id\0\u{1}name\0\u{3}display_title\0\u{3}run_number\0\u{1}event\0\u{1}status\0\u{1}conclusion\0\u{1}branch\0\u{3}head_sha\0\u{1}actor\0\u{3}html_url\0\u{3}created_at\0\u{3}updated_at\0\u{3}run_attempt\0\u{3}head_repository\0\u{3}commit_title\0\u{1}link\0\u{3}superseded_by\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{3}workflow_id\0\u{1}name\0\u{3}display_title\0\u{3}run_number\0\u{1}event\0\u{1}status\0\u{1}conclusion\0\u{1}branch\0\u{3}head_sha\0\u{1}actor\0\u{3}html_url\0\u{3}created_at\0\u{3}updated_at\0\u{3}run_attempt\0\u{3}head_repository\0\u{3}commit_title\0\u{1}link\0\u{3}superseded_by\0\u{3}status_group\0")
 
   fileprivate class _StorageClass {
     var _id: Int64 = 0
@@ -6997,6 +7071,7 @@ nonisolated extension Runnir_Core_V1_WorkflowRun: SwiftProtobuf.Message, SwiftPr
     var _commitTitle: String = String()
     var _link: Runnir_Core_V1_RunLink? = nil
     var _supersededBy: Int64 = 0
+    var _statusGroup: Runnir_Core_V1_RunStatusGroup = .unspecified
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -7026,6 +7101,7 @@ nonisolated extension Runnir_Core_V1_WorkflowRun: SwiftProtobuf.Message, SwiftPr
       _commitTitle = source._commitTitle
       _link = source._link
       _supersededBy = source._supersededBy
+      _statusGroup = source._statusGroup
     }
   }
 
@@ -7063,6 +7139,7 @@ nonisolated extension Runnir_Core_V1_WorkflowRun: SwiftProtobuf.Message, SwiftPr
         case 17: try { try decoder.decodeSingularStringField(value: &_storage._commitTitle) }()
         case 18: try { try decoder.decodeSingularMessageField(value: &_storage._link) }()
         case 19: try { try decoder.decodeSingularInt64Field(value: &_storage._supersededBy) }()
+        case 20: try { try decoder.decodeSingularEnumField(value: &_storage._statusGroup) }()
         default: break
         }
       }
@@ -7132,6 +7209,9 @@ nonisolated extension Runnir_Core_V1_WorkflowRun: SwiftProtobuf.Message, SwiftPr
       if _storage._supersededBy != 0 {
         try visitor.visitSingularInt64Field(value: _storage._supersededBy, fieldNumber: 19)
       }
+      if _storage._statusGroup != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._statusGroup, fieldNumber: 20)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -7160,6 +7240,7 @@ nonisolated extension Runnir_Core_V1_WorkflowRun: SwiftProtobuf.Message, SwiftPr
         if _storage._commitTitle != rhs_storage._commitTitle {return false}
         if _storage._link != rhs_storage._link {return false}
         if _storage._supersededBy != rhs_storage._supersededBy {return false}
+        if _storage._statusGroup != rhs_storage._statusGroup {return false}
         return true
       }
       if !storagesAreEqual {return false}
