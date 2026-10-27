@@ -200,7 +200,10 @@ struct WorkspaceRunsView: View {
                 ActivityFreshnessLine(session: session).lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.bottom, 10)
                 if let help = hub.pullRequestsHelp(workspaceID: session.workspaceID) {
-                    GitHubAccessNotice(help: help, style: .note, github: github).padding(.horizontal, 12).padding(.bottom, 8)
+                    GitHubAccessNotice(help: help, style: .note, github: github) {
+                        Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
+                    }
+                    .padding(.horizontal, 12).padding(.bottom, 8)
                 }
                 DesignDivider()
                 ScrollView {

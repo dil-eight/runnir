@@ -283,14 +283,31 @@ struct GitHubAccessNotice: View {
     let help: GitHubAccessHelp
     var style: GitHubAccessNoticeStyle = .note
     let github: GitHubSession?
-    var retry: () -> Void = {}
+    /// Reads from GitHub again: the Retry fix, Check Again, and the return
+    /// to Runnir after the fix was made on GitHub. nil: the notice has none.
+    var retry: (() -> Void)? = nil
     @Environment(\.openURL) private var openURL
     @Environment(\.openRunnirSettings) private var openRunnirSettings
     @State private var showingConnect = false
+    /// The fix was sent to GitHub; coming back to Runnir checks again.
+    @State private var awaitingReturn = false
 
     var body: some View {
         content
             .sheet(isPresented: $showingConnect) { if let github { GitHubConnectView(session: github) } }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                guard awaitingReturn else { return }
+                awaitingReturn = false
+                retry?()
+            }
+    }
+
+    /// A fix made on GitHub: once made, reading again shows it.
+    private var fixedOnGitHub: Bool {
+        switch help.fix {
+        case .giveAccess, .reviewPermissions, .editToken: true
+        default: false
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -341,14 +358,20 @@ struct GitHubAccessNotice: View {
         if let title = help.fix.buttonTitle {
             Button(title) { perform(help.fix) }
         }
+        if fixedOnGitHub, let retry {
+            Button("Check Again") { retry() }
+                .help("Read from GitHub again, after the change was made there")
+        }
     }
 
     private func perform(_ fix: GitHubAccessHelp.Fix) {
         switch fix {
         case .connect, .signInAgain: showingConnect = true
-        case .giveAccess(let url), .reviewPermissions(let url), .editToken(let url): openURL(url)
+        case .giveAccess(let url), .reviewPermissions(let url), .editToken(let url):
+            openURL(url)
+            awaitingReturn = retry != nil
         case .openSettings: openRunnirSettings?(.account)
-        case .retry: retry()
+        case .retry: retry?()
         case .askForWriteAccess, .none: break
         }
     }

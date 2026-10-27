@@ -116,9 +116,11 @@ type Runtime struct {
 	lastRetry    time.Time
 	lastServer   string
 	hasServer    bool
-	// pullsRefused: GitHub refused pull requests; they are not read again
-	// until the credential changes or someone asks for a refresh.
-	pullsRefused bool
+	// pullsRefused: GitHub refused pull requests at pullsRefusedAt; they are
+	// read again after Intervals.PullsRetry, when the credential changes or
+	// when someone asks for a refresh.
+	pullsRefused   bool
+	pullsRefusedAt time.Time
 }
 
 func newRuntime(workspaceID, repositoryID string, resolve Resolver, cfg config) *Runtime {
@@ -187,6 +189,12 @@ func (r *Runtime) loop() {
 // one more. With wait it returns once a pass that started after the request
 // has ended.
 func (r *Runtime) Refresh(ctx context.Context, wait bool) error {
+	return r.request(ctx, wait, true)
+}
+
+// request asks for a pass; retryPulls also reads pull requests GitHub refused
+// a moment ago, which a pass of the timer leaves until Intervals.PullsRetry.
+func (r *Runtime) request(ctx context.Context, wait, retryPulls bool) error {
 	select {
 	case <-r.loopDone:
 		return ErrClosed
@@ -196,8 +204,10 @@ func (r *Runtime) Refresh(ctx context.Context, wait bool) error {
 	// pass drains the wake under, so a request is either answered by that
 	// pass or leaves a wake for the next one, never a stale wake.
 	r.mu.Lock()
-	// Asking for a refresh tries pull requests again after a refusal.
-	r.pullsRefused = false
+	if retryPulls {
+		// Asking for a refresh tries pull requests again after a refusal.
+		r.pullsRefused = false
+	}
 	target := r.started + 1
 	select {
 	case r.wake <- struct{}{}:
@@ -322,7 +332,7 @@ func (r *Runtime) read(resolve Resolver) (store.Pass, *Target) {
 		p.Workflows = &store.WorkflowsUpdate{Workflows: workflows, ETag: workflowsTag}
 	}
 	r.mu.Lock()
-	refused := r.pullsRefused
+	refused := r.pullsRefused && r.cfg.now().Sub(r.pullsRefusedAt) < r.cfg.intervals.PullsRetry
 	r.mu.Unlock()
 	if !refused {
 		ok := int32(corev1.GithubAccess_GITHUB_ACCESS_OK)
@@ -346,7 +356,7 @@ func (r *Runtime) read(resolve Resolver) (store.Pass, *Target) {
 
 func (r *Runtime) refusePulls() {
 	r.mu.Lock()
-	r.pullsRefused = true
+	r.pullsRefused, r.pullsRefusedAt = true, r.cfg.now()
 	r.mu.Unlock()
 }
 

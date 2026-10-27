@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -88,6 +89,43 @@ func TestARefusedPullRequestListKeepsThePassOKAndStopsLookups(t *testing.T) {
 	if snap.PullRequestsAccess != corev1.GithubAccess_GITHUB_ACCESS_OK || len(snap.Changes) != 1 ||
 		snap.Changes[0].PullRequest.Title != "Add retry" || fake.count(pullsPath+"/142") != 1 {
 		t.Fatalf("snapshot = %+v, lookups %d", snap, fake.count(pullsPath+"/142"))
+	}
+}
+
+func TestRefusedPullRequestsAreAskedAgainAfterAWhile(t *testing.T) {
+	fake, accounts := newFake(t)
+	fake.set(func(f *fakeGitHub) { f.pullsStatus = http.StatusForbidden })
+	var mu sync.Mutex
+	now := time.Date(2026, 10, 27, 9, 0, 0, 0, time.UTC)
+	clock := func() time.Time {
+		mu.Lock()
+		defer mu.Unlock()
+		return now
+	}
+	r := startRuntimeWith(t, t.TempDir(), fixedResolver(accounts, "o", "r"), nil, func(c *config) { c.now = clock })
+	waitRefresh(t, r)
+	refused := fake.count(pullsPath)
+	// A pass of the timer right after the refusal does not ask again.
+	timerPass := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := r.request(ctx, true, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	timerPass()
+	if fake.count(pullsPath) != refused {
+		t.Fatalf("asked again %d times right after the refusal", fake.count(pullsPath)-refused)
+	}
+	// The owner accepts the permission on GitHub; a pass after the retry interval sees it.
+	fake.set(func(f *fakeGitHub) { f.pullsStatus = 0 })
+	mu.Lock()
+	now = now.Add(DefaultIntervals().PullsRetry + time.Second)
+	mu.Unlock()
+	timerPass()
+	snap, _ := r.Snapshot(context.Background(), 50)
+	if fake.count(pullsPath) != refused+1 || snap.PullRequestsAccess != corev1.GithubAccess_GITHUB_ACCESS_OK {
+		t.Fatalf("reads %d, access %v", fake.count(pullsPath)-refused, snap.PullRequestsAccess)
 	}
 }
 
