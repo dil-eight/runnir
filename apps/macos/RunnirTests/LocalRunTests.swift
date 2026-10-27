@@ -155,6 +155,17 @@ struct LocalRunTests {
         #expect(fake.localRunLimits.last?.reset == true)
     }
 
+    @Test func limitsAreWordedAsTheReviewShowsThem() {
+        #expect(LocalRunText.duration(seconds: 1800) == "30 min")
+        #expect(LocalRunText.duration(seconds: 3600) == "1 h")
+        #expect(LocalRunText.duration(seconds: 5400) == "1 h 30 min")
+        var plan = CoreLocalRunPlan(workflowID: "ci.yml")
+        plan.cpus = 1
+        plan.memoryBytes = 2 << 30
+        plan.timeoutSeconds = 7200
+        #expect(LocalRunText.limits(plan).hasPrefix("1 CPU · ") && LocalRunText.limits(plan).hasSuffix("· 2 h timeout"))
+    }
+
     @Test func limitStepsStopAtTheirBounds() {
         #expect(LimitSteps.cpus(4, by: 1, max: 8) == 5)
         #expect(LimitSteps.cpus(8, by: 1, max: 8) == 8)

@@ -1,6 +1,6 @@
 # Limits of a local run (B45)
 
-Status: design agreed, drawn in `runnir.pen` (journey E, Row — Local run limits), not implemented.
+Status: built (the rules and the workspace's limits in the Core, `PrepareLocalRun` with limits, the Limits row and panel in the review), drawn in `runnir.pen` (journey E, Row — Local run limits). Not tried with a real run against Docker Desktop or OrbStack.
 
 ## Problem
 

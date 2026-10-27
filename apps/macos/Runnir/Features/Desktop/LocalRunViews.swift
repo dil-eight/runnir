@@ -106,9 +106,19 @@ enum LocalRunText {
     }
 
     static func limits(_ plan: CoreLocalRunPlan) -> String {
-        let memory = ByteCountFormatter.string(fromByteCount: Int64(plan.memoryBytes), countStyle: .memory)
-        let minutes = plan.timeoutSeconds / 60
-        return "\(plan.cpus) CPU\(plan.cpus == 1 ? "" : "s") · \(memory) memory · \(minutes) min timeout"
+        "\(plan.cpus) CPU\(plan.cpus == 1 ? "" : "s") · \(memory(plan.memoryBytes)) memory · \(duration(seconds: plan.timeoutSeconds)) timeout"
+    }
+
+    /// Memory as the engines word it: "5.85 GB".
+    static func memory(_ bytes: UInt64) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(clamping: bytes), countStyle: .memory)
+    }
+
+    /// A timeout: "30 min", "1 h", "1 h 30 min".
+    static func duration(seconds: Int) -> String {
+        let minutes = max(0, seconds) / 60
+        if minutes < 60 { return "\(minutes) min" }
+        return minutes % 60 == 0 ? "\(minutes / 60) h" : "\(minutes / 60) h \(minutes % 60) min"
     }
 
     static func elapsed(from start: Date, to end: Date) -> String {
@@ -256,6 +266,8 @@ struct LocalRunSheet: View {
     var manageValues: () -> Void = {}
     let onStarted: (LocalRunModel) -> Void
     @Environment(\.dismiss) private var dismiss
+    /// The limits panel is open over the review.
+    @State private var showingLimits = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -283,7 +295,39 @@ struct LocalRunSheet: View {
         .frame(width: 680)
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
+        .overlayPreferenceValue(LimitsAnchorKey.self) { anchor in
+            GeometryReader { proxy in
+                if showingLimits, let anchor, let plan = model.prepared?.plan {
+                    limitsLayer(plan: plan, link: proxy[anchor], size: proxy.size)
+                }
+            }
+        }
         .task { await model.prepare() }
+    }
+
+    /// The limits panel over the review, next to Change…: above it when there
+    /// is room, under it otherwise. A click outside or Escape closes it
+    /// without changing anything.
+    private func limitsLayer(plan: CoreLocalRunPlan, link: CGRect, size: CGSize) -> some View {
+        let width: CGFloat = 420
+        let x = min(max(link.minX - 140, 16), size.width - width - 16)
+        let above = link.minY > 360
+        return ZStack(alignment: .topLeading) {
+            // No hand pointer: a click outside the panel closes it.
+            Color.clear.contentShape(Rectangle()).onTapGesture { showingLimits = false }.accessibilityHidden(true)
+            LocalRunLimitsPanel(plan: plan, apply: { limits in
+                showingLimits = false
+                Task { await model.change(limits: limits) }
+            }, reset: {
+                showingLimits = false
+                Task { await model.resetLimits() }
+            }, close: { showingLimits = false })
+            .frame(width: width)
+            .frame(width: size.width, height: above ? link.minY - 8 : max(0, size.height - link.maxY - 8),
+                   alignment: above ? .bottomLeading : .topLeading)
+            .padding(.leading, x)
+            .offset(y: above ? 0 : link.maxY + 8)
+        }
     }
 
     private var header: some View {
@@ -408,7 +452,7 @@ struct LocalRunSheet: View {
                 accessRow("folder", "Workspace", "Copy of \(LocalRunText.abbreviated(repositoryPath)) made by actions/checkout, with uncommitted changes and without .gitignore'd files; not mounted live")
                 accessRow("globe", "Network", "On (bridge network): downloads images and actions; workflow steps may send data")
                 accessRow(model.runKeys.isEmpty ? "key.slash" : "key", "Secrets", model.accessSummary)
-                accessRow("gauge.with.dots.needle.33percent", "Limits", LocalRunText.limits(plan))
+                limitsRow(plan)
                 accessRow("nosign", "Never mounted", "Docker socket · home directory")
             }
         }
@@ -494,6 +538,38 @@ struct LocalRunSheet: View {
             .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction).disabled(!model.canRun)
             .help(model.prepared?.confirmationID == nil ? "Resolve the problems above first" : model.trusted ? "Start act with this plan" : "Confirm that you trust this workflow")
         }.buttonStyle(DesignButtonStyle())
+    }
+
+    /// The run's limits with Change…, and under them what is worth knowing:
+    /// a note about the engine and what the limits risk.
+    private func limitsRow(_ plan: CoreLocalRunPlan) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: "gauge.with.dots.needle.33percent").foregroundStyle(RunnirTheme.secondaryForeground).frame(width: 18)
+                Text("Limits").foregroundStyle(RunnirTheme.secondaryForeground).frame(width: 130, alignment: .leading)
+                Text(LocalRunText.limits(plan))
+                if plan.ownLimits {
+                    Text("set for this workspace").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        .padding(.horizontal, 6).padding(.vertical, 1)
+                        .overlay(RoundedRectangle(cornerRadius: 5).stroke(RunnirTheme.border))
+                }
+                Button("Change\u{2026}") { showingLimits.toggle() }
+                    .buttonStyle(.link).pointerStyle(.link)
+                    .disabled(plan.maxCPUs == 0 && plan.maxMemoryBytes == 0 || model.isPreparing)
+                    .help(plan.maxCPUs == 0 && plan.maxMemoryBytes == 0 ? "The engine has not said what it has" : "CPUs, memory and timeout for this workspace's local runs")
+                    .anchorPreference(key: LimitsAnchorKey.self, value: .bounds) { $0 }
+            }.font(.system(size: 14))
+            if !plan.limitNote.isEmpty {
+                Label(plan.limitNote, systemImage: "info.circle")
+                    .font(.system(size: 12.5)).foregroundStyle(RunnirTheme.secondaryForeground)
+                    .fixedSize(horizontal: false, vertical: true).padding(.leading, 28)
+            }
+            ForEach(plan.limitWarnings, id: \.self) { warning in
+                Label(warning, systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 12.5)).foregroundStyle(RunnirTheme.warning)
+                    .fixedSize(horizontal: false, vertical: true).padding(.leading, 28)
+            }
+        }
     }
 
     private func accessRow(_ symbol: String, _ title: String, _ detail: String) -> some View {
@@ -702,5 +778,134 @@ struct LocalJobIcon: View {
         case .skipped, .unsupported: Image(systemName: "nosign").foregroundStyle(RunnirTheme.warning)
         case .notRun, .unknown: Image(systemName: "minus.circle").foregroundStyle(RunnirTheme.mutedForeground)
         }
+    }
+}
+
+/// Where Change… is, so the limits panel opens next to it.
+private struct LimitsAnchorKey: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) { value = value ?? nextValue() }
+}
+
+/// The limits of a local run for the workspace (B45): a stepper each for the
+/// CPUs, the memory and the timeout, up to what the engine has; what the
+/// limits the run has now risk; Reset to defaults and Done. Done plans the
+/// run again with the new limits, which then has to be confirmed again.
+struct LocalRunLimitsPanel: View {
+    let plan: CoreLocalRunPlan
+    let apply: (CoreLocalRunLimits) -> Void
+    let reset: () -> Void
+    let close: () -> Void
+    @State private var draft: CoreLocalRunLimits?
+    @State private var escape: Any?
+
+    private var limits: CoreLocalRunLimits { draft ?? plan.limits }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Limits for this workspace").font(.system(size: 14, weight: .semibold))
+                Text("Kept for the workspace and used by its next local runs.").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+            }
+            row("CPUs", value: "\(limits.cpus)", ceiling: plan.maxCPUs > 0 ? "of \(plan.maxCPUs)\(plan.engineName.isEmpty ? "" : " on \(plan.engineName)")" : "",
+                atCeiling: plan.maxCPUs > 0 && limits.cpus >= plan.maxCPUs,
+                canLess: limits.cpus > 1, canMore: plan.maxCPUs == 0 || limits.cpus < plan.maxCPUs) { delta in
+                update { $0.cpus = LimitSteps.cpus($0.cpus, by: delta, max: plan.maxCPUs) }
+            }
+            row("Memory", value: LocalRunText.memory(limits.memoryBytes),
+                ceiling: plan.maxMemoryBytes > 0 ? "of \(LocalRunText.memory(plan.maxMemoryBytes))" : "",
+                atCeiling: plan.maxMemoryBytes > 0 && limits.memoryBytes * 10 >= plan.maxMemoryBytes * 9,
+                canLess: limits.memoryBytes > LimitSteps.minMemory,
+                canMore: plan.maxMemoryBytes == 0 || limits.memoryBytes < plan.maxMemoryBytes) { delta in
+                update { $0.memoryBytes = LimitSteps.memory($0.memoryBytes, by: delta, max: plan.maxMemoryBytes) }
+            }
+            row("Timeout", value: LocalRunText.duration(seconds: limits.timeoutSeconds), ceiling: "up to 6 h", atCeiling: false,
+                canLess: limits.timeoutSeconds > LimitSteps.minTimeout, canMore: limits.timeoutSeconds < LimitSteps.maxTimeout) { delta in
+                update { $0.timeoutSeconds = LimitSteps.timeout($0.timeoutSeconds, by: delta) }
+            }
+            // What the limits the run has now risk, as the Core says it.
+            ForEach(plan.limitWarnings, id: \.self) { warning in
+                Label(warning, systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.foreground)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 10).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RunnirTheme.warning.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+            }
+            DesignDivider()
+            Text("Changing a limit prepares the run again: confirm it again before it starts.")
+                .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                let canReset = plan.ownLimits || draft != nil
+                Button(action: reset) {
+                    Text("Reset to defaults").font(.system(size: 12.5))
+                        .foregroundStyle(canReset ? RunnirTheme.primary : RunnirTheme.mutedForeground)
+                }
+                .buttonStyle(.hit).disabled(!canReset)
+                Spacer()
+                Button("Done") { if let draft, draft != plan.limits { apply(draft) } else { close() } }
+                    .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(18)
+        .background(RunnirTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(RunnirTheme.border))
+        .shadow(color: .black.opacity(0.35), radius: 24, y: 12)
+        .onAppear(perform: watchEscape)
+        .onDisappear(perform: stopWatching)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Limits")
+    }
+
+    private func update(_ change: (inout CoreLocalRunLimits) -> Void) {
+        var next = limits
+        change(&next)
+        draft = next
+    }
+
+    private func row(_ title: String, value: String, ceiling: String, atCeiling: Bool, canLess: Bool, canMore: Bool,
+                     step: @escaping (Int) -> Void) -> some View {
+        HStack(spacing: 12) {
+            Text(title).font(.system(size: 13, weight: .medium)).foregroundStyle(RunnirTheme.secondaryForeground).frame(width: 70, alignment: .leading)
+            HStack(spacing: 0) {
+                stepButton("minus", enabled: canLess, label: "Less \(title.lowercased())") { step(-1) }
+                Rectangle().fill(RunnirTheme.border).frame(width: 1)
+                Text(value).font(.system(size: 13, weight: .semibold)).monospacedDigit()
+                    .foregroundStyle(atCeiling ? RunnirTheme.warning : RunnirTheme.foreground).frame(width: 82)
+                Rectangle().fill(RunnirTheme.border).frame(width: 1)
+                stepButton("plus", enabled: canMore, label: "More \(title.lowercased())") { step(1) }
+            }
+            .frame(height: 30)
+            .background(RunnirTheme.background, in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(title).accessibilityValue(value)
+            Text(ceiling).font(.system(size: 12)).foregroundStyle(RunnirTheme.mutedForeground).lineLimit(1)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func stepButton(_ symbol: String, enabled: Bool, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(enabled ? RunnirTheme.foreground : RunnirTheme.mutedForeground)
+                .frame(width: 30, height: 30).contentShape(Rectangle())
+        }
+        .buttonStyle(.hit).disabled(!enabled).accessibilityLabel(label)
+    }
+
+    /// Escape closes the panel, not the review under it.
+    private func watchEscape() {
+        stopWatching()
+        escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard event.keyCode == 53 else { return event }
+            MainActor.assumeIsolated { close() }
+            return nil
+        }
+    }
+
+    private func stopWatching() {
+        if let escape { NSEvent.removeMonitor(escape) }
+        escape = nil
     }
 }
