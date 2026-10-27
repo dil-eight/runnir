@@ -24,6 +24,13 @@ struct ScenarioFlowTests {
         #expect(ScenarioFlowModel.columns([]).isEmpty)
     }
 
+    @Test func aLaneIsAsWideAsItsColumns() {
+        #expect(ScenarioFlowView.jobsWidth([]) == 0)
+        #expect(ScenarioFlowView.jobsWidth([job("lint")]) == ScenarioFlowView.nodeWidth)
+        let three = ScenarioFlowView.jobsWidth([job("a"), job("b", column: 1), job("c", column: 2), job("d", column: 2)])
+        #expect(three == 3 * ScenarioFlowView.nodeWidth + 2 * ScenarioFlowView.columnGap)
+    }
+
     @Test func aNodeSaysItsMatrix() {
         #expect(ScenarioFlowModel.title(job("tests", matrix: 3)) == "tests ×3")
         #expect(ScenarioFlowModel.title(job("tests", matrix: -1)) == "tests ×n")
