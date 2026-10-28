@@ -11,51 +11,51 @@ import (
 	"runnir/core/internal/workspace"
 )
 
-// explainSkips explains the jobs a run skipped. The run and its jobs are
-// read again until the run is finished, then kept with its file until the
-// workspace sees a newer attempt of it. Nothing is explained when they
-// cannot be read.
+// explainSkips explains the jobs a run skipped. A finished attempt's
+// reasons are kept with the run's file until the caller knows a later
+// attempt; until then the run and its jobs are read on each request. When
+// they cannot be read, the reasons told last for the attempt stand.
 func (s *service) explainSkips(ctx context.Context, request *corev1.GetRunWorkflowRequest, target githubRepo, key workflowFileKey,
-	file workflowFile, fresh bool, w flow.Workflow) ([]*corev1.JobSkip, string) {
-	run, jobs := file.run, file.jobs
+	file workflowFile, fresh bool) ([]*corev1.JobSkip, string) {
+	kept, attempt := file.skips, request.GetRunAttempt()
+	known := kept != nil && attempt > 0 && attempt <= kept.attempt
+	if known && kept.final {
+		return kept.skips, kept.note
+	}
+	last := func() ([]*corev1.JobSkip, string) {
+		if known {
+			return kept.skips, kept.note
+		}
+		return nil, ""
+	}
+	run := file.run
+	if !fresh {
+		read, err := target.account.Client.Run(ctx, target.owner, target.name, request.GetRunId())
+		if err != nil {
+			return last()
+		}
+		run = read
+	}
 	var rt *workspace.Runtime
 	if request.GetGithubRepository() == "" {
 		rt, _ = s.workspaces.ForRepository(request.GetRepositoryId())
 	}
-	// A re-run keeps the run's id.
-	if file.final && rt != nil {
-		if saved, known, err := rt.Store().Run(ctx, request.GetRunId()); err == nil && known && saved.RunAttempt > file.run.RunAttempt {
-			file.final = false
+	var jobs []github.Job
+	var err error
+	if rt != nil {
+		// The workspace's jobs, unless they were read before this attempt
+		// or before the run finished: then once more from GitHub.
+		var access corev1.GithubAccess
+		jobs, access, _, err = rt.Jobs(ctx, request.GetRunId())
+		if err == nil && access != corev1.GithubAccess_GITHUB_ACCESS_OK {
+			return last()
 		}
 	}
-	if !file.final {
-		if !fresh {
-			read, err := target.account.Client.Run(ctx, target.owner, target.name, request.GetRunId())
-			if err != nil {
-				return nil, ""
-			}
-			run = read
-		}
-		var err error
-		if rt != nil {
-			// The workspace's jobs, unless they were read before this attempt
-			// or before the run finished: then once more from GitHub.
-			var access corev1.GithubAccess
-			jobs, access, _, err = rt.Jobs(ctx, request.GetRunId())
-			if err == nil && access != corev1.GithubAccess_GITHUB_ACCESS_OK {
-				return nil, ""
-			}
-		}
-		if rt == nil || err == nil && !jobsOf(run, jobs) {
-			jobs, err = target.account.Client.Jobs(ctx, target.owner, target.name, request.GetRunId())
-		}
-		if err != nil {
-			return nil, ""
-		}
-		if run.Status == "completed" && jobsOf(run, jobs) {
-			file.run, file.jobs, file.final = run, jobs, true
-			s.workflowFiles.put(key, file)
-		}
+	if rt == nil || err == nil && !jobsOf(run, jobs) {
+		jobs, err = target.account.Client.Jobs(ctx, target.owner, target.name, request.GetRunId())
+	}
+	if err != nil {
+		return last()
 	}
 	repository := strings.ToLower(target.owner + "/" + target.name)
 	var defaultBranch string
@@ -80,16 +80,22 @@ func (s *service) explainSkips(ctx context.Context, request *corev1.GetRunWorkfl
 		runJobs = append(runJobs, flow.RunJob{Name: j.Name, Result: runJobResult(j)})
 	}
 	var out []*corev1.JobSkip
-	for _, skip := range flow.ExplainSkips(w, runFacts(run, repository, defaultBranch, pull, refs), runJobs) {
+	for _, skip := range flow.ExplainSkips(file.workflow, runFacts(run, repository, defaultBranch, pull, refs), runJobs) {
 		out = append(out, skipMessage(skip))
 	}
-	return out, flow.SourceNote(run.Event)
+	note := flow.SourceNote(run.Event)
+	if latest, ok := s.workflowFiles.get(key); ok {
+		// A run that does not say is in its first attempt.
+		latest.skips = &runSkips{attempt: max(run.RunAttempt, 1), final: run.Status == "completed" && jobsOf(run, jobs), skips: out, note: note}
+		s.workflowFiles.put(key, latest)
+	}
+	return out, note
 }
 
 // runFacts is what a run tells its jobs' conditions: its event and refs,
 // actor, repository and workflow; the pull request's base and draft when
-// the workspace has read it; whether a pushed ref is a tag or a branch as
-// the local repository knows it (refs is nil without one).
+// the workspace read it unchanged since the run; whether a pushed ref is a
+// tag or a branch as the local repository knows it (refs is nil without one).
 func runFacts(run github.Run, repository, defaultBranch string, pull *github.RepositoryPullRequest, refs func() (tags, branches map[string]bool)) flow.RunFacts {
 	ctx := flow.Context{
 		"github.event_name": run.Event, "github.actor": run.Actor, "github.workflow": run.Name,
@@ -105,10 +111,18 @@ func runFacts(run github.Run, repository, defaultBranch string, pull *github.Rep
 	switch run.Event {
 	case "pull_request", "pull_request_target":
 		ctx["github.head_ref"] = run.Branch
+		if len(run.PullRequests) > 0 {
+			ctx["github.event.pull_request.number"] = float64(run.PullRequests[0])
+		}
+		// The pull request as the workspace read it is the one the run saw
+		// only when it has not changed since: a draft can become ready, and
+		// the base can change, with no new run.
+		if pull != nil && (pull.UpdatedAt.IsZero() || pull.UpdatedAt.After(run.CreatedAt)) {
+			pull = nil
+		}
 		if pull != nil {
 			ctx["github.base_ref"] = pull.BaseRef
 			ctx["github.event.pull_request.draft"] = pull.Draft
-			ctx["github.event.pull_request.number"] = float64(pull.Number)
 		}
 		switch {
 		case run.Event == "pull_request" && len(run.PullRequests) > 0:
@@ -144,16 +158,18 @@ func runFacts(run github.Run, repository, defaultBranch string, pull *github.Rep
 	return flow.RunFacts{Context: ctx, Event: run.Event, Active: run.Status != "completed", Cancelled: run.Conclusion == "cancelled"}
 }
 
-// jobsOf: the jobs are of the run as read, its attempt (where GitHub says),
-// and all finished when it is.
+// jobsOf: the jobs are of the run as read: the newest attempt among them is
+// the run's (where GitHub says; a re-run of failed jobs keeps the jobs that
+// passed with their earlier attempt), and all are finished when it is.
 func jobsOf(run github.Run, jobs []github.Job) bool {
+	var newest int64
 	for _, j := range jobs {
-		if j.RunAttempt != 0 && run.RunAttempt != 0 && j.RunAttempt != run.RunAttempt ||
-			run.Status == "completed" && j.Status != "completed" {
+		newest = max(newest, j.RunAttempt)
+		if run.Status == "completed" && j.Status != "completed" {
 			return false
 		}
 	}
-	return true
+	return newest == 0 || run.RunAttempt == 0 || newest == run.RunAttempt
 }
 
 // runJobResult is a job's result as needs.<id>.result names it; empty while

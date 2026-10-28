@@ -51,31 +51,50 @@ const differs = "the file at this commit may differ from the one GitHub ran."
 
 // ExplainSkips says why each job of the workflow GitHub skipped in the run
 // was skipped, and which jobs a finished run has no job for, in the file's
-// order. Jobs that ran, or are still to come, are left out.
+// order. Jobs that ran, or are still to come, are left out, and so is a job
+// named only by an expression, whose run jobs Runnir cannot find.
 func ExplainSkips(w Workflow, facts RunFacts, jobs []RunJob) []Skip {
+	names := make([]string, len(jobs))
+	for i, r := range jobs {
+		names[i] = r.Name
+	}
+	matched := map[string][]RunJob{}
+	for i, id := range RunJobNodes(w, names) {
+		if id != "" {
+			matched[id] = append(matched[id], jobs[i])
+		}
+	}
+	// The results of the jobs Runnir can find; the others are lost.
 	results := map[string]string{}
-	ran := map[string]bool{}
+	lost := map[string]bool{}
 	for _, j := range w.Jobs {
-		matched := matchRunJobs(j, jobs, w.Jobs)
-		ran[j.ID] = len(matched) > 0
-		results[j.ID] = combined(matched)
+		if findable(j) {
+			results[j.ID] = combined(matched[j.ID])
+		} else {
+			lost[j.ID] = true
+		}
 	}
 	var out []Skip
 	for _, j := range w.Jobs {
 		switch {
-		case !ran[j.ID] && !facts.Active:
+		case lost[j.ID]:
+		case len(matched[j.ID]) == 0 && !facts.Active:
 			out = append(out, Skip{JobID: j.ID, Kind: SkipNotInRun, Note: notInRunNote(facts.Event)})
-		case ran[j.ID] && results[j.ID] == "skipped":
-			out = append(out, explain(j, w, facts, results))
+		case results[j.ID] == "skipped":
+			out = append(out, explain(j, w, facts, results, lost))
 		}
 	}
 	return out
 }
 
-func explain(j Job, w Workflow, facts RunFacts, results map[string]string) Skip {
+func explain(j Job, w Workflow, facts RunFacts, results map[string]string, lost map[string]bool) Skip {
 	skip := Skip{JobID: j.ID, Condition: j.If}
 	// Without a status function GitHub adds success(): every need succeeded.
-	if !statusCheck(j.If) {
+	// With one, the status functions read every job before it.
+	status := checksStatus(j.If)
+	read := before(j.ID, w)
+	if !status {
+		read = j.Needs
 		for _, need := range j.Needs {
 			if r, ok := results[need]; ok && r != "success" {
 				if r == "" {
@@ -84,6 +103,12 @@ func explain(j Job, w Workflow, facts RunFacts, results map[string]string) Skip 
 				skip.Kind, skip.Need, skip.NeedResult = SkipNeeds, need, r
 				return skip
 			}
+		}
+	}
+	for _, id := range read {
+		if lost[id] {
+			skip.Kind, skip.Note = SkipNotKnown, "Runnir cannot tell how "+id+" ended in this run: its name is set by an expression."
+			return skip
 		}
 	}
 	if j.If == "" {
@@ -97,6 +122,12 @@ func explain(j Job, w Workflow, facts RunFacts, results map[string]string) Skip 
 		skip.Kind = SkipConditionFalse
 	case Unknown:
 		skip.Kind = SkipNotKnown
+		switch {
+		case r.Unreadable:
+			skip.Note = "Runnir cannot read this condition, so it cannot tell."
+		case len(r.Unsupported) > 0:
+			skip.Note = "Runnir does not evaluate " + strings.Join(r.Unsupported, ", ") + " yet, so it cannot tell."
+		}
 	default:
 		skip.Kind, skip.Note = SkipNotKnown, "Runnir reads its condition as true for this run, yet GitHub skipped it: "+differs
 	}
@@ -151,55 +182,55 @@ func before(id string, w Workflow) []string {
 	return out
 }
 
-// statusCheck: the condition calls a status function, so GitHub does not
-// add success() to it.
-func statusCheck(condition string) bool {
-	c := strings.ToLower(strings.ReplaceAll(condition, " ", ""))
-	for _, f := range []string{"success(", "failure(", "cancelled(", "always("} {
-		if strings.Contains(c, f) {
+// RunJobNodes says which job of the file each run job, by its name, belongs
+// to: the job named by its name or id, also as a matrix variant "name (…)"
+// or a called workflow's job "name / …"; else the first job whose name set
+// by an expression starts like it ("Build ${{ matrix.os }}"). Empty for a
+// run job no job of the file claims. The app's run graph and Overview use
+// these for their jobs (through ListRunJobs).
+func RunJobNodes(w Workflow, names []string) []string {
+	out := make([]string, len(names))
+	for i, name := range names {
+		for _, j := range w.Jobs {
+			if namedBy(j, name) {
+				out[i] = j.ID
+				break
+			}
+		}
+		if out[i] != "" {
+			continue
+		}
+		for _, j := range w.Jobs {
+			if stem := nameStem(j.Name); stem != "" && strings.HasPrefix(name, stem) {
+				out[i] = j.ID
+				break
+			}
+		}
+	}
+	return out
+}
+
+func namedBy(j Job, name string) bool {
+	for _, n := range []string{j.Name, j.ID} {
+		if n != "" && !strings.Contains(n, "${{") && (name == n || strings.HasPrefix(name, n+" (") || strings.HasPrefix(name, n+" / ")) {
 			return true
 		}
 	}
 	return false
 }
 
-// matchRunJobs finds a file job's jobs in the run as the app's run graph
-// does (PipelineLayout.runJobs): its name or id, a matrix variant
-// "name (…)", a called workflow's job "name / …", and for a name set by an
-// expression the run jobs that start with its text before the expression
-// and that no other job names.
-func matchRunJobs(j Job, jobs []RunJob, all []Job) []RunJob {
-	names := func(f Job, r RunJob) bool {
-		for _, n := range []string{f.Name, f.ID} {
-			if n != "" && !strings.Contains(n, "${{") &&
-				(r.Name == n || strings.HasPrefix(r.Name, n+" (") || strings.HasPrefix(r.Name, n+" / ")) {
-				return true
-			}
-		}
-		return false
+// nameStem is a name's text before its expression; empty without one.
+func nameStem(name string) string {
+	if i := strings.Index(name, "${{"); i >= 0 {
+		return strings.TrimSpace(name[:i])
 	}
-	stem := ""
-	if i := strings.Index(j.Name, "${{"); i >= 0 {
-		stem = strings.TrimSpace(j.Name[:i])
-	}
-	var out []RunJob
-	for _, r := range jobs {
-		if names(j, r) {
-			out = append(out, r)
-			continue
-		}
-		if stem == "" || !strings.HasPrefix(r.Name, stem) {
-			continue
-		}
-		claimed := false
-		for _, f := range all {
-			claimed = claimed || (f.ID != j.ID && names(f, r))
-		}
-		if !claimed {
-			out = append(out, r)
-		}
-	}
-	return out
+	return ""
+}
+
+// findable: Runnir can find the job's run jobs, so a run without one has
+// none. A name that is only an expression is known only to the run.
+func findable(j Job) bool {
+	return !strings.Contains(j.Name, "${{") || nameStem(j.Name) != ""
 }
 
 // combined is a job's result over its run jobs (a matrix has several):

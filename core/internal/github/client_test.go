@@ -3,9 +3,11 @@ package github
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -62,6 +64,28 @@ func TestJobsCarryTheirSteps(t *testing.T) {
 	}
 	if _, err := client.Jobs(context.Background(), "o", "r", 0); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("run id 0 = %v", err)
+	}
+}
+
+func TestJobsArePaged(t *testing.T) {
+	var pages []string
+	client, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		page := r.URL.Query().Get("page")
+		pages = append(pages, page)
+		n, last := 100, 0
+		if page == "2" {
+			n = 30
+		}
+		jobs := make([]string, n)
+		for i := range jobs {
+			last = i + 1
+			jobs[i] = fmt.Sprintf(`{"id":%s%d,"name":"test (%d)","status":"completed","conclusion":"success"}`, page, last, last)
+		}
+		_, _ = fmt.Fprintf(w, `{"total_count":130,"jobs":[%s]}`, strings.Join(jobs, ","))
+	})
+	jobs, err := client.Jobs(context.Background(), "o", "r", 11)
+	if err != nil || len(jobs) != 130 || !reflect.DeepEqual(pages, []string{"1", "2"}) {
+		t.Fatalf("jobs = %d, pages = %v, err = %v", len(jobs), pages, err)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -49,8 +50,10 @@ type service struct {
 	actCache string
 	// saveMu serializes workflow file saves.
 	saveMu sync.Mutex
-	// workflowFiles keeps the workflow files read at a run's commit.
+	// workflowFiles keeps the workflow files read at a run's commit, and
+	// workflowReads shares a read between requests made at once.
 	workflowFiles workflowFileCache
+	workflowReads singleflight.Group
 	// gitPath is the git binary scenarios read changed files with, found on first use.
 	gitOnce sync.Once
 	gitPath string

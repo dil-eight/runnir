@@ -194,7 +194,7 @@ func TestARunsWorkflowIsReadAtItsCommit(t *testing.T) {
 	// Selecting a run again reads nothing from GitHub, whether its file was there or not.
 	before := reads()
 	for _, run := range []int64{31, 32, 34} {
-		again, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: run})
+		again, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: run, RunAttempt: 1})
 		if err != nil || (run == 32) != (again.Problem != "") {
 			t.Fatalf("run %d again = %v, %v", run, again, err)
 		}
@@ -211,13 +211,25 @@ func TestARunsSkippedJobsAreExplained(t *testing.T) {
 		defer fake.mu.Unlock()
 		return fake.workflowReads
 	}
-	got, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 35})
-	if err != nil || got.Problem != "" || got.SourceNote != "" {
-		t.Fatalf("workflow = %v, %v", got, err)
+	ask := func(run, attempt int64) *corev1.GetRunWorkflowResponse {
+		t.Helper()
+		got, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: run, RunAttempt: attempt})
+		if err != nil || got.Problem != "" {
+			t.Fatalf("run %d = %v, %v", run, got, err)
+		}
+		return got
 	}
-	skips := map[string]*corev1.JobSkip{}
-	for _, s := range got.Skips {
-		skips[s.JobId] = s
+	byJob := func(got *corev1.GetRunWorkflowResponse) map[string]*corev1.JobSkip {
+		skips := map[string]*corev1.JobSkip{}
+		for _, s := range got.Skips {
+			skips[s.JobId] = s
+		}
+		return skips
+	}
+	got := ask(35, 1)
+	skips := byJob(got)
+	if got.SourceNote != "" || len(got.Skips) != 4 {
+		t.Fatalf("skips = %v, note %q", got.Skips, got.SourceNote)
 	}
 	if s := skips["publish"]; s.GetKind() != corev1.SkipKind_SKIP_KIND_NEEDS || s.Need != "build" || s.NeedResult != "failure" {
 		t.Fatalf("publish = %v", s)
@@ -232,40 +244,64 @@ func TestARunsSkippedJobsAreExplained(t *testing.T) {
 	if s := skips["preview"]; s.GetKind() != corev1.SkipKind_SKIP_KIND_NOT_IN_RUN || s.Note == "" {
 		t.Fatalf("preview = %v", s)
 	}
-	if len(got.Skips) != 4 {
-		t.Fatalf("skips = %v", got.Skips)
+
+	// The run's jobs name the job of the file they belong to, as the reasons do.
+	jobs, err := client.ListRunJobs(ctx, &corev1.ListRunJobsRequest{RepositoryId: id, RunId: 35})
+	if err != nil || len(jobs.Jobs) != 5 || slices.ContainsFunc(jobs.Jobs, func(j *corev1.RunJob) bool { return j.WorkflowJobId != j.Name }) {
+		t.Fatalf("jobs = %v, %v", jobs.GetJobs(), err)
 	}
 
-	// A finished run's run and jobs are kept with its file: asked again, nothing is read.
+	// A finished attempt's reasons are kept with its file: asked again, nothing is read.
 	before := reads()
-	if again, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 35}); err != nil || len(again.Skips) != 4 {
-		t.Fatalf("again = %v, %v", again, err)
+	if again := ask(35, 1); len(again.Skips) != 4 {
+		t.Fatalf("again = %v", again.Skips)
 	}
 	if after := reads(); after != before {
 		t.Fatalf("a finished run read again made %d GitHub requests", after-before)
 	}
 
-	// A re-run keeps the run's id: once the workspace has seen the newer
-	// attempt, its run and jobs are read again.
-	fake.mu.Lock()
-	fake.rerun = true
-	fake.mu.Unlock()
-	if _, err := client.RefreshWorkspaceActivity(ctx, &corev1.RefreshWorkspaceActivityRequest{RepositoryId: id, Wait: true}); err != nil {
-		t.Fatal(err)
+	// A re-run keeps the run's id: a later attempt reads them again, also
+	// when the re-run of failed jobs keeps the jobs that passed with the
+	// first attempt, and keeps them in turn.
+	fake.set(&fake.rerun)
+	rerun := ask(35, 2)
+	if len(rerun.Skips) != 3 || byJob(rerun)["publish"] != nil {
+		t.Fatalf("after a re-run in which publish ran = %v", rerun.Skips)
 	}
-	rerun, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 35})
-	if err != nil || len(rerun.Skips) != 3 || slices.ContainsFunc(rerun.Skips, func(s *corev1.JobSkip) bool { return s.JobId == "publish" }) {
-		t.Fatalf("after a re-run in which publish ran = %v, %v", rerun.GetSkips(), err)
+	before = reads()
+	if again := ask(35, 2); len(again.Skips) != 3 {
+		t.Fatalf("the re-run again = %v", again.Skips)
+	}
+	if after := reads(); after != before {
+		t.Fatalf("a finished re-run read again made %d GitHub requests", after-before)
 	}
 
-	pr, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 36})
-	if err != nil || pr.SourceNote != "GitHub ran this file merged with the base, which may differ." {
-		t.Fatalf("pull request = %v, %v", pr, err)
+	pr := ask(36, 1)
+	docs := byJob(pr)["docs"]
+	if pr.SourceNote != "GitHub ran this file merged with the base, which may differ." || docs == nil ||
+		docs.GetKind() != corev1.SkipKind_SKIP_KIND_NOT_KNOWN || !strings.Contains(docs.Note, "reads its condition as true") {
+		t.Fatalf("pull request = %v, docs %v", pr.SourceNote, docs)
 	}
-	for _, s := range pr.Skips {
-		if s.JobId == "docs" && (s.GetKind() != corev1.SkipKind_SKIP_KIND_NOT_KNOWN || !strings.Contains(s.Note, "reads its condition as true")) {
-			t.Fatalf("docs on a pull request = %v", s)
+}
+
+func TestReasonsToldLastStandWhenTheRunCannotBeRead(t *testing.T) {
+	client, id, fake, ctx := historyRig(t)
+	fake.set(&fake.running)
+	ask := func() []*corev1.JobSkip {
+		t.Helper()
+		got, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 35, RunAttempt: 1})
+		if err != nil || got.Problem != "" {
+			t.Fatalf("workflow = %v, %v", got, err)
 		}
+		return got.Skips
+	}
+	// While the run goes on, preview is still to come.
+	if skips := ask(); len(skips) != 3 {
+		t.Fatalf("skips = %v", skips)
+	}
+	fake.set(&fake.down)
+	if skips := ask(); len(skips) != 3 {
+		t.Fatalf("with GitHub down = %v", skips)
 	}
 }
 
@@ -288,10 +324,24 @@ func TestARunsFactsNameItsRef(t *testing.T) {
 	if got := ref(github.Run{Event: "pull_request", Branch: "feature", PullRequests: []int64{12}}); got != "refs/pull/12/merge" {
 		t.Fatalf("pull request = %v", got)
 	}
-	pull := &github.RepositoryPullRequest{Number: 12, BaseRef: "release", Draft: true}
-	facts := runFacts(github.Run{Event: "pull_request_target", Branch: "feature", PullRequests: []int64{12}}, "o/r", "main", pull, refs)
-	if facts.Context["github.ref"] != "refs/heads/release" || facts.Context["github.base_ref"] != "release" || facts.Context["github.event.pull_request.draft"] != true {
+	made := time.Date(2026, 10, 27, 10, 0, 0, 0, time.UTC)
+	target := github.Run{Event: "pull_request_target", Branch: "feature", PullRequests: []int64{12}, CreatedAt: made}
+	pull := &github.RepositoryPullRequest{Number: 12, BaseRef: "release", Draft: true, UpdatedAt: made.Add(-time.Minute)}
+	facts := runFacts(target, "o/r", "main", pull, refs)
+	if facts.Context["github.ref"] != "refs/heads/release" || facts.Context["github.base_ref"] != "release" ||
+		facts.Context["github.event.pull_request.draft"] != true || facts.Context["github.event.pull_request.number"] != float64(12) {
 		t.Fatalf("pull_request_target = %v", facts.Context)
+	}
+	// A pull request changed since the run may have had another draft or base then.
+	pull.UpdatedAt = made.Add(time.Minute)
+	facts = runFacts(target, "o/r", "main", pull, refs)
+	for _, name := range []string{"github.ref", "github.base_ref", "github.event.pull_request.draft"} {
+		if got, ok := facts.Context[name]; ok {
+			t.Fatalf("%s of a pull request changed since the run = %v", name, got)
+		}
+	}
+	if facts.Context["github.event.pull_request.number"] != float64(12) {
+		t.Fatalf("number = %v", facts.Context["github.event.pull_request.number"])
 	}
 	if got := ref(github.Run{Event: "workflow_run", Branch: "feature"}); got != "refs/heads/main" {
 		t.Fatalf("workflow_run runs on the default branch: %v", got)
