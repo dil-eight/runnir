@@ -751,6 +751,10 @@ message GetRunWorkflowRequest {
   // As in ListRunJobsRequest.
   string github_repository = 3;
   string github_server = 4;
+  // The run's attempt as the caller knows it. A finished run's skip reasons
+  // are kept for its attempt; a later attempt reads them again, and 0 reads
+  // them on every request.
+  int64 run_attempt = 5;
 }
 
 message GetRunWorkflowResponse {
@@ -921,6 +925,10 @@ message RunJob {
   google.protobuf.Timestamp completed_at = 6;
   string html_url = 7;
   repeated RunStep steps = 8;
+  // The id of the job of the run's workflow file it belongs to, by its name
+  // (flow.RunJobNodes); empty when no job of the file claims it or the file
+  // at the run's commit cannot be read.
+  string workflow_job_id = 9;
 }
 
 message RunStep {

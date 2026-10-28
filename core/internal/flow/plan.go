@@ -591,14 +591,26 @@ func plannedJobs(w Workflow, ctx Context) []PlannedJob {
 	planned := map[string]PlannedJob{}
 	for _, j := range ordered {
 		p := PlannedJob{Job: j, Column: depth[j.ID]}
+		cond := ctx
 		for _, need := range j.Needs {
-			if _, ok := skipped[need]; ok && !alwaysRuns(j.If) {
-				p.Skipped = "needs " + need + ", which does not run"
-				break
+			if _, ok := skipped[need]; !ok {
+				continue
 			}
+			// Without a status function GitHub adds success(), which a need
+			// that does not run makes false.
+			if !checksStatus(j.If) {
+				p.Skipped = "needs " + need + ", which does not run"
+			} else {
+				cond = Context{}
+				for k, v := range ctx {
+					cond[k] = v
+				}
+				cond["success()"] = false
+			}
+			break
 		}
 		if p.Skipped == "" && j.If != "" {
-			switch Evaluate(j.If, ctx) {
+			switch Evaluate(j.If, cond) {
 			case False:
 				p.Skipped = "if: " + j.If
 			case Unknown:
@@ -614,11 +626,6 @@ func plannedJobs(w Workflow, ctx Context) []PlannedJob {
 		out = append(out, planned[j.ID])
 	}
 	return out
-}
-
-// alwaysRuns: a condition with always() runs also when a need did not.
-func alwaysRuns(condition string) bool {
-	return strings.Contains(strings.ToLower(condition), "always()")
 }
 
 func contains(list []string, value string) bool {

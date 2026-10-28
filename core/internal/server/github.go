@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -186,6 +187,9 @@ func (s *service) ListRunJobs(ctx context.Context, request *corev1.ListRunJobsRe
 			for _, j := range jobs {
 				out.Jobs = append(out.Jobs, jobMessage(j))
 			}
+			if target, problem, err := s.githubTarget(request.GetRepositoryId(), "", ""); err == nil && problem == nil {
+				s.nameWorkflowJobs(ctx, target, request.GetRunId(), out.Jobs)
+			}
 			return out, nil
 		}
 	}
@@ -202,7 +206,28 @@ func (s *service) ListRunJobs(ctx context.Context, request *corev1.ListRunJobsRe
 	for _, j := range jobs {
 		out.Jobs = append(out.Jobs, jobMessage(j))
 	}
+	s.nameWorkflowJobs(ctx, target, request.GetRunId(), out.Jobs)
 	return out, nil
+}
+
+// nameWorkflowJobs names the job of the run's workflow file each run job
+// belongs to, so the app draws them where the Core explains them. Nothing
+// is named when the file cannot be read.
+func (s *service) nameWorkflowJobs(ctx context.Context, target githubRepo, runID int64, jobs []*corev1.RunJob) {
+	if len(jobs) == 0 {
+		return
+	}
+	file, _, _, err := s.runWorkflowFile(ctx, target, runID)
+	if err != nil || file.workflow.ParseError != "" {
+		return
+	}
+	names := make([]string, len(jobs))
+	for i, j := range jobs {
+		names[i] = j.Name
+	}
+	for i, id := range flow.RunJobNodes(file.workflow, names) {
+		jobs[i].WorkflowJobId = id
+	}
 }
 
 // GetRunWorkflow reads the workflow file a run used at the run's commit and
@@ -217,24 +242,7 @@ func (s *service) GetRunWorkflow(ctx context.Context, request *corev1.GetRunWork
 	if err != nil || problem != nil {
 		return &corev1.GetRunWorkflowResponse{Status: problem}, err
 	}
-	client := target.account.Client
-	key := workflowFileKey{server: target.account.Server.ID, owner: target.owner, name: target.name, runID: request.GetRunId()}
-	file, cached := s.workflowFiles.get(key)
-	fresh := !cached
-	var fetchErr error
-	if cached && file.missing {
-		fetchErr = github.ErrNotVisible
-	} else if !cached {
-		file, fetchErr = readRunWorkflow(ctx, client, target.owner, target.name, request.GetRunId())
-		switch {
-		case fetchErr == nil:
-			s.workflowFiles.put(key, file)
-		case errors.Is(fetchErr, github.ErrNotVisible) && file.path != "":
-			// The run was read and its file is not at its commit: that stays so.
-			s.workflowFiles.put(key, workflowFile{path: file.path, missing: true})
-		}
-	}
-	path, data := file.path, file.data
+	file, key, fresh, fetchErr := s.runWorkflowFile(ctx, target, request.GetRunId())
 	result, err := s.githubStatus(target.account, fetchErr)
 	if err != nil {
 		return nil, err
@@ -249,8 +257,8 @@ func (s *service) GetRunWorkflow(ctx context.Context, request *corev1.GetRunWork
 	case fetchErr != nil:
 		return out, nil
 	}
-	workflow := flow.Parse(path, data)
-	out.WorkflowPath = path
+	workflow := file.workflow
+	out.WorkflowPath = file.path
 	if workflow.ParseError != "" {
 		out.Problem = "The workflow file at this run's commit does not parse: " + workflow.ParseError
 		return out, nil
@@ -262,9 +270,36 @@ func (s *service) GetRunWorkflow(ctx context.Context, request *corev1.GetRunWork
 		out.Problem = "The workflow file at this run's commit has no jobs."
 	}
 	if len(out.Jobs) > 0 {
-		out.Skips, out.SourceNote = s.explainSkips(ctx, request, target, key, file, fresh, workflow)
+		out.Skips, out.SourceNote = s.explainSkips(ctx, request, target, key, file, fresh)
 	}
 	return out, nil
+}
+
+// runWorkflowFile is the workflow file of a run, read once and kept, in one
+// read for the requests that ask at the same time. fresh: it was read now,
+// with its run. A file GitHub does not serve is ErrNotVisible with its path.
+func (s *service) runWorkflowFile(ctx context.Context, target githubRepo, runID int64) (file workflowFile, key workflowFileKey, fresh bool, err error) {
+	key = workflowFileKey{server: target.account.Server.ID, owner: target.owner, name: target.name, runID: runID}
+	if file, ok := s.workflowFiles.get(key); ok {
+		if file.missing {
+			return file, key, false, github.ErrNotVisible
+		}
+		return file, key, false, nil
+	}
+	read, err, _ := s.workflowReads.Do(fmt.Sprint(key), func() (any, error) {
+		file, err := readRunWorkflow(ctx, target.account.Client, target.owner, target.name, runID)
+		switch {
+		case err == nil:
+			file.workflow = flow.Parse(file.path, file.data)
+			s.workflowFiles.put(key, file)
+		case errors.Is(err, github.ErrNotVisible) && file.path != "":
+			// The run was read and its file is not at its commit: that stays so.
+			file = workflowFile{path: file.path, missing: true}
+			s.workflowFiles.put(key, file)
+		}
+		return file, err
+	})
+	return read.(workflowFile), key, true, err
 }
 
 // readRunWorkflow reads the workflow file a run used, at the run's commit.
@@ -298,12 +333,21 @@ type workflowFile struct {
 	path string
 	data []byte
 	// missing: GitHub does not serve the file at the run's commit.
-	missing bool
-	// run as read with the file; run and jobs stay once final (the run
-	// finished and its jobs were read after), as neither changes then.
-	run   github.Run
-	jobs  []github.Job
-	final bool
+	missing  bool
+	workflow flow.Workflow
+	// run as read with the file.
+	run github.Run
+	// skips are the reasons told last for the run.
+	skips *runSkips
+}
+
+// runSkips are the reasons of the jobs one attempt of a run skipped. They
+// stay once final: the attempt finished and its jobs were read finished.
+type runSkips struct {
+	attempt int64
+	final   bool
+	skips   []*corev1.JobSkip
+	note    string
 }
 
 // workflowFileCache keeps the newest few workflow files read for run graphs.

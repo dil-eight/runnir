@@ -83,13 +83,14 @@ const skipsJobs = `{"total_count":5,"jobs":[
 {"id":4,"run_attempt":1,"name":"docs","status":"completed","conclusion":"skipped"},
 {"id":5,"run_attempt":1,"name":"changelog","status":"completed","conclusion":"skipped"}]}`
 
-// rerunJobs are run 35's second attempt, in which build and publish passed.
+// rerunJobs are run 35's second attempt, a re-run of its failed jobs: build
+// and publish ran again and passed, the others keep their first attempt.
 const rerunJobs = `{"total_count":5,"jobs":[
-{"id":11,"run_attempt":2,"name":"lint","status":"completed","conclusion":"success"},
+{"id":1,"run_attempt":1,"name":"lint","status":"completed","conclusion":"success"},
 {"id":12,"run_attempt":2,"name":"build","status":"completed","conclusion":"success"},
 {"id":13,"run_attempt":2,"name":"publish","status":"completed","conclusion":"success"},
-{"id":14,"run_attempt":2,"name":"docs","status":"completed","conclusion":"skipped"},
-{"id":15,"run_attempt":2,"name":"changelog","status":"completed","conclusion":"skipped"}]}`
+{"id":4,"run_attempt":1,"name":"docs","status":"completed","conclusion":"skipped"},
+{"id":5,"run_attempt":1,"name":"changelog","status":"completed","conclusion":"skipped"}]}`
 
 // rerunRun is run 35's second attempt; run35 its first.
 const (
@@ -124,12 +125,22 @@ type fakeDispatchGitHub struct {
 	runID         int64
 	// rerun: run 35 was run again, and the runs list shows it.
 	rerun bool
+	// running: run 35 goes on; down: GitHub does not answer for it.
+	running, down bool
 }
 
-func (f *fakeDispatchGitHub) reran() bool {
+func (f *fakeDispatchGitHub) reran() bool { return f.is(&f.rerun) }
+
+func (f *fakeDispatchGitHub) is(flag *bool) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.rerun
+	return *flag
+}
+
+func (f *fakeDispatchGitHub) set(flag *bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	*flag = true
 }
 
 func (f *fakeDispatchGitHub) handler(t *testing.T) http.HandlerFunc {
@@ -156,8 +167,12 @@ func (f *fakeDispatchGitHub) handler(t *testing.T) http.HandlerFunc {
 			_, _ = w.Write([]byte(rerunJobs))
 		case r.URL.Path == "/repos/o/r/actions/runs/35/jobs" || r.URL.Path == "/repos/o/r/actions/runs/36/jobs":
 			_, _ = w.Write([]byte(skipsJobs))
+		case r.URL.Path == "/repos/o/r/actions/runs/35" && f.is(&f.down):
+			w.WriteHeader(http.StatusBadGateway)
 		case r.URL.Path == "/repos/o/r/actions/runs/35" && f.reran():
 			_, _ = w.Write([]byte(rerunRun))
+		case r.URL.Path == "/repos/o/r/actions/runs/35" && f.is(&f.running):
+			_, _ = w.Write([]byte(strings.Replace(run35, `"status":"completed","conclusion":"failure"`, `"status":"in_progress","conclusion":null`, 1)))
 		case r.URL.Path == "/repos/o/r/actions/runs/35":
 			_, _ = w.Write([]byte(run35))
 		case r.URL.Path == "/repos/o/r/actions/runs" && f.reran():

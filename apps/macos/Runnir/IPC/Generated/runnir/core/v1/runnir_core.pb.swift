@@ -2633,6 +2633,11 @@ nonisolated struct Runnir_Core_V1_GetRunWorkflowRequest: Sendable {
 
   var githubServer: String = String()
 
+  /// The run's attempt as the caller knows it. A finished run's skip reasons
+  /// are kept for its attempt; a later attempt reads them again, and 0 reads
+  /// them on every request.
+  var runAttempt: Int64 = 0
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -2985,6 +2990,11 @@ nonisolated struct Runnir_Core_V1_RunJob: Sendable {
   var htmlURL: String = String()
 
   var steps: [Runnir_Core_V1_RunStep] = []
+
+  /// The id of the job of the run's workflow file it belongs to, by its name
+  /// (flow.RunJobNodes); empty when no job of the file claims it or the file
+  /// at the run's commit cannot be read.
+  var workflowJobID: String = String()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -7797,7 +7807,7 @@ nonisolated extension Runnir_Core_V1_ListRunJobsRequest: SwiftProtobuf.Message, 
 
 nonisolated extension Runnir_Core_V1_GetRunWorkflowRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".GetRunWorkflowRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}run_id\0\u{3}github_repository\0\u{3}github_server\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}run_id\0\u{3}github_repository\0\u{3}github_server\0\u{3}run_attempt\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -7809,6 +7819,7 @@ nonisolated extension Runnir_Core_V1_GetRunWorkflowRequest: SwiftProtobuf.Messag
       case 2: try { try decoder.decodeSingularInt64Field(value: &self.runID) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.githubRepository) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.githubServer) }()
+      case 5: try { try decoder.decodeSingularInt64Field(value: &self.runAttempt) }()
       default: break
       }
     }
@@ -7827,6 +7838,9 @@ nonisolated extension Runnir_Core_V1_GetRunWorkflowRequest: SwiftProtobuf.Messag
     if !self.githubServer.isEmpty {
       try visitor.visitSingularStringField(value: self.githubServer, fieldNumber: 4)
     }
+    if self.runAttempt != 0 {
+      try visitor.visitSingularInt64Field(value: self.runAttempt, fieldNumber: 5)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -7835,6 +7849,7 @@ nonisolated extension Runnir_Core_V1_GetRunWorkflowRequest: SwiftProtobuf.Messag
     if lhs.runID != rhs.runID {return false}
     if lhs.githubRepository != rhs.githubRepository {return false}
     if lhs.githubServer != rhs.githubServer {return false}
+    if lhs.runAttempt != rhs.runAttempt {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -8422,7 +8437,7 @@ nonisolated extension Runnir_Core_V1_ListRunJobsResponse: SwiftProtobuf.Message,
 
 nonisolated extension Runnir_Core_V1_RunJob: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".RunJob"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}status\0\u{1}conclusion\0\u{3}started_at\0\u{3}completed_at\0\u{3}html_url\0\u{1}steps\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}status\0\u{1}conclusion\0\u{3}started_at\0\u{3}completed_at\0\u{3}html_url\0\u{1}steps\0\u{3}workflow_job_id\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -8438,6 +8453,7 @@ nonisolated extension Runnir_Core_V1_RunJob: SwiftProtobuf.Message, SwiftProtobu
       case 6: try { try decoder.decodeSingularMessageField(value: &self._completedAt) }()
       case 7: try { try decoder.decodeSingularStringField(value: &self.htmlURL) }()
       case 8: try { try decoder.decodeRepeatedMessageField(value: &self.steps) }()
+      case 9: try { try decoder.decodeSingularStringField(value: &self.workflowJobID) }()
       default: break
       }
     }
@@ -8472,6 +8488,9 @@ nonisolated extension Runnir_Core_V1_RunJob: SwiftProtobuf.Message, SwiftProtobu
     if !self.steps.isEmpty {
       try visitor.visitRepeatedMessageField(value: self.steps, fieldNumber: 8)
     }
+    if !self.workflowJobID.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowJobID, fieldNumber: 9)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -8484,6 +8503,7 @@ nonisolated extension Runnir_Core_V1_RunJob: SwiftProtobuf.Message, SwiftProtobu
     if lhs._completedAt != rhs._completedAt {return false}
     if lhs.htmlURL != rhs.htmlURL {return false}
     if lhs.steps != rhs.steps {return false}
+    if lhs.workflowJobID != rhs.workflowJobID {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -5038,8 +5038,12 @@ type GetRunWorkflowRequest struct {
 	// As in ListRunJobsRequest.
 	GithubRepository string `protobuf:"bytes,3,opt,name=github_repository,json=githubRepository,proto3" json:"github_repository,omitempty"`
 	GithubServer     string `protobuf:"bytes,4,opt,name=github_server,json=githubServer,proto3" json:"github_server,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// The run's attempt as the caller knows it. A finished run's skip reasons
+	// are kept for its attempt; a later attempt reads them again, and 0 reads
+	// them on every request.
+	RunAttempt    int64 `protobuf:"varint,5,opt,name=run_attempt,json=runAttempt,proto3" json:"run_attempt,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetRunWorkflowRequest) Reset() {
@@ -5098,6 +5102,13 @@ func (x *GetRunWorkflowRequest) GetGithubServer() string {
 		return x.GithubServer
 	}
 	return ""
+}
+
+func (x *GetRunWorkflowRequest) GetRunAttempt() int64 {
+	if x != nil {
+		return x.RunAttempt
+	}
+	return 0
 }
 
 type GetRunWorkflowResponse struct {
@@ -5989,15 +6000,19 @@ func (x *ListRunJobsResponse) GetJobs() []*RunJob {
 }
 
 type RunJob struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
-	Conclusion    string                 `protobuf:"bytes,4,opt,name=conclusion,proto3" json:"conclusion,omitempty"`
-	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
-	CompletedAt   *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=completed_at,json=completedAt,proto3" json:"completed_at,omitempty"`
-	HtmlUrl       string                 `protobuf:"bytes,7,opt,name=html_url,json=htmlUrl,proto3" json:"html_url,omitempty"`
-	Steps         []*RunStep             `protobuf:"bytes,8,rep,name=steps,proto3" json:"steps,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Id          int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name        string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Status      string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	Conclusion  string                 `protobuf:"bytes,4,opt,name=conclusion,proto3" json:"conclusion,omitempty"`
+	StartedAt   *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	CompletedAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=completed_at,json=completedAt,proto3" json:"completed_at,omitempty"`
+	HtmlUrl     string                 `protobuf:"bytes,7,opt,name=html_url,json=htmlUrl,proto3" json:"html_url,omitempty"`
+	Steps       []*RunStep             `protobuf:"bytes,8,rep,name=steps,proto3" json:"steps,omitempty"`
+	// The id of the job of the run's workflow file it belongs to, by its name
+	// (flow.RunJobNodes); empty when no job of the file claims it or the file
+	// at the run's commit cannot be read.
+	WorkflowJobId string `protobuf:"bytes,9,opt,name=workflow_job_id,json=workflowJobId,proto3" json:"workflow_job_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6086,6 +6101,13 @@ func (x *RunJob) GetSteps() []*RunStep {
 		return x.Steps
 	}
 	return nil
+}
+
+func (x *RunJob) GetWorkflowJobId() string {
+	if x != nil {
+		return x.WorkflowJobId
+	}
+	return ""
 }
 
 type RunStep struct {
@@ -12632,12 +12654,14 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\x12\x15\n" +
 	"\x06run_id\x18\x02 \x01(\x03R\x05runId\x12+\n" +
 	"\x11github_repository\x18\x03 \x01(\tR\x10githubRepository\x12#\n" +
-	"\rgithub_server\x18\x04 \x01(\tR\fgithubServer\"\xa5\x01\n" +
+	"\rgithub_server\x18\x04 \x01(\tR\fgithubServer\"\xc6\x01\n" +
 	"\x15GetRunWorkflowRequest\x12#\n" +
 	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\x12\x15\n" +
 	"\x06run_id\x18\x02 \x01(\x03R\x05runId\x12+\n" +
 	"\x11github_repository\x18\x03 \x01(\tR\x10githubRepository\x12#\n" +
-	"\rgithub_server\x18\x04 \x01(\tR\fgithubServer\"\x86\x02\n" +
+	"\rgithub_server\x18\x04 \x01(\tR\fgithubServer\x12\x1f\n" +
+	"\vrun_attempt\x18\x05 \x01(\x03R\n" +
+	"runAttempt\"\x86\x02\n" +
 	"\x16GetRunWorkflowResponse\x124\n" +
 	"\x06status\x18\x01 \x01(\v2\x1c.runnir.core.v1.GitHubStatusR\x06status\x12#\n" +
 	"\rworkflow_path\x18\x02 \x01(\tR\fworkflowPath\x12'\n" +
@@ -12714,7 +12738,7 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\askipped\x18\x05 \x03(\v2\x1f.runnir.core.v1.SkippedWorkflowR\askipped\"w\n" +
 	"\x13ListRunJobsResponse\x124\n" +
 	"\x06status\x18\x01 \x01(\v2\x1c.runnir.core.v1.GitHubStatusR\x06status\x12*\n" +
-	"\x04jobs\x18\x02 \x03(\v2\x16.runnir.core.v1.RunJobR\x04jobs\"\xa8\x02\n" +
+	"\x04jobs\x18\x02 \x03(\v2\x16.runnir.core.v1.RunJobR\x04jobs\"\xd0\x02\n" +
 	"\x06RunJob\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
@@ -12726,7 +12750,8 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"started_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12=\n" +
 	"\fcompleted_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\vcompletedAt\x12\x19\n" +
 	"\bhtml_url\x18\a \x01(\tR\ahtmlUrl\x12-\n" +
-	"\x05steps\x18\b \x03(\v2\x17.runnir.core.v1.RunStepR\x05steps\"\xe7\x01\n" +
+	"\x05steps\x18\b \x03(\v2\x17.runnir.core.v1.RunStepR\x05steps\x12&\n" +
+	"\x0fworkflow_job_id\x18\t \x01(\tR\rworkflowJobId\"\xe7\x01\n" +
 	"\aRunStep\x12\x16\n" +
 	"\x06number\x18\x01 \x01(\x03R\x06number\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +

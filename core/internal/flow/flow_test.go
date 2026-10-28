@@ -686,6 +686,62 @@ func TestGitListsTheFilesOfTheChange(t *testing.T) {
 	}
 }
 
+func TestRunJobsBelongToTheJobThatNamesThem(t *testing.T) {
+	w := Parse(".github/workflows/ci.yml", []byte(`on: push
+jobs:
+  lint: {name: Lint, runs-on: x, steps: [{run: x}]}
+  build: {runs-on: x, steps: [{run: x}]}
+  deploy: {name: Deploy app, runs-on: x, steps: [{run: x}]}
+  buil:
+    name: Build ${{ matrix.os }}
+    runs-on: x
+    steps: [{run: x}]
+  docs: {name: Build docs, runs-on: x, steps: [{run: x}]}
+  release: {uses: ./.github/workflows/release.yml}
+  other:
+    name: ${{ matrix.name }}
+    runs-on: x
+    steps: [{run: x}]
+`))
+	if w.ParseError != "" {
+		t.Fatal(w.ParseError)
+	}
+	names := []string{"Lint", "build (ubuntu, 18)", "build (macos, 18)", "deploy", "Build ubuntu-latest", "Build macos-latest",
+		"Build docs", "release / publish", "Lint extra", "anything"}
+	want := []string{"lint", "build", "build", "deploy", "buil", "buil", "docs", "release", "", ""}
+	if got := RunJobNodes(w, names); !reflect.DeepEqual(got, want) {
+		t.Fatalf("nodes = %q", got)
+	}
+}
+
+func TestAJobWithAStatusCheckDecidesAfterASkippedNeed(t *testing.T) {
+	w := Parse(".github/workflows/ci.yml", []byte(`on: [pull_request, push]
+jobs:
+  build:
+    if: github.event_name == 'push'
+    runs-on: x
+    steps: [{run: x}]
+  cleanup:
+    needs: build
+    if: ${{ !cancelled() }}
+    runs-on: x
+    steps: [{run: x}]
+  green:
+    needs: build
+    if: success()
+    runs-on: x
+    steps: [{run: x}]
+`))
+	f := Plan(Scenario{PullRequest, "main"}, []Workflow{w}, Repo{CurrentBranch: "feature/x", DefaultBranch: "main"}, Changes{Known: true})
+	jobs := map[string]PlannedJob{}
+	for _, j := range f.Lanes[0].Jobs {
+		jobs[j.ID] = j
+	}
+	if jobs["cleanup"].Skipped != "" || jobs["cleanup"].Condition != "!cancelled()" || jobs["green"].Skipped != "if: success()" {
+		t.Fatalf("jobs = %+v", jobs)
+	}
+}
+
 func TestAConditionSaysWhatItRead(t *testing.T) {
 	run := Context{"github.event_name": "push", "github.ref": "refs/heads/main", "success()": false, "failure()": true, "cancelled()": false}
 	r := Read("github.event_name == 'pull_request' && vars.RELEASE_NOTES == 'true'", run)
@@ -709,8 +765,23 @@ func TestAConditionSaysWhatItRead(t *testing.T) {
 	if r := Read("cancelled()", Context{}); r.Truth != Unknown || !reflect.DeepEqual(r.Unknown, []string{"cancelled()"}) {
 		t.Fatalf("plan cancelled = %+v", r)
 	}
-	if r := Read("github.event_name == ", run); r.Truth != Unknown {
+	if r := Read("github.event_name == ", run); r.Truth != Unknown || !r.Unreadable {
 		t.Fatalf("broken = %+v", r)
+	}
+	if r := Read("contains(fromJSON('[\"push\"]'), github.event_name) && hashFiles('go.sum') != ''", run); r.Truth != Unknown ||
+		!reflect.DeepEqual(r.Unsupported, []string{"fromJSON()", "hashFiles()"}) || len(r.Unknown) != 0 || r.Unreadable {
+		t.Fatalf("functions Runnir does not evaluate = %+v", r)
+	}
+	if r := Read("startsWith(github.ref)", run); r.Truth != Unknown || !r.Unreadable {
+		t.Fatalf("a known function with too few arguments = %+v", r)
+	}
+	for condition, checks := range map[string]bool{
+		"always()": true, "${{ !cancelled() }}": true, "Failure() && x": true, "success ()": true,
+		"github.event_name == 'push'": false, "contains(github.event.head_commit.message, 'always()')": false, "": false,
+	} {
+		if checksStatus(condition) != checks {
+			t.Errorf("checksStatus(%q) = %v", condition, !checks)
+		}
 	}
 	if r := Read("", run); r.Truth != True {
 		t.Fatalf("empty = %+v", r)
@@ -769,6 +840,25 @@ jobs:
   preview:
     runs-on: x
     steps: [{run: x}]
+  os:
+    name: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu, macos]
+    runs-on: x
+    steps: [{run: x}]
+  after-os:
+    needs: os
+    runs-on: x
+    steps: [{run: x}]
+  listed:
+    if: contains(fromJSON('["schedule"]'), github.event_name)
+    runs-on: x
+    steps: [{run: x}]
+  broken:
+    if: github.event_name ==
+    runs-on: x
+    steps: [{run: x}]
 `
 
 func TestWhyJobsWereSkipped(t *testing.T) {
@@ -777,6 +867,7 @@ func TestWhyJobsWereSkipped(t *testing.T) {
 		{"lint", "success"}, {"build", "failure"}, {"test (a)", "success"}, {"test (b)", "cancelled"},
 		{"publish", "skipped"}, {"deploy", "skipped"}, {"docs", "skipped"}, {"changelog", "skipped"}, {"report", "success"},
 		{"notify", "skipped"}, {"call", "skipped"}, {"after-test", "skipped"},
+		{"ubuntu", "success"}, {"macos", "success"}, {"after-os", "skipped"}, {"listed", "skipped"}, {"broken", "skipped"},
 	}
 	facts := RunFacts{Context: Context{"github.event_name": "push", "github.ref": "refs/heads/main"}, Event: "push"}
 	got := map[string]Skip{}
@@ -785,8 +876,9 @@ func TestWhyJobsWereSkipped(t *testing.T) {
 		got[s.JobID] = s
 		order = append(order, s.JobID)
 	}
-	if want := []string{"publish", "deploy", "docs", "changelog", "notify", "call", "after-test", "preview"}; !reflect.DeepEqual(order, want) {
-		t.Fatalf("explained = %v (a matrix with exclude, and always() after a failure, are no skips)", order)
+	want := []string{"publish", "deploy", "docs", "changelog", "notify", "call", "after-test", "preview", "after-os", "listed", "broken"}
+	if !reflect.DeepEqual(order, want) {
+		t.Fatalf("explained = %v (a matrix with exclude, always() after a failure, and a job named by an expression only are no skips)", order)
 	}
 	if s := got["publish"]; s.Kind != SkipNeeds || s.Need != "build" || s.NeedResult != "failure" {
 		t.Fatalf("publish = %+v", s)
@@ -813,6 +905,15 @@ func TestWhyJobsWereSkipped(t *testing.T) {
 	if s := got["preview"]; s.Kind != SkipNotInRun || s.Note != "The file at this commit may differ from the one GitHub ran." {
 		t.Fatalf("preview = %+v", s)
 	}
+	if s := got["after-os"]; s.Kind != SkipNotKnown || s.Note != "Runnir cannot tell how os ended in this run: its name is set by an expression." {
+		t.Fatalf("a job after one named by an expression = %+v", s)
+	}
+	if s := got["listed"]; s.Kind != SkipNotKnown || len(s.Unknown) != 0 || s.Note != "Runnir does not evaluate fromJSON() yet, so it cannot tell." {
+		t.Fatalf("a condition with fromJSON = %+v", s)
+	}
+	if s := got["broken"]; s.Kind != SkipNotKnown || s.Note != "Runnir cannot read this condition, so it cannot tell." {
+		t.Fatalf("a condition Runnir cannot read = %+v", s)
+	}
 
 	// While the run goes on, a node without a job is still to come.
 	facts.Active = true
@@ -823,10 +924,12 @@ func TestWhyJobsWereSkipped(t *testing.T) {
 	}
 
 	pr := RunFacts{Context: Context{"github.event_name": "pull_request"}, Event: "pull_request"}
+	notes := map[string]string{}
 	for _, s := range ExplainSkips(w, pr, jobs) {
-		if s.JobID == "preview" && !strings.Contains(s.Note, "merged with the base branch") {
-			t.Fatalf("pull request note = %q", s.Note)
-		}
+		notes[s.JobID] = s.Note
+	}
+	if note, ok := notes["preview"]; !ok || !strings.Contains(note, "merged with the base branch") {
+		t.Fatalf("pull request note = %q (explained: %v)", note, ok)
 	}
 	if SourceNote("pull_request") != "GitHub ran this file merged with the base, which may differ." ||
 		SourceNote("pull_request_target") != "GitHub ran the file of the base branch, which may differ." || SourceNote("push") != "" {

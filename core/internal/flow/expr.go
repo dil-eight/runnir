@@ -32,6 +32,10 @@ type Reading struct {
 	Truth   Truth
 	Read    []Value
 	Unknown []string
+	// Unsupported are the functions it calls that Runnir does not evaluate,
+	// as written with "()"; Unreadable: text Runnir cannot read.
+	Unsupported []string
+	Unreadable  bool
 }
 
 // Evaluate reads a condition as GitHub would for the scenario: literals,
@@ -51,9 +55,9 @@ func Read(condition string, ctx Context) Reading {
 	}
 	p := &parser{tokens: tokenize(text), ctx: ctx}
 	v := p.or()
-	out := Reading{Read: p.read, Unknown: p.unknown}
+	out := Reading{Read: p.read, Unknown: p.unknown, Unsupported: p.unsupported, Unreadable: p.failed || p.pos != len(p.tokens)}
 	switch {
-	case p.failed || p.pos != len(p.tokens) || v.unknown:
+	case out.Unreadable || v.unknown:
 		out.Truth = Unknown
 	case truthy(v.value):
 		out.Truth = True
@@ -134,12 +138,13 @@ func isWord(c byte) bool {
 }
 
 type parser struct {
-	tokens  []token
-	pos     int
-	ctx     Context
-	failed  bool
-	read    []Value
-	unknown []string
+	tokens      []token
+	pos         int
+	ctx         Context
+	failed      bool
+	read        []Value
+	unknown     []string
+	unsupported []string
 }
 
 func (p *parser) peek(text string) bool {
@@ -347,6 +352,12 @@ func (p *parser) call(name string) val {
 		}
 		p.note(fn+"()", nil, false)
 		return val{unknown: true}
+	case "startswith", "endswith", "contains", "format":
+	default:
+		if shown := name + "()"; !contains(p.unsupported, shown) {
+			p.unsupported = append(p.unsupported, shown)
+		}
+		return val{unknown: true}
 	}
 	for _, a := range args {
 		if a.unknown {
@@ -376,7 +387,25 @@ func (p *parser) call(name string) val {
 			return val{value: out}
 		}
 	}
+	// A known function with the wrong number of arguments.
+	p.failed = true
 	return val{unknown: true}
+}
+
+// checksStatus: the condition calls a status function, so GitHub does not
+// add success() to it.
+func checksStatus(condition string) bool {
+	tokens := tokenize(strings.TrimSpace(unwrap(condition)))
+	for i, t := range tokens {
+		if t.kind != "ident" || i+1 == len(tokens) || tokens[i+1] != (token{"op", "("}) {
+			continue
+		}
+		switch strings.ToLower(t.text) {
+		case "success", "failure", "cancelled", "always":
+			return true
+		}
+	}
+	return false
 }
 
 func truthy(v any) bool {

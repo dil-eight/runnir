@@ -399,23 +399,29 @@ func commitTitle(message string) string {
 	return truncate(strings.TrimSpace(title), 300)
 }
 
-// Jobs lists the jobs of one run with their steps (up to 100 jobs).
+// Jobs lists the jobs of one run's latest attempt with their steps, every
+// page of them.
 func (c *Client) Jobs(ctx context.Context, owner, name string, runID int64) ([]Job, error) {
 	if runID <= 0 {
 		return nil, ErrInvalid
 	}
-	var body struct {
-		Jobs []jobJSON `json:"jobs"`
-	}
 	path := repoPath(owner, name, fmt.Sprintf("/actions/runs/%d/jobs", runID))
-	if err := c.get(ctx, path, url.Values{"per_page": {"100"}}, &body); err != nil {
-		return nil, err
+	var jobs []Job
+	for page := 1; ; page++ {
+		var body struct {
+			TotalCount int       `json:"total_count"`
+			Jobs       []jobJSON `json:"jobs"`
+		}
+		if err := c.get(ctx, path, url.Values{"per_page": {"100"}, "page": {strconv.Itoa(page)}}, &body); err != nil {
+			return nil, err
+		}
+		for _, j := range body.Jobs {
+			jobs = append(jobs, j.job())
+		}
+		if len(body.Jobs) < 100 || len(jobs) >= body.TotalCount {
+			return jobs, nil
+		}
 	}
-	jobs := make([]Job, 0, len(body.Jobs))
-	for _, j := range body.Jobs {
-		jobs = append(jobs, j.job())
-	}
-	return jobs, nil
 }
 
 // Job reads one job with its steps.
