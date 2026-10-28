@@ -50,6 +50,39 @@ jobs:
     steps: []
 `
 
+// skipsWorkflow has a job for each reason a job is skipped (B35).
+const skipsWorkflow = `name: Deploy
+on: [push, pull_request]
+jobs:
+  lint: {runs-on: x, steps: []}
+  build:
+    needs: lint
+    runs-on: x
+    steps: []
+  publish:
+    needs: build
+    runs-on: x
+    steps: []
+  docs:
+    if: github.event_name == 'pull_request'
+    runs-on: x
+    steps: []
+  changelog:
+    if: vars.RELEASE_NOTES == 'true'
+    runs-on: x
+    steps: []
+  preview:
+    runs-on: x
+    steps: []
+`
+
+const skipsJobs = `{"total_count":5,"jobs":[
+{"id":1,"name":"lint","status":"completed","conclusion":"success"},
+{"id":2,"name":"build","status":"completed","conclusion":"failure"},
+{"id":3,"name":"publish","status":"completed","conclusion":"skipped"},
+{"id":4,"name":"docs","status":"completed","conclusion":"skipped"},
+{"id":5,"name":"changelog","status":"completed","conclusion":"skipped"}]}`
+
 // deployWithTokenWorkflow also asks for a token, which a history must not keep.
 const deployWithTokenWorkflow = `name: Deploy
 on:
@@ -95,6 +128,14 @@ func (f *fakeDispatchGitHub) handler(t *testing.T) http.HandlerFunc {
 			_, _ = w.Write([]byte(`[{"name":"v1.0.0"}]`))
 		case r.URL.Path == "/repos/o/r/actions/workflows/7":
 			_, _ = w.Write([]byte(`{"id":7,"path":".github/workflows/deploy.yml"}`))
+		case r.URL.Path == "/repos/o/r/actions/runs/31/jobs" || r.URL.Path == "/repos/o/r/actions/runs/34/jobs":
+			_, _ = w.Write([]byte(`{"total_count":3,"jobs":[{"id":1,"name":"lint","status":"completed","conclusion":"success"},{"id":2,"name":"unit-tests","status":"completed","conclusion":"success"},{"id":3,"name":"build","status":"completed","conclusion":"success"}]}`))
+		case r.URL.Path == "/repos/o/r/actions/runs/35/jobs" || r.URL.Path == "/repos/o/r/actions/runs/36/jobs":
+			_, _ = w.Write([]byte(skipsJobs))
+		case r.URL.Path == "/repos/o/r/actions/runs/35":
+			_, _ = w.Write([]byte(`{"id":35,"workflow_id":7,"name":"Deploy","event":"push","head_branch":"main","head_sha":"skips","status":"completed","conclusion":"failure","actor":{"login":"eugene"}}`))
+		case r.URL.Path == "/repos/o/r/actions/runs/36":
+			_, _ = w.Write([]byte(`{"id":36,"workflow_id":7,"name":"Deploy","event":"pull_request","head_branch":"feature","head_sha":"skips","status":"completed","conclusion":"failure","pull_requests":[{"number":12,"base":{"repo":{"url":"https://api.github.com/repos/o/r"}}}]}`))
 		case r.URL.Path == "/repos/o/r/actions/runs/31":
 			_, _ = w.Write([]byte(`{"id":31,"workflow_id":7,"head_sha":"pipeline","status":"completed","conclusion":"success"}`))
 		case r.URL.Path == "/repos/o/r/actions/runs/32":
@@ -115,6 +156,8 @@ func (f *fakeDispatchGitHub) handler(t *testing.T) http.HandlerFunc {
 				_, _ = w.Write([]byte(deployWorkflow))
 			case "pipeline":
 				_, _ = w.Write([]byte(pipelineWorkflow))
+			case "skips":
+				_, _ = w.Write([]byte(skipsWorkflow))
 			case "with-token":
 				_, _ = w.Write([]byte(deployWithTokenWorkflow))
 			case "broken":

@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
+	"runnir/core/internal/github"
 )
 
 // historyRig is dispatchRig with the repository opened as a workspace, which
@@ -200,5 +201,92 @@ func TestARunsWorkflowIsReadAtItsCommit(t *testing.T) {
 	}
 	if after := reads(); after != before {
 		t.Fatalf("a run read again made %d GitHub requests", after-before)
+	}
+}
+
+func TestARunsSkippedJobsAreExplained(t *testing.T) {
+	client, id, fake, ctx := historyRig(t)
+	reads := func() int {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		return fake.workflowReads
+	}
+	got, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 35})
+	if err != nil || got.Problem != "" || got.SourceNote != "" {
+		t.Fatalf("workflow = %v, %v", got, err)
+	}
+	skips := map[string]*corev1.JobSkip{}
+	for _, s := range got.Skips {
+		skips[s.JobId] = s
+	}
+	if s := skips["publish"]; s.GetKind() != corev1.SkipKind_SKIP_KIND_NEEDS || s.Need != "build" || s.NeedResult != "failure" {
+		t.Fatalf("publish = %v", s)
+	}
+	if s := skips["docs"]; s.GetKind() != corev1.SkipKind_SKIP_KIND_CONDITION_FALSE || len(s.Values) != 1 ||
+		s.Values[0].Name != "github.event_name" || s.Values[0].Value != "push" {
+		t.Fatalf("docs = %v", s)
+	}
+	if s := skips["changelog"]; s.GetKind() != corev1.SkipKind_SKIP_KIND_NOT_KNOWN || len(s.Unknown) != 1 || s.Unknown[0] != "vars.RELEASE_NOTES" {
+		t.Fatalf("changelog = %v", s)
+	}
+	if s := skips["preview"]; s.GetKind() != corev1.SkipKind_SKIP_KIND_NOT_IN_RUN || s.Note == "" {
+		t.Fatalf("preview = %v", s)
+	}
+	if len(got.Skips) != 4 {
+		t.Fatalf("skips = %v", got.Skips)
+	}
+
+	// A finished run's run and jobs are kept with its file: asked again, nothing is read.
+	before := reads()
+	if again, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 35}); err != nil || len(again.Skips) != 4 {
+		t.Fatalf("again = %v, %v", again, err)
+	}
+	if after := reads(); after != before {
+		t.Fatalf("a finished run read again made %d GitHub requests", after-before)
+	}
+
+	pr, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 36})
+	if err != nil || pr.SourceNote != "GitHub ran this file merged with the base, which may differ." {
+		t.Fatalf("pull request = %v, %v", pr, err)
+	}
+	for _, s := range pr.Skips {
+		if s.JobId == "docs" && (s.GetKind() != corev1.SkipKind_SKIP_KIND_NOT_KNOWN || !strings.Contains(s.Note, "reads its condition as true")) {
+			t.Fatalf("docs on a pull request = %v", s)
+		}
+	}
+}
+
+func TestARunsFactsNameItsRef(t *testing.T) {
+	refs := func() (map[string]bool, map[string]bool) {
+		return map[string]bool{"v1.0": true, "both": true}, map[string]bool{"main": true, "both": true}
+	}
+	ref := func(run github.Run) any { return runFacts(run, "o/r", "main", nil, refs).Context["github.ref"] }
+	if got := ref(github.Run{Event: "push", Branch: "v1.0"}); got != "refs/tags/v1.0" {
+		t.Fatalf("tag = %v", got)
+	}
+	if got := ref(github.Run{Event: "push", Branch: "main"}); got != "refs/heads/main" {
+		t.Fatalf("branch = %v", got)
+	}
+	for _, name := range []string{"both", "gone"} {
+		if got, ok := runFacts(github.Run{Event: "push", Branch: name}, "o/r", "main", nil, refs).Context["github.ref"]; ok {
+			t.Fatalf("%s is a tag and a branch, or neither, so github.ref is unknown: %v", name, got)
+		}
+	}
+	if got := ref(github.Run{Event: "pull_request", Branch: "feature", PullRequests: []int64{12}}); got != "refs/pull/12/merge" {
+		t.Fatalf("pull request = %v", got)
+	}
+	pull := &github.RepositoryPullRequest{Number: 12, BaseRef: "release", Draft: true}
+	facts := runFacts(github.Run{Event: "pull_request_target", Branch: "feature", PullRequests: []int64{12}}, "o/r", "main", pull, refs)
+	if facts.Context["github.ref"] != "refs/heads/release" || facts.Context["github.base_ref"] != "release" || facts.Context["github.event.pull_request.draft"] != true {
+		t.Fatalf("pull_request_target = %v", facts.Context)
+	}
+	if got := ref(github.Run{Event: "workflow_run", Branch: "feature"}); got != "refs/heads/main" {
+		t.Fatalf("workflow_run runs on the default branch: %v", got)
+	}
+	if f := runFacts(github.Run{Event: "push", Status: "in_progress"}, "o/r", "", nil, nil); !f.Active || f.Cancelled {
+		t.Fatalf("active = %+v", f)
+	}
+	if f := runFacts(github.Run{Event: "push", Status: "completed", Conclusion: "cancelled"}, "o/r", "", nil, nil); f.Active || !f.Cancelled {
+		t.Fatalf("cancelled = %+v", f)
 	}
 }

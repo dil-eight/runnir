@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"runnir/core/internal/flow"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
 	"runnir/core/internal/scanner"
@@ -219,6 +220,7 @@ func (s *service) GetRunWorkflow(ctx context.Context, request *corev1.GetRunWork
 	client := target.account.Client
 	key := workflowFileKey{server: target.account.Server.ID, owner: target.owner, name: target.name, runID: request.GetRunId()}
 	file, cached := s.workflowFiles.get(key)
+	fresh := !cached
 	var fetchErr error
 	if cached && file.missing {
 		fetchErr = github.ErrNotVisible
@@ -247,7 +249,7 @@ func (s *service) GetRunWorkflow(ctx context.Context, request *corev1.GetRunWork
 	case fetchErr != nil:
 		return out, nil
 	}
-	workflow := scanner.ParseWorkflow(path, data)
+	workflow := flow.Parse(path, data)
 	out.WorkflowPath = path
 	if workflow.ParseError != "" {
 		out.Problem = "The workflow file at this run's commit does not parse: " + workflow.ParseError
@@ -258,6 +260,9 @@ func (s *service) GetRunWorkflow(ctx context.Context, request *corev1.GetRunWork
 	}
 	if len(out.Jobs) == 0 {
 		out.Problem = "The workflow file at this run's commit has no jobs."
+	}
+	if len(out.Jobs) > 0 {
+		out.Skips, out.SourceNote = s.explainSkips(ctx, request, target, key, file, fresh, workflow)
 	}
 	return out, nil
 }
@@ -278,7 +283,7 @@ func readRunWorkflow(ctx context.Context, client *github.Client, owner, name str
 		}
 	}
 	data, err := client.File(ctx, owner, name, path, run.HeadSHA)
-	return workflowFile{path: path, data: data}, err
+	return workflowFile{path: path, data: data, run: run}, err
 }
 
 // workflowFileKey names the workflow file of one run: the file at the run's
@@ -294,6 +299,11 @@ type workflowFile struct {
 	data []byte
 	// missing: GitHub does not serve the file at the run's commit.
 	missing bool
+	// run as read with the file; run and jobs stay once final (the run
+	// finished and its jobs were read after), as neither changes then.
+	run   github.Run
+	jobs  []github.Job
+	final bool
 }
 
 // workflowFileCache keeps the newest few workflow files read for run graphs.
