@@ -3835,7 +3835,7 @@ git commit -m "App: count sections and actions at the Usage analytics level (B21
 ### Task 10: Documents And Final Verification
 
 **Files:**
-- Modify: `AGENTS.md`, `docs/product/specification.md`, `docs/legal/security-privacy-policy.md`, `docs/design/screens-and-states.md`, `docs/product/mvp-implementation-checklist.md`, `docs/architecture/grpc-api.md`, `docs/architecture/workspace-persistence.md`, `docs/product/analytics-and-crash-reporting.md`, `docs/superpowers/specs/2026-10-25-anonymous-analytics-design.md`, `apps/macos/Runnir/Features/Settings/SettingsOverlay.swift` (nothing else mentions "does not enable telemetry by default"; check with `grep -rn "telemetry by default" .`)
+- Modify: `AGENTS.md`, `README.md`, `SECURITY.md`, `docs/product/specification.md`, `docs/legal/security-privacy-policy.md`, `docs/design/screens-and-states.md`, `docs/product/mvp-implementation-checklist.md`, `docs/architecture/grpc-api.md`, `docs/architecture/workspace-persistence.md`, `docs/product/analytics-and-crash-reporting.md`, `docs/superpowers/specs/2026-10-25-anonymous-analytics-design.md`, `apps/macos/Runnir/Features/Settings/SettingsOverlay.swift`, `apps/macos/Runnir/Features/Desktop/GlobalSearch.swift` (check that nothing else promises no telemetry with the grep of Step 8)
 
 - [ ] **Step 1: AGENTS.md.** Replace the line that starts `- Do not add telemetry by default.` (with its note on this design) with:
 
@@ -3854,19 +3854,24 @@ git commit -m "App: count sections and actions at the Usage analytics level (B21
   - `docs/architecture/grpc-api.md`: add rows for `GetAnalytics`, `SetAnalyticsLevel(level, from_prompt)` and `RecordUsage(event)` with their meaning from the proto comments and errors (`INVALID_ARGUMENT` for an unknown level or event, `UNAVAILABLE` without a ledger).
   - `docs/architecture/workspace-persistence.md`: in the schema line, add "`concurrency_saves` and `counted_cancels` (only on this Mac: for the analytics of runs the saved concurrency block cancels; Clear Cache keeps them)", and add a line: "Analytics: `analytics.sqlite` beside `repositories/`, with its own lock; disposable: a damaged one is replaced at Off."
 
-- [ ] **Step 6: The analytics product doc and the spec.** In `docs/product/analytics-and-crash-reporting.md`: change the status line to say analytics are implemented (B21) and remove "AGENTS.md, FR-07 and the privacy policy still say 'no telemetry by default' and change with the implementation."; update the consent paragraph to the banner; in the section and action paragraph say sidebar, Workspace tab and Manager tab clicks; add the damaged-ledger rule. In the spec: set the status to "design approved and implemented on <date> ([plan](../plans/2026-10-25-anonymous-analytics.md))" followed by the list from "Changes To The Spec Made While Planning" above, and remove `action_run_scenario_local` from the click table and "Manager opens on it".
+- [ ] **Step 6: The analytics product doc and the spec.** In `docs/product/analytics-and-crash-reporting.md`: change the status line to say analytics are implemented (B21) and remove "AGENTS.md, README, SECURITY.md, FR-07, the privacy policy and the app's Settings texts still say 'no telemetry by default' and change with the implementation."; update the consent paragraph to the banner; in the section and action paragraph say sidebar, Workspace tab and Manager tab clicks; add the damaged-ledger rule. In the spec: set the status to "design approved and implemented on <date> ([plan](../plans/2026-10-25-anonymous-analytics.md))" followed by the list from "Changes To The Spec Made While Planning" above, and remove `action_run_scenario_local` from the click table and "Manager opens on it".
 
-- [ ] **Step 7: Final verification.** Run each and read the output:
+- [ ] **Step 7: README, SECURITY.md and the Settings search entry.**
+  - `README.md`: in the list of what Runnir does, after the Settings line, add: "- Analytics: anonymous counts without an id are on by default (the first launch, once, and per day the GitHub Actions minutes local runs saved), said so in a banner in the first window and turned off in Settings › Privacy; counts of sections and actions with a random analytics id only with consent. They go to PostHog Cloud US; no code, repository, workflow, log or GitHub identity is sent. See [analytics](docs/product/analytics-and-crash-reporting.md)." In the documents list, rename the link "Optional analytics, crash reports and public GitHub link" to "Analytics, crash reports and public GitHub link".
+  - `SECURITY.md`: replace "- No telemetry by default." with "- No telemetry beyond the disclosed anonymous counts (first launch, saved minutes), which Settings › Privacy turns off; counts of sections and actions need consent."
+  - `apps/macos/Runnir/Features/Desktop/GlobalSearch.swift`: the `telemetry` settings item becomes title "Analytics", detail "Anonymous counts by default (first launch, saved minutes), usage counts only with consent; turn them off here", with the same keywords.
+
+- [ ] **Step 8: Final verification.** Run each and read the output:
 
 Run (from `core/`): `go test ./... && go vet ./... && go build ./...` — Expected: every package `ok`, no vet output.
 Run: `xcodebuild -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'platform=macOS' build` — Expected: `** BUILD SUCCEEDED **`.
 Run: `xcodebuild -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'platform=macOS' test -only-testing:RunnirTests` — Expected: `** TEST SUCCEEDED **`.
-Run: `grep -rn "telemetry by default" --include='*.md' --include='*.swift' . | grep -v worktrees` — Expected: no line that still says analytics are off by default.
+Run: `grep -rniE "telemetry by default|no telemetry|optional analytics|does not enable telemetry" --include='*.md' --include='*.swift' . | grep -v worktrees` — Expected: no line that still says analytics are off by default or optional (plans and specs of other features that say "No telemetry" for themselves stay).
 
-- [ ] **Step 8: Commit.**
+- [ ] **Step 9: Commit.**
 
 ```bash
-git add AGENTS.md docs apps/macos/Runnir/Features/Settings/SettingsOverlay.swift
+git add AGENTS.md README.md SECURITY.md docs apps/macos/Runnir/Features/Settings/SettingsOverlay.swift apps/macos/Runnir/Features/Desktop/GlobalSearch.swift
 git commit -m "Docs: analytics levels, consent banner and metrics as built (B21)"
 ```
 
