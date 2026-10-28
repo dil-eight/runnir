@@ -77,11 +77,25 @@ jobs:
 `
 
 const skipsJobs = `{"total_count":5,"jobs":[
-{"id":1,"name":"lint","status":"completed","conclusion":"success"},
-{"id":2,"name":"build","status":"completed","conclusion":"failure"},
-{"id":3,"name":"publish","status":"completed","conclusion":"skipped"},
-{"id":4,"name":"docs","status":"completed","conclusion":"skipped"},
-{"id":5,"name":"changelog","status":"completed","conclusion":"skipped"}]}`
+{"id":1,"run_attempt":1,"name":"lint","status":"completed","conclusion":"success"},
+{"id":2,"run_attempt":1,"name":"build","status":"completed","conclusion":"failure"},
+{"id":3,"run_attempt":1,"name":"publish","status":"completed","conclusion":"skipped"},
+{"id":4,"run_attempt":1,"name":"docs","status":"completed","conclusion":"skipped"},
+{"id":5,"run_attempt":1,"name":"changelog","status":"completed","conclusion":"skipped"}]}`
+
+// rerunJobs are run 35's second attempt, in which build and publish passed.
+const rerunJobs = `{"total_count":5,"jobs":[
+{"id":11,"run_attempt":2,"name":"lint","status":"completed","conclusion":"success"},
+{"id":12,"run_attempt":2,"name":"build","status":"completed","conclusion":"success"},
+{"id":13,"run_attempt":2,"name":"publish","status":"completed","conclusion":"success"},
+{"id":14,"run_attempt":2,"name":"docs","status":"completed","conclusion":"skipped"},
+{"id":15,"run_attempt":2,"name":"changelog","status":"completed","conclusion":"skipped"}]}`
+
+// rerunRun is run 35's second attempt; run35 its first.
+const (
+	run35    = `{"id":35,"workflow_id":7,"name":"Deploy","event":"push","head_branch":"main","head_sha":"skips","status":"completed","conclusion":"failure","run_attempt":1,"actor":{"login":"eugene"},"created_at":"2026-10-27T10:00:00Z","updated_at":"2026-10-27T10:05:00Z"}`
+	rerunRun = `{"id":35,"workflow_id":7,"name":"Deploy","event":"push","head_branch":"main","head_sha":"skips","status":"completed","conclusion":"success","run_attempt":2,"actor":{"login":"eugene"},"created_at":"2026-10-27T10:00:00Z","updated_at":"2026-10-27T10:20:00Z"}`
+)
 
 // deployWithTokenWorkflow also asks for a token, which a history must not keep.
 const deployWithTokenWorkflow = `name: Deploy
@@ -108,6 +122,14 @@ type fakeDispatchGitHub struct {
 	dispatches    []map[string]any
 	reject        string
 	runID         int64
+	// rerun: run 35 was run again, and the runs list shows it.
+	rerun bool
+}
+
+func (f *fakeDispatchGitHub) reran() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.rerun
 }
 
 func (f *fakeDispatchGitHub) handler(t *testing.T) http.HandlerFunc {
@@ -130,10 +152,16 @@ func (f *fakeDispatchGitHub) handler(t *testing.T) http.HandlerFunc {
 			_, _ = w.Write([]byte(`{"id":7,"path":".github/workflows/deploy.yml"}`))
 		case r.URL.Path == "/repos/o/r/actions/runs/31/jobs" || r.URL.Path == "/repos/o/r/actions/runs/34/jobs":
 			_, _ = w.Write([]byte(`{"total_count":3,"jobs":[{"id":1,"name":"lint","status":"completed","conclusion":"success"},{"id":2,"name":"unit-tests","status":"completed","conclusion":"success"},{"id":3,"name":"build","status":"completed","conclusion":"success"}]}`))
+		case r.URL.Path == "/repos/o/r/actions/runs/35/jobs" && f.reran():
+			_, _ = w.Write([]byte(rerunJobs))
 		case r.URL.Path == "/repos/o/r/actions/runs/35/jobs" || r.URL.Path == "/repos/o/r/actions/runs/36/jobs":
 			_, _ = w.Write([]byte(skipsJobs))
+		case r.URL.Path == "/repos/o/r/actions/runs/35" && f.reran():
+			_, _ = w.Write([]byte(rerunRun))
 		case r.URL.Path == "/repos/o/r/actions/runs/35":
-			_, _ = w.Write([]byte(`{"id":35,"workflow_id":7,"name":"Deploy","event":"push","head_branch":"main","head_sha":"skips","status":"completed","conclusion":"failure","actor":{"login":"eugene"}}`))
+			_, _ = w.Write([]byte(run35))
+		case r.URL.Path == "/repos/o/r/actions/runs" && f.reran():
+			_, _ = w.Write([]byte(`{"total_count":1,"workflow_runs":[` + rerunRun + `]}`))
 		case r.URL.Path == "/repos/o/r/actions/runs/36":
 			_, _ = w.Write([]byte(`{"id":36,"workflow_id":7,"name":"Deploy","event":"pull_request","head_branch":"feature","head_sha":"skips","status":"completed","conclusion":"failure","pull_requests":[{"number":12,"base":{"repo":{"url":"https://api.github.com/repos/o/r"}}}]}`))
 		case r.URL.Path == "/repos/o/r/actions/runs/31":

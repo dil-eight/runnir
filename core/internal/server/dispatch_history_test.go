@@ -245,6 +245,19 @@ func TestARunsSkippedJobsAreExplained(t *testing.T) {
 		t.Fatalf("a finished run read again made %d GitHub requests", after-before)
 	}
 
+	// A re-run keeps the run's id: once the workspace has seen the newer
+	// attempt, its run and jobs are read again.
+	fake.mu.Lock()
+	fake.rerun = true
+	fake.mu.Unlock()
+	if _, err := client.RefreshWorkspaceActivity(ctx, &corev1.RefreshWorkspaceActivityRequest{RepositoryId: id, Wait: true}); err != nil {
+		t.Fatal(err)
+	}
+	rerun, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 35})
+	if err != nil || len(rerun.Skips) != 3 || slices.ContainsFunc(rerun.Skips, func(s *corev1.JobSkip) bool { return s.JobId == "publish" }) {
+		t.Fatalf("after a re-run in which publish ran = %v, %v", rerun.GetSkips(), err)
+	}
+
 	pr, err := client.GetRunWorkflow(ctx, &corev1.GetRunWorkflowRequest{RepositoryId: id, RunId: 36})
 	if err != nil || pr.SourceNote != "GitHub ran this file merged with the base, which may differ." {
 		t.Fatalf("pull request = %v, %v", pr, err)
