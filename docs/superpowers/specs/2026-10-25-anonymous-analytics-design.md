@@ -211,6 +211,9 @@ App:
 
 - `AGENTS.md`: "Do not add telemetry by default" becomes "Anonymous counts without an id (first launch, saved minutes) are on by default, disclosed in the consent prompt and can be turned off; anything else needs consent".
 - [Specification](../../product/specification.md): FR-07 and the "No telemetry by default" lines.
+- [README](../../../README.md): a line on what is sent by default and with consent; the documents link no longer says "Optional analytics".
+- [SECURITY.md](../../../SECURITY.md): "No telemetry by default" becomes the disclosed anonymous counts, which can be turned off.
+- The Settings entry of the global search (`GlobalSearch.swift`): "Telemetry, Runnir does not enable telemetry by default" becomes "Analytics" with what is sent by default and with consent.
 - [Analytics and crash reporting](../../product/analytics-and-crash-reporting.md): levels, consent and the metrics table (done with this design).
 - [Security and privacy policy](../../legal/security-privacy-policy.md): what each level sends, PostHog in the US, IP not kept, retention, how to ask for deletion with the analytics id.
 - [Screens and states](../../design/screens-and-states.md): O10 and S12.
