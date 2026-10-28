@@ -12,14 +12,21 @@ import (
 )
 
 // explainSkips explains the jobs a run skipped. The run and its jobs are
-// read again until the run is finished, then kept with its file. Nothing is
-// explained when they cannot be read.
+// read again until the run is finished, then kept with its file until the
+// workspace sees a newer attempt of it. Nothing is explained when they
+// cannot be read.
 func (s *service) explainSkips(ctx context.Context, request *corev1.GetRunWorkflowRequest, target githubRepo, key workflowFileKey,
 	file workflowFile, fresh bool, w flow.Workflow) ([]*corev1.JobSkip, string) {
 	run, jobs := file.run, file.jobs
 	var rt *workspace.Runtime
 	if request.GetGithubRepository() == "" {
 		rt, _ = s.workspaces.ForRepository(request.GetRepositoryId())
+	}
+	// A re-run keeps the run's id.
+	if file.final && rt != nil {
+		if saved, known, err := rt.Store().Run(ctx, request.GetRunId()); err == nil && known && saved.RunAttempt > file.run.RunAttempt {
+			file.final = false
+		}
 	}
 	if !file.final {
 		if !fresh {
@@ -31,18 +38,21 @@ func (s *service) explainSkips(ctx context.Context, request *corev1.GetRunWorkfl
 		}
 		var err error
 		if rt != nil {
+			// The workspace's jobs, unless they were read before this attempt
+			// or before the run finished: then once more from GitHub.
 			var access corev1.GithubAccess
 			jobs, access, _, err = rt.Jobs(ctx, request.GetRunId())
 			if err == nil && access != corev1.GithubAccess_GITHUB_ACCESS_OK {
 				return nil, ""
 			}
-		} else {
+		}
+		if rt == nil || err == nil && !jobsOf(run, jobs) {
 			jobs, err = target.account.Client.Jobs(ctx, target.owner, target.name, request.GetRunId())
 		}
 		if err != nil {
 			return nil, ""
 		}
-		if run.Status == "completed" {
+		if run.Status == "completed" && jobsOf(run, jobs) {
 			file.run, file.jobs, file.final = run, jobs, true
 			s.workflowFiles.put(key, file)
 		}
@@ -132,6 +142,18 @@ func runFacts(run github.Run, repository, defaultBranch string, pull *github.Rep
 		}
 	}
 	return flow.RunFacts{Context: ctx, Event: run.Event, Active: run.Status != "completed", Cancelled: run.Conclusion == "cancelled"}
+}
+
+// jobsOf: the jobs are of the run as read, its attempt (where GitHub says),
+// and all finished when it is.
+func jobsOf(run github.Run, jobs []github.Job) bool {
+	for _, j := range jobs {
+		if j.RunAttempt != 0 && run.RunAttempt != 0 && j.RunAttempt != run.RunAttempt ||
+			run.Status == "completed" && j.Status != "completed" {
+			return false
+		}
+	}
+	return true
 }
 
 // runJobResult is a job's result as needs.<id>.result names it; empty while
