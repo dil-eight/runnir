@@ -18,13 +18,13 @@ The run graph marks a job GitHub skipped as "skipped" and nothing more. Why it w
 ## What the Core knows of a run
 
 - From the run: the event, the branch (`head_branch`), the actor, the repository, the workflow's name, the head commit, and for `pull_request` and `pull_request_target` the pull request's number.
-- From the workspace's pull requests (B30): the base and whether the pull request is a draft.
+- From the workspace's pull requests (B30): the base and whether the pull request is a draft, when the pull request has not changed since the run was made. A draft can become ready, and the base can change, with no new run; then both are unknown.
 - From the run's jobs: each job's result, as `needs.<id>.result` (success, failure, cancelled, skipped).
 - Whether a push was of a tag or a branch: the local repository's refs decide. A name git knows only as a tag is a tag, one it knows as a branch is a branch; otherwise `github.ref` and `github.ref_type` are unknown.
 - Status functions for the run: `success()` holds when every job the job needs, directly or through others, succeeded; `failure()` when one of them failed; `cancelled()` when the run was cancelled; `always()` always.
 - Never known: `vars.*`, `secrets.*`, `inputs.*`, `needs.<id>.outputs.*`, `matrix.*`, `steps.*` and the `workflow_run` payload beyond its head branch. A condition that reads one of them is "not known".
 
-The jobs come from the workspace's cache (the graph has read them already); outside a workspace one read of the run's jobs. Nothing else is asked of GitHub.
+The jobs come from the workspace's cache (the graph has read them already); outside a workspace one read of the run's jobs, every page of them. Nothing else is asked of GitHub.
 
 ## Kinds of reason
 
@@ -32,24 +32,25 @@ For a job the run has as skipped, in this order:
 
 1. **a need did not succeed** (on the node: "need failed", "need cancelled" or "need skipped", by the need's result). A job it needs did not succeed (failed, cancelled or skipped) and its `if:` has no status function, so GitHub's implicit `success()` held it back. The panel names that job and its result; when several did not succeed, the first the job lists.
 2. **condition false** ("condition false"). Its `if:` is false for this run. The panel shows the condition and the values of the run it read, for example `github.event_name: push`.
-3. **not known** ("not known"). Its `if:` reads something Runnir does not know. The panel shows the condition and the names Runnir does not know, for example `vars.RELEASE_NOTES`. Also when Runnir reads the condition as true and the needs as met, but GitHub skipped the job: the panel says so and that the file at this commit may differ from the one GitHub ran.
+3. **not known** ("not known"). Its `if:` reads something Runnir does not know. The panel shows the condition and the names Runnir does not know, for example `vars.RELEASE_NOTES`. When the condition calls a function Runnir does not evaluate (`fromJSON`, `hashFiles`) or has text Runnir cannot read, the panel says that instead. Also when Runnir reads the condition as true and the needs as met, but GitHub skipped the job: the panel says so and that the file at this commit may differ from the one GitHub ran.
 
 For a node without a job in a finished run:
 
 4. **not in this run** ("not in this run", dashed outline). GitHub ran no job for it. The panel says so and, by event: for `pull_request` GitHub ran the file of the merge commit with the base, for `pull_request_target` the file of the base branch, so the file read here at the head commit may differ.
 
-While the run is going on, only jobs it has already skipped are explained; nodes without a job are still to come, as today.
+While the run is going on, only jobs it has already skipped are explained, and the app asks again each time the run skips another job; nodes without a job are still to come, as today.
 
 Special nodes:
 
 - A job that calls a reusable workflow (`uses:`) is explained by the same rules; the jobs inside the called workflow are not.
 - A matrix with `exclude` (or `include`) is not a skip: combinations the matrix leaves out are never explained as skipped. A matrix job skipped by its `if:` is one skipped job, as GitHub reports it.
+- A job named only by an expression (`name: ${{ matrix.os }}`) has jobs in the run Runnir cannot find, so it is never "not in this run"; it is not explained, and a job that needs it is "not known".
 - A file that cannot be read or does not parse keeps today's list of jobs without their order, and says that the reasons cannot be told.
 
 ## The run graph (S08)
 
 - A skipped node keeps its icon and says its reason in place of "skipped": "need failed" (or "need cancelled", "need skipped"), "condition false", "not known". A node without a job in a finished run has a dashed outline and "not in this run".
-- A click on such a node opens the panel under its column. The panel is part of the graph's layout and moves what is below it (the failure line) down; nothing is drawn over it. One panel at a time: a click on another such node moves the panel there; ×, Escape or a click on the same node closes it. A click on a job that ran opens its log as today and closes the panel. Re-run job stays in the node's menu.
+- A click on such a node opens the panel under its column. The panel is part of the graph's layout and moves what is below it (the failure line) down; nothing is drawn over it. One panel at a time: a click on another such node moves the panel there; ×, Escape or a click on the same node closes it. Escape closes it only in its own window, and not while a sheet (a confirmation) or a field being edited there takes Escape. A click on a job that ran opens its log as today and closes the panel. Re-run job stays in the node's menu.
 - The panel: "Why <job> was skipped" (or "<job> is not in this run"), the reason in a sentence, then by kind:
   - a need did not succeed: the job it needs and its result, with its status icon.
   - condition false: the condition in monospace, then "This run had" and the values it read.
@@ -64,12 +65,16 @@ Changed in place (no release yet):
 
 - `GetRunWorkflowResponse` gets `repeated JobSkip skips` and `string source_note` (the sentence about which file GitHub ran; empty when it is the file read).
 - `JobSkip`: `job_id`, `kind` (`SKIP_KIND_NEEDS`, `SKIP_KIND_CONDITION_FALSE`, `SKIP_KIND_NOT_KNOWN`, `SKIP_KIND_NOT_IN_RUN`), `need` and `need_result` (for needs), `condition`, `values` (name and value, in the order the condition reads them), `unknown` (names), `note` (for not known when GitHub disagrees, and for not in this run).
-- The app asks again when the run finishes; the file and the jobs come from the Core's caches then.
+- `GetRunWorkflowRequest` gets `run_attempt`, the attempt the app shows: a finished attempt's reasons are kept with the run's file until a later attempt is asked for, and 0 reads them on every request.
+- `RunJob` gets `workflow_job_id`: the job of the run's workflow file at its commit that the run job belongs to. The Core alone matches run jobs to the file's jobs by name, and the run graph and the Overview's lanes draw them by this id.
+- The app asks again for another attempt, when the run finishes, and when the run skips another job while it goes on; the file and the jobs come from the Core's caches then. A read that fails keeps the graph shown.
 
 ## Core
 
 - `flow`: a pure function from the workflow file, the run's facts and its jobs to the explanations. `flow.Evaluate` reports the names a condition read with their values and the names it could not know; its status functions come from the context, so the scenarios of the Overview keep theirs (`success()` and `always()` hold, `failure()` and `cancelled()` are unknown).
-- `GetRunWorkflow` builds the run's facts (the run, the workspace's pull requests, the local refs), takes the jobs from the workspace's cache, and adds the explanations to its answer. The file stays cached per run as today.
+- `GetRunWorkflow` builds the run's facts (the run, the workspace's pull requests, the local refs), takes the jobs from the workspace's cache, and adds the explanations to its answer. The file stays cached per run as today, read once for the requests that ask at the same time; with it the reasons of the attempt told last, which stand when the run or its jobs cannot be read again.
+- `flow.RunJobNodes` matches run jobs to the file's jobs by name (a matrix variant, a called workflow's job, a name set by an expression up to the expression); `ListRunJobs` uses it with the file at the run's commit, read once per run, and so does `ExplainSkips`.
+- One rule says whether a condition calls a status function, for the reasons and for the Overview's scenarios alike.
 
 ## States drawn
 
