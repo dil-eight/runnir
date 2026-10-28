@@ -317,14 +317,13 @@ struct RunInspectorView: View {
             DesignDivider()
             RunGraphView(model: layer, run: run).frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        // The workflow file is read once for a run: it is the file at the run's commit.
-        .task(id: run.id) {
+        // The workflow file is the file at the run's commit; it is asked for
+        // again when the run finishes, for the reasons of its skipped jobs.
+        .task(id: "\(run.id)-\(run.outcome.isActive)") {
             layer.show(run: run.id)
-            if layer.workflow == nil {
-                let workflow = await hub.runWorkflow(workspaceID: workspaceID, runID: run.id)
-                guard !Task.isCancelled, layer.runID == run.id else { return }
-                layer.workflow = workflow
-            }
+            let workflow = await hub.runWorkflow(workspaceID: workspaceID, runID: run.id)
+            guard !Task.isCancelled, layer.runID == run.id else { return }
+            layer.workflow = workflow
         }
         // The jobs are read again whenever the run changes.
         .task(id: "\(run.id)-\(run.status)-\(run.runAttempt)-\(run.updatedAt?.timeIntervalSince1970 ?? 0)") {

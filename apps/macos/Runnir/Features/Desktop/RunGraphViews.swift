@@ -48,6 +48,58 @@ enum RunGraph {
         jobs.first { $0.outcome == .failed } ?? jobs.first
     }
 
+    /// What a skipped node says in place of "skipped" (B35).
+    static func reason(_ skip: CoreJobSkip) -> String {
+        switch skip.kind {
+        case .needs: "need \(resultWord(skip.needResult))"
+        case .conditionFalse: "condition false"
+        case .notKnown: "not known"
+        case .notInRun: "not in this run"
+        }
+    }
+
+    static func resultWord(_ result: String) -> String {
+        switch result {
+        case "failure": "failed"
+        case "cancelled": "cancelled"
+        default: "skipped"
+        }
+    }
+
+    static func resultOutcome(_ result: String) -> CoreRunOutcome {
+        switch result {
+        case "failure": .failed
+        case "cancelled": .cancelled
+        default: .skipped
+        }
+    }
+
+    static func panelTitle(job: String, _ skip: CoreJobSkip) -> String {
+        skip.kind == .notInRun ? "\(job) is not in this run" : "Why \(job) was skipped"
+    }
+
+    static func panelSentence(_ skip: CoreJobSkip) -> String {
+        switch skip.kind {
+        case .needs: "A job it needs did not succeed, and its if has no status check, so GitHub held it back."
+        case .conditionFalse: "Its condition is false for this run."
+        case .notKnown: skip.note.isEmpty ? "Its condition reads something only the run knew, so Runnir cannot tell." : skip.note
+        case .notInRun: "GitHub ran no job for it in this run."
+        }
+    }
+
+    /// The panel's last line: which file and commit the reasons come from.
+    static func sourceLine(path: String, sha: String, note: String) -> String {
+        let file = URL(fileURLWithPath: path).lastPathComponent
+        let commit = sha.prefix(7)
+        return note.isEmpty ? "Read from \(file) at \(commit), the file this run used." : "Read from \(file) at \(commit); \(note)"
+    }
+
+    /// Where a node's panel starts: under the node, moved left so that it
+    /// ends with the columns when the node is near their end.
+    static func panelLeading(nodeMinX: CGFloat, columnsWidth: CGFloat, panelWidth: CGFloat) -> CGFloat {
+        max(0, min(nodeMinX, columnsWidth - panelWidth))
+    }
+
     /// Where a run stands, for the line under the graph: the first failed
     /// job and step of a run that failed, or the job and step in progress.
     static func focus(_ jobs: [CoreRunJob], runActive: Bool) -> (job: CoreRunJob, step: CoreRunStep?, failed: Bool)? {
@@ -76,6 +128,8 @@ final class RunLayerModel {
     var expanded = false
     var jobID: Int64?
     var step: Int64?
+    /// The skipped node whose panel is open, by its workflow job id (B35).
+    var skipJobID: String?
     /// Cancel and re-run, which the inspector's buttons and the jobs' re-run buttons share.
     let actions: RunActionModel
 
@@ -94,11 +148,19 @@ final class RunLayerModel {
         workflow = nil
         jobID = nil
         step = nil
+        skipJobID = nil
         isOpen = false
         expanded = false
     }
 
+    /// A click on a skipped node: opens its panel, moves it there from another
+    /// node, or closes it when it is open there.
+    func toggleSkip(_ id: String) {
+        skipJobID = skipJobID == id ? nil : id
+    }
+
     func open(_ job: CoreRunJob, step: Int64? = nil) {
+        skipJobID = nil
         jobID = job.id
         self.step = step ?? LogFilter.defaultStep(job)
         isOpen = true

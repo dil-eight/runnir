@@ -744,7 +744,20 @@ struct GRPCCoreService: CoreServicing {
         return CoreRunWorkflow(
             access: Self.map(response.status), path: response.workflowPath,
             jobs: response.jobs.map { CoreJob(id: $0.id, name: $0.name, needs: $0.needs, manual: $0.manual, manualInputs: $0.manualInputs) },
-            problem: response.problem)
+            problem: response.problem, skips: response.skips.compactMap(Self.map), sourceNote: response.sourceNote)
+    }
+
+    static func map(_ skip: Runnir_Core_V1_JobSkip) -> CoreJobSkip? {
+        let kind: CoreJobSkip.Kind
+        switch skip.kind {
+        case .needs: kind = .needs
+        case .conditionFalse: kind = .conditionFalse
+        case .notKnown: kind = .notKnown
+        case .notInRun: kind = .notInRun
+        default: return nil
+        }
+        return CoreJobSkip(jobID: skip.jobID, kind: kind, need: skip.need, needResult: skip.needResult, condition: skip.condition,
+                           values: skip.values.map { .init(name: $0.name, value: $0.value) }, unknown: skip.unknown, note: skip.note)
     }
 
     static func map(_ job: Runnir_Core_V1_RunJob) -> CoreRunJob {

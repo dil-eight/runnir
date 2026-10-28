@@ -84,4 +84,55 @@ import Testing
         model.show(run: 2)
         #expect(!model.isOpen && model.jobs == nil && model.workflow == nil)
     }
+
+    private func skip(_ kind: CoreJobSkip.Kind, need: String = "", result: String = "", note: String = "") -> CoreJobSkip {
+        CoreJobSkip(jobID: "publish", kind: kind, need: need, needResult: result, condition: "github.event_name == 'pull_request'",
+                    values: [.init(name: "github.event_name", value: "push")], unknown: [], note: note)
+    }
+
+    @Test func aSkippedNodeSaysWhy() {
+        #expect(RunGraph.reason(skip(.needs, need: "build", result: "failure")) == "need failed")
+        #expect(RunGraph.reason(skip(.needs, need: "build", result: "cancelled")) == "need cancelled")
+        #expect(RunGraph.reason(skip(.needs, need: "build", result: "skipped")) == "need skipped")
+        #expect(RunGraph.reason(skip(.conditionFalse)) == "condition false")
+        #expect(RunGraph.reason(skip(.notKnown)) == "not known")
+        #expect(RunGraph.reason(skip(.notInRun)) == "not in this run")
+        #expect(RunGraph.resultOutcome("failure") == .failed && RunGraph.resultOutcome("cancelled") == .cancelled)
+    }
+
+    @Test func thePanelSaysWhyAndWhereItWasRead() {
+        #expect(RunGraph.panelTitle(job: "publish", skip(.needs, need: "build", result: "failure")) == "Why publish was skipped")
+        #expect(RunGraph.panelTitle(job: "preview", skip(.notInRun)) == "preview is not in this run")
+        #expect(RunGraph.panelSentence(skip(.conditionFalse)) == "Its condition is false for this run.")
+        #expect(RunGraph.panelSentence(skip(.notKnown)) == "Its condition reads something only the run knew, so Runnir cannot tell.")
+        #expect(RunGraph.panelSentence(skip(.notKnown, note: "Runnir reads its condition as true.")) == "Runnir reads its condition as true.")
+        #expect(RunGraph.sourceLine(path: ".github/workflows/ios-release.yml", sha: "a3f9c21dd", note: "")
+                == "Read from ios-release.yml at a3f9c21, the file this run used.")
+        #expect(RunGraph.sourceLine(path: ".github/workflows/ci.yml", sha: "a3f9c21dd", note: "GitHub ran this file merged with the base, which may differ.")
+                == "Read from ci.yml at a3f9c21; GitHub ran this file merged with the base, which may differ.")
+    }
+
+    @Test func thePanelStaysUnderItsNodeAndInsideTheColumns() {
+        #expect(RunGraph.panelLeading(nodeMinX: 0, columnsWidth: 596, panelWidth: 360) == 0)
+        #expect(RunGraph.panelLeading(nodeMinX: 210, columnsWidth: 596, panelWidth: 360) == 210)
+        #expect(RunGraph.panelLeading(nodeMinX: 420, columnsWidth: 596, panelWidth: 360) == 236, "the last column's panel ends with it")
+        #expect(RunGraph.panelLeading(nodeMinX: 0, columnsWidth: 176, panelWidth: 360) == 0)
+    }
+
+    @Test func oneWhyPanelIsOpenAtATime() async {
+        let model = RunLayerModel(hub: CoreHub(provider: FakeProvider()), workspaceID: UUID())
+        model.show(run: 1)
+        model.toggleSkip("docs")
+        #expect(model.skipJobID == "docs")
+        model.toggleSkip("publish")
+        #expect(model.skipJobID == "publish", "another skipped node moves the panel there")
+        model.toggleSkip("publish")
+        #expect(model.skipJobID == nil, "the same node closes it")
+        model.toggleSkip("docs")
+        model.open(runJob(5, "build"))
+        #expect(model.skipJobID == nil, "a job's log closes the panel")
+        model.toggleSkip("docs")
+        model.show(run: 2)
+        #expect(model.skipJobID == nil)
+    }
 }
