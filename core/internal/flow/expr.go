@@ -22,28 +22,45 @@ const (
 // name ("github.event_name"). Anything else is unknown.
 type Context map[string]any
 
+// Value is a name a condition read, with the value the context gave it.
+type Value struct{ Name, Value string }
+
+// Reading is what a condition says for a context and what it read: the
+// names it found, with their values, and the names it could not know, each
+// once and as written, in the order it read them.
+type Reading struct {
+	Truth   Truth
+	Read    []Value
+	Unknown []string
+}
+
 // Evaluate reads a condition as GitHub would for the scenario: literals,
 // comparisons (strings without regard to case), !, && and ||, parentheses,
 // startsWith, endsWith, contains and format, and the contexts the scenario
-// knows. success() and always() hold, as the plan shows the run in which the
-// jobs before succeed; failure() and cancelled() are unknown.
-func Evaluate(condition string, ctx Context) Truth {
+// knows. Status functions come from the context ("success()" and the
+// others) for a run; without them the plan shows the run in which the jobs
+// before succeed: success() and always() hold, failure() and cancelled()
+// are unknown.
+func Evaluate(condition string, ctx Context) Truth { return Read(condition, ctx).Truth }
+
+// Read evaluates a condition as Evaluate does and says what it read.
+func Read(condition string, ctx Context) Reading {
 	text := strings.TrimSpace(unwrap(condition))
 	if text == "" {
-		return True
+		return Reading{Truth: True}
 	}
 	p := &parser{tokens: tokenize(text), ctx: ctx}
 	v := p.or()
-	if p.failed || p.pos != len(p.tokens) {
-		return Unknown
+	out := Reading{Read: p.read, Unknown: p.unknown}
+	switch {
+	case p.failed || p.pos != len(p.tokens) || v.unknown:
+		out.Truth = Unknown
+	case truthy(v.value):
+		out.Truth = True
+	default:
+		out.Truth = False
 	}
-	if v.unknown {
-		return Unknown
-	}
-	if truthy(v.value) {
-		return True
-	}
-	return False
+	return out
 }
 
 type val struct {
@@ -117,10 +134,12 @@ func isWord(c byte) bool {
 }
 
 type parser struct {
-	tokens []token
-	pos    int
-	ctx    Context
-	failed bool
+	tokens  []token
+	pos     int
+	ctx     Context
+	failed  bool
+	read    []Value
+	unknown []string
 }
 
 func (p *parser) peek(text string) bool {
@@ -133,6 +152,30 @@ func (p *parser) expect(text string) {
 	} else {
 		p.failed = true
 	}
+}
+
+// note keeps a name the condition read, once: with its value when the
+// context has it, as not known otherwise.
+func (p *parser) note(name string, v any, known bool) {
+	if known {
+		for _, r := range p.read {
+			if r.Name == name {
+				return
+			}
+		}
+		shown := str(v)
+		if v == nil {
+			shown = "null"
+		}
+		p.read = append(p.read, Value{name, shown})
+		return
+	}
+	for _, u := range p.unknown {
+		if u == name {
+			return
+		}
+	}
+	p.unknown = append(p.unknown, name)
 }
 
 func (p *parser) or() val {
@@ -260,7 +303,7 @@ func (p *parser) primary() val {
 	// An index by a string, github['event_name'], reads as a property; any
 	// other index, and a key with a dot, which no property name the plan
 	// knows has, is beyond what the plan knows.
-	name, known := strings.ToLower(t.text), true
+	name, shown, known := strings.ToLower(t.text), t.text, true
 	for p.peek("[") {
 		p.pos++
 		key := p.or()
@@ -268,14 +311,18 @@ func (p *parser) primary() val {
 		s, ok := key.value.(string)
 		known = known && ok && !key.unknown && !strings.Contains(s, ".")
 		name += "." + strings.ToLower(s)
+		shown += "." + s
 		if p.pos < len(p.tokens) && p.tokens[p.pos].kind == "ident" && strings.HasPrefix(p.tokens[p.pos].text, ".") {
 			name += strings.ToLower(p.tokens[p.pos].text)
+			shown += p.tokens[p.pos].text
 			p.pos++
 		}
 	}
 	if v, ok := p.ctx[name]; ok && known {
+		p.note(shown, v, true)
 		return val{value: v}
 	}
+	p.note(shown, nil, false)
 	return val{unknown: true}
 }
 
@@ -289,10 +336,16 @@ func (p *parser) call(name string) val {
 		}
 	}
 	p.expect(")")
-	switch strings.ToLower(name) {
-	case "success", "always":
-		return val{value: true}
-	case "failure", "cancelled":
+	switch fn := strings.ToLower(name); fn {
+	case "success", "always", "failure", "cancelled":
+		if v, ok := p.ctx[fn+"()"]; ok {
+			p.note(fn+"()", v, true)
+			return val{value: v}
+		}
+		if fn == "success" || fn == "always" {
+			return val{value: true}
+		}
+		p.note(fn+"()", nil, false)
 		return val{unknown: true}
 	}
 	for _, a := range args {

@@ -682,3 +682,34 @@ func TestGitListsTheFilesOfTheChange(t *testing.T) {
 		t.Fatalf("without git = %+v", none)
 	}
 }
+
+func TestAConditionSaysWhatItRead(t *testing.T) {
+	run := Context{"github.event_name": "push", "github.ref": "refs/heads/main", "success()": false, "failure()": true, "cancelled()": false}
+	r := Read("github.event_name == 'pull_request' && vars.RELEASE_NOTES == 'true'", run)
+	if r.Truth != False || !reflect.DeepEqual(r.Read, []Value{{"github.event_name", "push"}}) || !reflect.DeepEqual(r.Unknown, []string{"vars.RELEASE_NOTES"}) {
+		t.Fatalf("read = %+v", r)
+	}
+	if r := Read("${{ failure() && github.ref == 'refs/heads/main' }}", run); r.Truth != True ||
+		!reflect.DeepEqual(r.Read, []Value{{"failure()", "true"}, {"github.ref", "refs/heads/main"}}) {
+		t.Fatalf("status = %+v", r)
+	}
+	if r := Read("success()", run); r.Truth != False {
+		t.Fatalf("a run's success() = %+v", r)
+	}
+	if r := Read("github['event_name'] == 'push' && github.event_name == 'push'", run); r.Truth != True || len(r.Read) != 1 {
+		t.Fatalf("a name read twice is listed once: %+v", r)
+	}
+	// Without a run the plan's defaults hold.
+	if r := Read("success() && always()", Context{}); r.Truth != True {
+		t.Fatalf("plan success = %+v", r)
+	}
+	if r := Read("cancelled()", Context{}); r.Truth != Unknown || !reflect.DeepEqual(r.Unknown, []string{"cancelled()"}) {
+		t.Fatalf("plan cancelled = %+v", r)
+	}
+	if r := Read("github.event_name == ", run); r.Truth != Unknown {
+		t.Fatalf("broken = %+v", r)
+	}
+	if r := Read("", run); r.Truth != True {
+		t.Fatalf("empty = %+v", r)
+	}
+}
