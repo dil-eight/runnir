@@ -713,3 +713,120 @@ func TestAConditionSaysWhatItRead(t *testing.T) {
 		t.Fatalf("empty = %+v", r)
 	}
 }
+
+const skipsWorkflow = `name: CI
+on: [push, pull_request]
+jobs:
+  lint: {runs-on: x, steps: [{run: x}]}
+  build:
+    needs: lint
+    runs-on: x
+    steps: [{run: x}]
+  test:
+    needs: lint
+    strategy:
+      matrix:
+        os: [a, b, c]
+        exclude: [{os: c}]
+    runs-on: x
+    steps: [{run: x}]
+  publish:
+    needs: build
+    runs-on: x
+    steps: [{run: x}]
+  deploy:
+    needs: publish
+    runs-on: x
+    steps: [{run: x}]
+  docs:
+    if: github.event_name == 'pull_request'
+    runs-on: x
+    steps: [{run: x}]
+  changelog:
+    if: vars.RELEASE_NOTES == 'true'
+    runs-on: x
+    steps: [{run: x}]
+  report:
+    needs: build
+    if: always()
+    runs-on: x
+    steps: [{run: x}]
+  notify:
+    needs: lint
+    if: github.event_name == 'push'
+    runs-on: x
+    steps: [{run: x}]
+  call:
+    if: github.ref == 'refs/heads/release'
+    uses: ./.github/workflows/lib.yml
+  after-test:
+    needs: test
+    runs-on: x
+    steps: [{run: x}]
+  preview:
+    runs-on: x
+    steps: [{run: x}]
+`
+
+func TestWhyJobsWereSkipped(t *testing.T) {
+	w := Parse(".github/workflows/ci.yml", []byte(skipsWorkflow))
+	jobs := []RunJob{
+		{"lint", "success"}, {"build", "failure"}, {"test (a)", "success"}, {"test (b)", "cancelled"},
+		{"publish", "skipped"}, {"deploy", "skipped"}, {"docs", "skipped"}, {"changelog", "skipped"}, {"report", "success"},
+		{"notify", "skipped"}, {"call", "skipped"}, {"after-test", "skipped"},
+	}
+	facts := RunFacts{Context: Context{"github.event_name": "push", "github.ref": "refs/heads/main"}, Event: "push"}
+	got := map[string]Skip{}
+	var order []string
+	for _, s := range ExplainSkips(w, facts, jobs) {
+		got[s.JobID] = s
+		order = append(order, s.JobID)
+	}
+	if want := []string{"publish", "deploy", "docs", "changelog", "notify", "call", "after-test", "preview"}; !reflect.DeepEqual(order, want) {
+		t.Fatalf("explained = %v (a matrix with exclude, and always() after a failure, are no skips)", order)
+	}
+	if s := got["publish"]; s.Kind != SkipNeeds || s.Need != "build" || s.NeedResult != "failure" {
+		t.Fatalf("publish = %+v", s)
+	}
+	if s := got["deploy"]; s.Kind != SkipNeeds || s.Need != "publish" || s.NeedResult != "skipped" {
+		t.Fatalf("deploy = %+v", s)
+	}
+	if s := got["after-test"]; s.Kind != SkipNeeds || s.Need != "test" || s.NeedResult != "cancelled" {
+		t.Fatalf("a matrix with a cancelled variant = %+v", s)
+	}
+	if s := got["docs"]; s.Kind != SkipConditionFalse || s.Condition != "github.event_name == 'pull_request'" ||
+		!reflect.DeepEqual(s.Values, []Value{{"github.event_name", "push"}}) {
+		t.Fatalf("docs = %+v", s)
+	}
+	if s := got["changelog"]; s.Kind != SkipNotKnown || !reflect.DeepEqual(s.Unknown, []string{"vars.RELEASE_NOTES"}) || s.Note != "" {
+		t.Fatalf("changelog = %+v", s)
+	}
+	if s := got["notify"]; s.Kind != SkipNotKnown || !strings.Contains(s.Note, "reads its condition as true") {
+		t.Fatalf("a condition read as true while GitHub skipped the job = %+v", s)
+	}
+	if s := got["call"]; s.Kind != SkipConditionFalse || !reflect.DeepEqual(s.Values, []Value{{"github.ref", "refs/heads/main"}}) {
+		t.Fatalf("a reusable workflow node = %+v", s)
+	}
+	if s := got["preview"]; s.Kind != SkipNotInRun || s.Note != "The file at this commit may differ from the one GitHub ran." {
+		t.Fatalf("preview = %+v", s)
+	}
+
+	// While the run goes on, a node without a job is still to come.
+	facts.Active = true
+	for _, s := range ExplainSkips(w, facts, jobs) {
+		if s.Kind == SkipNotInRun {
+			t.Fatalf("active run explains %q", s.JobID)
+		}
+	}
+
+	pr := RunFacts{Context: Context{"github.event_name": "pull_request"}, Event: "pull_request"}
+	for _, s := range ExplainSkips(w, pr, jobs) {
+		if s.JobID == "preview" && !strings.Contains(s.Note, "merged with the base branch") {
+			t.Fatalf("pull request note = %q", s.Note)
+		}
+	}
+	if SourceNote("pull_request") != "GitHub ran this file merged with the base, which may differ." ||
+		SourceNote("pull_request_target") != "GitHub ran the file of the base branch, which may differ." || SourceNote("push") != "" {
+		t.Fatal("source notes")
+	}
+}
