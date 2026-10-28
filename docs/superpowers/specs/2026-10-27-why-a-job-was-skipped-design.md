@@ -1,6 +1,6 @@
 # Why a job was skipped (B35)
 
-Status: design approved on 2026-10-27, not implemented. Drawn in `runnir.pen` (journey D, Row — Why a job was skipped (B35)): option A, a panel on click, was chosen; a line under the node (B) and a list under the graph (C) were not. Builds on the run graph of B41 ([spec](2026-10-26-run-graph-inspector-design.md)) and the `if:` evaluator of B32 (`core/internal/flow`).
+Status: built (the Core's reasons in `GetRunWorkflow`, the reason on the node and the panel in the run graph), drawn in `runnir.pen` (journey D, Row — Why a job was skipped (B35)): option A, a panel on click, was chosen; a line under the node (B) and a list under the graph (C) were not. Builds on the run graph of B41 ([spec](2026-10-26-run-graph-inspector-design.md)) and the `if:` evaluator of B32 (`core/internal/flow`). Not tried against real runs on GitHub.
 
 ## Problem
 
