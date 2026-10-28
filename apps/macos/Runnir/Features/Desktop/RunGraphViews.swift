@@ -30,7 +30,7 @@ enum RunGraph {
         var claimed = Set<Int64>()
         var nodes: [String: Node] = [:]
         for job in workflow {
-            let matched = PipelineLayout.runJobs(for: job, in: runJobs, among: workflow)
+            let matched = PipelineLayout.runJobs(for: job, in: runJobs)
             matched.forEach { claimed.insert($0.id) }
             // A name set by an expression has no text to show before the run.
             let name = job.name.isEmpty || job.name.contains("${{") ? job.id : job.name
@@ -38,6 +38,14 @@ enum RunGraph {
         }
         let columns = PipelineLayout.columns(workflow).map { column in column.compactMap { nodes[$0.id] } }
         return Layout(columns: columns, others: runJobs.filter { !claimed.contains($0.id) })
+    }
+
+    /// When the inspector asks for the run's workflow file again, for the
+    /// reasons of its skipped jobs (B35): for another attempt, when the run
+    /// finishes, and when it skips another job while it goes on.
+    static func workflowRequest(run: CoreWorkflowRun, jobs: [CoreRunJob]?) -> String {
+        let skipped = run.outcome.isActive ? (jobs ?? []).filter { $0.outcome == .skipped }.map(\.id).sorted() : []
+        return "\(run.id)-\(run.runAttempt)-\(run.outcome.isActive)-\(skipped)"
     }
 
     /// What a job without a run job of its own is: still to come while the
@@ -152,6 +160,12 @@ final class RunLayerModel {
         skipJobID = nil
         isOpen = false
         expanded = false
+    }
+
+    /// The workflow file asked for again: a read that fails keeps the graph shown.
+    func apply(workflow: CoreRunWorkflow) {
+        guard workflow.access == .ok || self.workflow?.access != .ok else { return }
+        self.workflow = workflow
     }
 
     /// A click on a skipped node: opens its panel, moves it there from another
@@ -409,6 +423,7 @@ struct SkippedJobPanel: View {
     let source: String
     let close: () -> Void
     @State private var escape: Any?
+    @State private var host = HostWindow()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -437,6 +452,7 @@ struct SkippedJobPanel: View {
         .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(RunnirTheme.border))
         .shadow(color: .black.opacity(0.4), radius: 12, y: 8)
+        .background(HostWindow.Reader(host: host))
         .onAppear(perform: watchEscape)
         .onDisappear(perform: stopWatching)
     }
@@ -492,16 +508,57 @@ struct SkippedJobPanel: View {
     /// Escape closes the panel, not what is under it.
     private func watchEscape() {
         stopWatching()
-        escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+        escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [host] event in
             guard event.keyCode == 53 else { return event }
-            MainActor.assumeIsolated { close() }
-            return nil
+            // Local monitors run on the main thread; only the decision leaves it.
+            let closes = MainActor.assumeIsolated { () -> Bool in
+                guard Self.escapeCloses(in: event.window, host: host.window) else { return false }
+                close()
+                return true
+            }
+            return closes ? nil : event
         }
+    }
+
+    /// Escape closes the panel only in its own window, and not while a sheet
+    /// (a confirmation) or a field being edited there takes it.
+    static func escapeCloses(in window: NSWindow?, host: NSWindow?) -> Bool {
+        guard let host, window === host, host.attachedSheet == nil else { return false }
+        return !((host.firstResponder as? NSTextView)?.isEditable ?? false)
     }
 
     private func stopWatching() {
         if let escape { NSEvent.removeMonitor(escape) }
         escape = nil
+    }
+}
+
+/// The window a view is in, for a key monitor that acts only there.
+@MainActor
+final class HostWindow {
+    weak var window: NSWindow?
+
+    struct Reader: NSViewRepresentable {
+        let host: HostWindow
+
+        func makeNSView(context: Context) -> NSView { Anchor(host: host) }
+        func updateNSView(_ view: NSView, context: Context) {}
+
+        final class Anchor: NSView {
+            let host: HostWindow
+
+            init(host: HostWindow) {
+                self.host = host
+                super.init(frame: .zero)
+            }
+
+            required init?(coder: NSCoder) { nil }
+
+            override func viewDidMoveToWindow() {
+                super.viewDidMoveToWindow()
+                host.window = window
+            }
+        }
     }
 }
 

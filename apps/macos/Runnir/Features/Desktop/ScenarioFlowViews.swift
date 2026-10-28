@@ -222,9 +222,8 @@ struct ScenarioFlowView: View {
     }
 
     private func node(_ job: CoreFlowJob, lane: CoreFlowLane) -> some View {
-        let laneJobs = lane.jobs.map(\.job)
         let read = lane.run.flatMap { model.jobs[$0.id] }
-        let matched = read.map { PipelineLayout.runJobs(for: job.job, in: $0.items, among: laneJobs) } ?? []
+        let matched = read.map { PipelineLayout.runJobs(for: job.job, in: $0.items) } ?? []
         let outcome = job.skipped.isEmpty ? PipelineLayout.outcome(matched) : nil
         let workflow = remote(lane.path)
         let workflowRuns = workflow.map { remote in session?.runs.filter { $0.workflowID == remote.id } ?? [] } ?? []

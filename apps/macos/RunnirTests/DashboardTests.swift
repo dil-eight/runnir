@@ -85,10 +85,10 @@ struct PipelineLayoutTests {
     }
 
     private func runJob(_ name: String, status: String = "completed", conclusion: String? = "success",
-                        start: TimeInterval? = 0, end: TimeInterval? = 10) -> CoreRunJob {
+                        start: TimeInterval? = 0, end: TimeInterval? = 10, node: String = "") -> CoreRunJob {
         CoreRunJob(id: Int64(name.hashValue & 0xffff), name: name, status: status, conclusion: conclusion,
                    startedAt: start.map { Date(timeIntervalSince1970: $0) }, completedAt: end.map { Date(timeIntervalSince1970: $0) },
-                   htmlURL: nil, steps: [])
+                   htmlURL: nil, steps: [], workflowJobID: node)
     }
 
     @Test func hoveringAJobSaysItsStatus() {
@@ -118,23 +118,13 @@ struct PipelineLayoutTests {
         #expect(PipelineLayout.columns([]).isEmpty)
     }
 
-    @Test func runJobsMatchExpressionNamesAndReusableWorkflows() {
-        let jobs = [runJob("Build ubuntu-latest"), runJob("Build macos-latest"), runJob("release / publish"), runJob("Lint")]
+    @Test func runJobsAreTheOnesTheCoreNamesForTheJob() {
+        // The Core matches names (flow.RunJobNodes); the app only reads its answer.
+        let jobs = [runJob("Build ubuntu-latest", node: "build"), runJob("Build macos-latest", node: "build"),
+                    runJob("release / publish", node: "release"), runJob("Lint")]
         #expect(PipelineLayout.runJobs(for: job("build", name: "Build ${{ matrix.os }}"), in: jobs).count == 2)
         #expect(PipelineLayout.runJobs(for: job("release"), in: jobs).map(\.name) == ["release / publish"])
-        #expect(PipelineLayout.runJobs(for: job("x", name: "${{ matrix.name }}"), in: jobs).isEmpty)
-        // A run job another job names is not taken by an expression's stem.
-        let docs = job("docs", name: "Build docs")
-        let all = jobs + [runJob("Build docs")]
-        #expect(PipelineLayout.runJobs(for: job("build", name: "Build ${{ matrix.os }}"), in: all, among: [job("build", name: "Build ${{ matrix.os }}"), docs]).count == 2)
-    }
-
-    @Test func runJobsMatchByNameIdAndMatrix() {
-        let jobs = [runJob("Lint"), runJob("build (ubuntu, 18)"), runJob("build (macos, 18)"), runJob("deploy")]
-        #expect(PipelineLayout.runJobs(for: job("lint", name: "Lint"), in: jobs).map(\.name) == ["Lint"])
-        #expect(PipelineLayout.runJobs(for: job("build"), in: jobs).count == 2)
-        #expect(PipelineLayout.runJobs(for: job("deploy", name: "Deploy app"), in: jobs).map(\.name) == ["deploy"])
-        #expect(PipelineLayout.runJobs(for: job("buil"), in: jobs).isEmpty)
+        #expect(PipelineLayout.runJobs(for: job("lint", name: "Lint"), in: jobs).isEmpty, "a run job the Core named for no job")
     }
 
     @Test func theWorstOutcomeAndTheWholeDurationWin() {
