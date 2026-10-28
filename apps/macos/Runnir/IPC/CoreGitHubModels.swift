@@ -345,12 +345,42 @@ struct CoreRunJob: Equatable, Identifiable, Sendable {
 
 /// The jobs of the workflow file a run used, read at the run's commit, with
 /// their needs: what the run's graph is drawn from.
+/// Why a job of a run did not run, as the Core read it from the file at the
+/// run's commit, the run and its jobs (B35).
+struct CoreJobSkip: Equatable, Sendable {
+    enum Kind: Equatable, Sendable { case needs, conditionFalse, notKnown, notInRun }
+
+    struct Value: Equatable, Sendable {
+        let name: String
+        let value: String
+    }
+
+    let jobID: String
+    let kind: Kind
+    /// For `.needs`: the job it needs that did not succeed, and its result
+    /// ("failure", "cancelled" or "skipped").
+    let need: String
+    let needResult: String
+    let condition: String
+    /// What the condition read of the run, in the order it read it.
+    let values: [Value]
+    /// What the condition reads that Runnir does not know.
+    let unknown: [String]
+    let note: String
+}
+
 struct CoreRunWorkflow: Equatable, Sendable {
     let access: CoreGitHubAccess
     let path: String
     let jobs: [CoreJob]
     /// Why there are no jobs; empty when the file was read and parsed.
     let problem: String
+    /// Why each skipped job was skipped, and the jobs a finished run has no job for.
+    var skips: [CoreJobSkip] = []
+    /// Which file GitHub ran when it is not the one read; empty when it is.
+    var sourceNote = ""
+
+    func skip(for jobID: String) -> CoreJobSkip? { skips.first { $0.jobID == jobID } }
 
     static func failed(_ access: CoreGitHubAccess) -> CoreRunWorkflow {
         CoreRunWorkflow(access: access, path: "", jobs: [], problem: "")
