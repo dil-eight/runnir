@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // MARK: Graph of a run
@@ -188,6 +189,9 @@ final class RunLayerModel {
 struct RunGraphView: View {
     @Bindable var model: RunLayerModel
     let run: CoreWorkflowRun
+    @State private var nodeMinX: [String: CGFloat] = [:]
+    @State private var columnsWidth: CGFloat = 0
+    private static let columnsSpace = "runGraphColumns"
 
     var body: some View {
         ScrollView([.horizontal, .vertical]) {
@@ -265,6 +269,16 @@ struct RunGraphView: View {
                     }
                 }
             }
+            .coordinateSpace(.named(Self.columnsSpace))
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { columnsWidth = $0 }
+            if let id = model.skipJobID, let workflow = model.workflow, let skip = workflow.skip(for: id),
+               let node = layout.columns.joined().first(where: { $0.id == id }) {
+                SkippedJobPanel(title: RunGraph.panelTitle(job: node.name, skip), skip: skip,
+                                source: RunGraph.sourceLine(path: workflow.path, sha: run.headSHA, note: workflow.sourceNote),
+                                close: { model.skipJobID = nil })
+                    .padding(.leading, RunGraph.panelLeading(nodeMinX: nodeMinX[id] ?? 0, columnsWidth: columnsWidth,
+                                                             panelWidth: SkippedJobPanel.width))
+            }
             if !layout.others.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     SectionLabel(title: "OTHER JOBS")
@@ -280,8 +294,8 @@ struct RunGraphView: View {
         VStack(alignment: .leading, spacing: 10) {
             if let workflow = model.workflow {
                 Label(workflow.problem.isEmpty
-                      ? "Jobs are listed without their order: the workflow file could not be read at this commit."
-                      : "Jobs are listed without their order. \(workflow.problem)", systemImage: "info.circle")
+                      ? "Jobs are listed without their order: the workflow file could not be read at this commit. Why jobs were skipped cannot be told either."
+                      : "Jobs are listed without their order. \(workflow.problem) Why jobs were skipped cannot be told either.", systemImage: "info.circle")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
             }
             VStack(alignment: .leading, spacing: 8) {
@@ -291,29 +305,45 @@ struct RunGraphView: View {
     }
 
     private func nodeButton(_ node: RunGraph.Node) -> some View {
-        jobNode(title: node.title, outcome: node.outcome ?? RunGraph.absentOutcome(runActive: run.outcome.isActive), jobs: node.jobs)
+        jobNode(title: node.title, outcome: node.outcome ?? RunGraph.absentOutcome(runActive: run.outcome.isActive), jobs: node.jobs,
+                id: node.id, skip: model.workflow?.skip(for: node.id))
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.columnsSpace)).minX } action: { nodeMinX[node.id] = $0 }
     }
 
-    private func jobNode(title: String, outcome: CoreRunOutcome, jobs: [CoreRunJob]) -> some View {
+    /// A job of the run; a skipped one says why and opens the why panel (B35).
+    private func jobNode(title: String, outcome: CoreRunOutcome, jobs: [CoreRunJob], id: String? = nil, skip: CoreJobSkip? = nil) -> some View {
         let target = RunGraph.jobToOpen(jobs)
+        let absent = skip?.kind == .notInRun
+        let selected = (skip != nil && model.skipJobID == id) || (model.jobID != nil && jobs.contains { $0.id == model.jobID })
         return Button {
-            if let target { model.open(target) }
+            if let id, skip != nil {
+                model.toggleSkip(id)
+            } else if let target {
+                model.open(target)
+            }
         } label: {
             HStack(spacing: 8) {
-                RunOutcomeIcon(outcome: outcome, size: 14)
+                if absent {
+                    Image(systemName: "circle.dashed").font(.system(size: 13)).foregroundStyle(RunnirTheme.mutedForeground)
+                } else {
+                    RunOutcomeIcon(outcome: outcome, size: 14)
+                }
                 Text(title).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                    .foregroundStyle(absent ? RunnirTheme.secondaryForeground : RunnirTheme.foreground)
                 Spacer(minLength: 6)
-                Text(meta(outcome, jobs)).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                Text(skip.map(RunGraph.reason) ?? meta(outcome, jobs)).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
             }
             .padding(.horizontal, 12).frame(width: 220, height: 36)
-            .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(outlineColor(outcome, selected: model.jobID != nil && jobs.contains { $0.id == model.jobID })))
+            .background(absent ? Color.clear : RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8)
+                .stroke(selected ? RunnirTheme.primary : (absent ? RunnirTheme.mutedForeground : outlineColor(outcome)),
+                        style: StrokeStyle(lineWidth: 1, dash: absent && !selected ? [4, 3] : [])))
             .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.hit)
-        .disabled(target == nil)
-        .help(target == nil ? "This job has not started" : "Read the log of \(title)")
-        .accessibilityLabel("\(title), \(outcome.label)")
+        .disabled(target == nil && skip == nil)
+        .help(skip != nil ? "Why \(title) did not run" : (target == nil ? "This job has not started" : "Read the log of \(title)"))
+        .accessibilityLabel(skip.map { "\(title), \(RunGraph.reason($0))" } ?? "\(title), \(outcome.label)")
         .contextMenu {
             if let target, !run.outcome.isActive, target.status == "completed" {
                 Button("Re-run job") { Task { await model.actions.prepare(.rerunJob(id: target.id), for: run) } }
@@ -322,12 +352,11 @@ struct RunGraphView: View {
         }
     }
 
-    private func outlineColor(_ outcome: CoreRunOutcome, selected: Bool) -> Color {
-        if selected { return RunnirTheme.primary }
+    private func outlineColor(_ outcome: CoreRunOutcome) -> Color {
         switch outcome {
-        case .failed: return RunnirTheme.destructive
-        case .running: return RunnirTheme.primary.opacity(0.7)
-        default: return RunnirTheme.border
+        case .failed: RunnirTheme.destructive
+        case .running: RunnirTheme.primary.opacity(0.7)
+        default: RunnirTheme.border
         }
     }
 
@@ -365,6 +394,114 @@ struct RunGraphView: View {
             .background((focus.failed ? RunnirTheme.destructive : RunnirTheme.primary).opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
             .frame(maxWidth: 640)
         }
+    }
+}
+
+// MARK: Why a job was skipped
+
+/// Why a job of the run did not run (B35): under its node, part of the
+/// graph's layout, so nothing is drawn over it. Escape closes it.
+struct SkippedJobPanel: View {
+    static let width: CGFloat = 360
+
+    let title: String
+    let skip: CoreJobSkip
+    let source: String
+    let close: () -> Void
+    @State private var escape: Any?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                if skip.kind == .notInRun {
+                    Image(systemName: "circle.dashed").font(.system(size: 15)).foregroundStyle(RunnirTheme.mutedForeground)
+                } else {
+                    RunOutcomeIcon(outcome: .skipped, size: 15)
+                }
+                Text(title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                Spacer(minLength: 8)
+                Button(action: close) {
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)).foregroundStyle(RunnirTheme.mutedForeground)
+                        .frame(width: 18, height: 18).contentShape(Rectangle())
+                }
+                .buttonStyle(.hit).help("Close").accessibilityLabel("Close")
+            }
+            Text(RunGraph.panelSentence(skip)).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                .fixedSize(horizontal: false, vertical: true)
+            details
+            Rectangle().fill(RunnirTheme.border).frame(height: 1)
+            Text(source).font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .frame(width: Self.width, alignment: .leading)
+        .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(RunnirTheme.border))
+        .shadow(color: .black.opacity(0.4), radius: 12, y: 8)
+        .onAppear(perform: watchEscape)
+        .onDisappear(perform: stopWatching)
+    }
+
+    @ViewBuilder private var details: some View {
+        switch skip.kind {
+        case .needs:
+            HStack(spacing: 8) {
+                RunOutcomeIcon(outcome: RunGraph.resultOutcome(skip.needResult), size: 14)
+                Text("needs \(skip.need)").font(.system(size: 12, weight: .medium)).lineLimit(1)
+                Spacer(minLength: 8)
+                Text(RunGraph.resultWord(skip.needResult)).font(.system(size: 12))
+                    .foregroundStyle(skip.needResult == "failure" ? RunnirTheme.destructive : RunnirTheme.secondaryForeground)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .background(RunnirTheme.editor, in: RoundedRectangle(cornerRadius: 6))
+        case .conditionFalse, .notKnown:
+            if !skip.condition.isEmpty {
+                Text("if: \(skip.condition)").font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 10).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RunnirTheme.editor, in: RoundedRectangle(cornerRadius: 6))
+            }
+            if skip.kind == .conditionFalse, !skip.values.isEmpty {
+                names("This run had") {
+                    ForEach(skip.values, id: \.name) { value in
+                        HStack(spacing: 8) {
+                            Text(value.name).foregroundStyle(RunnirTheme.secondaryForeground)
+                            Text(value.value)
+                        }
+                    }
+                }
+            } else if skip.kind == .notKnown, !skip.unknown.isEmpty {
+                names("Runnir does not know") {
+                    ForEach(skip.unknown, id: \.self) { Text($0) }
+                }
+            }
+        case .notInRun:
+            if !skip.note.isEmpty {
+                Text(skip.note).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func names(_ label: String, @ViewBuilder _ lines: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(RunnirTheme.mutedForeground)
+            lines().font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
+        }
+    }
+
+    /// Escape closes the panel, not what is under it.
+    private func watchEscape() {
+        stopWatching()
+        escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard event.keyCode == 53 else { return event }
+            MainActor.assumeIsolated { close() }
+            return nil
+        }
+    }
+
+    private func stopWatching() {
+        if let escape { NSEvent.removeMonitor(escape) }
+        escape = nil
     }
 }
 
