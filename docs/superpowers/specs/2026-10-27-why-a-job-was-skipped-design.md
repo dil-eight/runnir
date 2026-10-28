@@ -22,7 +22,7 @@ The run graph marks a job GitHub skipped as "skipped" and nothing more. Why it w
 - From the run's jobs: each job's result, as `needs.<id>.result` (success, failure, cancelled, skipped).
 - Whether a push was of a tag or a branch: the local repository's refs decide. A name git knows only as a tag is a tag, one it knows as a branch is a branch; otherwise `github.ref` and `github.ref_type` are unknown.
 - Status functions for the run: `success()` holds when every job the job needs, directly or through others, succeeded; `failure()` when one of them failed; `cancelled()` when the run was cancelled; `always()` always.
-- Never known: `vars.*`, `secrets.*`, `inputs.*`, `needs.<id>.outputs.*`, `matrix.*`, `steps.*` and the `workflow_run` payload. A condition that reads one of them is "not known".
+- Never known: `vars.*`, `secrets.*`, `inputs.*`, `needs.<id>.outputs.*`, `matrix.*`, `steps.*` and the `workflow_run` payload beyond its head branch. A condition that reads one of them is "not known".
 
 The jobs come from the workspace's cache (the graph has read them already); outside a workspace one read of the run's jobs. Nothing else is asked of GitHub.
 
@@ -30,7 +30,7 @@ The jobs come from the workspace's cache (the graph has read them already); outs
 
 For a job the run has as skipped, in this order:
 
-1. **a need did not succeed** (on the node: "need failed", "need cancelled" or "need skipped", by the need's result). A job it needs did not succeed (failed, cancelled or skipped) and its `if:` has no status function, so GitHub's implicit `success()` held it back. The panel names that job and its result; when several did not succeed, the first in the file's order.
+1. **a need did not succeed** (on the node: "need failed", "need cancelled" or "need skipped", by the need's result). A job it needs did not succeed (failed, cancelled or skipped) and its `if:` has no status function, so GitHub's implicit `success()` held it back. The panel names that job and its result; when several did not succeed, the first the job lists.
 2. **condition false** ("condition false"). Its `if:` is false for this run. The panel shows the condition and the values of the run it read, for example `github.event_name: push`.
 3. **not known** ("not known"). Its `if:` reads something Runnir does not know. The panel shows the condition and the names Runnir does not know, for example `vars.RELEASE_NOTES`. Also when Runnir reads the condition as true and the needs as met, but GitHub skipped the job: the panel says so and that the file at this commit may differ from the one GitHub ran.
 
