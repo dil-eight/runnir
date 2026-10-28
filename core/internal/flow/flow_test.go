@@ -678,6 +678,9 @@ func TestGitListsTheFilesOfTheChange(t *testing.T) {
 	if tags := g.Tags(context.Background()); !reflect.DeepEqual(tags, map[string]bool{"v1.0": true}) {
 		t.Fatalf("tags = %v", tags)
 	}
+	if branches := g.Branches(context.Background()); !branches["main"] || !branches["feature"] || branches["v1.0"] {
+		t.Fatalf("branches = %v", branches)
+	}
 	if none := (Git{Root: root}).Changes(context.Background(), "origin/main"); none.Known || none.Note != "git not found, so paths filters are unknown" {
 		t.Fatalf("without git = %+v", none)
 	}

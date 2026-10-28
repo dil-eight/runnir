@@ -108,15 +108,15 @@ func (g Git) UpstreamHead(ctx context.Context) string {
 	return strings.TrimSpace(string(out))
 }
 
-// maxTags bounds the local tags read.
-const maxTags = 10000
+// maxRefs bounds the refs read.
+const maxRefs = 10000
 
 // Tags are the tags of the local repository; nil when git cannot say.
 func (g Git) Tags(ctx context.Context) map[string]bool {
 	if g.Path == "" {
 		return nil
 	}
-	out, err := g.run(ctx, "for-each-ref", "--format=%(refname)", "--count="+strconv.Itoa(maxTags), "refs/tags")
+	out, err := g.run(ctx, "for-each-ref", "--format=%(refname)", "--count="+strconv.Itoa(maxRefs), "refs/tags")
 	if err != nil {
 		return nil
 	}
@@ -127,6 +127,30 @@ func (g Git) Tags(ctx context.Context) map[string]bool {
 		}
 	}
 	return tags
+}
+
+// Branches are the names of the local and remote-tracking branches
+// ("origin/main" as "main"); nil when git cannot say.
+func (g Git) Branches(ctx context.Context) map[string]bool {
+	if g.Path == "" {
+		return nil
+	}
+	out, err := g.run(ctx, "for-each-ref", "--format=%(refname)", "--count="+strconv.Itoa(maxRefs), "refs/heads", "refs/remotes")
+	if err != nil {
+		return nil
+	}
+	branches := map[string]bool{}
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if name, ok := strings.CutPrefix(line, "refs/heads/"); ok && name != "" {
+			branches[name] = true
+		} else if rest, ok := strings.CutPrefix(line, "refs/remotes/"); ok {
+			if _, name, ok := strings.Cut(rest, "/"); ok && name != "" && name != "HEAD" {
+				branches[name] = true
+			}
+		}
+	}
+	return branches
 }
 
 // Changes lists the files changed since the change left `against`: the

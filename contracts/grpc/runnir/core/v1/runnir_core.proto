@@ -760,6 +760,50 @@ message GetRunWorkflowResponse {
   repeated Job jobs = 3;
   // Why there are no jobs; empty when the file was read and parsed.
   string problem = 4;
+  // Why each job the run skipped was skipped, and the jobs a finished run
+  // has no job for, in the file's order (B35). Empty when the run or its
+  // jobs could not be read.
+  repeated JobSkip skips = 5;
+  // Which file GitHub ran when it is not the one read: a pull request's
+  // merged with its base, pull_request_target's of the base branch.
+  string source_note = 6;
+}
+
+enum SkipKind {
+  SKIP_KIND_UNSPECIFIED = 0;
+  // A job it needs did not succeed and its if checks no status.
+  SKIP_KIND_NEEDS = 1;
+  // Its if is false for the run.
+  SKIP_KIND_CONDITION_FALSE = 2;
+  // Its if reads what Runnir does not know, or reads true although GitHub
+  // skipped the job.
+  SKIP_KIND_NOT_KNOWN = 3;
+  // The finished run has no job for it.
+  SKIP_KIND_NOT_IN_RUN = 4;
+}
+
+message ConditionValue {
+  // As the condition writes it: "github.event_name", "failure()".
+  string name = 1;
+  string value = 2;
+}
+
+message JobSkip {
+  // The job's id in the workflow file.
+  string job_id = 1;
+  SkipKind kind = 2;
+  // For NEEDS: the job it needs that did not succeed, and its result
+  // (failure, cancelled or skipped).
+  string need = 3;
+  string need_result = 4;
+  // The job's if, without ${{ }}; empty without one.
+  string condition = 5;
+  // What the condition read of the run, in the order it read it.
+  repeated ConditionValue values = 6;
+  // What the condition reads that Runnir does not know.
+  repeated string unknown = 7;
+  // A sentence for NOT_KNOWN when GitHub disagrees, and for NOT_IN_RUN.
+  string note = 8;
 }
 
 message GetFlowRequest {

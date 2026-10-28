@@ -446,6 +446,61 @@ nonisolated enum Runnir_Core_V1_RunStatusGroup: SwiftProtobuf.Enum, Swift.CaseIt
 
 }
 
+nonisolated enum Runnir_Core_V1_SkipKind: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+
+  /// A job it needs did not succeed and its if checks no status.
+  case needs // = 1
+
+  /// Its if is false for the run.
+  case conditionFalse // = 2
+
+  /// Its if reads what Runnir does not know, or reads true although GitHub
+  /// skipped the job.
+  case notKnown // = 3
+
+  /// The finished run has no job for it.
+  case notInRun // = 4
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .needs
+    case 2: self = .conditionFalse
+    case 3: self = .notKnown
+    case 4: self = .notInRun
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .needs: return 1
+    case .conditionFalse: return 2
+    case .notKnown: return 3
+    case .notInRun: return 4
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_SkipKind] = [
+    .unspecified,
+    .needs,
+    .conditionFalse,
+    .notKnown,
+    .notInRun,
+  ]
+
+}
+
 nonisolated enum Runnir_Core_V1_ScenarioKind: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
   case unspecified // = 0
@@ -2605,11 +2660,68 @@ nonisolated struct Runnir_Core_V1_GetRunWorkflowResponse: Sendable {
   /// Why there are no jobs; empty when the file was read and parsed.
   var problem: String = String()
 
+  /// Why each job the run skipped was skipped, and the jobs a finished run
+  /// has no job for, in the file's order (B35). Empty when the run or its
+  /// jobs could not be read.
+  var skips: [Runnir_Core_V1_JobSkip] = []
+
+  /// Which file GitHub ran when it is not the one read: a pull request's
+  /// merged with its base, pull_request_target's of the base branch.
+  var sourceNote: String = String()
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
 
   fileprivate var _status: Runnir_Core_V1_GitHubStatus? = nil
+}
+
+nonisolated struct Runnir_Core_V1_ConditionValue: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// As the condition writes it: "github.event_name", "failure()".
+  var name: String = String()
+
+  var value: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_JobSkip: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// The job's id in the workflow file.
+  var jobID: String = String()
+
+  var kind: Runnir_Core_V1_SkipKind = .unspecified
+
+  /// For NEEDS: the job it needs that did not succeed, and its result
+  /// (failure, cancelled or skipped).
+  var need: String = String()
+
+  var needResult: String = String()
+
+  /// The job's if, without ${{ }}; empty without one.
+  var condition: String = String()
+
+  /// What the condition read of the run, in the order it read it.
+  var values: [Runnir_Core_V1_ConditionValue] = []
+
+  /// What the condition reads that Runnir does not know.
+  var unknown: [String] = []
+
+  /// A sentence for NOT_KNOWN when GitHub disagrees, and for NOT_IN_RUN.
+  var note: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
 }
 
 nonisolated struct Runnir_Core_V1_GetFlowRequest: Sendable {
@@ -5246,6 +5358,10 @@ nonisolated extension Runnir_Core_V1_RunStatusGroup: SwiftProtobuf._ProtoNamePro
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0RUN_STATUS_GROUP_UNSPECIFIED\0\u{1}RUN_STATUS_GROUP_SUCCESS\0\u{1}RUN_STATUS_GROUP_FAILED\0\u{1}RUN_STATUS_GROUP_CANCELLED\0\u{1}RUN_STATUS_GROUP_RUNNING\0\u{1}RUN_STATUS_GROUP_QUEUED\0\u{1}RUN_STATUS_GROUP_SKIPPED\0")
 }
 
+nonisolated extension Runnir_Core_V1_SkipKind: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0SKIP_KIND_UNSPECIFIED\0\u{1}SKIP_KIND_NEEDS\0\u{1}SKIP_KIND_CONDITION_FALSE\0\u{1}SKIP_KIND_NOT_KNOWN\0\u{1}SKIP_KIND_NOT_IN_RUN\0")
+}
+
 nonisolated extension Runnir_Core_V1_ScenarioKind: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0SCENARIO_KIND_UNSPECIFIED\0\u{1}SCENARIO_KIND_PULL_REQUEST\0\u{1}SCENARIO_KIND_PUSH\0\u{1}SCENARIO_KIND_MERGE\0\u{1}SCENARIO_KIND_TAG\0\u{1}SCENARIO_KIND_MANUAL\0\u{1}SCENARIO_KIND_SCHEDULE\0")
 }
@@ -7726,7 +7842,7 @@ nonisolated extension Runnir_Core_V1_GetRunWorkflowRequest: SwiftProtobuf.Messag
 
 nonisolated extension Runnir_Core_V1_GetRunWorkflowResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".GetRunWorkflowResponse"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{3}workflow_path\0\u{1}jobs\0\u{1}problem\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}status\0\u{3}workflow_path\0\u{1}jobs\0\u{1}problem\0\u{1}skips\0\u{3}source_note\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -7738,6 +7854,8 @@ nonisolated extension Runnir_Core_V1_GetRunWorkflowResponse: SwiftProtobuf.Messa
       case 2: try { try decoder.decodeSingularStringField(value: &self.workflowPath) }()
       case 3: try { try decoder.decodeRepeatedMessageField(value: &self.jobs) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.problem) }()
+      case 5: try { try decoder.decodeRepeatedMessageField(value: &self.skips) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.sourceNote) }()
       default: break
       }
     }
@@ -7760,6 +7878,12 @@ nonisolated extension Runnir_Core_V1_GetRunWorkflowResponse: SwiftProtobuf.Messa
     if !self.problem.isEmpty {
       try visitor.visitSingularStringField(value: self.problem, fieldNumber: 4)
     }
+    if !self.skips.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.skips, fieldNumber: 5)
+    }
+    if !self.sourceNote.isEmpty {
+      try visitor.visitSingularStringField(value: self.sourceNote, fieldNumber: 6)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -7768,6 +7892,108 @@ nonisolated extension Runnir_Core_V1_GetRunWorkflowResponse: SwiftProtobuf.Messa
     if lhs.workflowPath != rhs.workflowPath {return false}
     if lhs.jobs != rhs.jobs {return false}
     if lhs.problem != rhs.problem {return false}
+    if lhs.skips != rhs.skips {return false}
+    if lhs.sourceNote != rhs.sourceNote {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ConditionValue: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ConditionValue"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}name\0\u{1}value\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.value) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.name.isEmpty {
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 1)
+    }
+    if !self.value.isEmpty {
+      try visitor.visitSingularStringField(value: self.value, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ConditionValue, rhs: Runnir_Core_V1_ConditionValue) -> Bool {
+    if lhs.name != rhs.name {return false}
+    if lhs.value != rhs.value {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_JobSkip: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".JobSkip"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}job_id\0\u{1}kind\0\u{1}need\0\u{3}need_result\0\u{1}condition\0\u{1}values\0\u{1}unknown\0\u{1}note\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
+      case 2: try { try decoder.decodeSingularEnumField(value: &self.kind) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.need) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.needResult) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.condition) }()
+      case 6: try { try decoder.decodeRepeatedMessageField(value: &self.values) }()
+      case 7: try { try decoder.decodeRepeatedStringField(value: &self.unknown) }()
+      case 8: try { try decoder.decodeSingularStringField(value: &self.note) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.jobID.isEmpty {
+      try visitor.visitSingularStringField(value: self.jobID, fieldNumber: 1)
+    }
+    if self.kind != .unspecified {
+      try visitor.visitSingularEnumField(value: self.kind, fieldNumber: 2)
+    }
+    if !self.need.isEmpty {
+      try visitor.visitSingularStringField(value: self.need, fieldNumber: 3)
+    }
+    if !self.needResult.isEmpty {
+      try visitor.visitSingularStringField(value: self.needResult, fieldNumber: 4)
+    }
+    if !self.condition.isEmpty {
+      try visitor.visitSingularStringField(value: self.condition, fieldNumber: 5)
+    }
+    if !self.values.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.values, fieldNumber: 6)
+    }
+    if !self.unknown.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.unknown, fieldNumber: 7)
+    }
+    if !self.note.isEmpty {
+      try visitor.visitSingularStringField(value: self.note, fieldNumber: 8)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_JobSkip, rhs: Runnir_Core_V1_JobSkip) -> Bool {
+    if lhs.jobID != rhs.jobID {return false}
+    if lhs.kind != rhs.kind {return false}
+    if lhs.need != rhs.need {return false}
+    if lhs.needResult != rhs.needResult {return false}
+    if lhs.condition != rhs.condition {return false}
+    if lhs.values != rhs.values {return false}
+    if lhs.unknown != rhs.unknown {return false}
+    if lhs.note != rhs.note {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
