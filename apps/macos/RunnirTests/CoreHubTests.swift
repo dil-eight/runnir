@@ -93,7 +93,7 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     }
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { lock.withLock { jobsResult } }
     var runWorkflowResult = CoreRunWorkflow.failed(.ok)
-    func getRunWorkflow(repositoryID: String, runID: Int64) async throws -> CoreRunWorkflow { lock.withLock { runWorkflowResult } }
+    func getRunWorkflow(repositoryID: String, runID: Int64, runAttempt: Int64) async throws -> CoreRunWorkflow { lock.withLock { runWorkflowResult } }
     var flowResult = CoreFlow()
     private var _flowScenarios: [CoreScenario?] = []
     var flowScenarios: [CoreScenario?] { lock.withLock { _flowScenarios } }

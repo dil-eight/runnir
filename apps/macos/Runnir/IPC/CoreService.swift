@@ -230,8 +230,9 @@ protocol CoreServicing: Sendable {
     func gitHubRepository(target: CoreGitHubTarget) async throws -> CoreGitHubRepository
     func listWorkflowRuns(target: CoreGitHubTarget, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun>
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob>
-    /// The workflow file the run used, at the run's commit, as jobs with their needs.
-    func getRunWorkflow(repositoryID: String, runID: Int64) async throws -> CoreRunWorkflow
+    /// The workflow file the run used, at the run's commit, as jobs with their
+    /// needs, and why its jobs were skipped in `runAttempt`.
+    func getRunWorkflow(repositoryID: String, runID: Int64, runAttempt: Int64) async throws -> CoreRunWorkflow
     /// The pipeline of the change in a scenario; nil scenario: the default one.
     func flow(repositoryID: String, scenario: CoreScenario?) async throws -> CoreFlow
     func listGitHubRefs(target: CoreGitHubTarget) async throws -> CoreGitHubRefs

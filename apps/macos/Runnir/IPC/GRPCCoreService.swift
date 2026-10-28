@@ -734,11 +734,12 @@ struct GRPCCoreService: CoreServicing {
         }
     }
 
-    func getRunWorkflow(repositoryID: String, runID: Int64) async throws -> CoreRunWorkflow {
+    func getRunWorkflow(repositoryID: String, runID: Int64, runAttempt: Int64) async throws -> CoreRunWorkflow {
         let response = try await call {
             try await client.getRunWorkflow(.with {
                 $0.repositoryID = repositoryID
                 $0.runID = runID
+                $0.runAttempt = runAttempt
             }, options: Self.options(Self.callTimeout))
         }
         return CoreRunWorkflow(
@@ -771,7 +772,8 @@ struct GRPCCoreService: CoreServicing {
                             conclusion: step.conclusion.isEmpty ? nil : step.conclusion,
                             startedAt: step.hasStartedAt ? step.startedAt.date : nil,
                             completedAt: step.hasCompletedAt ? step.completedAt.date : nil)
-            }
+            },
+            workflowJobID: job.workflowJobID
         )
     }
 

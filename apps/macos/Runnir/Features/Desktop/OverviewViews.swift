@@ -25,25 +25,11 @@ enum PipelineLayout {
         return columns
     }
 
-    /// The jobs of a GitHub run that belong to one workflow job: the same
-    /// name, a matrix variant such as "build (ubuntu, 18)", or a job of a
-    /// called workflow such as "release / publish". A name set by an
-    /// expression ("Build ${{ matrix.os }}") is known only up to the
-    /// expression, so it takes the run jobs starting with that part that no
-    /// other job of `jobs` names.
-    static func runJobs(for job: CoreJob, in runJobs: [CoreRunJob], among jobs: [CoreJob] = []) -> [CoreRunJob] {
-        let stem = job.name.range(of: "${{").map { job.name[..<$0.lowerBound].trimmingCharacters(in: .whitespaces) } ?? ""
-        return runJobs.filter { run in
-            names(job, run)
-                || (!stem.isEmpty && run.name.hasPrefix(stem) && !jobs.contains { $0.id != job.id && names($0, run) })
-        }
-    }
-
-    private static func names(_ job: CoreJob, _ run: CoreRunJob) -> Bool {
-        [job.name, job.id].contains { name in
-            !name.isEmpty && !name.contains("${{")
-                && (run.name == name || run.name.hasPrefix(name + " (") || run.name.hasPrefix(name + " / "))
-        }
+    /// The jobs of a GitHub run that belong to one workflow job: the Core
+    /// matches them by name (a matrix variant, a called workflow's job, a
+    /// name set by an expression) and says which job each belongs to.
+    static func runJobs(for job: CoreJob, in runJobs: [CoreRunJob]) -> [CoreRunJob] {
+        runJobs.filter { $0.workflowJobID == job.id }
     }
 
     /// The outcome that matters most among a job's matrix variants.

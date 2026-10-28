@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import Runnir
@@ -8,14 +9,15 @@ import Testing
         CoreJob(id: id, name: name, needs: needs)
     }
 
-    private func runJob(_ id: Int64, _ name: String, status: String = "completed", conclusion: String? = "success",
+    private func runJob(_ id: Int64, _ name: String, node: String = "", status: String = "completed", conclusion: String? = "success",
                         steps: [CoreRunStep] = []) -> CoreRunJob {
-        CoreRunJob(id: id, name: name, status: status, conclusion: conclusion, startedAt: nil, completedAt: nil, htmlURL: nil, steps: steps)
+        CoreRunJob(id: id, name: name, status: status, conclusion: conclusion, startedAt: nil, completedAt: nil, htmlURL: nil, steps: steps,
+                   workflowJobID: node)
     }
 
     @Test func jobsAreLaidOutInTheOrderTheyNeedEachOther() throws {
         let workflow = [job("lint"), job("unit", name: "unit-tests"), job("build", needs: ["lint", "unit"]), job("publish", needs: ["build"])]
-        let runJobs = [runJob(1, "lint"), runJob(2, "unit-tests"), runJob(3, "build", conclusion: "failure")]
+        let runJobs = [runJob(1, "lint", node: "lint"), runJob(2, "unit-tests", node: "unit"), runJob(3, "build", node: "build", conclusion: "failure")]
         let layout = try #require(RunGraph.layout(workflow: workflow, runJobs: runJobs))
         #expect(layout.columns.map { $0.map(\.id) } == [["lint", "unit"], ["build"], ["publish"]])
         #expect(layout.columns[0][1].name == "unit-tests")
@@ -26,7 +28,8 @@ import Testing
 
     @Test func aMatrixIsOneNodeWithItsCountAndTheWorstOutcome() throws {
         let workflow = [job("test", name: "test")]
-        let runJobs = [runJob(1, "test (ubuntu)"), runJob(2, "test (macos)", conclusion: "failure"), runJob(3, "test (windows)")]
+        let runJobs = [runJob(1, "test (ubuntu)", node: "test"), runJob(2, "test (macos)", node: "test", conclusion: "failure"),
+                       runJob(3, "test (windows)", node: "test")]
         let node = try #require(RunGraph.layout(workflow: workflow, runJobs: runJobs)?.columns.first?.first)
         #expect(node.title == "test ×3")
         #expect(node.outcome == .failed)
@@ -39,7 +42,7 @@ import Testing
     }
 
     @Test func runJobsNoFileJobClaimsAreKeptAsOthers() throws {
-        let layout = try #require(RunGraph.layout(workflow: [job("build")], runJobs: [runJob(1, "build"), runJob(2, "release / publish")]))
+        let layout = try #require(RunGraph.layout(workflow: [job("build")], runJobs: [runJob(1, "build", node: "build"), runJob(2, "release / publish")]))
         #expect(layout.others.map(\.name) == ["release / publish"])
     }
 
@@ -134,5 +137,54 @@ import Testing
         model.toggleSkip("docs")
         model.show(run: 2)
         #expect(model.skipJobID == nil)
+    }
+
+    private func workflowRun(status: String, attempt: Int64 = 1) -> CoreWorkflowRun {
+        CoreWorkflowRun(id: 21, workflowID: 1, name: "CI", displayTitle: "Fix build", runNumber: 1482, event: "push",
+                        status: status, conclusion: status == "completed" ? "failure" : nil, branch: "main", headSHA: "a3f9c21ffff",
+                        actor: "eugene", htmlURL: nil, createdAt: nil, updatedAt: nil, runAttempt: attempt)
+    }
+
+    @Test func theReasonsAreAskedForAgainWhenTheRunSkipsAJob() {
+        let going = workflowRun(status: "in_progress")
+        let lint = runJob(1, "lint", node: "lint")
+        let docs = runJob(2, "docs", node: "docs", conclusion: "skipped")
+        let first = RunGraph.workflowRequest(run: going, jobs: [lint])
+        #expect(RunGraph.workflowRequest(run: going, jobs: [lint, runJob(3, "build", status: "in_progress", conclusion: nil)]) == first,
+                "a job that starts asks nothing")
+        #expect(RunGraph.workflowRequest(run: going, jobs: [lint, docs]) != first, "a job the run skipped asks again")
+        let done = RunGraph.workflowRequest(run: workflowRun(status: "completed"), jobs: [lint, docs])
+        #expect(done != RunGraph.workflowRequest(run: going, jobs: [lint, docs]), "the run finishing asks again")
+        #expect(RunGraph.workflowRequest(run: workflowRun(status: "completed"), jobs: nil) == done, "a finished run's jobs reloading asks nothing")
+        #expect(RunGraph.workflowRequest(run: workflowRun(status: "completed", attempt: 2), jobs: nil) != done, "a re-run asks again")
+    }
+
+    @Test func aFailedReadKeepsTheGraphShown() {
+        let model = RunLayerModel(hub: CoreHub(provider: FakeProvider()), workspaceID: UUID())
+        model.show(run: 1)
+        model.apply(workflow: .failed(.unavailable))
+        #expect(model.workflow?.access == .unavailable, "a first read that fails is shown")
+        let read = CoreRunWorkflow(access: .ok, path: ".github/workflows/ci.yml", jobs: [job("lint")], problem: "",
+                                   skips: [skip(.notInRun)])
+        model.apply(workflow: read)
+        model.apply(workflow: .failed(.unavailable))
+        #expect(model.workflow == read)
+        let again = CoreRunWorkflow(access: .ok, path: ".github/workflows/ci.yml", jobs: [job("lint")], problem: "")
+        model.apply(workflow: again)
+        #expect(model.workflow == again, "a read that works replaces it")
+    }
+
+    @Test func escapeClosesThePanelOnlyInItsOwnWindowAndNotOverAField() {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 100), styleMask: [.titled], backing: .buffered, defer: true)
+        let other = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 100), styleMask: [.titled], backing: .buffered, defer: true)
+        #expect(SkippedJobPanel.escapeCloses(in: window, host: window))
+        #expect(!SkippedJobPanel.escapeCloses(in: other, host: window), "another window or a sheet keeps its Escape")
+        #expect(!SkippedJobPanel.escapeCloses(in: window, host: nil))
+        let field = NSTextView(frame: NSRect(x: 0, y: 0, width: 100, height: 20))
+        window.contentView?.addSubview(field)
+        window.makeFirstResponder(field)
+        #expect(!SkippedJobPanel.escapeCloses(in: window, host: window), "a field being edited keeps its Escape")
+        field.isEditable = false
+        #expect(SkippedJobPanel.escapeCloses(in: window, host: window), "text that can only be selected does not")
     }
 }

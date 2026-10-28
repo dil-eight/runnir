@@ -779,12 +779,13 @@ final class CoreHub {
     }
 
     /// The jobs of the workflow file one run used, with their needs, for the
-    /// run's graph. Without jobs and with a problem when the file cannot be read.
-    func runWorkflow(workspaceID: UUID, runID: Int64) async -> CoreRunWorkflow {
+    /// run's graph, and why the attempt shown skipped its jobs. Without jobs
+    /// and with a problem when the file cannot be read.
+    func runWorkflow(workspaceID: UUID, runID: Int64, runAttempt: Int64) async -> CoreRunWorkflow {
         guard let coreID = sessions[workspaceID]?.coreID, isReady,
               let service = try? await provider.service() else { return .failed(.unavailable) }
         do {
-            let result = try await service.getRunWorkflow(repositoryID: coreID, runID: runID)
+            let result = try await service.getRunWorkflow(repositoryID: coreID, runID: runID, runAttempt: runAttempt)
             if result.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
             return result
         } catch {

@@ -340,6 +340,9 @@ struct CoreRunJob: Equatable, Identifiable, Sendable {
     let completedAt: Date?
     let htmlURL: URL?
     let steps: [CoreRunStep]
+    /// The id of the job of the run's workflow file it belongs to, as the
+    /// Core matched their names; empty when none claims it.
+    var workflowJobID = ""
     var outcome: CoreRunOutcome { CoreRunOutcome(status: status, conclusion: conclusion) }
 }
 
