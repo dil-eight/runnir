@@ -718,6 +718,30 @@ message WorkflowRun {
   // `status:` in a search. The Core owns this mapping; the app does not
   // read it from status and conclusion itself.
   RunStatusGroup status_group = 20;
+  // The attempts Runnir started on this Mac, oldest first, up to
+  // run_attempt (B46). Set in workspace activity, SearchRuns and
+  // SearchRunsOnGitHub; empty elsewhere.
+  repeated RunnirStart runnir_starts = 21;
+}
+
+// An attempt of a run that Runnir started on this Mac. GitHub keeps no mark
+// of it, so other Macs and github.com do not know.
+message RunnirStart {
+  int64 attempt = 1;
+  RunnirStartKind kind = 2;
+  google.protobuf.Timestamp sent_at = 3;
+}
+
+enum RunnirStartKind {
+  RUNNIR_START_KIND_UNSPECIFIED = 0;
+  // A workflow dispatch: attempt 1 of the run it started.
+  RUNNIR_START_KIND_DISPATCH = 1;
+  // Re-run all jobs.
+  RUNNIR_START_KIND_RERUN = 2;
+  // Re-run failed jobs.
+  RUNNIR_START_KIND_RERUN_FAILED = 3;
+  // Re-run one job.
+  RUNNIR_START_KIND_RERUN_JOB = 4;
 }
 
 // The six statuses runs are searched and filtered by.
