@@ -403,6 +403,19 @@ struct RunInspectorView: View {
         }
     }
 
+    /// "Attempt 2", and which attempt Runnir started beside it (B46).
+    @ViewBuilder private var attempt: some View {
+        if let words = RunPresentation.runnirAttempt(run) {
+            HStack(spacing: 0) {
+                Text("Attempt \(run.runAttempt)")
+                Text(words).foregroundStyle(RunnirTheme.primary)
+            }
+            .help(RunPresentation.runnirHelp(run) ?? "")
+        } else {
+            Text("Attempt \(run.runAttempt)")
+        }
+    }
+
     private var summary: some View {
         HStack(spacing: 14) {
             HStack(spacing: 6) {
@@ -410,7 +423,7 @@ struct RunInspectorView: View {
                 Text(run.outcome.label).foregroundStyle(RunnirTheme.foreground)
             }
             Text("\(run.branch) · \(run.headSHA.prefix(7))").font(.system(size: 12, design: .monospaced))
-            Text("Attempt \(run.runAttempt)")
+            attempt
             Text(run.actor.map { "\(eventLabel) by \($0)" } ?? eventLabel)
             if !run.outcome.isActive, let duration = RunDuration.text(from: run.createdAt, to: run.updatedAt) {
                 Text(duration)

@@ -86,4 +86,46 @@ import Testing
         reread.removeAll(workspaceID: workspace)
         #expect(!ConcurrencyHintDismissals(defaults: defaults.defaults).isDismissed(".github/workflows/ci.yml", workspaceID: workspace))
     }
+
+    private let sent = Date(timeIntervalSince1970: 1_000_000)
+
+    private func started(_ starts: [CoreRunnirStart], attempt: Int64) -> CoreWorkflowRun {
+        var marked = run(21)
+        marked.runAttempt = attempt
+        marked.runnirStarts = starts
+        return marked
+    }
+
+    @Test func aRunRunnirStartedSaysSoBeforeItsDetailAndInItsHelp() {
+        let dispatched = started([CoreRunnirStart(attempt: 1, kind: .dispatch, sentAt: sent)], attempt: 1)
+        #expect(dispatched.startedFromRunnir && !run(1).startedFromRunnir)
+        #expect(RunPresentation.fromRunnir == "From Runnir \u{00B7} ")
+        let help = RunPresentation.rowHelp(dispatched, pullRequest: nil)
+        #expect(help.hasPrefix("Commit a1b2c3d Bump retry count\nAttempt 1 was started from Runnir on this Mac, "))
+        #expect(help.hasSuffix("\n" + RunPresentation.onlyThisMacKnows))
+        #expect(RunPresentation.rowHelp(run(1), pullRequest: nil) == "Commit a1b2c3d Bump retry count", "a run Runnir did not start keeps its help")
+    }
+
+    @Test func theInspectorSaysWhichAttemptRunnirStarted() {
+        let dispatch = CoreRunnirStart(attempt: 1, kind: .dispatch, sentAt: sent)
+        let rerun = CoreRunnirStart(attempt: 2, kind: .rerunFailed, sentAt: sent)
+        #expect(RunPresentation.runnirAttempt(started([dispatch], attempt: 1)) == " \u{00B7} from Runnir")
+        #expect(RunPresentation.runnirAttempt(started([rerun], attempt: 2)) == " \u{00B7} re-run from Runnir")
+        #expect(RunPresentation.runnirAttempt(started([dispatch, rerun], attempt: 3)) == " \u{00B7} attempt 2 from Runnir", "the newest earlier attempt")
+        #expect(RunPresentation.runnirAttempt(run(1)) == nil)
+    }
+
+    @Test func theHelpNamesEachAttemptAndThatOnlyThisMacKnows() throws {
+        let rerun = CoreRunnirStart(attempt: 2, kind: .rerunFailed, sentAt: sent)
+        let one = try #require(RunPresentation.runnirHelp(started([rerun], attempt: 2), now: sent.addingTimeInterval(12 * 60)))
+        #expect(one.hasPrefix("Attempt 2 re-ran the failed jobs from Runnir on this Mac, "))
+        #expect(one.contains(" Attempt 1 was not started from this Mac.\n"))
+        #expect(one.hasSuffix(RunPresentation.onlyThisMacKnows))
+        let many = try #require(RunPresentation.runnirHelp(started([CoreRunnirStart(attempt: 2, kind: .rerun, sentAt: sent),
+                                                                    CoreRunnirStart(attempt: 4, kind: .rerunJob, sentAt: sent)], attempt: 4), now: sent))
+        #expect(many.contains("Attempt 2 re-ran every job from Runnir on this Mac, "))
+        #expect(many.contains("Attempt 4 re-ran one job from Runnir on this Mac, "))
+        #expect(many.contains("Attempts 1 and 3 were not started from this Mac."))
+        #expect(RunPresentation.runnirHelp(run(1)) == nil)
+    }
 }

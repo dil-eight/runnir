@@ -140,6 +140,7 @@ enum RunPresentation {
             lines.append(pullRequest.title.isEmpty ? "Pull request #\(pullRequest.number)" : "Pull request #\(pullRequest.number) \(pullRequest.title)")
         }
         lines.append(commitLine(run))
+        if let runnir = runnirHelp(run) { lines.append(runnir) }
         return lines.joined(separator: "\n")
     }
 
@@ -167,5 +168,58 @@ enum RunPresentation {
         RunInspectorContext(pullRequest: run.link.pullRequest.flatMap { pullRequests[$0] },
                             supersededBy: run.supersededBy.flatMap { runs[$0] },
                             hint: hints.first { $0.workflowID == run.workflowID }, workflowName: workflowName)
+    }
+}
+
+// MARK: Runs started from Runnir (B46)
+
+extension RunPresentation {
+    /// The words before the detail line of a run Runnir started.
+    static let fromRunnir = "From Runnir \u{00B7} "
+    static let onlyThisMacKnows = "Only this Mac knows: GitHub keeps no mark on runs, so other Macs and github.com do not show it."
+
+    /// The words beside the attempt in the inspector: how Runnir started the
+    /// run's latest attempt, or the newest earlier attempt it started; nil
+    /// when it started none.
+    static func runnirAttempt(_ run: CoreWorkflowRun) -> String? {
+        if let latest = run.runnirStarts.first(where: { $0.attempt == run.runAttempt }) {
+            return latest.kind == .dispatch ? " \u{00B7} from Runnir" : " \u{00B7} re-run from Runnir"
+        }
+        guard let earlier = run.runnirStarts.filter({ $0.attempt < run.runAttempt }).map(\.attempt).max() else { return nil }
+        return " \u{00B7} attempt \(earlier) from Runnir"
+    }
+
+    /// The help of those words and of the row: each attempt Runnir started,
+    /// the attempts it did not, and that only this Mac knows; nil when it
+    /// started none.
+    static func runnirHelp(_ run: CoreWorkflowRun, now: Date = Date()) -> String? {
+        let starts = run.runnirStarts.filter { $0.attempt <= run.runAttempt }.sorted { $0.attempt < $1.attempt }
+        guard !starts.isEmpty else { return nil }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        formatter.dateTimeStyle = .named
+        var sentences = starts.map { start in
+            "Attempt \(start.attempt) \(start.kind.sentence) from Runnir on this Mac, \(formatter.localizedString(for: start.sentAt, relativeTo: now))."
+        }
+        let started = Set(starts.map(\.attempt))
+        let others = (1...max(run.runAttempt, 1)).filter { !started.contains($0) }
+        if let last = others.last {
+            sentences.append(others.count == 1
+                ? "Attempt \(last) was not started from this Mac."
+                : "Attempts \(others.dropLast().map(String.init).joined(separator: ", ")) and \(last) were not started from this Mac.")
+        }
+        return sentences.joined(separator: " ") + "\n" + onlyThisMacKnows
+    }
+}
+
+private extension CoreRunnirStart.Kind {
+    /// What the attempt did, for the help.
+    var sentence: String {
+        switch self {
+        case .dispatch: "was started"
+        case .rerun: "re-ran every job"
+        case .rerunFailed: "re-ran the failed jobs"
+        case .rerunJob: "re-ran one job"
+        }
     }
 }
