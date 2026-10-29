@@ -277,6 +277,16 @@ enum CoreRunStatusGroup: Equatable, Sendable {
     case succeeded, failed, cancelled, running, queued, skipped
 }
 
+/// An attempt of a run that Runnir started on this Mac (B46): a dispatch
+/// starts attempt 1, a re-run the next attempt. GitHub keeps no mark of it.
+struct CoreRunnirStart: Equatable, Sendable {
+    enum Kind: Equatable, Sendable { case dispatch, rerun, rerunFailed, rerunJob }
+
+    let attempt: Int64
+    let kind: Kind
+    let sentAt: Date
+}
+
 struct CoreWorkflowRun: Equatable, Identifiable, Sendable {
     let id: Int64
     let workflowID: Int64
@@ -305,11 +315,16 @@ struct CoreWorkflowRun: Equatable, Identifiable, Sendable {
     /// Which of the six statuses the Core counts the run as; nil when it did
     /// not say. The app does not work it out from status and conclusion.
     var statusGroup: CoreRunStatusGroup?
+    /// The attempts Runnir started on this Mac, oldest first, up to
+    /// `runAttempt`; only this Mac knows them.
+    var runnirStarts: [CoreRunnirStart] = []
 
     var isSuperseded: Bool { supersededBy != nil }
     /// Superseded and still going: it uses runners for a commit the pull
     /// request has moved past.
     var isOutdated: Bool { isSuperseded && outcome.isActive }
+    /// Runnir started an attempt of this run on this Mac.
+    var startedFromRunnir: Bool { !runnirStarts.isEmpty }
 
     var outcome: CoreRunOutcome { CoreRunOutcome(status: status, conclusion: conclusion) }
     var title: String { displayTitle.isEmpty ? name : displayTitle }

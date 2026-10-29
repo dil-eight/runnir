@@ -58,4 +58,21 @@ import Testing
         #expect(inserted == .inserted(content: "x", firstLine: 3, lastLine: 6))
         #expect(GRPCCoreService.map(Runnir_Core_V1_InsertWorkflowConcurrencyResponse.with { $0.refusal = .alreadyPresent }) == .refused(.alreadyPresent))
     }
+
+    @Test func runsCarryTheAttemptsRunnirStarted() {
+        let message = Runnir_Core_V1_WorkflowRun.with {
+            $0.id = 21; $0.runAttempt = 2
+            $0.runnirStarts = [
+                .with { $0.attempt = 1; $0.kind = .dispatch; $0.sentAt.seconds = 1_000 },
+                .with { $0.attempt = 2; $0.kind = .rerunFailed; $0.sentAt.seconds = 2_000 },
+                .with { $0.attempt = 3; $0.kind = .unspecified },
+            ]
+        }
+        let run = GRPCCoreService.map(message)
+        #expect(run.runnirStarts == [CoreRunnirStart(attempt: 1, kind: .dispatch, sentAt: Date(timeIntervalSince1970: 1_000)),
+                                     CoreRunnirStart(attempt: 2, kind: .rerunFailed, sentAt: Date(timeIntervalSince1970: 2_000))],
+                "a kind this app does not know is left out")
+        #expect(run.startedFromRunnir)
+        #expect(!GRPCCoreService.map(Runnir_Core_V1_WorkflowRun.with { $0.id = 9 }).startedFromRunnir)
+    }
 }
