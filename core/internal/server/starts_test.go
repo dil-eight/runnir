@@ -21,12 +21,13 @@ import (
 //   - 22, which a dispatch starts.
 //
 // It accepts the dispatch, naming run 22, and re-runs of run 21. Each
-// re-run starts the next attempt; refuse makes GitHub refuse them. gone
-// stops serving run 21, as when GitHub deletes it.
+// re-run starts the next attempt; refuse makes GitHub refuse them and fail
+// answers them with an error. gone stops serving run 21, as when GitHub
+// deletes it.
 type startsGitHub struct {
-	mu           sync.Mutex
-	attempt      int64
-	refuse, gone bool
+	mu                 sync.Mutex
+	attempt            int64
+	refuse, fail, gone bool
 }
 
 var startsCreated = time.Date(2026, 10, 28, 10, 0, 0, 0, time.UTC)
@@ -75,6 +76,10 @@ func (f *startsGitHub) server(t *testing.T) *httptest.Server {
 			if f.refuse {
 				w.WriteHeader(http.StatusForbidden)
 				_, _ = w.Write([]byte(`{"message":"Unable to re-run this workflow run because it was created over a month ago"}`))
+				return
+			}
+			if f.fail {
+				w.WriteHeader(http.StatusNotFound)
 				return
 			}
 			f.attempt++
@@ -135,6 +140,13 @@ func TestAttemptsRunnirStartedAreMarkedOnTheRunsOfTheWorkspace(t *testing.T) {
 	if refused := act(corev1.RunAction_RUN_ACTION_RERUN, 0); refused.Rejection == "" {
 		t.Fatalf("refused = %v", refused)
 	}
+	fake.set(func() { fake.refuse, fake.fail = false, true })
+	if failed := act(corev1.RunAction_RUN_ACTION_RERUN, 0); failed.AcceptedAt != nil || failed.Rejection != "" {
+		t.Fatalf("failed = %v", failed)
+	}
+	// Attempt 4 is started on github.com: had the refused or the failed
+	// re-run been kept as attempt 4, it would show now.
+	fake.set(func() { fake.fail = false; fake.attempt++ })
 	refresh()
 
 	want := map[int64]string{
@@ -167,6 +179,41 @@ func TestAttemptsRunnirStartedAreMarkedOnTheRunsOfTheWorkspace(t *testing.T) {
 	indexed, err := client.SearchRuns(ctx, &corev1.SearchRunsRequest{RepositoryId: id, Query: "deploy 21"})
 	if err != nil || len(indexed.IndexedRuns) != 1 || startsText(indexed.IndexedRuns[0]) != want[21] {
 		t.Fatalf("indexed = %v, %v", indexed, err)
+	}
+}
+
+func TestAReRunWithoutAWorkspaceKeepsNoStart(t *testing.T) {
+	fake := &startsGitHub{attempt: 1}
+	server := fake.server(t)
+	client, stop, ctx := workspaceRig(t, t.TempDir(), server.URL)
+	defer stop()
+	path := linkedRepository(t, "git@github.com:o/r.git")
+	bare, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := client.PrepareRunAction(ctx, &corev1.PrepareRunActionRequest{RepositoryId: bare.Repository.Id, RunId: 21,
+		Action: corev1.RunAction_RUN_ACTION_RERUN_FAILED})
+	if err != nil || prepared.ActionId == "" {
+		t.Fatalf("prepare = %v, %v", prepared, err)
+	}
+	if confirmed, err := client.ConfirmRunAction(ctx, &corev1.ConfirmRunActionRequest{ActionId: prepared.ActionId}); err != nil || confirmed.AcceptedAt == nil {
+		t.Fatalf("confirm = %v, %v", confirmed, err)
+	}
+
+	// The same folder opened as a workspace later knows nothing of it.
+	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: path, WorkspaceId: testWorkspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	activity, err := client.RefreshWorkspaceActivity(ctx, &corev1.RefreshWorkspaceActivityRequest{RepositoryId: opened.Repository.Id, Wait: true})
+	if err != nil || len(activity.Runs) != 2 {
+		t.Fatalf("activity = %v, %v", activity, err)
+	}
+	for _, run := range activity.Runs {
+		if got := startsText(run); got != "" {
+			t.Fatalf("run %d = %q", run.Id, got)
+		}
 	}
 }
 

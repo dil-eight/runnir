@@ -179,13 +179,10 @@ struct WorkspaceRunsView: View {
     private var matchingIDs: Set<Int64>? { searching ? search.matchingIDs : nil }
     /// A query is typed and the Core has not answered any yet.
     private var awaitingAnswer: Bool { searching && search.matchingIDs == nil && !search.unavailable }
-    /// Runs per status that match the typed query and the branch filter.
-    private var statusCounts: [RunStatusFilter: Int] {
-        RunStatusFilter.counts(RunPresentation.matching(session.runs, branch: branch, ids: matchingIDs))
-    }
-    /// Runs Runnir started that match the typed query and the branch filter.
-    private var fromRunnirCount: Int {
-        RunFilter.fromRunnirCount(RunPresentation.matching(session.runs, branch: branch, ids: matchingIDs))
+    /// The saved runs that match the typed query and the branch filter,
+    /// whatever is ticked: what the filter menu counts.
+    private var countedRuns: [CoreWorkflowRun] {
+        RunPresentation.matching(session.runs, branch: branch, ids: matchingIDs)
     }
     /// The run shown in the inspector: a saved one, or one the search found.
     private var selectedRun: CoreWorkflowRun? {
@@ -268,7 +265,9 @@ struct WorkspaceRunsView: View {
             modeRow
             HStack(spacing: 6) {
                 searchField
-                StatusFilterButton(filter: $filter, counts: statusCounts, fromRunnirCount: fromRunnirCount, query: query)
+                let counted = countedRuns
+                StatusFilterButton(filter: $filter, counts: RunStatusFilter.counts(counted), fromRunnirCount: RunFilter.fromRunnirCount(counted),
+                                   query: query)
             }
             if !filter.isEmpty { StatusChips(filter: $filter) }
         }

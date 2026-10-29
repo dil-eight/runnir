@@ -152,7 +152,7 @@ struct RunChangeRow: View {
             Circle().fill(RunOutcomeIcon.color(run.outcome)).frame(width: 6, height: 6)
                 .accessibilityLabel(run.outcome.label)
             if run.startedFromRunnir {
-                Text("From Runnir").font(.system(size: 11)).foregroundStyle(RunnirTheme.primary).lineLimit(1).fixedSize()
+                Text(RunPresentation.fromRunnirLabel).font(.system(size: 11)).foregroundStyle(RunnirTheme.primary).lineLimit(1).fixedSize()
                     .accessibilityLabel("started from Runnir")
             }
             Text("\(run.name) #\(run.runNumber)").font(.system(size: 12, weight: .medium)).lineLimit(1)

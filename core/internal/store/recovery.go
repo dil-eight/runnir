@@ -257,6 +257,11 @@ func (s *Store) restoreLocal(ctx context.Context, salvaged localData) (int, erro
 			return 0, err
 		}
 	}
+	// The backup and the damaged file together may hold more than the budget.
+	if err := keepNewestStarts(ctx, tx); err != nil {
+		_ = tx.Rollback()
+		return 0, err
+	}
 	return len(byID), tx.Commit()
 }
 
