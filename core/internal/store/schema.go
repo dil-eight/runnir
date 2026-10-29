@@ -165,6 +165,21 @@ CREATE TABLE dispatch_history (
 );
 CREATE INDEX dispatch_history_sent ON dispatch_history (sent_at DESC);
 CREATE INDEX dispatch_history_workflow ON dispatch_history (repository, workflow_path, sent_at DESC);
+-- local: the attempts of runs Runnir started on this Mac, so the runs list
+-- can mark them (B46): a dispatch once its run is known (attempt 1) and each
+-- re-run GitHub accepted. kind is dispatch, rerun, rerun_failed or
+-- rerun_job. server_id and repository work as in dispatch_history. The
+-- newest 5000 stay; Clear Cache and Clear history keep them.
+CREATE TABLE runnir_starts (
+	server_id TEXT NOT NULL,
+	repository TEXT NOT NULL,
+	run_id INTEGER NOT NULL,
+	attempt INTEGER NOT NULL,
+	kind TEXT NOT NULL,
+	sent_at INTEGER NOT NULL,
+	PRIMARY KEY (server_id, repository, run_id, attempt)
+);
+CREATE INDEX runnir_starts_sent ON runnir_starts (sent_at DESC);
 -- local: what is known of the runs of each repository, kept after the cache
 -- drops them (the 5000-run budget, a run GitHub deleted), so a search can
 -- still find them. Filled by everything the Core reads; the newest 50000 per

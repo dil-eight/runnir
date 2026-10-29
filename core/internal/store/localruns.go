@@ -111,5 +111,10 @@ DELETE FROM dispatch_history WHERE id IN (
 	SELECT id FROM dispatch_history ORDER BY sent_at DESC, id DESC LIMIT -1 OFFSET ?)`, maxDispatchRecords); err != nil {
 		return err
 	}
+	if _, err := s.db.ExecContext(ctx, `
+DELETE FROM runnir_starts WHERE rowid IN (
+	SELECT rowid FROM runnir_starts ORDER BY sent_at DESC, rowid DESC LIMIT -1 OFFSET ?)`, maxRunStarts); err != nil {
+		return err
+	}
 	return s.writeLocalBackup(ctx)
 }

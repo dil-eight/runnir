@@ -23,6 +23,7 @@ type localData struct {
 	runs       []LocalRun
 	savings    []Saving
 	dispatches []DispatchRecord
+	starts     []RunStart
 }
 
 // writeLocalBackup copies the local tables to backups/local-data.sqlite:
@@ -53,6 +54,9 @@ func (s *Store) writeLocalBackup(ctx context.Context) error {
 	}
 	if copyErr == nil {
 		_, copyErr = conn.ExecContext(ctx, "CREATE TABLE backup.dispatch_history AS SELECT "+dispatchColumns+" FROM main.dispatch_history")
+	}
+	if copyErr == nil {
+		_, copyErr = conn.ExecContext(ctx, "CREATE TABLE backup.runnir_starts AS SELECT "+startColumns+" FROM main.runnir_starts")
 	}
 	_, detachErr := conn.ExecContext(context.Background(), "DETACH DATABASE backup")
 	if err := errors.Join(copyErr, detachErr); err != nil {
@@ -95,7 +99,9 @@ func scanLocal(db *sql.DB) (localData, error) {
 	runs, runsErr := scanLocalRuns(db, "SELECT "+localColumns+" FROM local_runs")
 	savings, savingsErr := scanSavings(db, "SELECT "+savingColumns+" FROM savings")
 	dispatches, dispatchesErr := scanDispatches(context.Background(), db, "SELECT "+dispatchColumns+" FROM dispatch_history")
-	return localData{runs: runs, savings: savings, dispatches: dispatches}, errors.Join(runsErr, savingsErr, dispatchesErr)
+	starts, startsErr := scanStarts(context.Background(), db, "SELECT "+startColumns+" FROM runnir_starts")
+	return localData{runs: runs, savings: savings, dispatches: dispatches, starts: starts},
+		errors.Join(runsErr, savingsErr, dispatchesErr, startsErr)
 }
 
 // scanLocalRuns keeps the rows read before an error: a damaged file may
@@ -201,6 +207,7 @@ func (s *Store) restoreLocal(ctx context.Context, salvaged localData) (int, erro
 	byID := map[string]LocalRun{}
 	byKind := map[string]Saving{}
 	byDispatch := map[int64]DispatchRecord{}
+	var starts []RunStart
 	backup, _ := readLocalBackup(filepath.Join(s.dir, backupsDir, localBackupName))
 	for _, data := range []localData{backup, salvaged} {
 		for _, r := range data.runs {
@@ -214,6 +221,7 @@ func (s *Store) restoreLocal(ctx context.Context, salvaged localData) (int, erro
 		for _, d := range data.dispatches {
 			byDispatch[d.ID] = d
 		}
+		starts = append(starts, data.starts...)
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -238,6 +246,13 @@ func (s *Store) restoreLocal(ctx context.Context, salvaged localData) (int, erro
 		omitted, _ := json.Marshal(nonNilNames(d.Omitted))
 		if _, err := tx.ExecContext(ctx, "INSERT OR REPLACE INTO dispatch_history ("+dispatchColumns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			d.ID, d.WorkflowPath, d.Ref, string(inputs), string(omitted), millis(d.SentAt), d.RunID, d.Source.ServerID, d.Source.Repository); err != nil {
+			_ = tx.Rollback()
+			return 0, err
+		}
+	}
+	for _, r := range starts {
+		if _, err := tx.ExecContext(ctx, "INSERT OR IGNORE INTO runnir_starts ("+startColumns+") VALUES (?, ?, ?, ?, ?, ?)",
+			r.Source.ServerID, r.Source.Repository, r.RunID, r.Attempt, r.Kind, millis(r.SentAt)); err != nil {
 			_ = tx.Rollback()
 			return 0, err
 		}
