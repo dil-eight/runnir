@@ -1,6 +1,6 @@
 # Runs started from Runnir (B46)
 
-Status: designed, not built. Drawn in `runnir.pen` (journey D, Row — Runs started from Runnir (B46)). Option C was chosen: words at the start of the row's detail line and beside the attempt. A tag after the title (A) and the Runnir mark before it (B) were not chosen. Builds on the dispatch history (B34), the run actions (B13), the status filter (B42) and the search beyond the cache (B40).
+Status: built (the Core's record of the attempts Runnir started, `WorkflowRun.runnir_starts`, the words in the row and beside the attempt, From Runnir in the status filter), drawn in `runnir.pen` (journey D, Row — Runs started from Runnir (B46)). Option C was chosen: words at the start of the row's detail line and beside the attempt. A tag after the title (A) and the Runnir mark before it (B) were not chosen. Builds on the dispatch history (B34), the run actions (B13), the status filter (B42) and the search beyond the cache (B40). Not tried against GitHub.
 
 ## Problem
 
