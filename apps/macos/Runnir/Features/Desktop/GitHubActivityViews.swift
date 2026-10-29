@@ -143,7 +143,7 @@ struct WorkspaceRunsView: View {
     @State private var showingSuperseded = false
     @State private var expanded: Set<String> = []
     @State private var query = ""
-    @State private var statuses: Set<RunStatusFilter> = []
+    @State private var filter = RunFilter()
     /// The log of a job, opened over the list and the graph.
     @State private var layer: RunLayerModel
     /// The Core's answers to the typed query, and a deep search on GitHub.
@@ -172,8 +172,8 @@ struct WorkspaceRunsView: View {
         return session.runs.filter { $0.branch == branch }
     }
     private var searching: Bool { RunSearch.isActive(query) }
-    /// A search or a status filter narrows the list to the saved runs, all of them.
-    private var narrowing: Bool { searching || !statuses.isEmpty }
+    /// A search or a filter narrows the list to the saved runs, all of them.
+    private var narrowing: Bool { searching || !filter.isEmpty }
     /// The saved runs the Core found for the query; nil (nothing narrowed)
     /// until it answers or when it cannot.
     private var matchingIDs: Set<Int64>? { searching ? search.matchingIDs : nil }
@@ -183,14 +183,18 @@ struct WorkspaceRunsView: View {
     private var statusCounts: [RunStatusFilter: Int] {
         RunStatusFilter.counts(RunPresentation.matching(session.runs, branch: branch, ids: matchingIDs))
     }
+    /// Runs Runnir started that match the typed query and the branch filter.
+    private var fromRunnirCount: Int {
+        RunFilter.fromRunnirCount(RunPresentation.matching(session.runs, branch: branch, ids: matchingIDs))
+    }
     /// The run shown in the inspector: a saved one, or one the search found.
     private var selectedRun: CoreWorkflowRun? {
         session.runs.first { $0.id == selectedRunID } ?? selectedRunID.flatMap { search.run(id: $0) }
     }
-    /// What a search found beyond the saved runs, narrowed by the branch and the statuses.
+    /// What a search found beyond the saved runs, narrowed by the branch and the filter.
     private func beyondSaved(_ runs: [CoreWorkflowRun]) -> [CoreWorkflowRun] {
         let onBranch = branch.map { branch in runs.filter { $0.branch == branch } } ?? runs
-        return RunStatusFilter.filter(onBranch, statuses: statuses)
+        return filter.apply(onBranch)
     }
     /// Every run saved on this Mac, which a search covers.
     private var savedRuns: Int { max(session.cachedRuns, session.runs.count) }
@@ -264,9 +268,9 @@ struct WorkspaceRunsView: View {
             modeRow
             HStack(spacing: 6) {
                 searchField
-                StatusFilterButton(statuses: $statuses, counts: statusCounts, query: query)
+                StatusFilterButton(filter: $filter, counts: statusCounts, fromRunnirCount: fromRunnirCount, query: query)
             }
-            if !statuses.isEmpty { StatusChips(statuses: $statuses) }
+            if !filter.isEmpty { StatusChips(filter: $filter) }
         }
         .padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 4)
     }
@@ -317,14 +321,14 @@ struct WorkspaceRunsView: View {
         if found == 0 {
             VStack(alignment: .leading, spacing: 6) {
                 if searching {
-                    Text("No \(noun) match \u{201C}\(query.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}\(statuses.isEmpty ? "" : " and the chosen statuses").")
+                    Text("No \(noun) match \u{201C}\(query.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}\(filter.isEmpty ? "" : " and the chosen filters").")
                 } else {
-                    Text("No \(noun) have the chosen statuses.")
+                    Text("No \(noun) match the chosen filters.")
                 }
                 Text(summary).foregroundStyle(RunnirTheme.mutedForeground)
                 HStack(spacing: 12) {
                     if searching { Button("Clear search") { query = "" }.buttonStyle(.link).pointerStyle(.link) }
-                    if !statuses.isEmpty { Button("Clear statuses") { statuses = [] }.buttonStyle(.link).pointerStyle(.link) }
+                    if !filter.isEmpty { Button("Clear filters") { filter = RunFilter() }.buttonStyle(.link).pointerStyle(.link) }
                 }
             }
             .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(12)
@@ -335,7 +339,7 @@ struct WorkspaceRunsView: View {
     }
 
     @ViewBuilder private var listRows: some View {
-        let runs = RunPresentation.list(session.runs, branch: branch, matching: matchingIDs, statuses: statuses, showingSuperseded: showingSuperseded)
+        let runs = RunPresentation.list(session.runs, branch: branch, matching: matchingIDs, filter: filter, showingSuperseded: showingSuperseded)
         let indexed = searching ? beyondSaved(search.indexedRuns) : []
         let github = searching ? beyondSaved(search.foundOnGitHub(excluding: Set(session.runs.map(\.id)))) : []
         if searching && search.unavailable {
@@ -398,7 +402,7 @@ struct WorkspaceRunsView: View {
     }
 
     @ViewBuilder private var changeBlocks: some View {
-        let changes = RunPresentation.changes(session.changes, runs: runsByID, branch: branch, matching: matchingIDs, statuses: statuses)
+        let changes = RunPresentation.changes(session.changes, runs: runsByID, branch: branch, matching: matchingIDs, filter: filter)
         if searching && search.unavailable {
             searchUnavailable
         } else if awaitingAnswer {

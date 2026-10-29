@@ -61,12 +61,6 @@ enum RunStatusFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
         of(run).map(statuses.contains) ?? false
     }
 
-    /// The runs with one of `statuses`; all of them for none.
-    static func filter(_ runs: [CoreWorkflowRun], statuses: Set<RunStatusFilter>) -> [CoreWorkflowRun] {
-        guard !statuses.isEmpty else { return runs }
-        return runs.filter { matches($0, statuses) }
-    }
-
     /// How many runs have each status.
     static func counts(_ runs: [CoreWorkflowRun]) -> [RunStatusFilter: Int] {
         runs.reduce(into: [:]) { counts, run in
@@ -75,18 +69,58 @@ enum RunStatusFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
     }
 }
 
+/// What the runs list is narrowed to besides the query and the branch: the
+/// ticked statuses (any of them) and, with From Runnir ticked, only the runs
+/// Runnir started on this Mac (B46). Kept per window while the app runs.
+struct RunFilter: Equatable, Sendable {
+    var statuses: Set<RunStatusFilter> = []
+    var fromRunnir = false
+
+    var isEmpty: Bool { statuses.isEmpty && !fromRunnir }
+    /// How many items of the menu are ticked.
+    var count: Int { statuses.count + (fromRunnir ? 1 : 0) }
+
+    /// Whether the run passes: one of the statuses (any for none) and, with
+    /// From Runnir ticked, an attempt Runnir started.
+    func matches(_ run: CoreWorkflowRun) -> Bool {
+        (statuses.isEmpty || RunStatusFilter.matches(run, statuses)) && (!fromRunnir || run.startedFromRunnir)
+    }
+
+    /// The runs that pass; all of them for an empty filter.
+    func apply(_ runs: [CoreWorkflowRun]) -> [CoreWorkflowRun] {
+        isEmpty ? runs : runs.filter(matches)
+    }
+
+    /// How many of `runs` Runnir started, for the From Runnir item.
+    static func fromRunnirCount(_ runs: [CoreWorkflowRun]) -> Int {
+        runs.count(where: \.startedFromRunnir)
+    }
+}
+
+/// The Runnir mark, the menu bar icon's image, tinted like text.
+struct RunnirMark: View {
+    var size: CGFloat = 12
+
+    var body: some View {
+        Image("MenuBarIcon").renderingMode(.template).resizable().scaledToFit().frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+}
+
 // MARK: Views
 
 /// The filter icon button of the runs list: a menu of statuses with their
 /// counts, and a dot on the button while any status is chosen.
 struct StatusFilterButton: View {
-    @Binding var statuses: Set<RunStatusFilter>
+    @Binding var filter: RunFilter
     /// Runs per status that match the typed query and the branch filter.
     let counts: [RunStatusFilter: Int]
+    /// Runs Runnir started among them.
+    let fromRunnirCount: Int
     let query: String
     @State private var showing = false
 
-    private var active: Bool { !statuses.isEmpty }
+    private var active: Bool { !filter.isEmpty }
 
     var body: some View {
         Button { showing.toggle() } label: {
@@ -106,16 +140,17 @@ struct StatusFilterButton: View {
         .buttonStyle(.hit)
         .help("Filter by status")
         .accessibilityLabel("Filter by status")
-        .accessibilityValue(active ? "\(statuses.count) selected" : "none")
+        .accessibilityValue(active ? "\(filter.count) selected" : "none")
         .popover(isPresented: $showing, arrowEdge: .bottom) {
-            StatusFilterMenu(statuses: $statuses, counts: counts, query: query)
+            StatusFilterMenu(filter: $filter, counts: counts, fromRunnirCount: fromRunnirCount, query: query)
         }
     }
 }
 
 struct StatusFilterMenu: View {
-    @Binding var statuses: Set<RunStatusFilter>
+    @Binding var filter: RunFilter
     let counts: [RunStatusFilter: Int]
+    let fromRunnirCount: Int
     let query: String
 
     private var typed: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -131,63 +166,80 @@ struct StatusFilterMenu: View {
             }.padding(.horizontal, 8).padding(.top, 6).padding(.bottom, 4)
             ForEach(RunStatusFilter.allCases) { status in row(status) }
             DesignDivider().padding(.vertical, 4)
+            option(label: "From Runnir", on: filter.fromRunnir, count: fromRunnirCount) {
+                RunnirMark(size: 12)
+            } toggle: { filter.fromRunnir.toggle() }
+            .help("Runs started from Runnir on this Mac; GitHub keeps no mark of them")
+            DesignDivider().padding(.vertical, 4)
             HStack {
-                Text("\(statuses.count) selected").font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground)
+                Text("\(filter.count) selected").font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground)
                 Spacer()
-                Button("Clear all") { statuses = [] }.buttonStyle(.link).pointerStyle(.link).font(.system(size: 11)).disabled(statuses.isEmpty)
+                Button("Clear all") { filter = RunFilter() }.buttonStyle(.link).pointerStyle(.link).font(.system(size: 11)).disabled(filter.isEmpty)
             }.padding(.horizontal, 8).padding(.bottom, 6)
         }
         .padding(6).frame(width: 240)
     }
 
     private func row(_ status: RunStatusFilter) -> some View {
-        let on = statuses.contains(status)
-        let count = counts[status] ?? 0
-        return Button {
-            if on { statuses.remove(status) } else { statuses.insert(status) }
-        } label: {
+        option(label: status.label, on: filter.statuses.contains(status), count: counts[status] ?? 0) {
+            Image(systemName: status.symbol).font(.system(size: 12)).foregroundStyle(status.tint)
+        } toggle: {
+            if filter.statuses.contains(status) { filter.statuses.remove(status) } else { filter.statuses.insert(status) }
+        }
+    }
+
+    private func option<Icon: View>(label: String, on: Bool, count: Int, @ViewBuilder icon: () -> Icon,
+                                    toggle: @escaping () -> Void) -> some View {
+        Button(action: toggle) {
             HStack(spacing: 8) {
                 Image(systemName: on ? "checkmark.square.fill" : "square").font(.system(size: 14))
                     .foregroundStyle(on ? RunnirTheme.primary : RunnirTheme.mutedForeground)
-                Image(systemName: status.symbol).font(.system(size: 12)).foregroundStyle(status.tint).frame(width: 16)
-                Text(status.label).font(.system(size: 12))
+                icon().frame(width: 16)
+                Text(label).font(.system(size: 12))
                 Spacer(minLength: 8)
                 Text("\(count)").font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground)
             }
             .padding(.horizontal, 8).padding(.vertical, 5).contentShape(Rectangle())
             .background(on ? RunnirTheme.selected : Color.clear, in: RoundedRectangle(cornerRadius: 5))
-            // A status nothing matches stays selectable, and a ticked one keeps its chip.
+            // An item nothing matches stays selectable, and a ticked one keeps its chip.
             .opacity(count == 0 && !on ? 0.5 : 1)
         }
         .buttonStyle(.hit)
-        .accessibilityLabel("\(status.label), \(count) \(count == 1 ? "run" : "runs")")
+        .accessibilityLabel("\(label), \(count) \(count == 1 ? "run" : "runs")")
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 
-/// The chosen statuses under the search field: each can be removed on its
-/// own, and Clear all removes them all (the typed query stays).
+/// The chosen statuses and From Runnir under the search field: each can be
+/// removed on its own, and Clear all removes them all (the typed query stays).
 struct StatusChips: View {
-    @Binding var statuses: Set<RunStatusFilter>
+    @Binding var filter: RunFilter
 
     var body: some View {
         HStack(spacing: 6) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    ForEach(RunStatusFilter.allCases.filter(statuses.contains)) { status in chip(status) }
+                    ForEach(RunStatusFilter.allCases.filter(filter.statuses.contains)) { status in
+                        chip(status.label) {
+                            Image(systemName: status.symbol).font(.system(size: 10)).foregroundStyle(status.tint)
+                        } remove: { filter.statuses.remove(status) }
+                    }
+                    if filter.fromRunnir {
+                        chip("From Runnir") { RunnirMark(size: 10) } remove: { filter.fromRunnir = false }
+                    }
                 }
             }
-            Button("Clear all") { statuses = [] }.buttonStyle(.link).pointerStyle(.link).font(.system(size: 11)).fixedSize()
+            Button("Clear all") { filter = RunFilter() }.buttonStyle(.link).pointerStyle(.link).font(.system(size: 11)).fixedSize()
         }
     }
 
-    private func chip(_ status: RunStatusFilter) -> some View {
+    private func chip<Icon: View>(_ label: String, @ViewBuilder icon: () -> Icon, remove: @escaping () -> Void) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: status.symbol).font(.system(size: 10)).foregroundStyle(status.tint)
-            Text(status.label).font(.system(size: 11))
-            Button { statuses.remove(status) } label: { Image(systemName: "xmark").font(.system(size: 8, weight: .bold)) }
+            icon()
+            Text(label).font(.system(size: 11))
+            Button(action: remove) { Image(systemName: "xmark").font(.system(size: 8, weight: .bold)) }
                 .buttonStyle(.hit).foregroundStyle(RunnirTheme.secondaryForeground)
-                .help("Remove the \(status.label) filter").accessibilityLabel("Remove the \(status.label) filter")
+                .help("Remove the \(label) filter").accessibilityLabel("Remove the \(label) filter")
         }
         .padding(.leading, 8).padding(.trailing, 6).padding(.vertical, 3)
         .background(RunnirTheme.selected, in: Capsule()).overlay(Capsule().stroke(RunnirTheme.border))
