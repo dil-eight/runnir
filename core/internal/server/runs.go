@@ -32,7 +32,10 @@ type runAction struct {
 	Owner    string
 	Name     string
 	RunID    int64
-	Action   corev1.RunAction
+	// Attempt is the run's attempt when it was reviewed, 1 when GitHub gives
+	// none; a re-run starts the next one.
+	Attempt int64
+	Action  corev1.RunAction
 	// JobID is the job to re-run for RUN_ACTION_RERUN_JOB.
 	JobID int64
 	// EnvironmentIDs are the deployments to approve.
@@ -195,7 +198,7 @@ func (s *service) PrepareRunAction(ctx context.Context, request *corev1.PrepareR
 	}
 	pending, err := s.runActions.Prepare(runAction{
 		RepositoryID: request.GetRepositoryId(), ServerID: target.account.Server.ID, Owner: target.owner, Name: target.name,
-		RunID: run.ID, Action: action, JobID: request.GetJobId(), EnvironmentIDs: environmentIDs,
+		RunID: run.ID, Attempt: max(run.RunAttempt, 1), Action: action, JobID: request.GetJobId(), EnvironmentIDs: environmentIDs,
 	})
 	if errors.Is(err, approval.ErrTooMany) {
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
@@ -248,6 +251,7 @@ func (s *service) ConfirmRunAction(ctx context.Context, request *corev1.ConfirmR
 	out := &corev1.ConfirmRunActionResponse{Status: result}
 	if sendErr == nil {
 		out.AcceptedAt = timestamppb.New(acceptedAt)
+		s.recordRerun(ctx, prepared, acceptedAt)
 	}
 	return out, nil
 }

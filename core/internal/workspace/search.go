@@ -133,6 +133,18 @@ func (r *Runtime) searchSource(ctx context.Context) (store.Source, bool) {
 	return source, has && err == nil
 }
 
+// RunStarts are the attempts Runnir started of the runs of the repository
+// the workspace shows (B46), by run. A read that fails gives none: the runs
+// are shown unmarked rather than not at all.
+func (r *Runtime) RunStarts(ctx context.Context) map[int64][]store.RunStart {
+	source, ok := r.searchSource(ctx)
+	if !ok {
+		return nil
+	}
+	starts, _ := r.cfg.store.RunStarts(ctx, source)
+	return starts
+}
+
 // GitHubSearchStop says why a step of a deep search ended.
 type GitHubSearchStop int
 
