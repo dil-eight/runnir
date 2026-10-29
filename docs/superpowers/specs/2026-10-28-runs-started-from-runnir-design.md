@@ -56,7 +56,7 @@ Changed in place (no release yet):
 
 ## Runs list (S07)
 
-- **Row.** A run with any start reads "From Runnir · " before its detail line, in the accent colour: "From Runnir · CI #1482 · ios-release · release/1.4 · workflow_dispatch". VoiceOver reads "started from Runnir" with the row. The help on hover is the inspector's (below).
+- **Row.** A run with any start reads "From Runnir · " before its detail line, in the accent colour: "From Runnir · CI #1482 · ios-release · release/1.4 · workflow_dispatch". VoiceOver reads "started from Runnir" with the row. The row's help on hover adds the inspector's help text (below). The Overview's recent runs use the same row, so they show the words too.
 - **By change.** A run line under a change carries the same words before its workflow and number.
 - **Filter menu.** Below the six statuses, after a divider, there is a From Runnir item: a checkbox, the Runnir mark (the menu bar icon's image) and a count.
   - It combines with AND with the ticked statuses, which still combine with OR among themselves, and with the typed query and the branch filter. Failed plus From Runnir shows the failed runs Runnir started.
@@ -101,7 +101,7 @@ Not chosen, kept on the canvas: A, a "Runnir" tag after the title; B, the Runnir
 
 - A way to clear the marks other than removing the workspace.
 - A search qualifier for them (`from:runnir`).
-- Marks in global search, on the Overview, in the menu bar and in notifications.
+- Marks in global search, in the Overview's lanes, in the menu bar and in notifications.
 
 ## Tests
 
