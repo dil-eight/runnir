@@ -48,7 +48,7 @@ import Testing
                                    olderRunIDs: [], olderCommits: 0)
         let runs: [Int64: CoreWorkflowRun] = [3: run(3, branch: "retry"), 2: run(2, branch: "retry"), 9: run(9)]
         func ids(_ found: Set<Int64>?, branch: String? = nil, statuses: Set<RunStatusFilter> = []) -> [String] {
-            RunPresentation.changes([withPull, commit], runs: runs, branch: branch, matching: found, statuses: statuses).map(\.id)
+            RunPresentation.changes([withPull, commit], runs: runs, branch: branch, matching: found, filter: RunFilter(statuses: statuses)).map(\.id)
         }
         #expect(ids(nil) == ["pr:142", "commit:3c4d5e6f"])
         #expect(ids([3]) == ["pr:142"], "a run of the change")
