@@ -59,7 +59,14 @@ struct RunRow: View {
                             .lineLimit(1).fixedSize()
                     }
                 }
-                Text(RunPresentation.detail(run)).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
+                HStack(spacing: 0) {
+                    if run.startedFromRunnir {
+                        Text(RunPresentation.fromRunnir).foregroundStyle(RunnirTheme.primary).fixedSize()
+                            .accessibilityLabel("started from Runnir")
+                    }
+                    Text(RunPresentation.detail(run)).foregroundStyle(RunnirTheme.secondaryForeground)
+                }
+                .font(.system(size: 11)).lineLimit(1)
             }
         }
         .opacity(dimmed ? 0.6 : 1)

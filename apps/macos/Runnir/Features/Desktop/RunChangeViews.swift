@@ -151,6 +151,10 @@ struct RunChangeRow: View {
         HStack(spacing: 8) {
             Circle().fill(RunOutcomeIcon.color(run.outcome)).frame(width: 6, height: 6)
                 .accessibilityLabel(run.outcome.label)
+            if run.startedFromRunnir {
+                Text("From Runnir").font(.system(size: 11)).foregroundStyle(RunnirTheme.primary).lineLimit(1).fixedSize()
+                    .accessibilityLabel("started from Runnir")
+            }
             Text("\(run.name) #\(run.runNumber)").font(.system(size: 12, weight: .medium)).lineLimit(1)
             Text(run.event).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
             if run.isOutdated {
