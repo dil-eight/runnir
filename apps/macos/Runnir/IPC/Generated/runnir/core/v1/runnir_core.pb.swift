@@ -384,6 +384,60 @@ nonisolated enum Runnir_Core_V1_PullRequestCi: SwiftProtobuf.Enum, Swift.CaseIte
 
 }
 
+nonisolated enum Runnir_Core_V1_RunnirStartKind: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+
+  /// A workflow dispatch: attempt 1 of the run it started.
+  case dispatch // = 1
+
+  /// Re-run all jobs.
+  case rerun // = 2
+
+  /// Re-run failed jobs.
+  case rerunFailed // = 3
+
+  /// Re-run one job.
+  case rerunJob // = 4
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .dispatch
+    case 2: self = .rerun
+    case 3: self = .rerunFailed
+    case 4: self = .rerunJob
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .dispatch: return 1
+    case .rerun: return 2
+    case .rerunFailed: return 3
+    case .rerunJob: return 4
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_RunnirStartKind] = [
+    .unspecified,
+    .dispatch,
+    .rerun,
+    .rerunFailed,
+    .rerunJob,
+  ]
+
+}
+
 /// The six statuses runs are searched and filtered by.
 nonisolated enum Runnir_Core_V1_RunStatusGroup: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
@@ -2591,11 +2645,46 @@ nonisolated struct Runnir_Core_V1_WorkflowRun: @unchecked Sendable {
     set {_uniqueStorage()._statusGroup = newValue}
   }
 
+  /// The attempts Runnir started on this Mac, oldest first, up to
+  /// run_attempt (B46). Set in workspace activity, SearchRuns and
+  /// SearchRunsOnGitHub; empty elsewhere.
+  var runnirStarts: [Runnir_Core_V1_RunnirStart] {
+    get {_storage._runnirStarts}
+    set {_uniqueStorage()._runnirStarts = newValue}
+  }
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
 
   fileprivate var _storage = _StorageClass.defaultInstance
+}
+
+/// An attempt of a run that Runnir started on this Mac. GitHub keeps no mark
+/// of it, so other Macs and github.com do not know.
+nonisolated struct Runnir_Core_V1_RunnirStart: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var attempt: Int64 = 0
+
+  var kind: Runnir_Core_V1_RunnirStartKind = .unspecified
+
+  var sentAt: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {_sentAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_sentAt = newValue}
+  }
+  /// Returns true if `sentAt` has been explicitly set.
+  var hasSentAt: Bool {self._sentAt != nil}
+  /// Clears the value of `sentAt`. Subsequent reads from it will return its default value.
+  mutating func clearSentAt() {self._sentAt = nil}
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _sentAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
 }
 
 nonisolated struct Runnir_Core_V1_ListRunJobsRequest: Sendable {
@@ -5364,6 +5453,10 @@ nonisolated extension Runnir_Core_V1_PullRequestCi: SwiftProtobuf._ProtoNameProv
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0PULL_REQUEST_CI_UNSPECIFIED\0\u{1}PULL_REQUEST_CI_NONE\0\u{1}PULL_REQUEST_CI_RUNNING\0\u{1}PULL_REQUEST_CI_PASSED\0\u{1}PULL_REQUEST_CI_FAILED\0\u{1}PULL_REQUEST_CI_CANCELLED\0\u{1}PULL_REQUEST_CI_UNKNOWN\0")
 }
 
+nonisolated extension Runnir_Core_V1_RunnirStartKind: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0RUNNIR_START_KIND_UNSPECIFIED\0\u{1}RUNNIR_START_KIND_DISPATCH\0\u{1}RUNNIR_START_KIND_RERUN\0\u{1}RUNNIR_START_KIND_RERUN_FAILED\0\u{1}RUNNIR_START_KIND_RERUN_JOB\0")
+}
+
 nonisolated extension Runnir_Core_V1_RunStatusGroup: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0RUN_STATUS_GROUP_UNSPECIFIED\0\u{1}RUN_STATUS_GROUP_SUCCESS\0\u{1}RUN_STATUS_GROUP_FAILED\0\u{1}RUN_STATUS_GROUP_CANCELLED\0\u{1}RUN_STATUS_GROUP_RUNNING\0\u{1}RUN_STATUS_GROUP_QUEUED\0\u{1}RUN_STATUS_GROUP_SKIPPED\0")
 }
@@ -7559,7 +7652,7 @@ nonisolated extension Runnir_Core_V1_ListWorkflowRunsResponse: SwiftProtobuf.Mes
 
 nonisolated extension Runnir_Core_V1_WorkflowRun: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".WorkflowRun"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{3}workflow_id\0\u{1}name\0\u{3}display_title\0\u{3}run_number\0\u{1}event\0\u{1}status\0\u{1}conclusion\0\u{1}branch\0\u{3}head_sha\0\u{1}actor\0\u{3}html_url\0\u{3}created_at\0\u{3}updated_at\0\u{3}run_attempt\0\u{3}head_repository\0\u{3}commit_title\0\u{1}link\0\u{3}superseded_by\0\u{3}status_group\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{3}workflow_id\0\u{1}name\0\u{3}display_title\0\u{3}run_number\0\u{1}event\0\u{1}status\0\u{1}conclusion\0\u{1}branch\0\u{3}head_sha\0\u{1}actor\0\u{3}html_url\0\u{3}created_at\0\u{3}updated_at\0\u{3}run_attempt\0\u{3}head_repository\0\u{3}commit_title\0\u{1}link\0\u{3}superseded_by\0\u{3}status_group\0\u{3}runnir_starts\0")
 
   fileprivate class _StorageClass {
     var _id: Int64 = 0
@@ -7582,6 +7675,7 @@ nonisolated extension Runnir_Core_V1_WorkflowRun: SwiftProtobuf.Message, SwiftPr
     var _link: Runnir_Core_V1_RunLink? = nil
     var _supersededBy: Int64 = 0
     var _statusGroup: Runnir_Core_V1_RunStatusGroup = .unspecified
+    var _runnirStarts: [Runnir_Core_V1_RunnirStart] = []
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -7612,6 +7706,7 @@ nonisolated extension Runnir_Core_V1_WorkflowRun: SwiftProtobuf.Message, SwiftPr
       _link = source._link
       _supersededBy = source._supersededBy
       _statusGroup = source._statusGroup
+      _runnirStarts = source._runnirStarts
     }
   }
 
@@ -7650,6 +7745,7 @@ nonisolated extension Runnir_Core_V1_WorkflowRun: SwiftProtobuf.Message, SwiftPr
         case 18: try { try decoder.decodeSingularMessageField(value: &_storage._link) }()
         case 19: try { try decoder.decodeSingularInt64Field(value: &_storage._supersededBy) }()
         case 20: try { try decoder.decodeSingularEnumField(value: &_storage._statusGroup) }()
+        case 21: try { try decoder.decodeRepeatedMessageField(value: &_storage._runnirStarts) }()
         default: break
         }
       }
@@ -7722,6 +7818,9 @@ nonisolated extension Runnir_Core_V1_WorkflowRun: SwiftProtobuf.Message, SwiftPr
       if _storage._statusGroup != .unspecified {
         try visitor.visitSingularEnumField(value: _storage._statusGroup, fieldNumber: 20)
       }
+      if !_storage._runnirStarts.isEmpty {
+        try visitor.visitRepeatedMessageField(value: _storage._runnirStarts, fieldNumber: 21)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -7751,10 +7850,55 @@ nonisolated extension Runnir_Core_V1_WorkflowRun: SwiftProtobuf.Message, SwiftPr
         if _storage._link != rhs_storage._link {return false}
         if _storage._supersededBy != rhs_storage._supersededBy {return false}
         if _storage._statusGroup != rhs_storage._statusGroup {return false}
+        if _storage._runnirStarts != rhs_storage._runnirStarts {return false}
         return true
       }
       if !storagesAreEqual {return false}
     }
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_RunnirStart: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".RunnirStart"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}attempt\0\u{1}kind\0\u{3}sent_at\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularInt64Field(value: &self.attempt) }()
+      case 2: try { try decoder.decodeSingularEnumField(value: &self.kind) }()
+      case 3: try { try decoder.decodeSingularMessageField(value: &self._sentAt) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if self.attempt != 0 {
+      try visitor.visitSingularInt64Field(value: self.attempt, fieldNumber: 1)
+    }
+    if self.kind != .unspecified {
+      try visitor.visitSingularEnumField(value: self.kind, fieldNumber: 2)
+    }
+    try { if let v = self._sentAt {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_RunnirStart, rhs: Runnir_Core_V1_RunnirStart) -> Bool {
+    if lhs.attempt != rhs.attempt {return false}
+    if lhs.kind != rhs.kind {return false}
+    if lhs._sentAt != rhs._sentAt {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
