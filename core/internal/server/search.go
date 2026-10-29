@@ -36,6 +36,7 @@ func (s *service) SearchRuns(ctx context.Context, request *corev1.SearchRunsRequ
 	for _, run := range found.Indexed {
 		out.IndexedRuns = append(out.IndexedRuns, runMessage(run))
 	}
+	addStarts(ctx, rt, out.IndexedRuns)
 	return out, nil
 }
 
@@ -65,6 +66,7 @@ func (s *service) SearchRunsOnGitHub(ctx context.Context, request *corev1.Search
 	for _, run := range step.Runs {
 		out.Runs = append(out.Runs, runMessage(run))
 	}
+	addStarts(ctx, rt, out.Runs)
 	return out, nil
 }
 

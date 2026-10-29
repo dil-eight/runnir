@@ -104,6 +104,7 @@ func (s *service) snapshotMessage(ctx context.Context, rt *workspace.Runtime, li
 		message.SupersededBy = snap.Analysis.SupersededBy[r.ID]
 		out.Runs = append(out.Runs, message)
 	}
+	addStarts(ctx, rt, out.Runs)
 	for _, w := range snap.Workflows {
 		out.Workflows = append(out.Workflows, &corev1.GitHubWorkflow{Id: w.ID, Name: w.Name, Path: w.Path, State: w.State, HtmlUrl: w.HTMLURL})
 	}
