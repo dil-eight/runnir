@@ -643,8 +643,22 @@ struct GRPCCoreService: CoreServicing {
             headRepository: run.headRepository, commitTitle: run.commitTitle,
             link: run.hasLink ? Self.map(run.link) : .none,
             supersededBy: run.supersededBy == 0 ? nil : run.supersededBy,
-            statusGroup: Self.map(run.statusGroup)
+            statusGroup: Self.map(run.statusGroup),
+            runnirStarts: run.runnirStarts.compactMap(Self.map)
         )
+    }
+
+    /// nil for a kind this app does not know.
+    static func map(_ start: Runnir_Core_V1_RunnirStart) -> CoreRunnirStart? {
+        let kind: CoreRunnirStart.Kind
+        switch start.kind {
+        case .dispatch: kind = .dispatch
+        case .rerun: kind = .rerun
+        case .rerunFailed: kind = .rerunFailed
+        case .rerunJob: kind = .rerunJob
+        case .unspecified, .UNRECOGNIZED: return nil
+        }
+        return CoreRunnirStart(attempt: max(1, start.attempt), kind: kind, sentAt: start.sentAt.date)
     }
 
     static func map(_ group: Runnir_Core_V1_RunStatusGroup) -> CoreRunStatusGroup? {
