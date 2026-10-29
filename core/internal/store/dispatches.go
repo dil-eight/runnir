@@ -28,7 +28,8 @@ type DispatchRecord struct {
 }
 
 // RecordDispatch adds an accepted dispatch, with its run when GitHub named
-// it, and returns its id. Only the newest maxDispatchRecords are kept.
+// it, and returns its id. A dispatch with its run is also attempt 1 Runnir
+// started. Only the newest maxDispatchRecords are kept.
 func (s *Store) RecordDispatch(ctx context.Context, r DispatchRecord) (int64, error) {
 	inputs, err := json.Marshal(nonNilInputs(r.Inputs))
 	if err != nil {
@@ -38,7 +39,12 @@ func (s *Store) RecordDispatch(ctx context.Context, r DispatchRecord) (int64, er
 	if err != nil {
 		return 0, err
 	}
-	result, err := s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `
 INSERT INTO dispatch_history (workflow_path, ref, inputs, omitted, sent_at, run_id, server_id, repository) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.WorkflowPath, r.Ref, string(inputs), string(omitted), millis(r.SentAt), max(r.RunID, 0), r.Source.ServerID, r.Source.Repository)
 	if err != nil {
@@ -48,21 +54,39 @@ INSERT INTO dispatch_history (workflow_path, ref, inputs, omitted, sent_at, run_
 	if err != nil {
 		return 0, err
 	}
+	if err := dispatchStarted(ctx, tx, id); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
 	return id, s.localChanged(ctx)
 }
 
-// LinkDispatchRun says which run a dispatch started. The first answer is
-// kept: a run found later by guessing must not replace one GitHub named.
+// LinkDispatchRun says which run a dispatch started, which makes it attempt
+// 1 Runnir started. The first answer is kept: a run found later by guessing
+// must not replace one GitHub named.
 func (s *Store) LinkDispatchRun(ctx context.Context, id, runID int64) error {
 	if runID <= 0 {
 		return errors.New("a run id is required")
 	}
-	result, err := s.db.ExecContext(ctx, "UPDATE dispatch_history SET run_id = ? WHERE id = ? AND run_id = 0", runID, id)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, "UPDATE dispatch_history SET run_id = ? WHERE id = ? AND run_id = 0", runID, id)
 	if err != nil {
 		return err
 	}
 	if changed, _ := result.RowsAffected(); changed == 0 {
 		return nil
+	}
+	if err := dispatchStarted(ctx, tx, id); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	return s.localChanged(ctx)
 }
