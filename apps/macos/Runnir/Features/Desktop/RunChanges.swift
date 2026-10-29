@@ -174,8 +174,11 @@ enum RunPresentation {
 // MARK: Runs started from Runnir (B46)
 
 extension RunPresentation {
+    /// The words for a run Runnir started, in the by-change row, the filter
+    /// menu and its chip.
+    static let fromRunnirLabel = "From Runnir"
     /// The words before the detail line of a run Runnir started.
-    static let fromRunnir = "From Runnir \u{00B7} "
+    static let fromRunnir = "\(fromRunnirLabel) \u{00B7} "
     static let onlyThisMacKnows = "Only this Mac knows: GitHub keeps no mark on runs, so other Macs and github.com do not show it."
 
     /// The words beside the attempt in the inspector: how Runnir started the
@@ -196,6 +199,8 @@ extension RunPresentation {
         let starts = run.runnirStarts.filter { $0.attempt <= run.runAttempt }.sorted { $0.attempt < $1.attempt }
         guard !starts.isEmpty else { return nil }
         let formatter = RelativeDateTimeFormatter()
+        // The sentence is English, so is its time.
+        formatter.locale = Locale(identifier: "en_US")
         formatter.unitsStyle = .abbreviated
         formatter.dateTimeStyle = .named
         var sentences = starts.map { start in

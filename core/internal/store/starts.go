@@ -60,6 +60,16 @@ func (s *Store) RunStarts(ctx context.Context, source Source) (map[int64][]RunSt
 	return out, err
 }
 
+// keepNewestStarts drops the starts beyond maxRunStarts, oldest first.
+func keepNewestStarts(ctx context.Context, db interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}) error {
+	_, err := db.ExecContext(ctx, `
+DELETE FROM runnir_starts WHERE rowid IN (
+	SELECT rowid FROM runnir_starts ORDER BY sent_at DESC, rowid DESC LIMIT -1 OFFSET ?)`, maxRunStarts)
+	return err
+}
+
 // dispatchStarted records the run of dispatch id as its attempt 1 that
 // Runnir started, once the dispatch has its run.
 func dispatchStarted(ctx context.Context, tx *sql.Tx, id int64) error {

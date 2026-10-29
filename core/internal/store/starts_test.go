@@ -136,3 +136,20 @@ func TestSalvagedStartsAreMergedWithTheBackup(t *testing.T) {
 		t.Fatalf("merged = %+v", got)
 	}
 }
+
+func TestRestoredStartsKeepToTheBudget(t *testing.T) {
+	defer func(n int) { maxRunStarts = n }(maxRunStarts)
+	maxRunStarts = 2
+	s := openTest(t, t.TempDir())
+	ctx := context.Background()
+	recordStart(t, s, RunStart{Source: testSource, RunID: 1, Attempt: 2, Kind: StartRerun, SentAt: fixedNow()})
+	recordStart(t, s, RunStart{Source: testSource, RunID: 2, Attempt: 2, Kind: StartRerun, SentAt: fixedNow().Add(time.Minute)})
+	if _, err := s.restoreLocal(ctx, localData{starts: []RunStart{
+		{Source: testSource, RunID: 3, Attempt: 2, Kind: StartRerun, SentAt: fixedNow().Add(time.Hour)},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.RunStarts(ctx, testSource); len(got) != 2 || got[1] != nil || got[3] == nil {
+		t.Fatalf("kept = %+v", got)
+	}
+}

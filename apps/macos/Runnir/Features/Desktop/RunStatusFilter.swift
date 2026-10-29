@@ -138,8 +138,8 @@ struct StatusFilterButton: View {
                 }
         }
         .buttonStyle(.hit)
-        .help("Filter by status")
-        .accessibilityLabel("Filter by status")
+        .help("Filter by status, or to the runs started from Runnir")
+        .accessibilityLabel("Filter runs")
         .accessibilityValue(active ? "\(filter.count) selected" : "none")
         .popover(isPresented: $showing, arrowEdge: .bottom) {
             StatusFilterMenu(filter: $filter, counts: counts, fromRunnirCount: fromRunnirCount, query: query)
@@ -166,7 +166,7 @@ struct StatusFilterMenu: View {
             }.padding(.horizontal, 8).padding(.top, 6).padding(.bottom, 4)
             ForEach(RunStatusFilter.allCases) { status in row(status) }
             DesignDivider().padding(.vertical, 4)
-            option(label: "From Runnir", on: filter.fromRunnir, count: fromRunnirCount) {
+            option(label: RunPresentation.fromRunnirLabel, on: filter.fromRunnir, count: fromRunnirCount) {
                 RunnirMark(size: 12)
             } toggle: { filter.fromRunnir.toggle() }
             .help("Runs started from Runnir on this Mac; GitHub keeps no mark of them")
@@ -225,7 +225,7 @@ struct StatusChips: View {
                         } remove: { filter.statuses.remove(status) }
                     }
                     if filter.fromRunnir {
-                        chip("From Runnir") { RunnirMark(size: 10) } remove: { filter.fromRunnir = false }
+                        chip(RunPresentation.fromRunnirLabel) { RunnirMark(size: 10) } remove: { filter.fromRunnir = false }
                     }
                 }
             }

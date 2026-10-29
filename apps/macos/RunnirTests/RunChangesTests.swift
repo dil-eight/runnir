@@ -119,6 +119,7 @@ import Testing
         let rerun = CoreRunnirStart(attempt: 2, kind: .rerunFailed, sentAt: sent)
         let one = try #require(RunPresentation.runnirHelp(started([rerun], attempt: 2), now: sent.addingTimeInterval(12 * 60)))
         #expect(one.hasPrefix("Attempt 2 re-ran the failed jobs from Runnir on this Mac, "))
+        #expect(one.contains("on this Mac, 12m ago."), "the time is English whatever the Mac's language")
         #expect(one.contains(" Attempt 1 was not started from this Mac.\n"))
         #expect(one.hasSuffix(RunPresentation.onlyThisMacKnows))
         let many = try #require(RunPresentation.runnirHelp(started([CoreRunnirStart(attempt: 2, kind: .rerun, sentAt: sent),
