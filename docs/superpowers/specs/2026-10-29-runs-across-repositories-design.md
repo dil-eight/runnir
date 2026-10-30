@@ -1,6 +1,6 @@
 # Runs across repositories (B39)
 
-Status: design approved on 2026-10-29, not implemented. Drawn in `runnir.pen` (journey F, Row — Runs across repositories (B39)). Builds on the pull requests menu (S19), the workspace runtimes (B27), the repository link of a workspace (B07), the starred repositories of the Workspace Manager's GitHub tab, the status groups of the filter (B42), global search's way of opening a run (B43) and the marks of B46.
+Status: design approved on 2026-10-29, built on branch dilbarov/runs-across-repositories. Drawn in `runnir.pen` (journey F, Row — Runs across repositories (B39)). Builds on the pull requests menu (S19), the workspace runtimes (B27), the repository link of a workspace (B07), the starred repositories of the Workspace Manager's GitHub tab, the status groups of the filter (B42), global search's way of opening a run (B43) and the marks of B46.
 
 ## Problem
 
