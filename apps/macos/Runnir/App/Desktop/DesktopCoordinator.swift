@@ -887,7 +887,7 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
                                      presets: DispatchPresetLibrary(store: try? FileDispatchPresetStore.live()),
                                      favorites: WorkflowFavorites(store: try? FileWorkflowFavoritesStore.live()),
                                      repositoryFavorites: RepositoryFavorites(store: try? FileRepositoryFavoritesStore.live()),
-                                     pullRequests: PullRequestsModel(store: try? FileDismissedPullRequestsStore.live()),
+                                     pullRequests: PullRequestsModel(store: try? FileDismissalStore.live(FileDismissalStore.pullRequestsFile)),
                                      localRunValues: KeychainLocalRunValueStore(),
                                      inbox: NotificationInbox(store: try? FileNotificationInboxStore.live()))
         super.init()

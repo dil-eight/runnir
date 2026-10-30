@@ -32,7 +32,7 @@ struct PullRequestsTests {
         let (hub, provider) = await readyHub()
         provider.core.pullRequestsResult = CorePullRequests(access: .ok, open: [pr(1, ci: .failed), pr(2, ci: .running)],
                                                             closed: [pr(3, state: "merged"), pr(4, state: "closed")], headsUnreadable: false)
-        let model = PullRequestsModel(store: FileDismissedPullRequestsStore(directory: folder))
+        let model = PullRequestsModel(store: FileDismissalStore(directory: folder, fileName: FileDismissalStore.pullRequestsFile))
         await model.refresh(hub: hub)
         #expect(model.open.count == 2 && model.closed.map(\.number) == [3, 4])
         #expect(model.worstCI == .failed)
@@ -42,7 +42,7 @@ struct PullRequestsTests {
         model.dismiss(model.closed[0])
         #expect(model.closed.map(\.number) == [4])
         // The next launch still leaves it out.
-        let restarted = PullRequestsModel(store: FileDismissedPullRequestsStore(directory: folder))
+        let restarted = PullRequestsModel(store: FileDismissalStore(directory: folder, fileName: FileDismissalStore.pullRequestsFile))
         await restarted.refresh(hub: hub)
         #expect(restarted.closed.map(\.number) == [4])
         restarted.restoreDismissed()
