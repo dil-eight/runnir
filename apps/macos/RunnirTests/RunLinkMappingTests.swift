@@ -75,4 +75,27 @@ import Testing
         #expect(run.startedFromRunnir)
         #expect(!GRPCCoreService.map(Runnir_Core_V1_WorkflowRun.with { $0.id = 9 }).startedFromRunnir)
     }
+
+    @Test func watchedRunsKeepTheOrderSentAndThePauses() {
+        let sent = [CoreWatchedRepository(repository: GitHubRepositoryRef(serverID: "", fullName: "o/r"), workspaceIDs: [UUID()]),
+                    CoreWatchedRepository(repository: GitHubRepositoryRef(serverID: "", fullName: "o/star"))]
+        let response = Runnir_Core_V1_ListWatchedRunsResponse.with {
+            $0.repositories = [
+                .with {
+                    $0.status = .with { $0.access = .ok }
+                    $0.watched = true
+                    $0.failed = [.with { $0.id = 7; $0.status = "completed"; $0.conclusion = "failure"; $0.runAttempt = 2 }]
+                    $0.readAt = .init(date: Date(timeIntervalSince1970: 1_000))
+                },
+                .with { $0.status = .with { $0.access = .notVisible }; $0.watched = true },
+            ]
+            $0.pauses = [.with { $0.githubServer = ""; $0.until = .init(date: Date(timeIntervalSince1970: 2_000)) }]
+        }
+        let list = GRPCCoreService.map(response, sent: sent)
+        #expect(list.repositories.map(\.repository) == sent)
+        #expect(list.repositories[0].failed.map(\.id) == [7] && list.repositories[0].failed[0].runAttempt == 2)
+        #expect(list.repositories[0].readAt == Date(timeIntervalSince1970: 1_000))
+        #expect(list.repositories[1].access == .notVisible && list.repositories[1].readAt == nil)
+        #expect(list.pauses == ["": Date(timeIntervalSince1970: 2_000)])
+    }
 }
