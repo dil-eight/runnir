@@ -1,15 +1,17 @@
 import AppKit
 import SwiftUI
 
-// MARK: Dismissed pull requests
+// MARK: Dismissed items
 
-/// dismissed-pull-requests.json in the app's support directory: closed pull
-/// requests removed from the menu, by link, with when. Entries older than a
-/// week are dropped, since the menu shows only the last day.
-struct FileDismissedPullRequestsStore: Sendable {
-    let directory: URL
-    var fileURL: URL { directory.appendingPathComponent("dismissed-pull-requests.json") }
+/// A JSON file in the app's support directory of items removed from a menu
+/// bar list, by key, with when: closed pull requests in
+/// dismissed-pull-requests.json, failed runs in dismissed-runs.json.
+/// Entries older than a week are dropped.
+struct FileDismissalStore: Sendable {
+    let fileURL: URL
 
+    static let pullRequestsFile = "dismissed-pull-requests.json"
+    static let runsFile = "dismissed-runs.json"
     static let maxEntries = 1000
     static let maxFileBytes = 256 * 1024
     static let keepFor: TimeInterval = 7 * 24 * 3600
@@ -19,8 +21,12 @@ struct FileDismissedPullRequestsStore: Sendable {
         var dismissed: [String: Date]
     }
 
-    static func live() throws -> FileDismissedPullRequestsStore {
-        FileDismissedPullRequestsStore(directory: try RunnirSupportDirectory.url())
+    init(directory: URL, fileName: String) {
+        fileURL = directory.appendingPathComponent(fileName)
+    }
+
+    static func live(_ fileName: String) throws -> FileDismissalStore {
+        FileDismissalStore(directory: try RunnirSupportDirectory.url(), fileName: fileName)
     }
 
     func load() throws -> [String: Date] {
@@ -57,7 +63,7 @@ final class PullRequestsModel {
     private(set) var loadedAt: Date?
     private(set) var isLoading = false
     private(set) var dismissed: [String: Date] = [:]
-    @ObservationIgnored private let store: FileDismissedPullRequestsStore?
+    @ObservationIgnored private let store: FileDismissalStore?
     @ObservationIgnored private var poll: Task<Void, Never>?
     @ObservationIgnored var now: () -> Date = Date.init
     /// An open pull request's checks finished since the last read.
@@ -67,10 +73,10 @@ final class PullRequestsModel {
     static let pollInterval: Duration = .seconds(180)
     static let staleAfter: TimeInterval = 60
 
-    init(store: FileDismissedPullRequestsStore?) {
+    init(store: FileDismissalStore?) {
         self.store = store
         let loaded = (try? store?.load()) ?? [:]
-        let cutoff = Date().addingTimeInterval(-FileDismissedPullRequestsStore.keepFor)
+        let cutoff = Date().addingTimeInterval(-FileDismissalStore.keepFor)
         dismissed = loaded.filter { $0.value > cutoff }
     }
 
@@ -124,7 +130,7 @@ final class PullRequestsModel {
     func dismiss(_ pullRequest: CorePullRequest) {
         var candidate = dismissed
         candidate[pullRequest.id] = now()
-        let cutoff = now().addingTimeInterval(-FileDismissedPullRequestsStore.keepFor)
+        let cutoff = now().addingTimeInterval(-FileDismissalStore.keepFor)
         candidate = candidate.filter { $0.value > cutoff }
         try? store?.save(candidate)
         dismissed = candidate
@@ -248,9 +254,7 @@ struct PullRequestRow: View {
 
     @ViewBuilder private var trailing: some View {
         if let dismiss {
-            // A 28-point target with its own hover, so a near miss removes
-            // instead of opening the pull request under it.
-            RemoveButton(action: dismiss)
+            ListRemoveButton(action: dismiss)
                 .opacity(hovering ? 1 : 0)
                 .padding(.top, -6).padding(.trailing, -6)
                 .help("Remove from this list")
@@ -261,22 +265,6 @@ struct PullRequestRow: View {
                 .frame(width: 14).padding(.top, 2)
                 .opacity(hovering ? 1 : 0)
                 .accessibilityHidden(true)
-        }
-    }
-
-    private struct RemoveButton: View {
-        let action: () -> Void
-        @State private var hovering = false
-
-        var body: some View {
-            Button(action: action) {
-                Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(hovering ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
-                    .frame(width: 28, height: 28)
-                    .background(Circle().fill(hovering ? RunnirTheme.secondary : .clear).frame(width: 22, height: 22))
-            }
-            .buttonStyle(.hit)
-            .onHover { hovering = $0 }
         }
     }
 
@@ -336,6 +324,58 @@ struct PullRequestRow: View {
     }
 }
 
+/// A count with a symbol above a menu bar list: "2 failing", "3 running".
+struct ListChip: View {
+    let symbol: String
+    let label: String
+    let tint: Color
+    let background: Color
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol).font(.system(size: 10))
+            Text(label).font(.system(size: 11, weight: .medium))
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 8).padding(.vertical, 3)
+        .background(Capsule().fill(background))
+    }
+}
+
+/// A section's title and count in a menu bar list.
+struct ListSectionHeader: View {
+    let title: String
+    let count: Int
+    let inset: CGFloat
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(title).font(.system(size: 10, weight: .semibold)).tracking(0.8).foregroundStyle(RunnirTheme.secondaryForeground)
+            Text("\(count)").font(.system(size: 10, weight: .semibold)).foregroundStyle(RunnirTheme.mutedForeground)
+        }
+        .padding(.horizontal, inset).padding(.top, 10).padding(.bottom, 4)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// Removes a row from a menu bar list: a 28-point target with its own
+/// hover, so a near miss removes instead of opening the row under it.
+struct ListRemoveButton: View {
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(hovering ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(hovering ? RunnirTheme.secondary : .clear).frame(width: 22, height: 22))
+        }
+        .buttonStyle(.hit)
+        .onHover { hovering = $0 }
+    }
+}
+
 /// What the list shows: signed out, checking the saved sign-in, or lists.
 enum PullRequestsListState: Equatable {
     case restoring, signedOut, lists
@@ -383,13 +423,13 @@ struct PullRequestsList: View {
         if model.headsUnreadable { headsNote.padding(.horizontal, inset).padding(.bottom, 10) }
         summary
         DesignDivider()
-        sectionHeader("OPEN", count: model.open.count)
+        ListSectionHeader(title: "OPEN", count: model.open.count, inset: inset)
         if model.open.isEmpty {
             nothingOpen
         }
         ForEach(model.open) { PullRequestRow(pullRequest: $0, serverHost: host(of: $0)).padding(.horizontal, inset - 8) }
         if !model.closed.isEmpty {
-            sectionHeader("CLOSED TODAY", count: model.closed.count)
+            ListSectionHeader(title: "CLOSED TODAY", count: model.closed.count, inset: inset)
             ForEach(model.closed) { pr in
                 PullRequestRow(pullRequest: pr, serverHost: host(of: pr)) { model.dismiss(pr) }.padding(.horizontal, inset - 8)
             }
@@ -454,32 +494,13 @@ struct PullRequestsList: View {
         let passed = model.open.count { $0.ci == .passed }
         if failing + running + passed > 0 {
             HStack(spacing: 6) {
-                if failing > 0 { chip("xmark.circle.fill", "\(failing) failing", RunnirTheme.destructive, PullRequestColors.failedSoft) }
-                if running > 0 { chip("arrow.triangle.2.circlepath", "\(running) running", PullRequestColors.running, PullRequestColors.runningSoft) }
-                if passed > 0 { chip("checkmark.circle.fill", "\(passed) passed", RunnirTheme.success, PullRequestColors.passedSoft) }
+                if failing > 0 { ListChip(symbol: "xmark.circle.fill", label: "\(failing) failing", tint: RunnirTheme.destructive, background: PullRequestColors.failedSoft) }
+                if running > 0 { ListChip(symbol: "arrow.triangle.2.circlepath", label: "\(running) running", tint: PullRequestColors.running, background: PullRequestColors.runningSoft) }
+                if passed > 0 { ListChip(symbol: "checkmark.circle.fill", label: "\(passed) passed", tint: RunnirTheme.success, background: PullRequestColors.passedSoft) }
             }
             .padding(.horizontal, inset).padding(.bottom, 12)
             .accessibilityElement(children: .combine)
         }
-    }
-
-    private func chip(_ symbol: String, _ label: String, _ tint: Color, _ background: Color) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: symbol).font(.system(size: 10))
-            Text(label).font(.system(size: 11, weight: .medium))
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, 8).padding(.vertical, 3)
-        .background(Capsule().fill(background))
-    }
-
-    private func sectionHeader(_ title: String, count: Int) -> some View {
-        HStack(spacing: 6) {
-            Text(title).font(.system(size: 10, weight: .semibold)).tracking(0.8).foregroundStyle(RunnirTheme.secondaryForeground)
-            Text("\(count)").font(.system(size: 10, weight: .semibold)).foregroundStyle(RunnirTheme.mutedForeground)
-        }
-        .padding(.horizontal, inset).padding(.top, 10).padding(.bottom, 4)
-        .accessibilityAddTraits(.isHeader)
     }
 
     @ViewBuilder private var nothingOpen: some View {
