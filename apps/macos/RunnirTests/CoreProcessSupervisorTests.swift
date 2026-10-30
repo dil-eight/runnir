@@ -62,6 +62,9 @@ private struct FakeService: CoreServicing {
     func listGitHubRepositories(server: String) async throws -> CoreGitHubAccount { .failed(.ok) }
     func githubOrigins(paths: [String]) async throws -> [String: GitHubRepositoryRef] { [:] }
     func listPullRequests(server: String, closedSince: Date) async throws -> CorePullRequests { .failed(.ok) }
+    func listWatchedRuns(_ repositories: [CoreWatchedRepository], refresh: Bool) async throws -> CoreWatchedRunsList {
+        throw CoreServiceError.unavailable
+    }
     func listGitHubWorkflows(target: CoreGitHubTarget) async throws -> CoreGitHubResult<CoreGitHubWorkflow> { CoreGitHubResult(access: .ok, items: []) }
     func listWorkflowRuns(target: CoreGitHubTarget, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> { CoreGitHubResult(access: .ok, items: []) }
     func listRunJobs(repositoryID: String, runID: Int64) async throws -> CoreGitHubResult<CoreRunJob> { CoreGitHubResult(access: .ok, items: []) }

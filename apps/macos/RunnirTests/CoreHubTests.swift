@@ -53,6 +53,17 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
             return pullRequestsByServer[server] ?? pullRequestsResult
         }
     }
+    /// nil answers as a Core that failed.
+    var watchedRunsResult: CoreWatchedRunsList?
+    private var _watchedRunsCalls: [(repositories: [CoreWatchedRepository], refresh: Bool)] = []
+    var watchedRunsCalls: [(repositories: [CoreWatchedRepository], refresh: Bool)] { lock.withLock { _watchedRunsCalls } }
+    func listWatchedRuns(_ repositories: [CoreWatchedRepository], refresh: Bool) async throws -> CoreWatchedRunsList {
+        try lock.withLock {
+            _watchedRunsCalls.append((repositories, refresh))
+            guard let watchedRunsResult else { throw CoreServiceError.unavailable }
+            return watchedRunsResult
+        }
+    }
     /// GitHub origins by working tree path, as repository keys.
     var origins: [String: String] = [:]
     private var _originRequests: [[String]] = []
