@@ -1,15 +1,15 @@
 import AppKit
 
 /// The menu bar item's image (S19): the glyph cut from the logo mark, with a
-/// colored dot for pull request checks. The plain glyph is a template that
+/// colored dot for pull request checks and the user's runs. The plain glyph is a template that
 /// macOS tints; with a dot the image draws the glyph in the menu bar's text
 /// color itself, since a template cannot carry a color.
 enum MenuBarIcon {
     enum Badge: Equatable {
         case none
-        /// A check of an open pull request failed.
+        /// A check of an open pull request or one of the user's runs failed.
         case failed
-        /// Checks are running.
+        /// Checks or runs are running.
         case running
     }
 
@@ -29,6 +29,30 @@ enum MenuBarIcon {
         case .running: .running
         default: .none
         }
+    }
+
+    /// The worse of the pull request checks and the watched runs (B39).
+    static func badge(for ci: CorePullRequestCI?, runs: Badge) -> Badge {
+        let checks = badge(for: ci)
+        if checks == .failed || runs == .failed { return .failed }
+        if checks == .running || runs == .running { return .running }
+        return .none
+    }
+
+    /// "Runnir, a run failed, checks running": what the dot stands for.
+    static func accessibilityLabel(checks ci: CorePullRequestCI?, runs: Badge) -> String {
+        var parts = ["Runnir"]
+        switch runs {
+        case .failed: parts.append("a run failed")
+        case .running: parts.append("runs in progress")
+        case .none: break
+        }
+        switch badge(for: ci) {
+        case .failed: parts.append("a check failed")
+        case .running: parts.append("checks running")
+        case .none: break
+        }
+        return parts.joined(separator: ", ")
     }
 
     /// The image for a state; `dimmed` when no account is signed in.
