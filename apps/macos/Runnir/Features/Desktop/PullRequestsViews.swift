@@ -569,11 +569,13 @@ struct PullRequestsSignedOut: View {
     }
 }
 
-/// The menu bar item's window (S19).
+/// The menu bar item's window (S19): Pull requests and Runs (B39), one
+/// control switching them.
 struct PullRequestsMenu: View {
     let model: PullRequestsModel
     let desktop: DesktopCoordinator
     let shortcut: String?
+    @AppStorage(MenuListTab.defaultsKey) private var tab: MenuListTab = .pullRequests
     /// The list's own height: a scroll view in the menu bar window has none
     /// and would show nothing.
     @State private var listHeight: CGFloat = 0
@@ -581,13 +583,21 @@ struct PullRequestsMenu: View {
     static let maxListHeight: CGFloat = 460
 
     private var signedOut: Bool { PullRequestsListState.of(desktop) != .lists }
+    private var runs: WatchedRunsModel { desktop.watchedRuns }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             ScrollView {
-                PullRequestsList(model: model, desktop: desktop).frame(maxWidth: .infinity, alignment: .leading)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
+                Group {
+                    if tab == .runs {
+                        WatchedRunsList(model: runs, desktop: desktop)
+                    } else {
+                        PullRequestsList(model: model, desktop: desktop)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
             }
             .frame(height: min(max(listHeight, 16), Self.maxListHeight))
             DesignDivider()
@@ -598,32 +608,46 @@ struct PullRequestsMenu: View {
         // the wallpaper through and the list becomes hard to read.
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
-        .task { if let hub = desktop.core { await model.refreshIfStale(hub: hub) } }
+        // Both lists feed the menu bar icon.
+        .task {
+            if let hub = desktop.core {
+                await model.refreshIfStale(hub: hub)
+                await runs.refreshIfStale(hub: hub)
+            }
+        }
     }
 
     private var header: some View {
-        HStack(spacing: 4) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Pull Requests").font(.system(size: 13, weight: .semibold))
+        HStack(alignment: .top, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
+                MenuListTabPicker(tab: $tab, failedCount: runs.failed.count)
                 TimelineView(.periodic(from: .now, by: 15)) { _ in
                     Text(updatedText).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
             }
             Spacer()
             if !signedOut, let hub = desktop.core {
-                iconButton("arrow.clockwise", help: "Read pull requests again") { Task { await model.refresh(hub: hub) } }
-                    .disabled(model.isLoading)
-                iconButton("macwindow", help: "Open the Pull Requests window") { desktop.showPullRequests() }
+                iconButton("arrow.clockwise", help: tab == .runs ? "Read runs again" : "Read pull requests again") {
+                    Task { await refresh(hub) }
+                }
+                .disabled(tab == .runs ? runs.isLoading : model.isLoading)
+                iconButton("macwindow", help: "Open the \(tab.title) window") { desktop.showPullRequests() }
             }
         }
-        .padding(.top, 14).padding(.bottom, 10).padding(.leading, 16).padding(.trailing, 12)
+        .padding(.top, 12).padding(.bottom, 10).padding(.leading, 16).padding(.trailing, 12)
+    }
+
+    private func refresh(_ hub: CoreHub) async {
+        if tab == .runs { await runs.refresh(hub: hub, force: true) } else { await model.refresh(hub: hub) }
     }
 
     private var updatedText: String {
         if signedOut { return "Not connected" }
-        guard let loaded = model.loadedAt else { return model.isLoading ? "Reading..." : "Not read yet" }
-        if Date().timeIntervalSince(loaded) < 30 { return "Updated just now" }
-        return "Updated " + loaded.formatted(.relative(presentation: .named))
+        let loadedAt = tab == .runs ? runs.loadedAt : model.loadedAt
+        let isLoading = tab == .runs ? runs.isLoading : model.isLoading
+        guard let loaded = loadedAt else { return isLoading ? "Reading..." : "Not read yet" }
+        let when = Date().timeIntervalSince(loaded) < 30 ? "Updated just now" : "Updated " + loaded.formatted(.relative(presentation: .named))
+        return tab == .runs ? when + WatchedRunText.updated(count: runs.watched.count) : when
     }
 
     private func iconButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
@@ -642,7 +666,7 @@ struct PullRequestsMenu: View {
                 Button("Settings…") { desktop.showSettingsInFrontWindow() }.buttonStyle(.hit)
                     .foregroundStyle(RunnirTheme.secondaryForeground)
             } else {
-                Button("Open Pull Requests Window") { desktop.showPullRequests() }.buttonStyle(.link).pointerStyle(.link).fontWeight(.medium)
+                Button("Open \(tab.title) Window") { desktop.showPullRequests() }.buttonStyle(.link).pointerStyle(.link).fontWeight(.medium)
                 if let shortcut {
                     Text(shortcut).font(.system(size: 10)).foregroundStyle(RunnirTheme.secondaryForeground)
                         .padding(.horizontal, 5).padding(.vertical, 1)
@@ -650,10 +674,14 @@ struct PullRequestsMenu: View {
                         .accessibilityLabel("Shortcut \(shortcut)")
                 }
                 Spacer()
-                if !model.dismissed.isEmpty {
-                    Button("Show Removed (\(model.dismissed.count))") { model.restoreDismissed() }.buttonStyle(.hit)
-                        .foregroundStyle(RunnirTheme.secondaryForeground)
-                        .help("Bring back the closed pull requests removed from this list")
+                let removed = tab == .runs ? runs.dismissed.count : model.dismissed.count
+                if removed > 0 {
+                    Button("Show Removed (\(removed))") {
+                        if tab == .runs { runs.restoreDismissed() } else { model.restoreDismissed() }
+                    }
+                    .buttonStyle(.hit)
+                    .foregroundStyle(RunnirTheme.secondaryForeground)
+                    .help(tab == .runs ? "Bring back the runs removed from this list" : "Bring back the closed pull requests removed from this list")
                 }
             }
         }
@@ -662,38 +690,61 @@ struct PullRequestsMenu: View {
     }
 }
 
-/// The Pull Requests window, opened from the menu bar or the shortcut.
+/// The Pull Requests window, opened from the menu bar or the shortcut, with
+/// the menu's tabs; its title follows the tab.
 struct PullRequestsWindowView: View {
     let model: PullRequestsModel
     let desktop: DesktopCoordinator
+    @AppStorage(MenuListTab.defaultsKey) private var tab: MenuListTab = .pullRequests
+
+    private var runs: WatchedRunsModel { desktop.watchedRuns }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Pull Requests").font(.system(size: 15, weight: .semibold))
-                if let loaded = model.loadedAt {
+            HStack(spacing: 10) {
+                MenuListTabPicker(tab: $tab, failedCount: runs.failed.count)
+                if let loaded = tab == .runs ? runs.loadedAt : model.loadedAt {
                     // Ticks while the window stays open, not only when the list is read.
                     TimelineView(.periodic(from: .now, by: 15)) { _ in
-                        Text("updated \(loaded.formatted(.relative(presentation: .named)))")
+                        Text("updated \(loaded.formatted(.relative(presentation: .named)))"
+                             + (tab == .runs ? WatchedRunText.updated(count: runs.watched.count) : ""))
                     }
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
                 Spacer()
                 if let hub = desktop.core {
-                    Button { Task { await model.refresh(hub: hub) } } label: { Label("Refresh", systemImage: "arrow.clockwise") }
-                        .buttonStyle(DesignButtonStyle()).disabled(model.isLoading)
+                    Button {
+                        Task {
+                            if tab == .runs { await runs.refresh(hub: hub, force: true) } else { await model.refresh(hub: hub) }
+                        }
+                    } label: { Label("Refresh", systemImage: "arrow.clockwise") }
+                        .buttonStyle(DesignButtonStyle())
+                        .disabled(tab == .runs ? runs.isLoading : model.isLoading)
                 }
             }
             .padding(.horizontal, 20).padding(.top, 34).padding(.bottom, 12)
             DesignDivider()
             ScrollView {
-                PullRequestsList(model: model, desktop: desktop, inset: 20).padding(.top, 14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Group {
+                    if tab == .runs {
+                        WatchedRunsList(model: runs, desktop: desktop, inset: 20)
+                    } else {
+                        PullRequestsList(model: model, desktop: desktop, inset: 20)
+                    }
+                }
+                .padding(.top, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .frame(minWidth: 480, minHeight: 360)
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
-        .task { if let hub = desktop.core { await model.refreshIfStale(hub: hub) } }
+        .navigationTitle(tab.title)
+        .task {
+            if let hub = desktop.core {
+                await model.refreshIfStale(hub: hub)
+                await runs.refreshIfStale(hub: hub)
+            }
+        }
     }
 }
