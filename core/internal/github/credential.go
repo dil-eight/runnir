@@ -16,6 +16,8 @@ var ErrInvalidToken = errors.New("invalid GitHub token")
 type Credential struct {
 	mu    sync.RWMutex
 	token string
+	// generation changes whenever the token does.
+	generation uint64
 }
 
 // Set replaces the token. GitHub tokens are short printable strings without
@@ -25,7 +27,10 @@ func (c *Credential) Set(token string) error {
 		return ErrInvalidToken
 	}
 	c.mu.Lock()
-	c.token = token
+	if c.token != token {
+		c.token = token
+		c.generation++
+	}
 	c.mu.Unlock()
 	return nil
 }
@@ -33,8 +38,19 @@ func (c *Credential) Set(token string) error {
 // Clear forgets the token.
 func (c *Credential) Clear() {
 	c.mu.Lock()
-	c.token = ""
+	if c.token != "" {
+		c.token = ""
+		c.generation++
+	}
 	c.mu.Unlock()
+}
+
+// Generation changes whenever the token is set to another or cleared, so
+// what was read with a token can be kept until then.
+func (c *Credential) Generation() uint64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.generation
 }
 
 // Token returns the token and whether one is set.
