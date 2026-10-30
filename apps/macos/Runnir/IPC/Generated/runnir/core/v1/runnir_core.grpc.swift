@@ -390,6 +390,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "ListWatchedRuns" metadata.
+        internal enum ListWatchedRuns: Sendable {
+            /// Request type for "ListWatchedRuns".
+            internal typealias Input = Runnir_Core_V1_ListWatchedRunsRequest
+            /// Response type for "ListWatchedRuns".
+            internal typealias Output = Runnir_Core_V1_ListWatchedRunsResponse
+            /// Descriptor for "ListWatchedRuns".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ListWatchedRuns",
+                type: .unary
+            )
+        }
         /// Namespace for "GetGitHubOrigins" metadata.
         internal enum GetGitHubOrigins: Sendable {
             /// Request type for "GetGitHubOrigins".
@@ -745,6 +758,7 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             ClearGitHubCredential.descriptor,
             CheckGitHubToken.descriptor,
             ListPullRequests.descriptor,
+            ListWatchedRuns.descriptor,
             GetGitHubOrigins.descriptor,
             ListGitHubRepositories.descriptor,
             ListGitHubWorkflows.descriptor,
@@ -1309,6 +1323,31 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListPullRequestsRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListPullRequestsResponse>
+
+        /// Handle the "ListWatchedRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The signed-in user's failed and running runs in the repositories the
+        /// > app watches (B39): its registered workspaces linked to GitHub and its
+        /// > starred repositories. An open workspace answers from its store; any
+        /// > other repository is read with one conditional request at most every 3
+        /// > minutes, only the runs the user started, and kept in memory. A workflow
+        /// > on a branch counts as failed while its newest finished run failed,
+        /// > within 7 days. At most 100 repositories are watched. Nothing is written
+        /// > to a closed workspace's database; its starts (B46) are read read-only.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ListWatchedRunsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ListWatchedRunsResponse` messages.
+        func listWatchedRuns(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListWatchedRunsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListWatchedRunsResponse>
 
         /// Handle the "GetGitHubOrigins" method.
         ///
@@ -2302,6 +2341,31 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListPullRequestsResponse>
 
+        /// Handle the "ListWatchedRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The signed-in user's failed and running runs in the repositories the
+        /// > app watches (B39): its registered workspaces linked to GitHub and its
+        /// > starred repositories. An open workspace answers from its store; any
+        /// > other repository is read with one conditional request at most every 3
+        /// > minutes, only the runs the user started, and kept in memory. A workflow
+        /// > on a branch counts as failed while its newest finished run failed,
+        /// > within 7 days. At most 100 repositories are watched. Nothing is written
+        /// > to a closed workspace's database; its starts (B46) are read read-only.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListWatchedRunsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ListWatchedRunsResponse` message.
+        func listWatchedRuns(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ListWatchedRunsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListWatchedRunsResponse>
+
         /// Handle the "GetGitHubOrigins" method.
         ///
         /// > Source IDL Documentation:
@@ -3293,6 +3357,31 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_ListPullRequestsResponse
 
+        /// Handle the "ListWatchedRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The signed-in user's failed and running runs in the repositories the
+        /// > app watches (B39): its registered workspaces linked to GitHub and its
+        /// > starred repositories. An open workspace answers from its store; any
+        /// > other repository is read with one conditional request at most every 3
+        /// > minutes, only the runs the user started, and kept in memory. A workflow
+        /// > on a branch counts as failed while its newest finished run failed,
+        /// > within 7 days. At most 100 repositories are watched. Nothing is written
+        /// > to a closed workspace's database; its starts (B46) are read read-only.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ListWatchedRunsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ListWatchedRunsResponse` to respond with.
+        func listWatchedRuns(
+            request: Runnir_Core_V1_ListWatchedRunsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ListWatchedRunsResponse
+
         /// Handle the "GetGitHubOrigins" method.
         ///
         /// > Source IDL Documentation:
@@ -4077,6 +4166,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ListWatchedRuns.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListWatchedRunsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListWatchedRunsResponse>(),
+            handler: { request, context in
+                try await self.listWatchedRuns(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.GetGitHubOrigins.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetGitHubOriginsRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetGitHubOriginsResponse>(),
@@ -4659,6 +4759,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListPullRequestsResponse> {
         let response = try await self.listPullRequests(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func listWatchedRuns(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListWatchedRunsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListWatchedRunsResponse> {
+        let response = try await self.listWatchedRuns(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -5305,6 +5416,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListPullRequestsResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_ListPullRequestsResponse>(
             message: try await self.listPullRequests(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func listWatchedRuns(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ListWatchedRunsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListWatchedRunsResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ListWatchedRunsResponse>(
+            message: try await self.listWatchedRuns(
                 request: request.message,
                 context: context
             ),
@@ -6299,6 +6423,36 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListPullRequestsResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListPullRequestsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ListWatchedRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The signed-in user's failed and running runs in the repositories the
+        /// > app watches (B39): its registered workspaces linked to GitHub and its
+        /// > starred repositories. An open workspace answers from its store; any
+        /// > other repository is read with one conditional request at most every 3
+        /// > minutes, only the runs the user started, and kept in memory. A workflow
+        /// > on a branch counts as failed while its newest finished run failed,
+        /// > within 7 days. At most 100 repositories are watched. Nothing is written
+        /// > to a closed workspace's database; its starts (B46) are read read-only.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListWatchedRunsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListWatchedRunsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListWatchedRunsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func listWatchedRuns<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListWatchedRunsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListWatchedRunsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListWatchedRunsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListWatchedRunsResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "GetGitHubOrigins" method.
@@ -7865,6 +8019,47 @@ extension Runnir_Core_V1_RunnirCore {
             try await self.client.unary(
                 request: request,
                 descriptor: Runnir_Core_V1_RunnirCore.Method.ListPullRequests.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ListWatchedRuns" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The signed-in user's failed and running runs in the repositories the
+        /// > app watches (B39): its registered workspaces linked to GitHub and its
+        /// > starred repositories. An open workspace answers from its store; any
+        /// > other repository is read with one conditional request at most every 3
+        /// > minutes, only the runs the user started, and kept in memory. A workflow
+        /// > on a branch counts as failed while its newest finished run failed,
+        /// > within 7 days. At most 100 repositories are watched. Nothing is written
+        /// > to a closed workspace's database; its starts (B46) are read read-only.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListWatchedRunsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListWatchedRunsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListWatchedRunsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func listWatchedRuns<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListWatchedRunsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListWatchedRunsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListWatchedRunsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListWatchedRunsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ListWatchedRuns.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -9566,6 +9761,42 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "ListWatchedRuns" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The signed-in user's failed and running runs in the repositories the
+    /// > app watches (B39): its registered workspaces linked to GitHub and its
+    /// > starred repositories. An open workspace answers from its store; any
+    /// > other repository is read with one conditional request at most every 3
+    /// > minutes, only the runs the user started, and kept in memory. A workflow
+    /// > on a branch counts as failed while its newest finished run failed,
+    /// > within 7 days. At most 100 repositories are watched. Nothing is written
+    /// > to a closed workspace's database; its starts (B46) are read read-only.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ListWatchedRunsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listWatchedRuns<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ListWatchedRunsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListWatchedRunsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.listWatchedRuns(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListWatchedRunsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListWatchedRunsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "GetGitHubOrigins" method.
     ///
     /// > Source IDL Documentation:
@@ -11240,6 +11471,46 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.listPullRequests(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListWatchedRuns" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The signed-in user's failed and running runs in the repositories the
+    /// > app watches (B39): its registered workspaces linked to GitHub and its
+    /// > starred repositories. An open workspace answers from its store; any
+    /// > other repository is read with one conditional request at most every 3
+    /// > minutes, only the runs the user started, and kept in memory. A workflow
+    /// > on a branch counts as failed while its newest finished run failed,
+    /// > within 7 days. At most 100 repositories are watched. Nothing is written
+    /// > to a closed workspace's database; its starts (B46) are read read-only.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listWatchedRuns<Result>(
+        _ message: Runnir_Core_V1_ListWatchedRunsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListWatchedRunsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ListWatchedRunsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.listWatchedRuns(
             request: request,
             options: options,
             onResponse: handleResponse
