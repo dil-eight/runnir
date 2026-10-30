@@ -24,6 +24,7 @@ import (
 	"runnir/core/internal/repository"
 	"runnir/core/internal/store"
 	"runnir/core/internal/validate"
+	"runnir/core/internal/watch"
 	"runnir/core/internal/workspace"
 )
 
@@ -38,7 +39,10 @@ type service struct {
 	workspaces *workspace.Runtimes
 	// accounts holds github.com and the Enterprise servers, each with its
 	// own token and client.
-	accounts     *github.Accounts
+	accounts *github.Accounts
+	// watcher reads the user's runs of the repositories the menu bar
+	// watches (B39).
+	watcher      *watch.Watcher
 	dispatches   *dispatch.Store
 	runActions   *approval.Store[runAction]
 	tools        toolChecker

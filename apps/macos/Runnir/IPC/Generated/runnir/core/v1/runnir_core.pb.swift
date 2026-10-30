@@ -2256,6 +2256,134 @@ nonisolated struct Runnir_Core_V1_PullRequest: Sendable {
   fileprivate var _closedAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
 }
 
+nonisolated struct Runnir_Core_V1_ListWatchedRunsRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// In the order the app watches them: workspaces' repositories first,
+  /// then starred ones. At most 1000.
+  var repositories: [Runnir_Core_V1_WatchedRepository] = []
+
+  /// Read every repository again, however recently it was read.
+  var refresh: Bool = false
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_WatchedRepository: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// Server id; empty is github.com.
+  var githubServer: String = String()
+
+  /// "owner/name".
+  var repository: String = String()
+
+  /// The registered workspaces linked to the repository, the one a click
+  /// opens first; empty for a starred repository without one.
+  var workspaceIds: [String] = []
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_ListWatchedRunsResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// One per repository, in the order of the request.
+  var repositories: [Runnir_Core_V1_WatchedRuns] = []
+
+  /// Servers read no further until a time, to keep their rate limit.
+  var pauses: [Runnir_Core_V1_ServerPause] = []
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_WatchedRuns: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var repository: Runnir_Core_V1_WatchedRepository {
+    get {_repository ?? Runnir_Core_V1_WatchedRepository()}
+    set {_repository = newValue}
+  }
+  /// Returns true if `repository` has been explicitly set.
+  var hasRepository: Bool {self._repository != nil}
+  /// Clears the value of `repository`. Subsequent reads from it will return its default value.
+  mutating func clearRepository() {self._repository = nil}
+
+  var status: Runnir_Core_V1_GitHubStatus {
+    get {_status ?? Runnir_Core_V1_GitHubStatus()}
+    set {_status = newValue}
+  }
+  /// Returns true if `status` has been explicitly set.
+  var hasStatus: Bool {self._status != nil}
+  /// Clears the value of `status`. Subsequent reads from it will return its default value.
+  mutating func clearStatus() {self._status = nil}
+
+  /// False beyond the first 100: nothing was read.
+  var watched: Bool = false
+
+  /// Newest first by updated_at.
+  var failed: [Runnir_Core_V1_WorkflowRun] = []
+
+  /// Newest first by created_at.
+  var running: [Runnir_Core_V1_WorkflowRun] = []
+
+  /// When the runs were read; unset for never.
+  var readAt: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {_readAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_readAt = newValue}
+  }
+  /// Returns true if `readAt` has been explicitly set.
+  var hasReadAt: Bool {self._readAt != nil}
+  /// Clears the value of `readAt`. Subsequent reads from it will return its default value.
+  mutating func clearReadAt() {self._readAt = nil}
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _repository: Runnir_Core_V1_WatchedRepository? = nil
+  fileprivate var _status: Runnir_Core_V1_GitHubStatus? = nil
+  fileprivate var _readAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+}
+
+nonisolated struct Runnir_Core_V1_ServerPause: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// Server id; empty is github.com.
+  var githubServer: String = String()
+
+  var until: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {_until ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_until = newValue}
+  }
+  /// Returns true if `until` has been explicitly set.
+  var hasUntil: Bool {self._until != nil}
+  /// Clears the value of `until`. Subsequent reads from it will return its default value.
+  mutating func clearUntil() {self._until = nil}
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _until: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+}
+
 nonisolated struct Runnir_Core_V1_GetGitHubOriginsRequest: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -2646,8 +2774,8 @@ nonisolated struct Runnir_Core_V1_WorkflowRun: @unchecked Sendable {
   }
 
   /// The attempts Runnir started on this Mac, oldest first, up to
-  /// run_attempt (B46). Set in workspace activity, SearchRuns and
-  /// SearchRunsOnGitHub; empty elsewhere.
+  /// run_attempt (B46). Set in workspace activity, SearchRuns,
+  /// SearchRunsOnGitHub and ListWatchedRuns; empty elsewhere.
   var runnirStarts: [Runnir_Core_V1_RunnirStart] {
     get {_storage._runnirStarts}
     set {_uniqueStorage()._runnirStarts = newValue}
@@ -7134,6 +7262,214 @@ nonisolated extension Runnir_Core_V1_PullRequest: SwiftProtobuf.Message, SwiftPr
     if lhs.ciFailed != rhs.ciFailed {return false}
     if lhs.ciRunning != rhs.ciRunning {return false}
     if lhs.ciURL != rhs.ciURL {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ListWatchedRunsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ListWatchedRunsRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}repositories\0\u{1}refresh\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeRepeatedMessageField(value: &self.repositories) }()
+      case 2: try { try decoder.decodeSingularBoolField(value: &self.refresh) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.repositories.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.repositories, fieldNumber: 1)
+    }
+    if self.refresh != false {
+      try visitor.visitSingularBoolField(value: self.refresh, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ListWatchedRunsRequest, rhs: Runnir_Core_V1_ListWatchedRunsRequest) -> Bool {
+    if lhs.repositories != rhs.repositories {return false}
+    if lhs.refresh != rhs.refresh {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_WatchedRepository: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".WatchedRepository"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}github_server\0\u{1}repository\0\u{3}workspace_ids\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.githubServer) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.repository) }()
+      case 3: try { try decoder.decodeRepeatedStringField(value: &self.workspaceIds) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.githubServer.isEmpty {
+      try visitor.visitSingularStringField(value: self.githubServer, fieldNumber: 1)
+    }
+    if !self.repository.isEmpty {
+      try visitor.visitSingularStringField(value: self.repository, fieldNumber: 2)
+    }
+    if !self.workspaceIds.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.workspaceIds, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_WatchedRepository, rhs: Runnir_Core_V1_WatchedRepository) -> Bool {
+    if lhs.githubServer != rhs.githubServer {return false}
+    if lhs.repository != rhs.repository {return false}
+    if lhs.workspaceIds != rhs.workspaceIds {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ListWatchedRunsResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ListWatchedRunsResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}repositories\0\u{1}pauses\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeRepeatedMessageField(value: &self.repositories) }()
+      case 2: try { try decoder.decodeRepeatedMessageField(value: &self.pauses) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.repositories.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.repositories, fieldNumber: 1)
+    }
+    if !self.pauses.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.pauses, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ListWatchedRunsResponse, rhs: Runnir_Core_V1_ListWatchedRunsResponse) -> Bool {
+    if lhs.repositories != rhs.repositories {return false}
+    if lhs.pauses != rhs.pauses {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_WatchedRuns: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".WatchedRuns"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}repository\0\u{1}status\0\u{1}watched\0\u{1}failed\0\u{1}running\0\u{3}read_at\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularMessageField(value: &self._repository) }()
+      case 2: try { try decoder.decodeSingularMessageField(value: &self._status) }()
+      case 3: try { try decoder.decodeSingularBoolField(value: &self.watched) }()
+      case 4: try { try decoder.decodeRepeatedMessageField(value: &self.failed) }()
+      case 5: try { try decoder.decodeRepeatedMessageField(value: &self.running) }()
+      case 6: try { try decoder.decodeSingularMessageField(value: &self._readAt) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    try { if let v = self._repository {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+    } }()
+    try { if let v = self._status {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+    } }()
+    if self.watched != false {
+      try visitor.visitSingularBoolField(value: self.watched, fieldNumber: 3)
+    }
+    if !self.failed.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.failed, fieldNumber: 4)
+    }
+    if !self.running.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.running, fieldNumber: 5)
+    }
+    try { if let v = self._readAt {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_WatchedRuns, rhs: Runnir_Core_V1_WatchedRuns) -> Bool {
+    if lhs._repository != rhs._repository {return false}
+    if lhs._status != rhs._status {return false}
+    if lhs.watched != rhs.watched {return false}
+    if lhs.failed != rhs.failed {return false}
+    if lhs.running != rhs.running {return false}
+    if lhs._readAt != rhs._readAt {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ServerPause: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ServerPause"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}github_server\0\u{1}until\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.githubServer) }()
+      case 2: try { try decoder.decodeSingularMessageField(value: &self._until) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if !self.githubServer.isEmpty {
+      try visitor.visitSingularStringField(value: self.githubServer, fieldNumber: 1)
+    }
+    try { if let v = self._until {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ServerPause, rhs: Runnir_Core_V1_ServerPause) -> Bool {
+    if lhs.githubServer != rhs.githubServer {return false}
+    if lhs._until != rhs._until {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

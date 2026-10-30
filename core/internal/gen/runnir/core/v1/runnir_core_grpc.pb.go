@@ -53,6 +53,7 @@ const (
 	RunnirCore_ClearGitHubCredential_FullMethodName     = "/runnir.core.v1.RunnirCore/ClearGitHubCredential"
 	RunnirCore_CheckGitHubToken_FullMethodName          = "/runnir.core.v1.RunnirCore/CheckGitHubToken"
 	RunnirCore_ListPullRequests_FullMethodName          = "/runnir.core.v1.RunnirCore/ListPullRequests"
+	RunnirCore_ListWatchedRuns_FullMethodName           = "/runnir.core.v1.RunnirCore/ListWatchedRuns"
 	RunnirCore_GetGitHubOrigins_FullMethodName          = "/runnir.core.v1.RunnirCore/GetGitHubOrigins"
 	RunnirCore_ListGitHubRepositories_FullMethodName    = "/runnir.core.v1.RunnirCore/ListGitHubRepositories"
 	RunnirCore_ListGitHubWorkflows_FullMethodName       = "/runnir.core.v1.RunnirCore/ListGitHubWorkflows"
@@ -168,6 +169,15 @@ type RunnirCoreClient interface {
 	// GitHub Actions runs on its head commit, and those closed since a time,
 	// newest first, at most 50 of each, read through GitHub's search.
 	ListPullRequests(ctx context.Context, in *ListPullRequestsRequest, opts ...grpc.CallOption) (*ListPullRequestsResponse, error)
+	// The signed-in user's failed and running runs in the repositories the
+	// app watches (B39): its registered workspaces linked to GitHub and its
+	// starred repositories. An open workspace answers from its store; any
+	// other repository is read with one conditional request at most every 3
+	// minutes, only the runs the user started, and kept in memory. A workflow
+	// on a branch counts as failed while its newest finished run failed,
+	// within 7 days. At most 100 repositories are watched. Nothing is written
+	// to a closed workspace's database; its starts (B46) are read read-only.
+	ListWatchedRuns(ctx context.Context, in *ListWatchedRunsRequest, opts ...grpc.CallOption) (*ListWatchedRunsResponse, error)
 	// The github.com repository each folder's origin points at, read from git's
 	// metadata only, without opening the repositories: lets the app match its
 	// registered working trees to GitHub repositories. At most 500 paths.
@@ -551,6 +561,16 @@ func (c *runnirCoreClient) ListPullRequests(ctx context.Context, in *ListPullReq
 	return out, nil
 }
 
+func (c *runnirCoreClient) ListWatchedRuns(ctx context.Context, in *ListWatchedRunsRequest, opts ...grpc.CallOption) (*ListWatchedRunsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWatchedRunsResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ListWatchedRuns_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnirCoreClient) GetGitHubOrigins(ctx context.Context, in *GetGitHubOriginsRequest, opts ...grpc.CallOption) (*GetGitHubOriginsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetGitHubOriginsResponse)
@@ -889,6 +909,15 @@ type RunnirCoreServer interface {
 	// GitHub Actions runs on its head commit, and those closed since a time,
 	// newest first, at most 50 of each, read through GitHub's search.
 	ListPullRequests(context.Context, *ListPullRequestsRequest) (*ListPullRequestsResponse, error)
+	// The signed-in user's failed and running runs in the repositories the
+	// app watches (B39): its registered workspaces linked to GitHub and its
+	// starred repositories. An open workspace answers from its store; any
+	// other repository is read with one conditional request at most every 3
+	// minutes, only the runs the user started, and kept in memory. A workflow
+	// on a branch counts as failed while its newest finished run failed,
+	// within 7 days. At most 100 repositories are watched. Nothing is written
+	// to a closed workspace's database; its starts (B46) are read read-only.
+	ListWatchedRuns(context.Context, *ListWatchedRunsRequest) (*ListWatchedRunsResponse, error)
 	// The github.com repository each folder's origin points at, read from git's
 	// metadata only, without opening the repositories: lets the app match its
 	// registered working trees to GitHub repositories. At most 500 paths.
@@ -1066,6 +1095,9 @@ func (UnimplementedRunnirCoreServer) CheckGitHubToken(context.Context, *CheckGit
 }
 func (UnimplementedRunnirCoreServer) ListPullRequests(context.Context, *ListPullRequestsRequest) (*ListPullRequestsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListPullRequests not implemented")
+}
+func (UnimplementedRunnirCoreServer) ListWatchedRuns(context.Context, *ListWatchedRunsRequest) (*ListWatchedRunsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListWatchedRuns not implemented")
 }
 func (UnimplementedRunnirCoreServer) GetGitHubOrigins(context.Context, *GetGitHubOriginsRequest) (*GetGitHubOriginsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetGitHubOrigins not implemented")
@@ -1660,6 +1692,24 @@ func _RunnirCore_ListPullRequests_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_ListWatchedRuns_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWatchedRunsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ListWatchedRuns(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ListWatchedRuns_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ListWatchedRuns(ctx, req.(*ListWatchedRunsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnirCore_GetGitHubOrigins_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetGitHubOriginsRequest)
 	if err := dec(in); err != nil {
@@ -2224,6 +2274,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListPullRequests",
 			Handler:    _RunnirCore_ListPullRequests_Handler,
+		},
+		{
+			MethodName: "ListWatchedRuns",
+			Handler:    _RunnirCore_ListWatchedRuns_Handler,
 		},
 		{
 			MethodName: "GetGitHubOrigins",
