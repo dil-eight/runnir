@@ -4,19 +4,16 @@ import SwiftUI
 struct RunnirApp: App {
     @NSApplicationDelegateAdaptor(DesktopAppDelegate.self) private var delegate
 
-    /// The logo glyph, with a dot when a check failed or runs, dimmed
-    /// while no account is signed in.
+    /// The logo glyph, with a dot when a check or a run failed or runs,
+    /// dimmed while no account is signed in.
     private var menuBarImage: NSImage {
         let signedIn = delegate.github.user != nil || !delegate.coreHub.signedInServers.isEmpty
-        return MenuBarIcon.image(badge: MenuBarIcon.badge(for: delegate.desktop.pullRequests.worstCI), dimmed: !signedIn)
+        let badge = MenuBarIcon.badge(for: delegate.desktop.pullRequests.worstCI, runs: delegate.desktop.watchedRuns.badge)
+        return MenuBarIcon.image(badge: badge, dimmed: !signedIn)
     }
 
     private var menuBarLabel: String {
-        switch delegate.desktop.pullRequests.worstCI {
-        case .failed: "Runnir pull requests, a check failed"
-        case .running: "Runnir pull requests, checks running"
-        default: "Runnir pull requests"
-        }
+        MenuBarIcon.accessibilityLabel(checks: delegate.desktop.pullRequests.worstCI, runs: delegate.desktop.watchedRuns.badge)
     }
 
     private var shortcutText: String? {
