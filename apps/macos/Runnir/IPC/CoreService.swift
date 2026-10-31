@@ -216,6 +216,9 @@ protocol CoreServicing: Sendable {
     /// The user's open pull requests on one server with their CI, and those
     /// closed since.
     func listPullRequests(server: String, closedSince: Date) async throws -> CorePullRequests
+    /// The user's failed and running runs of the watched repositories, one
+    /// answer per repository in the order sent.
+    func listWatchedRuns(_ repositories: [CoreWatchedRepository], refresh: Bool) async throws -> CoreWatchedRunsList
     /// The repository each working tree's origin points at, on github.com or
     /// an Enterprise server the Core holds, by path; read from git's
     /// metadata without opening them.

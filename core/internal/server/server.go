@@ -22,6 +22,7 @@ import (
 	"runnir/core/internal/repository"
 	"runnir/core/internal/scanner"
 	"runnir/core/internal/tools"
+	"runnir/core/internal/watch"
 	"runnir/core/internal/workspace"
 )
 
@@ -145,9 +146,11 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 		grpc.UnaryInterceptor(authUnary(options.ClientSecret)),
 		grpc.StreamInterceptor(authStream(options.ClientSecret)),
 	)
+	accounts := github.NewAccounts(options.GitHubBaseURL, buildinfo.Version)
 	corev1.RegisterRunnirCoreServer(grpcServer, &service{
 		repositories: repositories, events: bus, executions: executions, workspaces: workspaces,
-		accounts:     github.NewAccounts(options.GitHubBaseURL, buildinfo.Version),
+		accounts:     accounts,
+		watcher:      watch.New(accounts, workspaces, time.Now),
 		dispatches:   dispatch.NewStore(0, nil),
 		runActions:   approval.NewStore[runAction]("action_", 0, nil),
 		tools:        checker,

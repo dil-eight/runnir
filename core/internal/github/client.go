@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -27,6 +28,9 @@ var (
 	ErrPermissionMissing = errors.New("Runnir Desktop or the user lacks the permission")
 	ErrUnavailable       = errors.New("GitHub is unavailable")
 	ErrInvalid           = errors.New("unexpected GitHub response")
+	// ErrUnreachable is ErrUnavailable without any answer: the server could
+	// not be reached or did not answer in time.
+	ErrUnreachable = fmt.Errorf("%w: no answer", ErrUnavailable)
 	// ErrNotModified is a conditional read's answer when nothing changed
 	// (HTTP 304). GitHub does not count it against the rate limit.
 	ErrNotModified = errors.New("not modified")
@@ -62,6 +66,71 @@ type Client struct {
 	baseURL    string
 	http       *http.Client
 	userAgent  string
+
+	mu sync.Mutex
+	// rate is the core rate limit of the latest answer that said it.
+	rate RateLimit
+	// login is the user's login, read with the token of loginFor.
+	login    string
+	loginFor uint64
+}
+
+// RateLimit is what GitHub said of the core rate limit in an answer; Limit
+// is 0 when no answer said it (an Enterprise server without rate limits).
+type RateLimit struct {
+	Remaining int
+	Limit     int
+	Reset     time.Time
+}
+
+// RateLimit returns the core rate limit GitHub reported last.
+func (c *Client) RateLimit() RateLimit {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.rate
+}
+
+// noteRateLimit keeps the core rate limit an answer reports. Search and
+// GraphQL have limits of their own and are not kept.
+func (c *Client) noteRateLimit(header http.Header) {
+	if resource := header.Get("X-RateLimit-Resource"); resource != "" && resource != "core" {
+		return
+	}
+	limit, limitErr := strconv.Atoi(header.Get("X-RateLimit-Limit"))
+	remaining, remainingErr := strconv.Atoi(header.Get("X-RateLimit-Remaining"))
+	reset, resetErr := strconv.ParseInt(header.Get("X-RateLimit-Reset"), 10, 64)
+	if limitErr != nil || remainingErr != nil || resetErr != nil || limit <= 0 {
+		return
+	}
+	c.mu.Lock()
+	c.rate = RateLimit{Remaining: remaining, Limit: limit, Reset: time.Unix(reset, 0)}
+	c.mu.Unlock()
+}
+
+// Login is the signed-in user's login, read with GET /user once per token
+// and kept until the token changes.
+func (c *Client) Login(ctx context.Context) (string, error) {
+	generation := c.credential.Generation()
+	c.mu.Lock()
+	if c.login != "" && c.loginFor == generation {
+		login := c.login
+		c.mu.Unlock()
+		return login, nil
+	}
+	c.mu.Unlock()
+	var user struct {
+		Login string `json:"login"`
+	}
+	if err := c.get(ctx, "/user", nil, &user); err != nil {
+		return "", err
+	}
+	if user.Login == "" {
+		return "", ErrInvalid
+	}
+	c.mu.Lock()
+	c.login, c.loginFor = user.Login, generation
+	c.mu.Unlock()
+	return user.Login, nil
 }
 
 // errCrossOriginRedirect ends a request GitHub redirected to another origin,
@@ -278,13 +347,23 @@ func (c *Client) RunsQuery(ctx context.Context, owner, name string, filters url.
 // RunsIfChanged reads the newest runs like Runs; with etag set GitHub
 // answers ErrNotModified when they did not change. It returns the new ETag.
 func (c *Client) RunsIfChanged(ctx context.Context, owner, name string, limit int, etag string) ([]Run, string, error) {
+	return c.runsIfChanged(ctx, owner, name, url.Values{}, limit, etag)
+}
+
+// ActorRunsIfChanged is RunsIfChanged for the runs actor started.
+func (c *Client) ActorRunsIfChanged(ctx context.Context, owner, name, actor string, limit int, etag string) ([]Run, string, error) {
+	return c.runsIfChanged(ctx, owner, name, url.Values{"actor": {actor}}, limit, etag)
+}
+
+func (c *Client) runsIfChanged(ctx context.Context, owner, name string, query url.Values, limit int, etag string) ([]Run, string, error) {
 	if limit <= 0 || limit > maxRuns {
 		limit = maxRuns
 	}
+	query.Set("per_page", strconv.Itoa(limit))
 	var body struct {
 		WorkflowRuns []runJSON `json:"workflow_runs"`
 	}
-	tag, err := c.getConditional(ctx, repoPath(owner, name, "/actions/runs"), url.Values{"per_page": {strconv.Itoa(limit)}}, etag, &body)
+	tag, err := c.getConditional(ctx, repoPath(owner, name, "/actions/runs"), query, etag, &body)
 	if err != nil {
 		return nil, "", err
 	}
@@ -561,9 +640,10 @@ func (c *Client) exchangeWith(ctx context.Context, method, path string, query ur
 		if ctx.Err() != nil {
 			return nil, 0, nil, ctx.Err()
 		}
-		return nil, 0, nil, ErrUnavailable
+		return nil, 0, nil, ErrUnreachable
 	}
 	defer response.Body.Close()
+	c.noteRateLimit(response.Header)
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes+1))
 	if err != nil {
 		return nil, response.StatusCode, response.Header, ErrUnavailable

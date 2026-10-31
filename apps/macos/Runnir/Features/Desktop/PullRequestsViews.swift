@@ -1,15 +1,17 @@
 import AppKit
 import SwiftUI
 
-// MARK: Dismissed pull requests
+// MARK: Dismissed items
 
-/// dismissed-pull-requests.json in the app's support directory: closed pull
-/// requests removed from the menu, by link, with when. Entries older than a
-/// week are dropped, since the menu shows only the last day.
-struct FileDismissedPullRequestsStore: Sendable {
-    let directory: URL
-    var fileURL: URL { directory.appendingPathComponent("dismissed-pull-requests.json") }
+/// A JSON file in the app's support directory of items removed from a menu
+/// bar list, by key, with when: closed pull requests in
+/// dismissed-pull-requests.json, failed runs in dismissed-runs.json.
+/// Entries older than a week are dropped.
+struct FileDismissalStore: Sendable {
+    let fileURL: URL
 
+    static let pullRequestsFile = "dismissed-pull-requests.json"
+    static let runsFile = "dismissed-runs.json"
     static let maxEntries = 1000
     static let maxFileBytes = 256 * 1024
     static let keepFor: TimeInterval = 7 * 24 * 3600
@@ -19,8 +21,12 @@ struct FileDismissedPullRequestsStore: Sendable {
         var dismissed: [String: Date]
     }
 
-    static func live() throws -> FileDismissedPullRequestsStore {
-        FileDismissedPullRequestsStore(directory: try RunnirSupportDirectory.url())
+    init(directory: URL, fileName: String) {
+        fileURL = directory.appendingPathComponent(fileName)
+    }
+
+    static func live(_ fileName: String) throws -> FileDismissalStore {
+        FileDismissalStore(directory: try RunnirSupportDirectory.url(), fileName: fileName)
     }
 
     func load() throws -> [String: Date] {
@@ -57,7 +63,7 @@ final class PullRequestsModel {
     private(set) var loadedAt: Date?
     private(set) var isLoading = false
     private(set) var dismissed: [String: Date] = [:]
-    @ObservationIgnored private let store: FileDismissedPullRequestsStore?
+    @ObservationIgnored private let store: FileDismissalStore?
     @ObservationIgnored private var poll: Task<Void, Never>?
     @ObservationIgnored var now: () -> Date = Date.init
     /// An open pull request's checks finished since the last read.
@@ -67,10 +73,10 @@ final class PullRequestsModel {
     static let pollInterval: Duration = .seconds(180)
     static let staleAfter: TimeInterval = 60
 
-    init(store: FileDismissedPullRequestsStore?) {
+    init(store: FileDismissalStore?) {
         self.store = store
         let loaded = (try? store?.load()) ?? [:]
-        let cutoff = Date().addingTimeInterval(-FileDismissedPullRequestsStore.keepFor)
+        let cutoff = Date().addingTimeInterval(-FileDismissalStore.keepFor)
         dismissed = loaded.filter { $0.value > cutoff }
     }
 
@@ -124,7 +130,7 @@ final class PullRequestsModel {
     func dismiss(_ pullRequest: CorePullRequest) {
         var candidate = dismissed
         candidate[pullRequest.id] = now()
-        let cutoff = now().addingTimeInterval(-FileDismissedPullRequestsStore.keepFor)
+        let cutoff = now().addingTimeInterval(-FileDismissalStore.keepFor)
         candidate = candidate.filter { $0.value > cutoff }
         try? store?.save(candidate)
         dismissed = candidate
@@ -248,9 +254,7 @@ struct PullRequestRow: View {
 
     @ViewBuilder private var trailing: some View {
         if let dismiss {
-            // A 28-point target with its own hover, so a near miss removes
-            // instead of opening the pull request under it.
-            RemoveButton(action: dismiss)
+            ListRemoveButton(action: dismiss)
                 .opacity(hovering ? 1 : 0)
                 .padding(.top, -6).padding(.trailing, -6)
                 .help("Remove from this list")
@@ -261,22 +265,6 @@ struct PullRequestRow: View {
                 .frame(width: 14).padding(.top, 2)
                 .opacity(hovering ? 1 : 0)
                 .accessibilityHidden(true)
-        }
-    }
-
-    private struct RemoveButton: View {
-        let action: () -> Void
-        @State private var hovering = false
-
-        var body: some View {
-            Button(action: action) {
-                Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(hovering ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
-                    .frame(width: 28, height: 28)
-                    .background(Circle().fill(hovering ? RunnirTheme.secondary : .clear).frame(width: 22, height: 22))
-            }
-            .buttonStyle(.hit)
-            .onHover { hovering = $0 }
         }
     }
 
@@ -336,6 +324,58 @@ struct PullRequestRow: View {
     }
 }
 
+/// A count with a symbol above a menu bar list: "2 failing", "3 running".
+struct ListChip: View {
+    let symbol: String
+    let label: String
+    let tint: Color
+    let background: Color
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol).font(.system(size: 10))
+            Text(label).font(.system(size: 11, weight: .medium))
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 8).padding(.vertical, 3)
+        .background(Capsule().fill(background))
+    }
+}
+
+/// A section's title and count in a menu bar list.
+struct ListSectionHeader: View {
+    let title: String
+    let count: Int
+    let inset: CGFloat
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(title).font(.system(size: 10, weight: .semibold)).tracking(0.8).foregroundStyle(RunnirTheme.secondaryForeground)
+            Text("\(count)").font(.system(size: 10, weight: .semibold)).foregroundStyle(RunnirTheme.mutedForeground)
+        }
+        .padding(.horizontal, inset).padding(.top, 10).padding(.bottom, 4)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// Removes a row from a menu bar list: a 28-point target with its own
+/// hover, so a near miss removes instead of opening the row under it.
+struct ListRemoveButton: View {
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(hovering ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(hovering ? RunnirTheme.secondary : .clear).frame(width: 22, height: 22))
+        }
+        .buttonStyle(.hit)
+        .onHover { hovering = $0 }
+    }
+}
+
 /// What the list shows: signed out, checking the saved sign-in, or lists.
 enum PullRequestsListState: Equatable {
     case restoring, signedOut, lists
@@ -383,13 +423,13 @@ struct PullRequestsList: View {
         if model.headsUnreadable { headsNote.padding(.horizontal, inset).padding(.bottom, 10) }
         summary
         DesignDivider()
-        sectionHeader("OPEN", count: model.open.count)
+        ListSectionHeader(title: "OPEN", count: model.open.count, inset: inset)
         if model.open.isEmpty {
             nothingOpen
         }
         ForEach(model.open) { PullRequestRow(pullRequest: $0, serverHost: host(of: $0)).padding(.horizontal, inset - 8) }
         if !model.closed.isEmpty {
-            sectionHeader("CLOSED TODAY", count: model.closed.count)
+            ListSectionHeader(title: "CLOSED TODAY", count: model.closed.count, inset: inset)
             ForEach(model.closed) { pr in
                 PullRequestRow(pullRequest: pr, serverHost: host(of: pr)) { model.dismiss(pr) }.padding(.horizontal, inset - 8)
             }
@@ -454,32 +494,13 @@ struct PullRequestsList: View {
         let passed = model.open.count { $0.ci == .passed }
         if failing + running + passed > 0 {
             HStack(spacing: 6) {
-                if failing > 0 { chip("xmark.circle.fill", "\(failing) failing", RunnirTheme.destructive, PullRequestColors.failedSoft) }
-                if running > 0 { chip("arrow.triangle.2.circlepath", "\(running) running", PullRequestColors.running, PullRequestColors.runningSoft) }
-                if passed > 0 { chip("checkmark.circle.fill", "\(passed) passed", RunnirTheme.success, PullRequestColors.passedSoft) }
+                if failing > 0 { ListChip(symbol: "xmark.circle.fill", label: "\(failing) failing", tint: RunnirTheme.destructive, background: PullRequestColors.failedSoft) }
+                if running > 0 { ListChip(symbol: "arrow.triangle.2.circlepath", label: "\(running) running", tint: PullRequestColors.running, background: PullRequestColors.runningSoft) }
+                if passed > 0 { ListChip(symbol: "checkmark.circle.fill", label: "\(passed) passed", tint: RunnirTheme.success, background: PullRequestColors.passedSoft) }
             }
             .padding(.horizontal, inset).padding(.bottom, 12)
             .accessibilityElement(children: .combine)
         }
-    }
-
-    private func chip(_ symbol: String, _ label: String, _ tint: Color, _ background: Color) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: symbol).font(.system(size: 10))
-            Text(label).font(.system(size: 11, weight: .medium))
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, 8).padding(.vertical, 3)
-        .background(Capsule().fill(background))
-    }
-
-    private func sectionHeader(_ title: String, count: Int) -> some View {
-        HStack(spacing: 6) {
-            Text(title).font(.system(size: 10, weight: .semibold)).tracking(0.8).foregroundStyle(RunnirTheme.secondaryForeground)
-            Text("\(count)").font(.system(size: 10, weight: .semibold)).foregroundStyle(RunnirTheme.mutedForeground)
-        }
-        .padding(.horizontal, inset).padding(.top, 10).padding(.bottom, 4)
-        .accessibilityAddTraits(.isHeader)
     }
 
     @ViewBuilder private var nothingOpen: some View {
@@ -548,11 +569,13 @@ struct PullRequestsSignedOut: View {
     }
 }
 
-/// The menu bar item's window (S19).
+/// The menu bar item's window (S19): Pull requests and Runs (B39), one
+/// control switching them.
 struct PullRequestsMenu: View {
     let model: PullRequestsModel
     let desktop: DesktopCoordinator
     let shortcut: String?
+    @AppStorage(MenuListTab.defaultsKey) private var tab: MenuListTab = .pullRequests
     /// The list's own height: a scroll view in the menu bar window has none
     /// and would show nothing.
     @State private var listHeight: CGFloat = 0
@@ -560,13 +583,21 @@ struct PullRequestsMenu: View {
     static let maxListHeight: CGFloat = 460
 
     private var signedOut: Bool { PullRequestsListState.of(desktop) != .lists }
+    private var runs: WatchedRunsModel { desktop.watchedRuns }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             ScrollView {
-                PullRequestsList(model: model, desktop: desktop).frame(maxWidth: .infinity, alignment: .leading)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
+                Group {
+                    if tab == .runs {
+                        WatchedRunsList(model: runs, desktop: desktop)
+                    } else {
+                        PullRequestsList(model: model, desktop: desktop)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
             }
             .frame(height: min(max(listHeight, 16), Self.maxListHeight))
             DesignDivider()
@@ -577,32 +608,47 @@ struct PullRequestsMenu: View {
         // the wallpaper through and the list becomes hard to read.
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
-        .task { if let hub = desktop.core { await model.refreshIfStale(hub: hub) } }
+        // Both lists feed the menu bar icon.
+        .task {
+            if let hub = desktop.core {
+                async let pullRequests: Void = model.refreshIfStale(hub: hub)
+                async let watched: Void = runs.refreshIfStale(hub: hub)
+                _ = await (pullRequests, watched)
+            }
+        }
     }
 
     private var header: some View {
-        HStack(spacing: 4) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Pull Requests").font(.system(size: 13, weight: .semibold))
+        HStack(alignment: .top, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
+                MenuListTabPicker(tab: $tab, failedCount: runs.failed.count)
                 TimelineView(.periodic(from: .now, by: 15)) { _ in
                     Text(updatedText).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
             }
             Spacer()
             if !signedOut, let hub = desktop.core {
-                iconButton("arrow.clockwise", help: "Read pull requests again") { Task { await model.refresh(hub: hub) } }
-                    .disabled(model.isLoading)
-                iconButton("macwindow", help: "Open the Pull Requests window") { desktop.showPullRequests() }
+                iconButton("arrow.clockwise", help: tab == .runs ? "Read runs again" : "Read pull requests again") {
+                    Task { await refresh(hub) }
+                }
+                .disabled(tab == .runs ? runs.isLoading : model.isLoading)
+                iconButton("macwindow", help: "Open the \(tab.title) window") { desktop.showPullRequests() }
             }
         }
-        .padding(.top, 14).padding(.bottom, 10).padding(.leading, 16).padding(.trailing, 12)
+        .padding(.top, 12).padding(.bottom, 10).padding(.leading, 16).padding(.trailing, 12)
+    }
+
+    private func refresh(_ hub: CoreHub) async {
+        if tab == .runs { await runs.refresh(hub: hub, force: true) } else { await model.refresh(hub: hub) }
     }
 
     private var updatedText: String {
         if signedOut { return "Not connected" }
-        guard let loaded = model.loadedAt else { return model.isLoading ? "Reading..." : "Not read yet" }
-        if Date().timeIntervalSince(loaded) < 30 { return "Updated just now" }
-        return "Updated " + loaded.formatted(.relative(presentation: .named))
+        let loadedAt = tab == .runs ? runs.loadedAt : model.loadedAt
+        let isLoading = tab == .runs ? runs.isLoading : model.isLoading
+        guard let loaded = loadedAt else { return isLoading ? "Reading..." : "Not read yet" }
+        let when = Date().timeIntervalSince(loaded) < 30 ? "Updated just now" : "Updated " + loaded.formatted(.relative(presentation: .named))
+        return tab == .runs ? when + WatchedRunText.updated(count: runs.watched.count) : when
     }
 
     private func iconButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
@@ -621,7 +667,7 @@ struct PullRequestsMenu: View {
                 Button("Settings…") { desktop.showSettingsInFrontWindow() }.buttonStyle(.hit)
                     .foregroundStyle(RunnirTheme.secondaryForeground)
             } else {
-                Button("Open Pull Requests Window") { desktop.showPullRequests() }.buttonStyle(.link).pointerStyle(.link).fontWeight(.medium)
+                Button("Open \(tab.title) Window") { desktop.showPullRequests() }.buttonStyle(.link).pointerStyle(.link).fontWeight(.medium)
                 if let shortcut {
                     Text(shortcut).font(.system(size: 10)).foregroundStyle(RunnirTheme.secondaryForeground)
                         .padding(.horizontal, 5).padding(.vertical, 1)
@@ -629,10 +675,14 @@ struct PullRequestsMenu: View {
                         .accessibilityLabel("Shortcut \(shortcut)")
                 }
                 Spacer()
-                if !model.dismissed.isEmpty {
-                    Button("Show Removed (\(model.dismissed.count))") { model.restoreDismissed() }.buttonStyle(.hit)
-                        .foregroundStyle(RunnirTheme.secondaryForeground)
-                        .help("Bring back the closed pull requests removed from this list")
+                let removed = tab == .runs ? runs.dismissed.count : model.dismissed.count
+                if removed > 0 {
+                    Button("Show Removed (\(removed))") {
+                        if tab == .runs { runs.restoreDismissed() } else { model.restoreDismissed() }
+                    }
+                    .buttonStyle(.hit)
+                    .foregroundStyle(RunnirTheme.secondaryForeground)
+                    .help(tab == .runs ? "Bring back the runs removed from this list" : "Bring back the closed pull requests removed from this list")
                 }
             }
         }
@@ -641,38 +691,62 @@ struct PullRequestsMenu: View {
     }
 }
 
-/// The Pull Requests window, opened from the menu bar or the shortcut.
+/// The Pull Requests window, opened from the menu bar or the shortcut, with
+/// the menu's tabs; its title follows the tab.
 struct PullRequestsWindowView: View {
     let model: PullRequestsModel
     let desktop: DesktopCoordinator
+    @AppStorage(MenuListTab.defaultsKey) private var tab: MenuListTab = .pullRequests
+
+    private var runs: WatchedRunsModel { desktop.watchedRuns }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Pull Requests").font(.system(size: 15, weight: .semibold))
-                if let loaded = model.loadedAt {
+            HStack(spacing: 10) {
+                MenuListTabPicker(tab: $tab, failedCount: runs.failed.count)
+                if let loaded = tab == .runs ? runs.loadedAt : model.loadedAt {
                     // Ticks while the window stays open, not only when the list is read.
                     TimelineView(.periodic(from: .now, by: 15)) { _ in
-                        Text("updated \(loaded.formatted(.relative(presentation: .named)))")
+                        Text("updated \(loaded.formatted(.relative(presentation: .named)))"
+                             + (tab == .runs ? WatchedRunText.updated(count: runs.watched.count) : ""))
                     }
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
                 Spacer()
                 if let hub = desktop.core {
-                    Button { Task { await model.refresh(hub: hub) } } label: { Label("Refresh", systemImage: "arrow.clockwise") }
-                        .buttonStyle(DesignButtonStyle()).disabled(model.isLoading)
+                    Button {
+                        Task {
+                            if tab == .runs { await runs.refresh(hub: hub, force: true) } else { await model.refresh(hub: hub) }
+                        }
+                    } label: { Label("Refresh", systemImage: "arrow.clockwise") }
+                        .buttonStyle(DesignButtonStyle())
+                        .disabled(tab == .runs ? runs.isLoading : model.isLoading)
                 }
             }
             .padding(.horizontal, 20).padding(.top, 34).padding(.bottom, 12)
             DesignDivider()
             ScrollView {
-                PullRequestsList(model: model, desktop: desktop, inset: 20).padding(.top, 14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Group {
+                    if tab == .runs {
+                        WatchedRunsList(model: runs, desktop: desktop, inset: 20)
+                    } else {
+                        PullRequestsList(model: model, desktop: desktop, inset: 20)
+                    }
+                }
+                .padding(.top, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .frame(minWidth: 480, minHeight: 360)
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
-        .task { if let hub = desktop.core { await model.refreshIfStale(hub: hub) } }
+        .navigationTitle(tab.title)
+        .task {
+            if let hub = desktop.core {
+                async let pullRequests: Void = model.refreshIfStale(hub: hub)
+                async let watched: Void = runs.refreshIfStale(hub: hub)
+                _ = await (pullRequests, watched)
+            }
+        }
     }
 }

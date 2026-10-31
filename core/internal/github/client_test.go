@@ -185,6 +185,21 @@ func TestNoTokenMeansNoRequest(t *testing.T) {
 	}
 }
 
+func TestNoAnswerIsUnreachableAndAServerErrorIsNot(t *testing.T) {
+	failing, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(502) })
+	if _, err := failing.Runs(context.Background(), "o", "r", "", 0); !errors.Is(err, ErrUnavailable) || errors.Is(err, ErrUnreachable) {
+		t.Fatalf("502 = %v", err)
+	}
+	server := httptest.NewServer(http.NotFoundHandler())
+	server.Close()
+	credential := &Credential{}
+	_ = credential.Set("ghu_test")
+	gone := NewClient(credential, server.URL, "test")
+	if _, err := gone.Runs(context.Background(), "o", "r", "", 0); !errors.Is(err, ErrUnreachable) || !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("no server = %v", err)
+	}
+}
+
 func TestErrorsNeverContainTheToken(t *testing.T) {
 	for _, err := range []error{ErrNoCredential, ErrUnauthorized, ErrNotVisible, ErrPermissionMissing, ErrUnavailable, ErrInvalid, &RateLimitError{}} {
 		if strings.Contains(err.Error(), "ghu_") {
@@ -338,5 +353,81 @@ func TestAJobCarriesTheRunItBelongsTo(t *testing.T) {
 	job, err := client.Job(context.Background(), "o", "r", 5)
 	if err != nil || job.RunID != 9 || job.RunAttempt != 3 {
 		t.Fatalf("job = %+v, %v", job, err)
+	}
+}
+
+func TestTheCoreRateLimitOfTheLatestAnswerIsKept(t *testing.T) {
+	reset := time.Date(2026, 10, 29, 13, 0, 0, 0, time.UTC)
+	client, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		resource, remaining := "core", "4200"
+		if r.URL.Path == "/search/issues" {
+			resource, remaining = "search", "3"
+		}
+		w.Header().Set("X-RateLimit-Resource", resource)
+		w.Header().Set("X-RateLimit-Limit", "5000")
+		w.Header().Set("X-RateLimit-Remaining", remaining)
+		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(reset.Unix(), 10))
+		_, _ = w.Write([]byte(`{"workflow_runs":[],"items":[],"total_count":0}`))
+	})
+	if got := client.RateLimit(); got.Limit != 0 {
+		t.Fatalf("before any answer = %+v", got)
+	}
+	if _, err := client.Runs(context.Background(), "o", "r", "", 10); err != nil {
+		t.Fatal(err)
+	}
+	var out struct{}
+	_ = client.get(context.Background(), "/search/issues", nil, &out)
+	got := client.RateLimit()
+	if got.Limit != 5000 || got.Remaining != 4200 || !got.Reset.Equal(reset) {
+		t.Fatalf("rate limit = %+v, want the core one", got)
+	}
+}
+
+func TestTheLoginIsReadOncePerToken(t *testing.T) {
+	users := 0
+	client, credential := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		users++
+		if r.Header.Get("Authorization") == "Bearer ghu_other" {
+			_, _ = w.Write([]byte(`{"login":"bo"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"login":"ana"}`))
+	})
+	for range 2 {
+		if login, err := client.Login(context.Background()); err != nil || login != "ana" {
+			t.Fatalf("login = %q, %v", login, err)
+		}
+	}
+	if users != 1 {
+		t.Fatalf("GET /user = %d", users)
+	}
+	_ = credential.Set("ghu_test") // the same token again
+	_, _ = client.Login(context.Background())
+	if users != 1 {
+		t.Fatal("the same token is not read again")
+	}
+	_ = credential.Set("ghu_other")
+	if login, _ := client.Login(context.Background()); login != "bo" || users != 2 {
+		t.Fatalf("after a new token = %q, %d", login, users)
+	}
+}
+
+func TestRunsOfAnActorAreAskedWithAnETag(t *testing.T) {
+	var query, sent string
+	client, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		query, sent = r.URL.RawQuery, r.Header.Get("If-None-Match")
+		if sent == `"v1"` {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("ETag", `"v1"`)
+		_, _ = w.Write([]byte(`{"workflow_runs":[{"id":7,"status":"completed","conclusion":"failure","actor":{"login":"ana"}}]}`))
+	})
+	runs, tag, err := client.ActorRunsIfChanged(context.Background(), "o", "r", "ana", 50, "")
+	if err != nil || len(runs) != 1 || runs[0].Actor != "ana" || tag != `"v1"` || query != "actor=ana&per_page=50" {
+		t.Fatalf("runs = %+v, %q, %v, query %q", runs, tag, err, query)
+	}
+	if _, _, err := client.ActorRunsIfChanged(context.Background(), "o", "r", "ana", 50, tag); !errors.Is(err, ErrNotModified) || sent != `"v1"` {
+		t.Fatalf("again = %v, sent %q", err, sent)
 	}
 }

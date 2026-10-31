@@ -553,6 +553,35 @@ struct GRPCCoreService: CoreServicing {
                                 pendingInstallations: response.pendingInstallations.map(Self.map))
     }
 
+    func listWatchedRuns(_ repositories: [CoreWatchedRepository], refresh: Bool) async throws -> CoreWatchedRunsList {
+        var options = Self.options(.seconds(60))
+        options.maxResponseMessageBytes = 8 << 20
+        let response = try await call {
+            try await client.listWatchedRuns(.with {
+                $0.repositories = repositories.map { sent in
+                    Runnir_Core_V1_WatchedRepository.with {
+                        $0.githubServer = sent.repository.serverID
+                        $0.repository = sent.repository.fullName
+                        $0.workspaceIds = sent.workspaceIDs.map { $0.uuidString.lowercased() }
+                    }
+                }
+                $0.refresh = refresh
+            }, options: options)
+        }
+        return Self.map(response, sent: repositories)
+    }
+
+    /// The Core answers each repository once, in the order sent.
+    static func map(_ response: Runnir_Core_V1_ListWatchedRunsResponse, sent: [CoreWatchedRepository]) -> CoreWatchedRunsList {
+        let answers = zip(sent, response.repositories).map { sent, item in
+            CoreWatchedRuns(repository: sent, access: Self.map(item.status), watched: item.watched,
+                            failed: item.failed.map(Self.map), running: item.running.map(Self.map),
+                            readAt: item.hasReadAt ? item.readAt.date : nil)
+        }
+        let pauses = Dictionary(response.pauses.map { ($0.githubServer, $0.until.date) }, uniquingKeysWith: max)
+        return CoreWatchedRunsList(repositories: answers, pauses: pauses)
+    }
+
     func githubOrigins(paths: [String]) async throws -> [String: GitHubRepositoryRef] {
         let response = try await call {
             try await client.getGitHubOrigins(.with { $0.paths = paths }, options: Self.options(Self.callTimeout))

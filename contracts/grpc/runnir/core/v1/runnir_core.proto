@@ -104,6 +104,16 @@ service RunnirCore {
   // newest first, at most 50 of each, read through GitHub's search.
   rpc ListPullRequests(ListPullRequestsRequest) returns (ListPullRequestsResponse);
 
+  // The signed-in user's failed and running runs in the repositories the
+  // app watches (B39): its registered workspaces linked to GitHub and its
+  // starred repositories. An open workspace answers from its store; any
+  // other repository is read with one conditional request at most every 3
+  // minutes, only the runs the user started, and kept in memory. A workflow
+  // on a branch counts as failed while its newest finished run failed,
+  // within 7 days. At most 100 repositories are watched. Nothing is written
+  // to a closed workspace's database; its starts (B46) are read read-only.
+  rpc ListWatchedRuns(ListWatchedRunsRequest) returns (ListWatchedRunsResponse);
+
   // The github.com repository each folder's origin points at, read from git's
   // metadata only, without opening the repositories: lets the app match its
   // registered working trees to GitHub repositories. At most 500 paths.
@@ -582,6 +592,50 @@ enum PullRequestCi {
   PULL_REQUEST_CI_UNKNOWN = 6;
 }
 
+message ListWatchedRunsRequest {
+  // In the order the app watches them: workspaces' repositories first,
+  // then starred ones. At most 1000.
+  repeated WatchedRepository repositories = 1;
+  // Read every repository again, however recently it was read.
+  bool refresh = 2;
+}
+
+message WatchedRepository {
+  // Server id; empty is github.com.
+  string github_server = 1;
+  // "owner/name".
+  string repository = 2;
+  // The registered workspaces linked to the repository, the one a click
+  // opens first; empty for a starred repository without one.
+  repeated string workspace_ids = 3;
+}
+
+message ListWatchedRunsResponse {
+  // One per repository, in the order of the request.
+  repeated WatchedRuns repositories = 1;
+  // Servers read no further until a time, to keep their rate limit.
+  repeated ServerPause pauses = 2;
+}
+
+message WatchedRuns {
+  WatchedRepository repository = 1;
+  GitHubStatus status = 2;
+  // False beyond the first 100: nothing was read.
+  bool watched = 3;
+  // Newest first by updated_at.
+  repeated WorkflowRun failed = 4;
+  // Newest first by created_at.
+  repeated WorkflowRun running = 5;
+  // When the runs were read; unset for never.
+  google.protobuf.Timestamp read_at = 6;
+}
+
+message ServerPause {
+  // Server id; empty is github.com.
+  string github_server = 1;
+  google.protobuf.Timestamp until = 2;
+}
+
 message GetGitHubOriginsRequest {
   // Absolute paths of working trees.
   repeated string paths = 1;
@@ -719,8 +773,8 @@ message WorkflowRun {
   // read it from status and conclusion itself.
   RunStatusGroup status_group = 20;
   // The attempts Runnir started on this Mac, oldest first, up to
-  // run_attempt (B46). Set in workspace activity, SearchRuns and
-  // SearchRunsOnGitHub; empty elsewhere.
+  // run_attempt (B46). Set in workspace activity, SearchRuns,
+  // SearchRunsOnGitHub and ListWatchedRuns; empty elsewhere.
   repeated RunnirStart runnir_starts = 21;
 }
 

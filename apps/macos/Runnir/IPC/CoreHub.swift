@@ -707,6 +707,17 @@ final class CoreHub {
         return CorePullRequests(access: .ok, open: open, closed: closed, headsUnreadable: headsUnreadable, pendingInstallations: pending)
     }
 
+    /// The user's failed and running runs of the watched repositories
+    /// (B39); nil when the Core is not ready or did not answer.
+    func watchedRuns(_ repositories: [CoreWatchedRepository], refresh: Bool) async -> CoreWatchedRunsList? {
+        guard isReady, let service = try? await provider.service(),
+              let result = try? await service.listWatchedRuns(repositories, refresh: refresh) else { return nil }
+        if result.repositories.contains(where: { $0.access == .tokenRejected && $0.repository.repository.serverID.isEmpty }) {
+            await onGitHubTokenRejected?()
+        }
+        return result
+    }
+
     /// What a token can do, asked of GitHub through the Core without
     /// changing the token the Core holds.
     func checkGitHubToken(_ token: String, server: GitHubServerRef = .dotCom) async -> CoreGitHubTokenCheck {

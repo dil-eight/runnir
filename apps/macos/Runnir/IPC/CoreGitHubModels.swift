@@ -100,6 +100,32 @@ struct GitHubRepositoryRef: Hashable, Sendable, Codable {
     }
 }
 
+/// A repository the Runs tab watches for the user's runs (B39).
+struct CoreWatchedRepository: Equatable, Hashable, Sendable {
+    let repository: GitHubRepositoryRef
+    /// The registered workspaces linked to it, the one a click opens
+    /// first; empty for a starred repository without one.
+    var workspaceIDs: [UUID] = []
+}
+
+/// One watched repository's failed and running runs, as the Core read them.
+struct CoreWatchedRuns: Equatable, Sendable {
+    let repository: CoreWatchedRepository
+    let access: CoreGitHubAccess
+    /// False beyond the first 100: nothing was read.
+    let watched: Bool
+    let failed: [CoreWorkflowRun]
+    let running: [CoreWorkflowRun]
+    /// When the runs were read; nil for never.
+    let readAt: Date?
+}
+
+struct CoreWatchedRunsList: Equatable, Sendable {
+    let repositories: [CoreWatchedRuns]
+    /// Servers the Core reads no further until a time, by server id.
+    let pauses: [String: Date]
+}
+
 /// One of the signed-in user's pull requests.
 struct CorePullRequest: Equatable, Identifiable, Sendable {
     /// Its link; without one, its server, repository and number.

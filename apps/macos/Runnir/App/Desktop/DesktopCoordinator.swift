@@ -113,6 +113,9 @@ final class DesktopCoordinator {
     let githubRepositories = GitHubRepositoriesModel()
     /// The user's pull requests, for the menu bar and the Pull Requests window.
     let pullRequests: PullRequestsModel
+    /// The user's failed and running runs across repositories (B39), for
+    /// the Runs tab and the menu bar icon.
+    let watchedRuns: WatchedRunsModel
     /// The Pull Requests window's global shortcut.
     let shortcuts = GlobalShortcutCenter()
     /// Secrets and variables for local runs, per workspace.
@@ -128,6 +131,7 @@ final class DesktopCoordinator {
          hintDismissals: ConcurrencyHintDismissals = ConcurrencyHintDismissals(),
          repositoryFavorites: RepositoryFavorites = RepositoryFavorites(store: nil),
          pullRequests: PullRequestsModel = PullRequestsModel(store: nil),
+         watchedRuns: WatchedRunsModel = WatchedRunsModel(store: nil),
          localRunValues: any LocalRunValueStoring = InMemoryLocalRunValueStore(),
          inbox: NotificationInbox = NotificationInbox(store: nil),
          makeGrant: @escaping (WorkspaceRecord) throws -> any RepositoryGranting = { try RepositoryGrant(record: $0) },
@@ -142,6 +146,7 @@ final class DesktopCoordinator {
         self.hintDismissals = hintDismissals
         self.repositoryFavorites = repositoryFavorites
         self.pullRequests = pullRequests
+        self.watchedRuns = watchedRuns
         self.localRunValues = localRunValues
         self.inbox = inbox
         self.makeGrant = makeGrant
@@ -216,14 +221,17 @@ final class DesktopCoordinator {
     }
 
     /// The Pull Requests window: open pull requests with their CI and those
-    /// closed in the last day.
+    /// closed in the last day, or the user's runs across repositories.
     func showPullRequests() {
         if pullRequestsWindow == nil {
             let window = makeWindow(size: NSSize(width: 560, height: 640), title: "Pull Requests")
             window.minSize = NSSize(width: 480, height: 360)
-            window.contentViewController = NSHostingController(rootView: PullRequestsWindowView(model: pullRequests, desktop: self)
+            let hosting = NSHostingController(rootView: PullRequestsWindowView(model: pullRequests, desktop: self)
                 .environment(\.openRunnirSettings) { [weak self] section in self?.showSettingsInFrontWindow(section: section) }
                 .handPointerButtons())
+            // The window's title follows the tab: "Pull Requests" or "Runs".
+            hosting.sceneBridgingOptions = [.title]
+            window.contentViewController = hosting
             window.setContentSize(NSSize(width: 560, height: 640))
             window.identifier = NSUserInterfaceItemIdentifier("pull-requests")
             // The shortcut works from any app: the window comes to the Space
@@ -555,14 +563,26 @@ final class DesktopCoordinator {
         case .pullRequest(let url):
             if let url { NSWorkspace.shared.open(url) }
         case .run, .runsList, .workflow, .localRuns:
-            guard let workspaceID, let workspace = snapshot.workspaces.first(where: { $0.id == workspaceID }) else { return }
+            guard let workspaceID, snapshot.workspaces.contains(where: { $0.id == workspaceID }) else { return }
             if let own = windows[windowID], own.record.workspaceID == workspaceID {
                 own.navigate(to: destination)
                 return
             }
-            openOrFocus(workspace)
-            windows.values.first { $0.record.workspaceID == workspaceID }?.navigate(to: destination)
+            showRun(destination, workspaceID: workspaceID)
         }
+    }
+
+    /// Shows a run in a window of its workspace, opened or brought forward,
+    /// as a global search result does (B43).
+    func showRun(_ destination: SearchDestination, workspaceID: UUID) {
+        guard let workspace = snapshot.workspaces.first(where: { $0.id == workspaceID }) else { return }
+        openOrFocus(workspace)
+        windows.values.first { $0.record.workspaceID == workspaceID }?.navigate(to: destination)
+    }
+
+    /// What the Runs tab watches: workspaces' repositories, then starred ones (B39).
+    var watchedRepositories: [CoreWatchedRepository] {
+        WatchedRepositories.of(workspaces: snapshot.workspaces, isOpen: { openCount($0) > 0 }, starred: repositoryFavorites.names)
     }
 
     func openOrFocus(_ workspace: WorkspaceRecord) {
@@ -887,7 +907,8 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
                                      presets: DispatchPresetLibrary(store: try? FileDispatchPresetStore.live()),
                                      favorites: WorkflowFavorites(store: try? FileWorkflowFavoritesStore.live()),
                                      repositoryFavorites: RepositoryFavorites(store: try? FileRepositoryFavoritesStore.live()),
-                                     pullRequests: PullRequestsModel(store: try? FileDismissedPullRequestsStore.live()),
+                                     pullRequests: PullRequestsModel(store: try? FileDismissalStore.live(FileDismissalStore.pullRequestsFile)),
+                                     watchedRuns: WatchedRunsModel(store: try? FileDismissalStore.live(FileDismissalStore.runsFile)),
                                      localRunValues: KeychainLocalRunValueStore(),
                                      inbox: NotificationInbox(store: try? FileNotificationInboxStore.live()))
         super.init()
@@ -929,6 +950,9 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         }
         // Signed in to github.com or to any Enterprise server.
         desktop.pullRequests.startPolling(hub: coreHub, isSignedIn: { [github, coreHub] in github.user != nil || !coreHub.signedInServers.isEmpty })
+        // The user's runs across repositories, asked again when what is watched changes.
+        desktop.watchedRuns.repositories = { [desktop] in desktop.watchedRepositories }
+        desktop.watchedRuns.startPolling(hub: coreHub, isSignedIn: { [github, coreHub] in github.user != nil || !coreHub.signedInServers.isEmpty })
         // A failed start shows up as the hub's status, with a restart offer in each window.
         Task { [core] in _ = try? await core.start() }
     }
