@@ -611,8 +611,9 @@ struct PullRequestsMenu: View {
         // Both lists feed the menu bar icon.
         .task {
             if let hub = desktop.core {
-                await model.refreshIfStale(hub: hub)
-                await runs.refreshIfStale(hub: hub)
+                async let pullRequests: Void = model.refreshIfStale(hub: hub)
+                async let watched: Void = runs.refreshIfStale(hub: hub)
+                _ = await (pullRequests, watched)
             }
         }
     }
@@ -742,8 +743,9 @@ struct PullRequestsWindowView: View {
         .navigationTitle(tab.title)
         .task {
             if let hub = desktop.core {
-                await model.refreshIfStale(hub: hub)
-                await runs.refreshIfStale(hub: hub)
+                async let pullRequests: Void = model.refreshIfStale(hub: hub)
+                async let watched: Void = runs.refreshIfStale(hub: hub)
+                _ = await (pullRequests, watched)
             }
         }
     }

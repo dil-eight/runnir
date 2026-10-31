@@ -563,7 +563,7 @@ final class DesktopCoordinator {
         case .pullRequest(let url):
             if let url { NSWorkspace.shared.open(url) }
         case .run, .runsList, .workflow, .localRuns:
-            guard let workspaceID, let workspace = snapshot.workspaces.first(where: { $0.id == workspaceID }) else { return }
+            guard let workspaceID, snapshot.workspaces.contains(where: { $0.id == workspaceID }) else { return }
             if let own = windows[windowID], own.record.workspaceID == workspaceID {
                 own.navigate(to: destination)
                 return

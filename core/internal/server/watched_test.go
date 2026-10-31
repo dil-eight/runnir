@@ -78,7 +78,9 @@ func TestWatchedRunsOfOpenClosedAndStarredRepositories(t *testing.T) {
 		t.Fatalf("answer = %v, %v", got, err)
 	}
 	open, app, star := got.Repositories[0], got.Repositories[1], got.Repositories[2]
-	if len(open.Running) != 1 || open.Running[0].Id != 21 || open.ReadAt == nil || actorReads["o/r"] != 0 {
+	// An open workspace's repository is read like any other: its saved runs
+	// beyond the newest page are not kept up to date.
+	if len(open.Running) != 1 || open.Running[0].Id != 21 || open.ReadAt == nil || actorReads["o/r"] != 1 {
 		t.Fatalf("open workspace = %v, actor reads %d", open, actorReads["o/r"])
 	}
 	if len(app.Failed) != 1 || app.Failed[0].Id != 7 || len(app.Failed[0].RunnirStarts) != 1 ||

@@ -48,7 +48,6 @@ type Repository struct {
 
 // Local is what the watcher reads on this Mac: workspace.Runtimes.
 type Local interface {
-	OpenRuns(ctx context.Context, ids []string, source store.Source, actor string, limit int) ([]github.Run, time.Time, bool)
 	Starts(ctx context.Context, ids []string, source store.Source) map[int64][]store.RunStart
 }
 
@@ -73,9 +72,10 @@ type Pause struct {
 	Until    time.Time
 }
 
-// Watcher reads the signed-in user's runs of the watched repositories that
-// have no workspace open, and keeps what it read in memory only. Safe for
-// concurrent use.
+// Watcher reads the signed-in user's runs of the watched repositories, and
+// keeps what it read in memory only. A workspace's saved runs are not used:
+// its sync refreshes only its newest runs, so an older saved one can stay in
+// progress. Safe for concurrent use.
 type Watcher struct {
 	accounts *github.Accounts
 	local    Local
@@ -121,10 +121,9 @@ func New(accounts *github.Accounts, local Local, now func() time.Time) *Watcher 
 	return &Watcher{accounts: accounts, local: local, now: now, read: map[string]*entry{}, paused: map[string]time.Time{}}
 }
 
-// List answers each repository, in order, and the servers paused. An open
-// workspace of a repository answers from its store; any other repository
-// is read from GitHub when it was not read in the last Reuse, or with
-// refresh. The only error is the call's context ending.
+// List answers each repository, in order, and the servers paused. A
+// repository is read from GitHub when it was not read in the last Reuse,
+// or with refresh. The only error is the call's context ending.
 func (w *Watcher) List(ctx context.Context, repositories []Repository, refresh bool) ([]Answer, []Pause, error) {
 	w.call.Lock()
 	defer w.call.Unlock()
@@ -163,20 +162,23 @@ func (w *Watcher) List(ctx context.Context, repositories []Repository, refresh b
 			}
 			user = login{name: read, access: access, retry: retry}
 			logins[r.ServerID] = user
+			if access == limited {
+				w.pause(r.ServerID, retry)
+			}
 		}
-		if user.access != accessOK {
+		source := store.Source{ServerID: r.ServerID, Repository: strings.ToLower(owner + "/" + name)}
+		key := r.ServerID + "\x00" + source.Repository
+		switch user.access {
+		case accessOK:
+		case offline, limited:
+			// GitHub did not say who is signed in: what was read stays.
+			sources[i], keys[i], queued[key] = source, key, true
+			continue
+		default:
 			out[i].Access, out[i].RetryAfter = user.access, user.retry
 			continue
 		}
-		source := store.Source{ServerID: r.ServerID, Repository: strings.ToLower(owner + "/" + name)}
-		sources[i] = source
-		if runs, readAt, ok := w.local.OpenRuns(ctx, r.WorkspaceIDs, source, user.name, pageSize); ok {
-			out[i].Access, out[i].ReadAt = accessOK, readAt
-			out[i].Failed, out[i].Running = Pick(runs, user.name, now)
-			continue
-		}
-		key := r.ServerID + "\x00" + source.Repository
-		keys[i] = key
+		sources[i], keys[i] = source, key
 		if queued[key] {
 			continue
 		}
@@ -197,6 +199,14 @@ func (w *Watcher) List(ctx context.Context, repositories []Repository, refresh b
 			continue
 		}
 		e := w.read[key]
+		if user := logins[repositories[i].ServerID]; user.access != accessOK {
+			out[i].Access, out[i].RetryAfter = user.access, user.retry
+			if e != nil {
+				out[i].ReadAt = e.readAt
+				out[i].Failed, out[i].Running = Pick(e.runs, e.login, now)
+			}
+			continue
+		}
 		out[i].Access, out[i].RetryAfter, out[i].ReadAt = e.access, e.retry, e.readAt
 		if until, paused := w.paused[repositories[i].ServerID]; paused && e.access == corev1.GithubAccess_GITHUB_ACCESS_UNSPECIFIED {
 			// Never read: the pause held it back.
@@ -230,28 +240,45 @@ func (w *Watcher) entry(key, login string) (time.Time, string) {
 	return e.checkedAt, e.etag
 }
 
+// readAll reads the jobs, at most readers at once. down are the servers
+// that did not answer a read of this call: their other repositories are not
+// asked, so one unreachable server does not hold up the call.
 func (w *Watcher) readAll(ctx context.Context, jobs []job, now time.Time) {
 	var wg sync.WaitGroup
 	slots := make(chan struct{}, readers)
+	down := map[string]bool{}
 	for _, j := range jobs {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			slots <- struct{}{}
 			defer func() { <-slots }()
-			if w.mayRead(j, now) {
-				w.readOne(ctx, j, now)
+			if w.mayRead(j, now, down) {
+				w.readOne(ctx, j, now, down)
 			}
 		}()
 	}
 	wg.Wait()
 }
 
-// mayRead: the server is not paused, and more than a tenth of its rate
-// limit is left; otherwise it is paused until the limit resets.
-func (w *Watcher) mayRead(j job, now time.Time) bool {
+// pause holds a server back until a time.
+func (w *Watcher) pause(serverID string, until time.Time) {
+	w.mu.Lock()
+	w.paused[serverID] = until
+	w.mu.Unlock()
+}
+
+// mayRead: the server answered this call, is not paused, and more than a
+// tenth of its rate limit is left; below that it is paused until the limit
+// resets. A repository of a server down keeps what was read, as offline.
+func (w *Watcher) mayRead(j job, now time.Time, down map[string]bool) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if down[j.serverID] {
+		e := w.read[j.key]
+		e.access, e.retry = offline, time.Time{}
+		return false
+	}
 	if until, ok := w.paused[j.serverID]; ok && now.Before(until) {
 		return false
 	}
@@ -263,7 +290,7 @@ func (w *Watcher) mayRead(j job, now time.Time) bool {
 	return true
 }
 
-func (w *Watcher) readOne(ctx context.Context, j job, now time.Time) {
+func (w *Watcher) readOne(ctx context.Context, j job, now time.Time, down map[string]bool) {
 	runs, tag, err := j.account.Client.ActorRunsIfChanged(ctx, j.owner, j.name, j.login, pageSize, j.etag)
 	access, retry, cancelled := workspace.Access(j.account, err)
 	if cancelled != nil {
@@ -271,6 +298,9 @@ func (w *Watcher) readOne(ctx context.Context, j job, now time.Time) {
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if errors.Is(err, github.ErrUnreachable) {
+		down[j.serverID] = true
+	}
 	e := w.read[j.key]
 	switch {
 	case err == nil:

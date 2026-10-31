@@ -28,9 +28,9 @@ struct WatchedRunsTests {
     }
 
     private func answer(_ key: String, failed: [CoreWorkflowRun] = [], running: [CoreWorkflowRun] = [],
-                        access: CoreGitHubAccess = .ok, watched: Bool = true, workspaces: [UUID] = []) -> CoreWatchedRuns {
+                        access: CoreGitHubAccess = .ok, watched: Bool = true, workspaces: [UUID] = [], read: Bool = true) -> CoreWatchedRuns {
         CoreWatchedRuns(repository: CoreWatchedRepository(repository: ref(key), workspaceIDs: workspaces), access: access,
-                        watched: watched, failed: failed, running: running, readAt: now)
+                        watched: watched, failed: failed, running: running, readAt: read ? now : nil)
     }
 
     @Test func workspacesComeFirstThenStarredOnceEach() {
@@ -91,6 +91,36 @@ struct WatchedRunsTests {
         #expect(again.dismissed.isEmpty)
     }
 
+    @Test func aRenamedRepositoryListsItsRunsOnceAndTheScopeCountsWhatWasRead() async {
+        let (hub, provider) = await readyHub()
+        let queued = run(2, status: "queued", conclusion: nil)
+        // A workspace links the old name, the star the new one: GitHub answers both.
+        provider.core.watchedRunsResult = CoreWatchedRunsList(repositories: [
+            answer("o/old", failed: [run(1)], running: [queued], workspaces: [UUID(), UUID()]),
+            answer("o/new", failed: [run(1)], running: [queued]),
+            answer("o/gone", access: .notVisible, workspaces: [UUID()], read: false),
+        ], pauses: [:])
+        let model = WatchedRunsModel(store: nil)
+        model.repositories = { [CoreWatchedRepository(repository: GitHubRepositoryRef(key: "o/old")!)] }
+        await model.refresh(hub: hub)
+        #expect(model.failed.map(\.run.id) == [1] && model.running.map(\.run.id) == [2])
+        #expect(model.scope.workspaces == 2 && model.scope.starred == 1, "workspaces, not repositories; the skipped one is not counted")
+    }
+
+    @Test func noAnswerFromTheCoreKeepsWhatWasRead() async {
+        let (hub, provider) = await readyHub()
+        let model = WatchedRunsModel(store: nil)
+        model.repositories = { [CoreWatchedRepository(repository: GitHubRepositoryRef(key: "o/r")!)] }
+        await model.refresh(hub: hub)
+        #expect(model.unanswered && model.loadedAt == nil && model.answers.isEmpty)
+        provider.core.watchedRunsResult = CoreWatchedRunsList(repositories: [answer("o/r", failed: [run(1)])], pauses: [:])
+        await model.refresh(hub: hub)
+        #expect(!model.unanswered && model.failed.count == 1)
+        provider.core.watchedRunsResult = nil
+        await model.refresh(hub: hub)
+        #expect(model.unanswered && model.failed.map(\.run.id) == [1])
+    }
+
     @Test func nothingToWatchAsksNothing() async {
         let (hub, provider) = await readyHub()
         let model = WatchedRunsModel(store: nil)
@@ -147,6 +177,9 @@ struct WatchedRunsTests {
         #expect(WatchedRunText.scope(workspaces: 9, starred: 5) == "Your runs in 9 workspaces and 5 starred repositories.")
         #expect(WatchedRunText.scope(workspaces: 1, starred: 0) == "Your runs in 1 workspace.")
         #expect(WatchedRunText.scope(workspaces: 0, starred: 1) == "Your runs in 1 starred repository.")
+        #expect(WatchedRunText.scope(workspaces: 0, starred: 0) == nil, "nothing read: no line")
+        #expect(WatchedRunText.unanswered(readAt: nil) == "Runnir Core isn't answering, so your runs can't be read.")
+        #expect(WatchedRunText.unanswered(readAt: now).hasSuffix("can't be read. These runs were read at \(now.formatted(date: .omitted, time: .shortened))."))
         #expect(WatchedRunText.paused(until: now, readAt: now).hasPrefix("Paused until "))
         #expect(WatchedRunText.paused(until: now, readAt: now).contains(" to keep the GitHub rate limit. These runs were read at "))
         #expect(WatchedRunText.offline(readAt: nil) == "GitHub can't be reached.")

@@ -21,17 +21,20 @@ const ghe = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"
 
 // fakeGitHub serves /user and the runs of the repositories in runs, with
 // an ETag; o/locked answers as an installation without Actions access and
-// any other repository as not found.
+// any other repository as not found. userStatus fails /user with a status;
+// drop ends every runs request without an answer.
 type fakeGitHub struct {
-	mu        sync.Mutex
-	login     string
-	runs      map[string]string
-	users     int
-	queries   map[string][]string
-	tags      map[string][]string
-	remaining int
-	reset     time.Time
-	limited   bool
+	mu         sync.Mutex
+	login      string
+	runs       map[string]string
+	users      int
+	userStatus int
+	queries    map[string][]string
+	tags       map[string][]string
+	remaining  int
+	reset      time.Time
+	limited    bool
+	drop       bool
 }
 
 func newFakeGitHub(t *testing.T, login string) (*fakeGitHub, *httptest.Server) {
@@ -46,6 +49,14 @@ func (f *fakeGitHub) serve(w http.ResponseWriter, r *http.Request) {
 	defer f.mu.Unlock()
 	if r.URL.Path == "/user" {
 		f.users++
+		if f.userStatus == http.StatusForbidden {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(f.reset.Unix(), 10))
+		}
+		if f.userStatus != 0 {
+			w.WriteHeader(f.userStatus)
+			return
+		}
 		_, _ = fmt.Fprintf(w, `{"login":%q}`, f.login)
 		return
 	}
@@ -53,9 +64,16 @@ func (f *fakeGitHub) serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-RateLimit-Limit", "5000")
 	w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(f.remaining))
 	w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(f.reset.Unix(), 10))
-	repo := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/repos/"), "/actions/runs")
+	// GitHub matches names without case.
+	repo := strings.ToLower(strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/repos/"), "/actions/runs"))
 	f.queries[repo] = append(f.queries[repo], r.URL.RawQuery)
 	f.tags[repo] = append(f.tags[repo], r.Header.Get("If-None-Match"))
+	if f.drop {
+		if conn, _, err := w.(http.Hijacker).Hijack(); err == nil {
+			_ = conn.Close()
+		}
+		return
+	}
 	if f.limited {
 		w.Header().Set("X-RateLimit-Remaining", "0")
 		w.WriteHeader(http.StatusForbidden)
@@ -94,17 +112,8 @@ func runJSON(id, workflow int64, status, conclusion, actor string, at time.Time)
 
 type fakeLocal struct {
 	mu     sync.Mutex
-	open   map[store.Source][]github.Run
-	readAt time.Time
 	starts map[store.Source]map[int64][]store.RunStart
 	asked  int
-}
-
-func (l *fakeLocal) OpenRuns(_ context.Context, ids []string, source store.Source, _ string, _ int) ([]github.Run, time.Time, bool) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	runs, ok := l.open[source]
-	return runs, l.readAt, ok && len(ids) > 0
 }
 
 func (l *fakeLocal) Starts(_ context.Context, _ []string, source store.Source) map[int64][]store.RunStart {
@@ -138,7 +147,7 @@ func rig(t *testing.T) (*Watcher, *fakeGitHub, *fakeLocal, *clock, *github.Accou
 	if _, err := accounts.Set(github.Server{}, "ghu_test"); err != nil {
 		t.Fatal(err)
 	}
-	local := &fakeLocal{open: map[store.Source][]github.Run{}, starts: map[store.Source]map[int64][]store.RunStart{}}
+	local := &fakeLocal{starts: map[store.Source]map[int64][]store.RunStart{}}
 	c := &clock{at: base}
 	return New(accounts, local, c.now), f, local, c, accounts
 }
@@ -255,21 +264,99 @@ func TestOnlyTheFirstRepositoriesAreWatched(t *testing.T) {
 	}
 }
 
-func TestAnOpenWorkspaceAnswersFromItsStoreWithItsStarts(t *testing.T) {
+func TestAWorkspacesRepositoryIsReadFromGitHubWithItsStarts(t *testing.T) {
 	w, f, local, _, _ := rig(t)
 	source := store.Source{Repository: "o/r"}
-	local.open[source] = []github.Run{{ID: 9, WorkflowID: 1, Status: "in_progress", Actor: "ana", CreatedAt: base}}
-	local.readAt = base.Add(-time.Minute)
+	f.runs["o/r"] = runJSON(9, 1, "in_progress", "", "ana", base)
 	local.starts[source] = map[int64][]store.RunStart{9: {{RunID: 9, Attempt: 1, Kind: store.StartDispatch}}, 8: {{RunID: 8, Attempt: 1}}}
 	f.runs["o/quiet"] = runJSON(1, 1, "completed", "success", "ana", base)
 
 	answers, _ := list(t, w, false, Repository{Name: "O/R", WorkspaceIDs: []string{"w"}}, Repository{Name: "o/quiet", WorkspaceIDs: []string{"w2"}})
 	a := answers[0]
-	if f.requests("o/r") != 0 || !slices.Equal(ids(a.Running), []int64{9}) || !a.ReadAt.Equal(local.readAt) || len(a.Starts) != 1 || len(a.Starts[9]) != 1 {
-		t.Fatalf("open = %+v", a)
+	if f.requests("o/r") != 1 || !slices.Equal(ids(a.Running), []int64{9}) || !a.ReadAt.Equal(base) || len(a.Starts) != 1 || len(a.Starts[9]) != 1 {
+		t.Fatalf("workspace = %+v", a)
 	}
 	if local.asked != 1 {
 		t.Fatalf("starts asked %d times; a repository with nothing listed is not read", local.asked)
+	}
+}
+
+func TestAServerThatDoesNotAnswerKeepsWhatWasReadAndIsAskedOnce(t *testing.T) {
+	defer func(n int) { readers = n }(readers)
+	readers = 1
+	w, f, _, c, _ := rig(t)
+	names := []string{"o/a", "o/b", "o/c"}
+	var all []Repository
+	for i, name := range names {
+		f.runs[name] = runJSON(int64(i+1), 1, "in_progress", "", "ana", base)
+		all = append(all, Repository{Name: name})
+	}
+	list(t, w, false, all...)
+
+	f.drop = true
+	c.add(Reuse)
+	answers, _ := list(t, w, false, all...)
+	for _, a := range answers {
+		if a.Access != offline || len(a.Running) != 1 || !a.ReadAt.Equal(base) {
+			t.Fatalf("offline = %+v", a)
+		}
+	}
+	asked := 0
+	for _, name := range names {
+		if f.requests(name) > 1 {
+			asked++
+		}
+	}
+	if asked != 1 {
+		t.Fatalf("%d repositories asked after the server stopped answering", asked)
+	}
+}
+
+func TestARepositoryNoLongerVisibleKeepsNothing(t *testing.T) {
+	w, f, _, _, _ := rig(t)
+	f.runs["o/r"] = runJSON(1, 1, "in_progress", "", "ana", base)
+	list(t, w, false, Repository{Name: "o/r"})
+	delete(f.runs, "o/r")
+	answers, _ := list(t, w, true, Repository{Name: "o/r"})
+	if a := answers[0]; a.Access != invisible || len(a.Running) != 0 || !a.ReadAt.IsZero() {
+		t.Fatalf("gone = %+v", a)
+	}
+}
+
+func TestARepositoryNoLongerAskedForIsForgotten(t *testing.T) {
+	w, f, _, _, _ := rig(t)
+	f.runs["o/r"] = runJSON(1, 1, "in_progress", "", "ana", base)
+	f.runs["o/s"] = ""
+	list(t, w, false, Repository{Name: "o/r"})
+	list(t, w, false, Repository{Name: "o/s"})
+	answers, _ := list(t, w, false, Repository{Name: "o/r"})
+	if f.requests("o/r") != 2 || f.tags["o/r"][1] != "" || len(answers[0].Running) != 1 {
+		t.Fatalf("requests = %d, tags %q", f.requests("o/r"), f.tags["o/r"])
+	}
+}
+
+func TestWhatWasReadStaysWhenGitHubDoesNotSayWhoIsSignedIn(t *testing.T) {
+	w, f, _, _, accounts := rig(t)
+	f.runs["o/r"] = runJSON(1, 1, "in_progress", "", "ana", base)
+	list(t, w, false, Repository{Name: "o/r"})
+	// A new token is read with GET /user again.
+	if _, err := accounts.Set(github.Server{}, "ghu_new"); err != nil {
+		t.Fatal(err)
+	}
+
+	f.userStatus = http.StatusBadGateway
+	answers, pauses := list(t, w, true, Repository{Name: "o/r"})
+	if a := answers[0]; a.Access != offline || len(a.Running) != 1 || !a.ReadAt.Equal(base) || len(pauses) != 0 {
+		t.Fatalf("offline = %+v, %+v", a, pauses)
+	}
+
+	f.userStatus = http.StatusForbidden
+	answers, pauses = list(t, w, true, Repository{Name: "o/r"})
+	if a := answers[0]; a.Access != limited || len(a.Running) != 1 || len(pauses) != 1 || !pauses[0].Until.Equal(f.reset) {
+		t.Fatalf("rate limited = %+v, %+v", a, pauses)
+	}
+	if f.requests("o/r") != 1 {
+		t.Fatalf("runs read %d times without a login", f.requests("o/r"))
 	}
 }
 

@@ -185,6 +185,21 @@ func TestNoTokenMeansNoRequest(t *testing.T) {
 	}
 }
 
+func TestNoAnswerIsUnreachableAndAServerErrorIsNot(t *testing.T) {
+	failing, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(502) })
+	if _, err := failing.Runs(context.Background(), "o", "r", "", 0); !errors.Is(err, ErrUnavailable) || errors.Is(err, ErrUnreachable) {
+		t.Fatalf("502 = %v", err)
+	}
+	server := httptest.NewServer(http.NotFoundHandler())
+	server.Close()
+	credential := &Credential{}
+	_ = credential.Set("ghu_test")
+	gone := NewClient(credential, server.URL, "test")
+	if _, err := gone.Runs(context.Background(), "o", "r", "", 0); !errors.Is(err, ErrUnreachable) || !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("no server = %v", err)
+	}
+}
+
 func TestErrorsNeverContainTheToken(t *testing.T) {
 	for _, err := range []error{ErrNoCredential, ErrUnauthorized, ErrNotVisible, ErrPermissionMissing, ErrUnavailable, ErrInvalid, &RateLimitError{}} {
 		if strings.Contains(err.Error(), "ghu_") {

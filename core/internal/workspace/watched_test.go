@@ -15,30 +15,6 @@ import (
 
 const wsSecond = "9ce88ff0-5c16-43b3-8f20-8e33e852b019"
 
-func TestOpenRunsComeFromAnOpenWorkspaceOfTheRepository(t *testing.T) {
-	f, accounts := newFake(t)
-	f.set(func(f *fakeGitHub) {
-		f.runs = `{"workflow_runs":[{"id":7,"workflow_id":3,"name":"CI","run_number":1,"run_attempt":1,"status":"in_progress","actor":{"login":"ana"},"created_at":"2026-10-28T10:00:00Z","updated_at":"2026-10-28T10:01:00Z"},
-{"id":6,"workflow_id":3,"name":"CI","run_number":1,"run_attempt":1,"status":"completed","conclusion":"failure","actor":{"login":"bo"},"created_at":"2026-10-28T09:00:00Z","updated_at":"2026-10-28T09:01:00Z"}]}`
-	})
-	data := t.TempDir()
-	m := newRuntimes(t, data)
-	r, _ := m.Attach(wsA, "repo_1", fixedResolver(accounts, "o", "r"))
-	waitRefresh(t, r)
-	source := store.Source{Repository: "o/r"}
-
-	runs, readAt, ok := m.OpenRuns(context.Background(), []string{wsClosed, wsA}, source, "ana", 50)
-	if !ok || len(runs) != 1 || runs[0].ID != 7 || readAt.IsZero() {
-		t.Fatalf("open runs = %+v, %v, %v", runs, readAt, ok)
-	}
-	if _, _, ok := m.OpenRuns(context.Background(), []string{wsA}, store.Source{Repository: "o/other"}, "ana", 50); ok {
-		t.Fatal("another repository's data is not this one's")
-	}
-	if _, _, ok := m.OpenRuns(context.Background(), []string{wsClosed}, source, "ana", 50); ok {
-		t.Fatal("a closed workspace is not open")
-	}
-}
-
 func TestStartsAreJoinedFromOpenAndClosedWorkspacesReadOnly(t *testing.T) {
 	_, accounts := newFake(t)
 	data := t.TempDir()

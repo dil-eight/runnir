@@ -81,7 +81,9 @@ struct WatchedRunRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { open() }
-        .accessibilityAction(named: "Remove from this list") { dismiss?() }
+        .accessibilityActions {
+            if let dismiss { Button("Remove from this list", action: dismiss) }
+        }
     }
 
     /// "From Runnir · " in the accent colour before the rest.
@@ -126,14 +128,19 @@ struct WatchedRunsList: View {
 
     @ViewBuilder private var lists: some View {
         TimelineView(.periodic(from: .now, by: 30)) { _ in
-            if let until = model.pausedUntil {
+            if model.unanswered {
+                note(WatchedRunText.unanswered(readAt: model.oldestRead), symbol: "exclamationmark.triangle")
+            } else if let until = model.pausedUntil {
                 note(WatchedRunText.paused(until: until, readAt: model.oldestRead), symbol: "pause.circle")
             } else if model.offline {
                 note(WatchedRunText.offline(readAt: model.oldestRead), symbol: "wifi.slash")
             }
         }
         summary
-        if model.loadedAt != nil, model.answers.isEmpty {
+        if model.loadedAt == nil {
+            // Until a first answer; the note says when the Core gives none.
+            if !model.unanswered { reading }
+        } else if model.answers.isEmpty {
             nothingToWatch
         } else if model.failed.isEmpty && model.running.isEmpty {
             nothingListed
@@ -191,22 +198,23 @@ struct WatchedRunsList: View {
         }
     }
 
-    @ViewBuilder private var nothingListed: some View {
-        if model.isLoading && model.loadedAt == nil {
-            HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Reading runs...") }
-                .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                .padding(.horizontal, inset).padding(.vertical, 12)
-        } else {
-            VStack(spacing: 6) {
-                Image(systemName: "checkmark.circle").font(.system(size: 20)).foregroundStyle(RunnirTheme.success)
-                Text("No failed or running runs").font(.system(size: 13, weight: .medium))
-                Text(WatchedRunText.scope(workspaces: model.watched.count { !$0.repository.workspaceIDs.isEmpty },
-                                          starred: model.watched.count { $0.repository.workspaceIDs.isEmpty }))
+    private var reading: some View {
+        HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Reading runs...") }
+            .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+            .padding(.horizontal, inset).padding(.vertical, 12)
+    }
+
+    private var nothingListed: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "checkmark.circle").font(.system(size: 20)).foregroundStyle(RunnirTheme.success)
+            Text("No failed or running runs").font(.system(size: 13, weight: .medium))
+            if let scope = WatchedRunText.scope(workspaces: model.scope.workspaces, starred: model.scope.starred) {
+                Text(scope)
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).multilineTextAlignment(.center)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, inset).padding(.top, 14).padding(.bottom, 16)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, inset).padding(.top, 14).padding(.bottom, 16)
     }
 
     private var nothingToWatch: some View {
