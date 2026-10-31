@@ -3,35 +3,9 @@ package workspace
 import (
 	"context"
 	"sort"
-	"time"
 
-	"runnir/core/internal/github"
 	"runnir/core/internal/store"
 )
-
-// OpenRuns reads, from the first workspace among ids that is open with
-// source's saved data, actor's newest limit saved runs and when a pass last
-// reached GitHub. false when none is; nothing is sent to GitHub.
-func (m *Runtimes) OpenRuns(ctx context.Context, ids []string, source store.Source, actor string, limit int) ([]github.Run, time.Time, bool) {
-	for _, raw := range ids {
-		id, ok := store.NormalizeWorkspaceID(raw)
-		if !ok {
-			continue
-		}
-		m.mu.Lock()
-		rt := m.byWorkspace[id]
-		m.mu.Unlock()
-		if rt == nil {
-			continue
-		}
-		w, err := rt.cfg.store.WatchedRuns(ctx, actor, limit)
-		if err != nil || !w.HasSource || w.Source != source {
-			continue
-		}
-		return w.Runs, w.SyncedAt, true
-	}
-	return nil, time.Time{}, false
-}
 
 // Starts joins the attempts Runnir started of source's runs (B46) in the
 // workspaces ids: an open one's from its store, a closed one's from its

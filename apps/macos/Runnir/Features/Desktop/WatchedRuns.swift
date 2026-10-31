@@ -103,6 +103,12 @@ final class WatchedRunsModel {
     var oldestRead: Date? { watched.compactMap(\.readAt).min() }
     /// When the latest pause of a server ends; nil when none is paused.
     var pausedUntil: Date? { pauses.values.filter { $0 > now() }.max() }
+    /// What "Your runs in …" counts: the workspaces and the starred
+    /// repositories whose runs were read.
+    var scope: (workspaces: Int, starred: Int) {
+        let read = watched.filter { $0.readAt != nil }.map(\.repository)
+        return (read.reduce(0) { $0 + $1.workspaceIDs.count }, read.count { $0.workspaceIDs.isEmpty })
+    }
 
     /// Failed runs not removed from the list, newest first.
     var failed: [WatchedRun] {
@@ -118,8 +124,12 @@ final class WatchedRunsModel {
     /// The menu bar dot for the runs alone.
     var badge: MenuBarIcon.Badge { !failed.isEmpty ? .failed : running.isEmpty ? .none : .running }
 
+    /// Each run once: a repository renamed on GitHub can be watched under
+    /// both names, and GitHub answers both with the same runs.
     private func rows(_ list: KeyPath<CoreWatchedRuns, [CoreWorkflowRun]>) -> [WatchedRun] {
-        watched.flatMap { answer in answer[keyPath: list].map { WatchedRun(run: $0, repository: answer.repository) } }
+        var seen: Set<String> = []
+        return watched.flatMap { answer in answer[keyPath: list].map { WatchedRun(run: $0, repository: answer.repository) } }
+            .filter { seen.insert($0.id).inserted }
     }
 
     /// Asks the Core; `force` reads every repository on GitHub again.
@@ -263,12 +273,17 @@ enum WatchedRunText {
         "Watching \(watched) of \(total) repositories: workspaces first, then starred ones in the order you starred them."
     }
 
-    /// Under "No failed or running runs".
-    static func scope(workspaces: Int, starred: Int) -> String {
+    /// Under "No failed or running runs"; nil when nothing was read.
+    static func scope(workspaces: Int, starred: Int) -> String? {
         var parts: [String] = []
         if workspaces > 0 { parts.append("\(workspaces) " + (workspaces == 1 ? "workspace" : "workspaces")) }
         if starred > 0 { parts.append("\(starred) starred " + (starred == 1 ? "repository" : "repositories")) }
-        return "Your runs in " + parts.joined(separator: " and ") + "."
+        return parts.isEmpty ? nil : "Your runs in " + parts.joined(separator: " and ") + "."
+    }
+
+    /// The Core did not answer the last ask.
+    static func unanswered(readAt: Date?) -> String {
+        "Runnir Core isn't answering, so your runs can't be read." + (readAt.map { " These runs were read at \(time($0))." } ?? "")
     }
 
     static func paused(until: Date, readAt: Date?) -> String {

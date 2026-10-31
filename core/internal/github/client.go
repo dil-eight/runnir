@@ -28,6 +28,9 @@ var (
 	ErrPermissionMissing = errors.New("Runnir Desktop or the user lacks the permission")
 	ErrUnavailable       = errors.New("GitHub is unavailable")
 	ErrInvalid           = errors.New("unexpected GitHub response")
+	// ErrUnreachable is ErrUnavailable without any answer: the server could
+	// not be reached or did not answer in time.
+	ErrUnreachable = fmt.Errorf("%w: no answer", ErrUnavailable)
 	// ErrNotModified is a conditional read's answer when nothing changed
 	// (HTTP 304). GitHub does not count it against the rate limit.
 	ErrNotModified = errors.New("not modified")
@@ -637,7 +640,7 @@ func (c *Client) exchangeWith(ctx context.Context, method, path string, query ur
 		if ctx.Err() != nil {
 			return nil, 0, nil, ctx.Err()
 		}
-		return nil, 0, nil, ErrUnavailable
+		return nil, 0, nil, ErrUnreachable
 	}
 	defer response.Body.Close()
 	c.noteRateLimit(response.Header)
