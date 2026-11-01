@@ -53,6 +53,24 @@ func TestARerunThatPassedListsNothing(t *testing.T) {
 	}
 }
 
+func TestARerunInProgressListsNoOlderFailure(t *testing.T) {
+	h := time.Hour
+	older := run(1, 10, "main", "completed", "failure", base.Add(-3*h))
+	rerun := run(2, 10, "main", "in_progress", "", base.Add(-2*h)) // failed, now re-run
+	rerun.RunAttempt = 2
+	failed, running := Pick([]github.Run{older, rerun}, "ana", base)
+	if len(failed) != 0 || !slices.Equal(ids(running), []int64{2}) {
+		t.Fatalf("failed = %v, running = %v", ids(failed), ids(running))
+	}
+	// A new run in progress leaves the failure before it listed.
+	fix := run(3, 10, "main", "in_progress", "", base.Add(-h))
+	rerun.Status, rerun.Conclusion = "completed", "failure"
+	failed, running = Pick([]github.Run{older, rerun, fix}, "ana", base)
+	if !slices.Equal(ids(failed), []int64{2}) || !slices.Equal(ids(running), []int64{3}) {
+		t.Fatalf("failed = %v, running = %v", ids(failed), ids(running))
+	}
+}
+
 func TestRunningIsEveryRunNotCompleted(t *testing.T) {
 	m := time.Minute
 	runs := []github.Run{

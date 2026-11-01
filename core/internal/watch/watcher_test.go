@@ -22,13 +22,15 @@ const ghe = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"
 // fakeGitHub serves /user and the runs of the repositories in runs, with
 // an ETag; o/locked answers as an installation without Actions access and
 // any other repository as not found. userStatus fails /user with a status;
-// drop ends every runs request without an answer.
+// drop ends every runs request without an answer; onUser runs before
+// /user answers.
 type fakeGitHub struct {
 	mu         sync.Mutex
 	login      string
 	runs       map[string]string
 	users      int
 	userStatus int
+	onUser     func()
 	queries    map[string][]string
 	tags       map[string][]string
 	remaining  int
@@ -49,6 +51,9 @@ func (f *fakeGitHub) serve(w http.ResponseWriter, r *http.Request) {
 	defer f.mu.Unlock()
 	if r.URL.Path == "/user" {
 		f.users++
+		if f.onUser != nil {
+			f.onUser()
+		}
 		if f.userStatus == http.StatusForbidden {
 			w.Header().Set("X-RateLimit-Remaining", "0")
 			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(f.reset.Unix(), 10))
@@ -310,6 +315,13 @@ func TestAServerThatDoesNotAnswerKeepsWhatWasReadAndIsAskedOnce(t *testing.T) {
 	if asked != 1 {
 		t.Fatalf("%d repositories asked after the server stopped answering", asked)
 	}
+	// Within the next 3 minutes none is asked again: all count as asked.
+	c.add(time.Minute)
+	before := f.requests("o/a") + f.requests("o/b") + f.requests("o/c")
+	answers, _ = list(t, w, false, all...)
+	if after := f.requests("o/a") + f.requests("o/b") + f.requests("o/c"); after != before || answers[2].Access != offline || len(answers[2].Running) != 1 {
+		t.Fatalf("asked %d more times; %+v", after-before, answers[2])
+	}
 }
 
 func TestARepositoryNoLongerVisibleKeepsNothing(t *testing.T) {
@@ -336,18 +348,24 @@ func TestARepositoryNoLongerAskedForIsForgotten(t *testing.T) {
 }
 
 func TestWhatWasReadStaysWhenGitHubDoesNotSayWhoIsSignedIn(t *testing.T) {
-	w, f, _, _, accounts := rig(t)
+	w, f, _, c, accounts := rig(t)
 	f.runs["o/r"] = runJSON(1, 1, "in_progress", "", "ana", base)
 	list(t, w, false, Repository{Name: "o/r"})
-	// A new token is read with GET /user again.
+	// A refreshed token is read with GET /user again.
 	if _, err := accounts.Set(github.Server{}, "ghu_new"); err != nil {
 		t.Fatal(err)
 	}
 
 	f.userStatus = http.StatusBadGateway
 	answers, pauses := list(t, w, true, Repository{Name: "o/r"})
-	if a := answers[0]; a.Access != offline || len(a.Running) != 1 || !a.ReadAt.Equal(base) || len(pauses) != 0 {
-		t.Fatalf("offline = %+v, %+v", a, pauses)
+	if a := answers[0]; a.Access != offline || len(a.Running) != 1 || !a.ReadAt.Equal(base) || len(pauses) != 0 || f.users != 2 {
+		t.Fatalf("offline = %+v, %+v, %d asks", a, pauses, f.users)
+	}
+	// The failure stands for 3 minutes, unless the user refreshes.
+	c.add(time.Minute)
+	list(t, w, false, Repository{Name: "o/r"})
+	if f.users != 2 {
+		t.Fatalf("GET /user asked again within 3 minutes: %d", f.users)
 	}
 
 	f.userStatus = http.StatusForbidden
@@ -355,9 +373,51 @@ func TestWhatWasReadStaysWhenGitHubDoesNotSayWhoIsSignedIn(t *testing.T) {
 	if a := answers[0]; a.Access != limited || len(a.Running) != 1 || len(pauses) != 1 || !pauses[0].Until.Equal(f.reset) {
 		t.Fatalf("rate limited = %+v, %+v", a, pauses)
 	}
-	if f.requests("o/r") != 1 {
-		t.Fatalf("runs read %d times without a login", f.requests("o/r"))
+	// A paused server is not asked, even on a refresh.
+	list(t, w, true, Repository{Name: "o/r"})
+	if f.users != 3 || f.requests("o/r") != 1 {
+		t.Fatalf("GET /user asked %d times, runs read %d times", f.users, f.requests("o/r"))
 	}
+}
+
+func TestAnotherSignInDoesNotShowTheRunsOfTheOneBefore(t *testing.T) {
+	w, f, _, _, accounts := rig(t)
+	f.runs["o/r"] = runJSON(1, 1, "in_progress", "", "ana", base)
+	list(t, w, false, Repository{Name: "o/r"})
+	accounts.Clear("")
+	if _, err := accounts.Set(github.Server{}, "ghu_bo"); err != nil {
+		t.Fatal(err)
+	}
+	f.userStatus = http.StatusBadGateway
+	answers, _ := list(t, w, false, Repository{Name: "o/r"})
+	if a := answers[0]; a.Access != offline || len(a.Running) != 0 || !a.ReadAt.IsZero() {
+		t.Fatalf("a new sign-in while GitHub does not answer = %+v", a)
+	}
+	// Once GitHub says it is the same user, what was read is used again.
+	f.userStatus = 0
+	answers, _ = list(t, w, true, Repository{Name: "o/r"})
+	if a := answers[0]; a.Access != accessOK || len(a.Running) != 1 || f.tags["o/r"][1] == "" {
+		t.Fatalf("the same user again = %+v, tags %q", a, f.tags["o/r"])
+	}
+}
+
+func TestServersAreAskedWhoIsSignedInAtOnce(t *testing.T) {
+	w, f, _, _, accounts := rig(t)
+	other, server := newFakeGitHub(t, "ana-ghe")
+	if _, err := accounts.Set(github.Server{ID: ghe, APIURL: server.URL, WebHost: "ghe.test"}, "ghp_corp"); err != nil {
+		t.Fatal(err)
+	}
+	// github.com answers only once the other server was asked too.
+	asked := make(chan struct{})
+	other.onUser = func() { close(asked) }
+	f.onUser = func() {
+		select {
+		case <-asked:
+		case <-time.After(5 * time.Second):
+			t.Error("the servers were asked one after the other")
+		}
+	}
+	list(t, w, false, Repository{Name: "o/r"}, Repository{ServerID: ghe, Name: "corp/app"})
 }
 
 func TestEachServerHasItsLoginAndASignedOutOneIsNotAsked(t *testing.T) {

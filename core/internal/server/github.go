@@ -161,11 +161,7 @@ func (s *service) ListWorkflowRuns(ctx context.Context, request *corev1.ListWork
 	if err != nil {
 		return nil, err
 	}
-	out := &corev1.ListWorkflowRunsResponse{Status: result}
-	for _, r := range runs {
-		out.Runs = append(out.Runs, runMessage(r))
-	}
-	return out, nil
+	return &corev1.ListWorkflowRunsResponse{Status: result, Runs: runMessages(runs)}, nil
 }
 
 func (s *service) ListRunJobs(ctx context.Context, request *corev1.ListRunJobsRequest) (*corev1.ListRunJobsResponse, error) {

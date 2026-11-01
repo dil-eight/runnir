@@ -1330,12 +1330,12 @@ extension Runnir_Core_V1_RunnirCore {
         /// >
         /// > The signed-in user's failed and running runs in the repositories the
         /// > app watches (B39): its registered workspaces linked to GitHub and its
-        /// > starred repositories. An open workspace answers from its store; any
-        /// > other repository is read with one conditional request at most every 3
-        /// > minutes, only the runs the user started, and kept in memory. A workflow
-        /// > on a branch counts as failed while its newest finished run failed,
-        /// > within 7 days. At most 100 repositories are watched. Nothing is written
-        /// > to a closed workspace's database; its starts (B46) are read read-only.
+        /// > starred repositories. Every repository, its workspace open or not, is
+        /// > read with one conditional request at most every 3 minutes, only the
+        /// > runs the user started, and kept in memory. A workflow on a branch
+        /// > counts as failed while its newest finished run failed, within 7 days.
+        /// > At most 100 repositories are watched. Nothing is written to a closed
+        /// > workspace's database; its starts (B46) are read read-only.
         ///
         /// - Parameters:
         ///   - request: A streaming request of `Runnir_Core_V1_ListWatchedRunsRequest` messages.
@@ -2347,12 +2347,12 @@ extension Runnir_Core_V1_RunnirCore {
         /// >
         /// > The signed-in user's failed and running runs in the repositories the
         /// > app watches (B39): its registered workspaces linked to GitHub and its
-        /// > starred repositories. An open workspace answers from its store; any
-        /// > other repository is read with one conditional request at most every 3
-        /// > minutes, only the runs the user started, and kept in memory. A workflow
-        /// > on a branch counts as failed while its newest finished run failed,
-        /// > within 7 days. At most 100 repositories are watched. Nothing is written
-        /// > to a closed workspace's database; its starts (B46) are read read-only.
+        /// > starred repositories. Every repository, its workspace open or not, is
+        /// > read with one conditional request at most every 3 minutes, only the
+        /// > runs the user started, and kept in memory. A workflow on a branch
+        /// > counts as failed while its newest finished run failed, within 7 days.
+        /// > At most 100 repositories are watched. Nothing is written to a closed
+        /// > workspace's database; its starts (B46) are read read-only.
         ///
         /// - Parameters:
         ///   - request: A request containing a single `Runnir_Core_V1_ListWatchedRunsRequest` message.
@@ -3363,12 +3363,12 @@ extension Runnir_Core_V1_RunnirCore {
         /// >
         /// > The signed-in user's failed and running runs in the repositories the
         /// > app watches (B39): its registered workspaces linked to GitHub and its
-        /// > starred repositories. An open workspace answers from its store; any
-        /// > other repository is read with one conditional request at most every 3
-        /// > minutes, only the runs the user started, and kept in memory. A workflow
-        /// > on a branch counts as failed while its newest finished run failed,
-        /// > within 7 days. At most 100 repositories are watched. Nothing is written
-        /// > to a closed workspace's database; its starts (B46) are read read-only.
+        /// > starred repositories. Every repository, its workspace open or not, is
+        /// > read with one conditional request at most every 3 minutes, only the
+        /// > runs the user started, and kept in memory. A workflow on a branch
+        /// > counts as failed while its newest finished run failed, within 7 days.
+        /// > At most 100 repositories are watched. Nothing is written to a closed
+        /// > workspace's database; its starts (B46) are read read-only.
         ///
         /// - Parameters:
         ///   - request: A `Runnir_Core_V1_ListWatchedRunsRequest` message.
@@ -6431,12 +6431,12 @@ extension Runnir_Core_V1_RunnirCore {
         /// >
         /// > The signed-in user's failed and running runs in the repositories the
         /// > app watches (B39): its registered workspaces linked to GitHub and its
-        /// > starred repositories. An open workspace answers from its store; any
-        /// > other repository is read with one conditional request at most every 3
-        /// > minutes, only the runs the user started, and kept in memory. A workflow
-        /// > on a branch counts as failed while its newest finished run failed,
-        /// > within 7 days. At most 100 repositories are watched. Nothing is written
-        /// > to a closed workspace's database; its starts (B46) are read read-only.
+        /// > starred repositories. Every repository, its workspace open or not, is
+        /// > read with one conditional request at most every 3 minutes, only the
+        /// > runs the user started, and kept in memory. A workflow on a branch
+        /// > counts as failed while its newest finished run failed, within 7 days.
+        /// > At most 100 repositories are watched. Nothing is written to a closed
+        /// > workspace's database; its starts (B46) are read read-only.
         ///
         /// - Parameters:
         ///   - request: A request containing a single `Runnir_Core_V1_ListWatchedRunsRequest` message.
@@ -8032,12 +8032,12 @@ extension Runnir_Core_V1_RunnirCore {
         /// >
         /// > The signed-in user's failed and running runs in the repositories the
         /// > app watches (B39): its registered workspaces linked to GitHub and its
-        /// > starred repositories. An open workspace answers from its store; any
-        /// > other repository is read with one conditional request at most every 3
-        /// > minutes, only the runs the user started, and kept in memory. A workflow
-        /// > on a branch counts as failed while its newest finished run failed,
-        /// > within 7 days. At most 100 repositories are watched. Nothing is written
-        /// > to a closed workspace's database; its starts (B46) are read read-only.
+        /// > starred repositories. Every repository, its workspace open or not, is
+        /// > read with one conditional request at most every 3 minutes, only the
+        /// > runs the user started, and kept in memory. A workflow on a branch
+        /// > counts as failed while its newest finished run failed, within 7 days.
+        /// > At most 100 repositories are watched. Nothing is written to a closed
+        /// > workspace's database; its starts (B46) are read read-only.
         ///
         /// - Parameters:
         ///   - request: A request containing a single `Runnir_Core_V1_ListWatchedRunsRequest` message.
@@ -9767,12 +9767,12 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
     /// >
     /// > The signed-in user's failed and running runs in the repositories the
     /// > app watches (B39): its registered workspaces linked to GitHub and its
-    /// > starred repositories. An open workspace answers from its store; any
-    /// > other repository is read with one conditional request at most every 3
-    /// > minutes, only the runs the user started, and kept in memory. A workflow
-    /// > on a branch counts as failed while its newest finished run failed,
-    /// > within 7 days. At most 100 repositories are watched. Nothing is written
-    /// > to a closed workspace's database; its starts (B46) are read read-only.
+    /// > starred repositories. Every repository, its workspace open or not, is
+    /// > read with one conditional request at most every 3 minutes, only the
+    /// > runs the user started, and kept in memory. A workflow on a branch
+    /// > counts as failed while its newest finished run failed, within 7 days.
+    /// > At most 100 repositories are watched. Nothing is written to a closed
+    /// > workspace's database; its starts (B46) are read read-only.
     ///
     /// - Parameters:
     ///   - request: A request containing a single `Runnir_Core_V1_ListWatchedRunsRequest` message.
@@ -11483,12 +11483,12 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
     /// >
     /// > The signed-in user's failed and running runs in the repositories the
     /// > app watches (B39): its registered workspaces linked to GitHub and its
-    /// > starred repositories. An open workspace answers from its store; any
-    /// > other repository is read with one conditional request at most every 3
-    /// > minutes, only the runs the user started, and kept in memory. A workflow
-    /// > on a branch counts as failed while its newest finished run failed,
-    /// > within 7 days. At most 100 repositories are watched. Nothing is written
-    /// > to a closed workspace's database; its starts (B46) are read read-only.
+    /// > starred repositories. Every repository, its workspace open or not, is
+    /// > read with one conditional request at most every 3 minutes, only the
+    /// > runs the user started, and kept in memory. A workflow on a branch
+    /// > counts as failed while its newest finished run failed, within 7 days.
+    /// > At most 100 repositories are watched. Nothing is written to a closed
+    /// > workspace's database; its starts (B46) are read read-only.
     ///
     /// - Parameters:
     ///   - message: request message to send.

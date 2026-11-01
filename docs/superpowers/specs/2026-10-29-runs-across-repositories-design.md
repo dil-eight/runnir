@@ -13,7 +13,7 @@ Runnir shows a repository's runs only inside its workspace window. Someone who w
 | Where the list lives | A Runs tab beside Pull requests, in the menu bar window and in the Pull Requests window (⌥⌘R). One control switches them |
 | Which repositories | Every registered workspace linked to a GitHub repository (B07), open or closed, and every repository starred in the Workspace Manager's GitHub tab. A repository in both counts once |
 | Whose runs | Only the signed-in user's: runs whose `actor` is the user's login on that server. A teammate's run, or one the user re-ran but did not start, is not listed |
-| What counts as failed | Still failing: the user's newest finished run of a workflow on a branch is in the Failed group of B42 (failure, timed out, startup failure) and finished in the last 7 days. A later finished run of that workflow on that branch, or a re-run, that is not failed takes it off. The user can remove a row by hand |
+| What counts as failed | Still failing: the user's newest finished run of a workflow on a branch is in the Failed group of B42 (failure, timed out, startup failure) and finished in the last 7 days. A later finished run of that workflow on that branch, or a re-run, that is not failed takes it off; while a re-run is in progress, the workflow lists no failure. The user can remove a row by hand |
 | What counts as running | Runs not completed: in progress, queued, waiting, requested, pending |
 | Where the runs come from | Every repository, a workspace open or not, is read by the Core from GitHub, one conditional request each, at most every 3 minutes. A workspace's saved runs are not used: its sync refreshes only its newest runs, so an older saved run can stay in progress |
 | What a click opens | A repository with a workspace: its window (opened or brought forward) with the run in the inspector. A repository without one: the run on GitHub |
@@ -29,7 +29,7 @@ A new package `core/internal/watch` holds the rules, apart from any I/O:
 - `Pick(runs, login, now)` returns the failed and the running runs of one repository.
   - Only runs whose `Actor` equals `login`, compared without case.
   - **Running:** `status` is not `completed`.
-  - **Failed:** the runs are grouped by workflow (`WorkflowID`) and branch. In each group the newest finished run decides: it is listed when `runsearch.StatusOf` puts it in `Failed` and its `UpdatedAt` is within 7 days of `now`. A newer finished run that succeeded, was cancelled or was skipped lists nothing. A re-run changes the run's own conclusion, so a re-run that passed lists nothing either.
+  - **Failed:** the runs are grouped by workflow (`WorkflowID`) and branch. In each group the newest finished run decides: it is listed when `runsearch.StatusOf` puts it in `Failed` and its `UpdatedAt` is within 7 days of `now`. A newer finished run that succeeded, was cancelled or was skipped lists nothing. A re-run changes the run's own conclusion, so a re-run that passed lists nothing either. A new run in progress is skipped, so the failure before it stays listed until it passes; a re-run in progress (attempt 2 or later) is the newest run, and how it ends is not known yet, so the group lists nothing until it finishes and no older failure comes back.
   - Both lists are newest first, by `UpdatedAt` for failed runs and by `CreatedAt` for running ones.
 - The rules are the same for a workspace's saved runs and for runs read from GitHub.
 
@@ -37,21 +37,21 @@ A new package `core/internal/watch` holds the rules, apart from any I/O:
 
 The watcher lives in the server, next to `ListPullRequests`:
 
-- **Every repository** is read with `RunsIfChanged` with `actor=<login>` and `per_page=50`, with the ETag the watcher kept for it. An open workspace's saved runs are not used: its sync (B27) reads the newest page and older pages only down to the newest saved run, so a saved run that has fallen off the newest page keeps the status it was saved with.
+- **Every repository** is read with `RunsIfChanged` with `actor=<login>` and `per_page=50`, with the ETag the watcher kept for it. An open workspace's saved runs are not used, so every repository is read one way. Its sync (B27) reads the newest page and older pages only down to the newest saved run; a saved run that fell off the newest page unfinished is read again by the sync at most every 3 minutes, 10 at most, so the store can lag behind GitHub.
   - A 304 keeps the runs read before and does not count against GitHub's primary rate limit.
   - The ETags and the runs are kept in memory only. Nothing is written to a closed workspace's database, so its saved runs stay as they were and the one-writer rule of B27 holds.
   - At most 4 repositories are read at once.
   - A repository read less than 3 minutes ago answers from memory. A refresh the user asks for (the refresh button) reads it again.
   - A repository no longer sent is forgotten. One that GitHub no longer shows (403 or 404) keeps nothing.
-- **A server that does not answer.** Once a read gets no answer from a server (it cannot be reached, or does not answer in 20 seconds), its other repositories are not asked in that call. They keep the runs read before and answer `UNAVAILABLE`, so one unreachable Enterprise server does not hold up the others. A server error (5xx) of one repository stops nothing else.
+- **A server that does not answer.** Once a read gets no answer from a server (it cannot be reached, or does not answer in 20 seconds), its other repositories are not asked in that call, and they count as asked: none is asked again for 3 minutes. They keep the runs read before and answer `UNAVAILABLE`, so one unreachable Enterprise server does not hold up the others. A server error (5xx) of one repository, or a redirect that is not followed, stops nothing else.
 - **The marks of B46.** Runnir keeps its starts in the database of the workspace they were sent from. The starts of a repository are joined from every workspace the app sent for it:
   - an open one gives them from its store;
   - a closed one gives them from its database opened read-only (`store.OpenReadOnly`), guarded by the runtimes' claim the way global search is, so the workspace does not open in the middle of the read;
   - the databases are read only when the repository has a failed or running run to list, at most 4 at once;
   - a database that cannot be read gives no marks, and its runs are listed anyway.
   - A starred repository with no workspace has no starts: Runnir starts runs only from a workspace (B46).
-- **The login** of each server is read once with `GET /user` and kept with the credential. It is read again when the credential changes. A server without a credential answers every repository of it as signed out, with no request. When `GET /user` gets no answer or is rate limited, the server's repositories keep the runs read before, as `UNAVAILABLE` or `RATE_LIMITED`; a rate limit pauses the server as below.
-- **The rate limit.** The GitHub client keeps the `X-RateLimit-Remaining`, `X-RateLimit-Limit` and `X-RateLimit-Reset` of its latest answer. When fewer than 10% of the requests are left, the watcher reads nothing on that server until the reset time. It answers with the runs it holds and `paused_until`. A `RateLimitError` pauses it the same way. The workspace runtimes keep their own schedule.
+- **The login** of each server is read with `GET /user`, every server at once, and kept until the token changes. A `GET /user` that failed stands for 3 minutes (a refresh asks again), and a paused server is not asked. A server without a credential answers every repository of it as signed out, with no request. When `GET /user` gets no answer or is rate limited, the server's repositories keep the runs read before, as `UNAVAILABLE` or `RATE_LIMITED`; a rate limit pauses the server as below. Only the runs of the sign-in's login are kept that way: a refreshed token keeps them, but after a sign-out and another sign-in none are shown until GitHub says who is signed in.
+- **The rate limit.** The GitHub client keeps the `X-RateLimit-Remaining`, `X-RateLimit-Limit` and `X-RateLimit-Reset` of its newest answer: one that comes back late, read with an older token, of an earlier window or with more left in the same window, replaces nothing. When fewer than 10% of the requests are left, the watcher reads nothing on that server until the reset time. It answers with the runs it holds and the server in `pauses`. A `RateLimitError` pauses it the same way. The workspace runtimes keep their own schedule.
 - **Access.** A 403 that is not the rate limit, or a 404, gives the repository the access status the other answers use (no Actions access, not found). It is listed with no runs, so the app can say which repositories were skipped.
 - **The budget.** At most 100 repositories are watched. Workspaces come first, in the order the app sent them, then starred repositories in the order they were starred. The rest are answered as not watched, with no request.
 
@@ -150,6 +150,7 @@ Not drawn: signed out and checking the sign-in. The Runs tab shows the same scre
 - **Core, rules (`watch.Pick`).**
   - The newest finished run of a workflow on a branch failed: listed.
   - Fixed by a later run, or by a re-run of the same run: not listed.
+  - A re-run in progress lists no older failure; a new run in progress leaves the failure before it listed.
   - A later cancelled or skipped run: not listed.
   - Failed 8 days ago: not listed.
   - Another actor, and the login in another case.
@@ -162,10 +163,11 @@ Not drawn: signed out and checking the sign-in. The Runs tab shows the same scre
   - Paused below 10% of the limit and after a `RateLimitError`, until the reset.
   - 100 repositories watched, in order; the rest unwatched with no request.
   - A workspace's repository is read from GitHub like any other, with its B46 starts.
-  - A server that does not answer is asked once in a call and its repositories keep what was read; a repository GitHub no longer shows keeps nothing; one no longer sent is forgotten; a `GET /user` with no answer or rate limited keeps what was read, and the rate limit pauses the server.
+  - A server that does not answer is asked once in a call, its repositories keep what was read, and none is asked again within 3 minutes; a repository GitHub no longer shows keeps nothing; one no longer sent is forgotten; a `GET /user` with no answer or rate limited keeps what was read, the failure stands for 3 minutes, and the rate limit pauses the server without asking `GET /user` again.
+  - After a sign-out and another sign-in, nothing read for the one before is shown until GitHub says who is signed in.
   - A closed workspace gives its starts from its database read-only, and the file is not changed; two workspaces of one repository give their starts together; a database that cannot be read gives no marks and the runs are still listed; no database is read for a repository with nothing to list.
   - Two servers with their own logins; a server signed out makes no request.
-  - The login read once per credential.
+  - The login read once per token, and every server asked at once.
 - **App.**
   - The repositories sent: workspaces first, starred after, a repository sent once with all its workspaces, the open one first.
   - The sections, the chips and the tab's count.
@@ -181,6 +183,6 @@ Not drawn: signed out and checking the sign-in. The Runs tab shows the same scre
 One pull request:
 
 - this spec and the Pen frames;
-- the Core: the rules, the watcher, the client's rate limit and login, the contract;
+- the Core: the rules, the watcher, the client's rate limit and login, the contract, and the workspace sync reading again its unfinished saved runs beyond the newest page;
 - the app: the tabs, the model, the Runs tab, the icon;
 - the docs: the B39 row in the checklist, `grpc-api.md`, `screens-and-states.md`.

@@ -585,6 +585,18 @@ final class DesktopCoordinator {
         WatchedRepositories.of(workspaces: snapshot.workspaces, isOpen: { openCount($0) > 0 }, starred: repositoryFavorites.names)
     }
 
+    /// Signed in to github.com or to any Enterprise server.
+    var isSignedIn: Bool { github?.user != nil || !(core?.signedInServers.isEmpty ?? true) }
+
+    /// Reads both menu bar lists again where they are older than a minute,
+    /// as the menu or the window opens: the menu bar icon shows both.
+    func refreshMenuListsIfStale() async {
+        guard let core else { return }
+        async let pullRequests: Void = self.pullRequests.refreshIfStale(hub: core)
+        async let runs: Void = watchedRuns.refreshIfStale(hub: core)
+        _ = await (pullRequests, runs)
+    }
+
     func openOrFocus(_ workspace: WorkspaceRecord) {
         if openCount(workspace.id) > 0 { focus(workspace.id) } else { openRegistered(workspace) }
     }
@@ -948,11 +960,10 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
             let name = desktop.snapshot.workspaces.first { $0.id == run.workspaceID }?.name ?? folder
             notifier.notify(.localRunFinished(run, workspaceName: name))
         }
-        // Signed in to github.com or to any Enterprise server.
-        desktop.pullRequests.startPolling(hub: coreHub, isSignedIn: { [github, coreHub] in github.user != nil || !coreHub.signedInServers.isEmpty })
+        desktop.pullRequests.startPolling(hub: coreHub, isSignedIn: { [desktop] in desktop.isSignedIn })
         // The user's runs across repositories, asked again when what is watched changes.
         desktop.watchedRuns.repositories = { [desktop] in desktop.watchedRepositories }
-        desktop.watchedRuns.startPolling(hub: coreHub, isSignedIn: { [github, coreHub] in github.user != nil || !coreHub.signedInServers.isEmpty })
+        desktop.watchedRuns.startPolling(hub: coreHub, isSignedIn: { [desktop] in desktop.isSignedIn })
         // A failed start shows up as the hub's status, with a restart offer in each window.
         Task { [core] in _ = try? await core.start() }
     }

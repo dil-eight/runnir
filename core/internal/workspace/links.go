@@ -3,7 +3,6 @@ package workspace
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"runnir/core/internal/changes"
@@ -17,13 +16,15 @@ const (
 	maxGapPages = 10
 	// maxLookups bounds the lookup requests of one pass.
 	maxLookups = 10
+	// maxRefreshed bounds the unfinished runs a pass reads again.
+	maxRefreshed = 10
 )
 
 // input is the cache as the changes package reads it.
 func input(a store.Activity, target Target, now time.Time) changes.Input {
 	return changes.Input{
 		Runs: a.Runs, PullRequests: a.PullRequests, Lookups: a.Lookups, DefaultBranch: a.DefaultBranch,
-		Repository:    strings.ToLower(target.Owner + "/" + target.Name),
+		Repository:    target.Source().Repository,
 		RepositoryURL: "https://" + target.Account.Server.WebHost + "/" + target.Owner + "/" + target.Name,
 		Now:           now,
 	}

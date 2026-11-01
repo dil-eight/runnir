@@ -29,6 +29,33 @@ func TestCredentialSetClearAndValidation(t *testing.T) {
 	}
 }
 
+func TestASignInChangesOnlyWhenATokenComesAfterNone(t *testing.T) {
+	var a, b Credential
+	_ = a.Set("ghu_one")
+	first, signIn := a.Generation(), a.SignIn()
+	_ = a.Set("ghu_two") // a refreshed token
+	if a.Generation() <= first || a.SignIn() != signIn {
+		t.Fatalf("refresh: generation %d after %d, sign-in %d after %d", a.Generation(), first, a.SignIn(), signIn)
+	}
+	same := a.Generation()
+	_ = a.Set("ghu_two")
+	if a.Generation() != same {
+		t.Fatal("the same token again is no change")
+	}
+	a.Clear()
+	if a.Generation() == same || a.SignIn() != signIn {
+		t.Fatal("a sign-out changes the generation only")
+	}
+	_ = a.Set("ghu_three")
+	if a.SignIn() == signIn || a.SignIn() != a.Generation() {
+		t.Fatal("a token after none is another sign-in")
+	}
+	_ = b.Set("ghu_one")
+	if b.Generation() == a.Generation() || b.SignIn() == a.SignIn() {
+		t.Fatal("two credentials share a number")
+	}
+}
+
 func TestCredentialNeverPrintsTheToken(t *testing.T) {
 	var c Credential
 	_ = c.Set("ghu_secret")

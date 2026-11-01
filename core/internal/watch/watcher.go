@@ -3,6 +3,8 @@ package watch
 import (
 	"context"
 	"errors"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -10,6 +12,7 @@ import (
 
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
+	"runnir/core/internal/parallel"
 	"runnir/core/internal/store"
 	"runnir/core/internal/workspace"
 )
@@ -18,7 +21,8 @@ import (
 var (
 	// MaxWatched repositories are read; the rest are answered unwatched.
 	MaxWatched = 100
-	// Reuse: a repository read this recently answers from memory.
+	// Reuse: a repository read this recently answers from memory, and a
+	// server that gave no login this recently is not asked again.
 	Reuse = 3 * time.Minute
 	// readers is how many repositories are read at once.
 	readers = 4
@@ -88,6 +92,20 @@ type Watcher struct {
 	mu     sync.Mutex
 	read   map[string]*entry
 	paused map[string]time.Time
+	// users is who is signed in to each server, as GET /user said.
+	users map[string]*user
+}
+
+// user is what the watcher knows of who is signed in to a server.
+type user struct {
+	// signIn and generation are the credential's at the last GET /user.
+	signIn, generation uint64
+	// name is the sign-in's login; "" until GET /user answered for it.
+	name string
+	// access and retry are the last GET /user's outcome, at askedAt.
+	access  corev1.GithubAccess
+	retry   time.Time
+	askedAt time.Time
 }
 
 // entry is what the watcher keeps of one repository read from GitHub.
@@ -108,6 +126,8 @@ type job struct {
 	account                                 *github.Account
 }
 
+// login is who is signed in to a server for one call: name is "" when
+// GitHub has not said for this sign-in.
 type login struct {
 	name   string
 	access corev1.GithubAccess
@@ -118,7 +138,7 @@ func New(accounts *github.Accounts, local Local, now func() time.Time) *Watcher 
 	if now == nil {
 		now = time.Now
 	}
-	return &Watcher{accounts: accounts, local: local, now: now, read: map[string]*entry{}, paused: map[string]time.Time{}}
+	return &Watcher{accounts: accounts, local: local, now: now, read: map[string]*entry{}, paused: map[string]time.Time{}, users: map[string]*user{}}
 }
 
 // List answers each repository, in order, and the servers paused. A
@@ -129,18 +149,14 @@ func (w *Watcher) List(ctx context.Context, repositories []Repository, refresh b
 	defer w.call.Unlock()
 	now := w.now()
 	out := make([]Answer, len(repositories))
-	keys := make([]string, len(repositories))
-	sources := make([]store.Source, len(repositories))
-	logins := map[string]login{}
-	queued := map[string]bool{}
-	var jobs []job
+	accounts := make([]*github.Account, len(repositories))
+	servers := map[string]*github.Account{}
 	for i, r := range repositories {
 		if i >= MaxWatched {
 			continue
 		}
 		out[i].Watched = true
-		owner, name, ok := split(r.Name)
-		if !ok {
+		if !github.ValidRepository(r.Name) {
 			out[i].Access = invisible
 			continue
 		}
@@ -153,21 +169,26 @@ func (w *Watcher) List(ctx context.Context, repositories []Repository, refresh b
 			out[i].Access = signedOut
 			continue
 		}
-		user, ok := logins[r.ServerID]
-		if !ok {
-			read, err := account.Client.Login(ctx)
-			access, retry, cancelled := workspace.Access(account, err)
-			if cancelled != nil {
-				return nil, nil, cancelled
-			}
-			user = login{name: read, access: access, retry: retry}
-			logins[r.ServerID] = user
-			if access == limited {
-				w.pause(r.ServerID, retry)
-			}
+		accounts[i], servers[r.ServerID] = account, account
+	}
+	logins, err := w.signIns(ctx, servers, now, refresh)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	keys := make([]string, len(repositories))
+	sources := make([]store.Source, len(repositories))
+	queued := map[string]bool{}
+	var jobs []job
+	for i, r := range repositories {
+		account := accounts[i]
+		if account == nil {
+			continue
 		}
-		source := store.Source{ServerID: r.ServerID, Repository: strings.ToLower(owner + "/" + name)}
+		owner, name, _ := strings.Cut(r.Name, "/")
+		source := store.SourceOf(r.ServerID, owner, name)
 		key := r.ServerID + "\x00" + source.Repository
+		user := logins[r.ServerID]
 		switch user.access {
 		case accessOK:
 		case offline, limited:
@@ -201,7 +222,8 @@ func (w *Watcher) List(ctx context.Context, repositories []Repository, refresh b
 		e := w.read[key]
 		if user := logins[repositories[i].ServerID]; user.access != accessOK {
 			out[i].Access, out[i].RetryAfter = user.access, user.retry
-			if e != nil {
+			// Only the runs of this sign-in's login, once GitHub said it.
+			if e != nil && user.name != "" && e.login == user.name {
 				out[i].ReadAt = e.readAt
 				out[i].Failed, out[i].Running = Pick(e.runs, e.login, now)
 			}
@@ -227,6 +249,69 @@ func (w *Watcher) List(ctx context.Context, repositories []Repository, refresh b
 	return out, pauses, nil
 }
 
+// signIns asks every server who is signed in, all at once, so a server
+// that does not answer holds up no other. The only error is the call's
+// context ending.
+func (w *Watcher) signIns(ctx context.Context, accounts map[string]*github.Account, now time.Time, refresh bool) (map[string]login, error) {
+	servers := slices.Sorted(maps.Keys(accounts))
+	logins := make([]login, len(servers))
+	errs := make([]error, len(servers))
+	parallel.Each(len(servers), len(servers), func(i int) {
+		logins[i], errs[i] = w.signedIn(ctx, servers[i], accounts[servers[i]], now, refresh)
+	})
+	out := make(map[string]login, len(servers))
+	for i, server := range servers {
+		if errs[i] != nil {
+			return nil, errs[i]
+		}
+		out[server] = logins[i]
+	}
+	return out, nil
+}
+
+// signedIn is who is signed in to a server. GET /user is asked once per
+// token; a failed ask stands for Reuse unless refresh, and a paused server
+// is not asked. Another sign-in forgets the login of the one before, so its
+// runs are not shown for it.
+func (w *Watcher) signedIn(ctx context.Context, serverID string, account *github.Account, now time.Time, refresh bool) (login, error) {
+	signIn, generation := account.Credential.SignIn(), account.Credential.Generation()
+	w.mu.Lock()
+	u := w.users[serverID]
+	if u == nil || u.signIn != signIn {
+		u = &user{signIn: signIn}
+		w.users[serverID] = u
+	}
+	asked := u.generation == generation && !u.askedAt.IsZero()
+	askedAt, known := u.askedAt, login{name: u.name, access: u.access, retry: u.retry}
+	until := w.paused[serverID]
+	w.mu.Unlock()
+	switch {
+	case asked && known.access == accessOK:
+		return known, nil
+	case now.Before(until):
+		known.access, known.retry = limited, until
+		return known, nil
+	case asked && !refresh && now.Sub(askedAt) < Reuse:
+		return known, nil
+	}
+
+	name, err := account.Client.Login(ctx)
+	access, retry, cancelled := workspace.Access(account, err)
+	if cancelled != nil {
+		return login{}, cancelled
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if access == accessOK {
+		u.name = name
+	}
+	if access == limited {
+		w.paused[serverID] = retry
+	}
+	u.generation, u.access, u.retry, u.askedAt = generation, access, retry, now
+	return login{name: u.name, access: access, retry: retry}, nil
+}
+
 // entry returns when key was last checked and its ETag; an entry of
 // another login starts over.
 func (w *Watcher) entry(key, login string) (time.Time, string) {
@@ -244,39 +329,24 @@ func (w *Watcher) entry(key, login string) (time.Time, string) {
 // that did not answer a read of this call: their other repositories are not
 // asked, so one unreachable server does not hold up the call.
 func (w *Watcher) readAll(ctx context.Context, jobs []job, now time.Time) {
-	var wg sync.WaitGroup
-	slots := make(chan struct{}, readers)
 	down := map[string]bool{}
-	for _, j := range jobs {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			slots <- struct{}{}
-			defer func() { <-slots }()
-			if w.mayRead(j, now, down) {
-				w.readOne(ctx, j, now, down)
-			}
-		}()
-	}
-	wg.Wait()
-}
-
-// pause holds a server back until a time.
-func (w *Watcher) pause(serverID string, until time.Time) {
-	w.mu.Lock()
-	w.paused[serverID] = until
-	w.mu.Unlock()
+	parallel.Each(len(jobs), readers, func(i int) {
+		if w.mayRead(jobs[i], now, down) {
+			w.readOne(ctx, jobs[i], now, down)
+		}
+	})
 }
 
 // mayRead: the server answered this call, is not paused, and more than a
 // tenth of its rate limit is left; below that it is paused until the limit
-// resets. A repository of a server down keeps what was read, as offline.
+// resets. A repository of a server down keeps what was read, as offline,
+// and counts as asked, as the one that got no answer does.
 func (w *Watcher) mayRead(j job, now time.Time, down map[string]bool) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if down[j.serverID] {
 		e := w.read[j.key]
-		e.access, e.retry = offline, time.Time{}
+		e.access, e.retry, e.checkedAt = offline, time.Time{}, now
 		return false
 	}
 	if until, ok := w.paused[j.serverID]; ok && now.Before(until) {
@@ -344,39 +414,25 @@ func (w *Watcher) pauses(now time.Time, repositories []Repository) []Pause {
 // addStarts joins Runnir's starts of the listed runs from the repository's
 // workspaces, only where a run is listed, at most readers at once.
 func (w *Watcher) addStarts(ctx context.Context, repositories []Repository, sources []store.Source, out []Answer) {
-	var wg sync.WaitGroup
-	slots := make(chan struct{}, readers)
-	for i := range out {
-		a := &out[i]
-		if len(a.Failed)+len(a.Running) == 0 || len(repositories[i].WorkspaceIDs) == 0 {
-			continue
+	var listed []int
+	for i, a := range out {
+		if len(a.Failed)+len(a.Running) > 0 && len(repositories[i].WorkspaceIDs) > 0 {
+			listed = append(listed, i)
 		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			slots <- struct{}{}
-			defer func() { <-slots }()
-			all := w.local.Starts(ctx, repositories[i].WorkspaceIDs, sources[i])
-			for _, list := range [][]github.Run{a.Failed, a.Running} {
-				for _, r := range list {
-					if starts := all[r.ID]; len(starts) > 0 {
-						if a.Starts == nil {
-							a.Starts = map[int64][]store.RunStart{}
-						}
-						a.Starts[r.ID] = starts
+	}
+	parallel.Each(len(listed), readers, func(n int) {
+		i := listed[n]
+		a := &out[i]
+		all := w.local.Starts(ctx, repositories[i].WorkspaceIDs, sources[i])
+		for _, list := range [][]github.Run{a.Failed, a.Running} {
+			for _, r := range list {
+				if starts := all[r.ID]; len(starts) > 0 {
+					if a.Starts == nil {
+						a.Starts = map[int64][]store.RunStart{}
 					}
+					a.Starts[r.ID] = starts
 				}
 			}
-		}()
-	}
-	wg.Wait()
-}
-
-// split reads "owner/name".
-func split(full string) (string, string, bool) {
-	owner, name, ok := strings.Cut(full, "/")
-	if !ok || owner == "" || name == "" || strings.Contains(name, "/") || strings.ContainsAny(full, " \t\n?#") {
-		return "", "", false
-	}
-	return owner, name, true
+		}
+	})
 }

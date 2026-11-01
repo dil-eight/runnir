@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"runnir/core/internal/parallel"
 )
 
 // CIState sums up the GitHub Actions runs on a pull request's head commit.
@@ -77,26 +79,18 @@ func (c *Client) MyPullRequests(ctx context.Context, closedSince time.Time) (Pul
 	}
 	out := PullRequests{Open: open, Closed: closed}
 
-	var wg sync.WaitGroup
 	var mu sync.Mutex
-	limit := make(chan struct{}, pullConcurrency)
-	for i := range out.Open {
-		wg.Add(1)
-		go func(pr *PullRequest) {
-			defer wg.Done()
-			limit <- struct{}{}
-			defer func() { <-limit }()
-			if err := c.fillCI(ctx, pr); err != nil {
-				pr.CI = CIUnknown
-				if errors.Is(err, ErrPermissionMissing) || errors.Is(err, ErrNotVisible) {
-					mu.Lock()
-					out.HeadsUnreadable = true
-					mu.Unlock()
-				}
+	parallel.Each(len(out.Open), pullConcurrency, func(i int) {
+		pr := &out.Open[i]
+		if err := c.fillCI(ctx, pr); err != nil {
+			pr.CI = CIUnknown
+			if errors.Is(err, ErrPermissionMissing) || errors.Is(err, ErrNotVisible) {
+				mu.Lock()
+				out.HeadsUnreadable = true
+				mu.Unlock()
 			}
-		}(&out.Open[i])
-	}
-	wg.Wait()
+		}
+	})
 	if err := ctx.Err(); err != nil {
 		return PullRequests{}, err
 	}

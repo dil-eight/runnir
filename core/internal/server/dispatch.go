@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"strings"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -194,7 +193,7 @@ func (s *service) recordDispatch(ctx context.Context, prepared dispatch.Request,
 	omitted := slices.Clone(prepared.SecretInputs)
 	slices.Sort(omitted)
 	id, _ := rt.Store().RecordDispatch(ctx, store.DispatchRecord{
-		Source:       store.Source{ServerID: prepared.ServerID, Repository: strings.ToLower(prepared.Owner + "/" + prepared.Name)},
+		Source:       store.SourceOf(prepared.ServerID, prepared.Owner, prepared.Name),
 		WorkflowPath: prepared.WorkflowPath, Ref: prepared.Ref, Inputs: kept, Omitted: omitted, SentAt: sentAt, RunID: runID,
 	})
 	return id
@@ -237,7 +236,7 @@ func (s *service) historyScope(repositoryID string) (*workspace.Runtime, store.S
 	if problem != nil {
 		return nil, store.Source{}, nil
 	}
-	return rt, store.Source{ServerID: target.account.Server.ID, Repository: strings.ToLower(target.owner + "/" + target.name)}, nil
+	return rt, store.SourceOf(target.account.Server.ID, target.owner, target.name), nil
 }
 
 func (s *service) ClearDispatchHistory(ctx context.Context, request *corev1.ClearDispatchHistoryRequest) (*corev1.ClearDispatchHistoryResponse, error) {

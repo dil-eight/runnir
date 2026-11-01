@@ -56,6 +56,10 @@ enum MenuListTab: String, CaseIterable, Sendable {
     var title: String { self == .pullRequests ? "Pull Requests" : "Runs" }
     /// The control's label.
     var segment: String { self == .pullRequests ? "Pull requests" : "Runs" }
+    var refreshHelp: String { self == .pullRequests ? "Read pull requests again" : "Read runs again" }
+    var restoreHelp: String {
+        self == .pullRequests ? "Bring back the closed pull requests removed from this list" : "Bring back the runs removed from this list"
+    }
 }
 
 /// The signed-in user's failed and running runs in the watched
@@ -64,7 +68,7 @@ enum MenuListTab: String, CaseIterable, Sendable {
 /// and when the watched repositories change.
 @MainActor
 @Observable
-final class WatchedRunsModel {
+final class WatchedRunsModel: MenuList {
     private(set) var answers: [CoreWatchedRuns] = []
     /// Servers the Core reads nothing from until a time, by server id.
     private(set) var pauses: [String: Date] = [:]
@@ -72,24 +76,24 @@ final class WatchedRunsModel {
     private(set) var isLoading = false
     /// The last ask got no answer: the Core is not ready or failed.
     private(set) var unanswered = false
-    private(set) var dismissed: [String: Date] = [:]
-    @ObservationIgnored private let store: FileDismissalStore?
-    @ObservationIgnored private var poll: Task<Void, Never>?
+    private(set) var dismissed: Dismissals
+    @ObservationIgnored let poller = MenuListPoller()
     /// What the last answer was for; nil before any.
     @ObservationIgnored private var sent: [CoreWatchedRepository]?
     @ObservationIgnored var now: () -> Date = Date.init
     /// What to watch, read at every ask; the app delegate sets it.
     @ObservationIgnored var repositories: @MainActor () -> [CoreWatchedRepository] = { [] }
 
-    static let pollInterval: Duration = .seconds(180)
-    static let staleAfter: TimeInterval = 60
-
     init(store: FileDismissalStore?) {
-        self.store = store
-        let loaded = (try? store?.load()) ?? [:]
-        let cutoff = Date().addingTimeInterval(-FileDismissalStore.keepFor)
-        dismissed = loaded.filter { $0.value > cutoff }
+        dismissed = Dismissals(store: store)
     }
+
+    /// Until a first answer, an unready Core is asked again soon.
+    var awaitingCore: Bool { unanswered }
+    var isCurrent: Bool { !unanswered && !isOutdated }
+    /// The watched repositories changed since the last answer.
+    var isOutdated: Bool { sent.map { $0 != repositories() } ?? false }
+    var updatedDetail: String { WatchedRunText.updated(count: watched.count) }
 
     /// The repositories read: the first 100.
     var watched: [CoreWatchedRuns] { answers.filter(\.watched) }
@@ -112,7 +116,7 @@ final class WatchedRunsModel {
 
     /// Failed runs not removed from the list, newest first.
     var failed: [WatchedRun] {
-        rows(\.failed).filter { dismissed[$0.id] == nil }
+        rows(\.failed).filter { !dismissed.contains($0.id) }
             .sorted { ($0.run.updatedAt ?? .distantPast) > ($1.run.updatedAt ?? .distantPast) }
     }
 
@@ -157,61 +161,16 @@ final class WatchedRunsModel {
         loadedAt = now()
     }
 
-    /// Asks again when the list is older than a minute or watches other repositories.
-    func refreshIfStale(hub: CoreHub) async {
-        if let loadedAt, now().timeIntervalSince(loadedAt) < Self.staleAfter, !unanswered, sent == repositories() { return }
-        await refresh(hub: hub)
-    }
-
     /// Removes a failed run's attempt from the list, on this Mac.
     func dismiss(_ run: WatchedRun) {
-        var candidate = dismissed
-        candidate[run.id] = now()
-        let cutoff = now().addingTimeInterval(-FileDismissalStore.keepFor)
-        candidate = candidate.filter { $0.value > cutoff }
-        try? store?.save(candidate)
-        dismissed = candidate
+        dismissed.add(run.id, at: now())
     }
 
-    /// Brings back the runs removed from the list.
     func restoreDismissed() {
-        try? store?.save([:])
-        dismissed = [:]
+        dismissed.removeAll()
     }
 
-    /// Asks every three minutes while `isSignedIn` holds, looking every
-    /// `retry`: a sign-in or a change of the watched repositories is read
-    /// within seconds, and a sign-out clears the list.
-    func startPolling(hub: CoreHub, retry: Duration = .seconds(5), isSignedIn: @escaping @MainActor () -> Bool) {
-        poll?.cancel()
-        poll = Task { [weak self] in
-            let clock = ContinuousClock()
-            var lastRead: ContinuousClock.Instant?
-            while !Task.isCancelled {
-                guard let self else { return }
-                if !isSignedIn() {
-                    self.clear()
-                    lastRead = nil
-                } else {
-                    // Until a first answer, an unready Core is asked again soon.
-                    let every = self.loadedAt == nil && self.unanswered ? retry : Self.pollInterval
-                    let changed = self.sent.map { $0 != self.repositories() } ?? false
-                    if changed || lastRead.map({ clock.now - $0 >= every }) ?? true {
-                        lastRead = clock.now
-                        await self.refresh(hub: hub)
-                    }
-                }
-                try? await Task.sleep(for: retry)
-            }
-        }
-    }
-
-    func stopPolling() {
-        poll?.cancel()
-        poll = nil
-    }
-
-    private func clear() {
+    func clear() {
         guard loadedAt != nil || !answers.isEmpty || sent != nil else { return }
         answers = []
         pauses = [:]
@@ -283,16 +242,20 @@ enum WatchedRunText {
 
     /// The Core did not answer the last ask.
     static func unanswered(readAt: Date?) -> String {
-        "Runnir Core isn't answering, so your runs can't be read." + (readAt.map { " These runs were read at \(time($0))." } ?? "")
+        "Runnir Core isn't answering, so your runs can't be read." + read(at: readAt)
     }
 
     static func paused(until: Date, readAt: Date?) -> String {
-        let read = readAt.map { " These runs were read at \(time($0))." } ?? ""
-        return "Paused until \(time(until)) to keep the GitHub rate limit." + read
+        "Paused until \(time(until)) to keep the GitHub rate limit." + read(at: readAt)
     }
 
     static func offline(readAt: Date?) -> String {
-        "GitHub can't be reached." + (readAt.map { " These runs were read at \(time($0))." } ?? "")
+        "GitHub can't be reached." + read(at: readAt)
+    }
+
+    /// When the runs shown were read; nothing when none was.
+    private static func read(at date: Date?) -> String {
+        date.map { " These runs were read at \(time($0))." } ?? ""
     }
 
     private static func time(_ date: Date) -> String { date.formatted(date: .omitted, time: .shortened) }

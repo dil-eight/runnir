@@ -5,10 +5,6 @@ import Testing
 @MainActor
 @Suite(.timeLimit(.minutes(1)))
 struct GitHubRepositoriesTests {
-    private func directory() -> URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent("repositories-" + UUID().uuidString, isDirectory: true)
-    }
-
     private func repository(_ fullName: String, description: String = "", pushed: TimeInterval = 0, canPush: Bool = true) -> CoreGitHubAccountRepository {
         let parts = fullName.split(separator: "/").map(String.init)
         return CoreGitHubAccountRepository(fullName: fullName, owner: parts[0], name: parts[1], description: description, visibility: "private",
@@ -18,20 +14,16 @@ struct GitHubRepositoriesTests {
     }
 
     private func readyHub() async -> (CoreHub, FakeProvider) {
-        let provider = FakeProvider()
-        let hub = CoreHub(provider: provider)
-        hub.startMonitoring()
-        provider.ready()
+        let (hub, provider) = await makeReadyHub()
         hub.runLookupInterval = .milliseconds(10)
         hub.runLookupTimeout = .milliseconds(500)
-        _ = await eventually { hub.status == .ready(version: "fake") }
         return (hub, provider)
     }
 
     // MARK: Stars
 
     @Test func starsSurviveARestartAndIgnoreCase() throws {
-        let folder = directory()
+        let folder = temporaryFolder("repositories-")
         defer { try? FileManager.default.removeItem(at: folder) }
         let favorites = RepositoryFavorites(store: FileRepositoryFavoritesStore(directory: folder))
         #expect(favorites.toggle("dil-eight/runnir"))
@@ -46,7 +38,7 @@ struct GitHubRepositoriesTests {
     }
 
     @Test func anUnreadableStarsFileTurnsStarsOffAndIsLeftAlone() throws {
-        let folder = directory()
+        let folder = temporaryFolder("repositories-")
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let store = FileRepositoryFavoritesStore(directory: folder)
@@ -67,7 +59,7 @@ struct GitHubRepositoriesTests {
     // MARK: The list
 
     @Test func theListFiltersAndPutsStarsFirst() async throws {
-        let folder = directory()
+        let folder = temporaryFolder("repositories-")
         defer { try? FileManager.default.removeItem(at: folder) }
         let (hub, provider) = await readyHub()
         provider.core.accountResult = CoreGitHubAccount(
@@ -173,7 +165,7 @@ struct GitHubRepositoriesTests {
     @Test func aWorkflowStartsWithoutAClone() async throws {
         let (hub, provider) = await readyHub()
         let workflow = CoreGitHubWorkflow(id: 1, name: "CI", path: ".github/workflows/ci.yml", state: "active", htmlURL: nil)
-        let presets = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: directory()))
+        let presets = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: temporaryFolder("repositories-")))
         let form = DispatchFormModel(target: .repository(GitHubRepositoryRef(serverID: "", fullName: "o/r")), hub: hub, workflows: [workflow], workflowID: 1,
                                      currentBranch: "main", presets: presets)
         #expect(form.presets == nil && form.workspaceID == nil, "presets belong to workspaces")
@@ -197,7 +189,7 @@ struct GitHubRepositoriesTests {
     // MARK: Local clones
 
     @Test func aWorkspaceIsFoundByItsGitHubRepository() async throws {
-        let folder = directory()
+        let folder = temporaryFolder("repositories-")
         defer { try? FileManager.default.removeItem(at: folder) }
         let store = FileDesktopStateStore(directory: folder)
         let older = WorkspaceRecord(id: UUID(), path: "/tmp/a", name: "a", bookmark: Data(), lastOpenedAt: Date(timeIntervalSince1970: 1))
@@ -263,7 +255,7 @@ struct GitHubRepositoriesTests {
     }
 
     @Test func starsAndClonesTellServersApart() async throws {
-        let folder = directory()
+        let folder = temporaryFolder("repositories-")
         defer { try? FileManager.default.removeItem(at: folder) }
         let company = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"
         let dotcom = GitHubRepositoryRef(serverID: "", fullName: "o/r")
@@ -285,7 +277,7 @@ struct GitHubRepositoriesTests {
     }
 
     @Test func registeredClonesAreFoundWithoutOpeningThem() async throws {
-        let folder = directory()
+        let folder = temporaryFolder("repositories-")
         defer { try? FileManager.default.removeItem(at: folder) }
         let store = FileDesktopStateStore(directory: folder)
         let clone = WorkspaceRecord(id: UUID(), path: "/tmp/runnir", name: "runnir", bookmark: Data(), lastOpenedAt: Date())

@@ -201,3 +201,33 @@ func TestTheDefaultBranchAndTheHistoryAreKept(t *testing.T) {
 		t.Fatalf("after restart = %+v", a)
 	}
 }
+
+func TestUnfinishedRunsBeyondTheNewestPageAreReadAgain(t *testing.T) {
+	s := openTest(t, t.TempDir())
+	ctx := context.Background()
+	runs := []github.Run{run(5, 5, "in_progress"), run(4, 4, "completed"), run(3, 3, "queued"), run(2, 2, "completed"), run(1, 1, "in_progress")}
+	_, _ = s.ApplySync(ctx, pass(0, runs, true))
+	if ids, _ := s.Unfinished(ctx, source, 2, 10); len(ids) != 2 || ids[0] != 3 || ids[1] != 1 {
+		t.Fatalf("unfinished beyond the newest 2 = %v", ids)
+	}
+	if ids, _ := s.Unfinished(ctx, source, 0, 1); len(ids) != 1 || ids[0] != 5 {
+		t.Fatalf("the newest one = %v", ids)
+	}
+	if ids, _ := s.Unfinished(ctx, Source{Repository: "o/other"}, 0, 10); len(ids) != 0 {
+		t.Fatalf("another repository = %v", ids)
+	}
+
+	done := run(3, 3, "completed")
+	done.Conclusion = "failure"
+	stray := run(99, 0, "completed")
+	if changed, err := s.ApplyRefreshed(ctx, RefreshedRuns{Source: source, Runs: []github.Run{done, stray}, Gone: []int64{1}}); err != nil || !changed {
+		t.Fatalf("applied = %v, %v", changed, err)
+	}
+	a, _ := s.Activity(ctx, 50)
+	if a.CachedRuns != 4 || a.Runs[2].ID != 3 || a.Runs[2].Status != "completed" || a.Runs[2].Conclusion != "failure" || a.Runs[3].ID != 2 {
+		t.Fatalf("runs = %+v", a.Runs)
+	}
+	if changed, _ := s.ApplyRefreshed(ctx, RefreshedRuns{Source: Source{Repository: "o/other"}, Gone: []int64{2}}); changed {
+		t.Fatal("another repository's refresh changed the cache")
+	}
+}

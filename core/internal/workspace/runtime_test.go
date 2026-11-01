@@ -4,7 +4,9 @@ package workspace
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -223,5 +225,41 @@ func TestASavedStatusIsNotReportedBeforeAPass(t *testing.T) {
 	if err != nil || snap.Access != corev1.GithubAccess_GITHUB_ACCESS_UNSPECIFIED || !snap.RetryAfter.IsZero() ||
 		len(snap.Runs) != 1 || snap.Provenance != Cached {
 		t.Fatalf("snapshot = %+v, %v", snap, err)
+	}
+}
+
+func TestAnUnfinishedRunBeyondTheNewestPageIsReadAgain(t *testing.T) {
+	fake, accounts := newFake(t)
+	// 52 runs: the two oldest, beyond the newest page of 50, are unfinished.
+	var runs []string
+	for i := 51; i >= 0; i-- {
+		status, conclusion := "completed", `"success"`
+		if i < 2 {
+			status, conclusion = "queued", "null"
+		}
+		at := time.Date(2026, 10, 18, 10, i, 0, 0, time.UTC).Format(time.RFC3339)
+		runs = append(runs, fmt.Sprintf(`{"id":%d,"workflow_id":3,"name":"CI","run_number":%d,"run_attempt":1,"status":%q,"conclusion":%s,"created_at":%q,"updated_at":%q}`,
+			100+i, 100+i, status, conclusion, at, at))
+	}
+	fake.set(func(f *fakeGitHub) {
+		f.runs = `{"workflow_runs":[` + strings.Join(runs, ",") + `]}`
+		f.extra["/repos/o/r/actions/runs/100"] = `{"id":100,"workflow_id":3,"name":"CI","run_number":100,"run_attempt":1,"status":"completed","conclusion":"failure","created_at":"2026-10-18T10:00:00Z","updated_at":"2026-10-18T11:00:00Z"}`
+		f.extra["/repos/o/r/actions/runs/101"] = `{"id":101,"workflow_id":3,"name":"CI","run_number":101,"run_attempt":1,"status":"in_progress","created_at":"2026-10-18T10:01:00Z","updated_at":"2026-10-18T11:00:00Z"}`
+	})
+	r := startRuntime(t, t.TempDir(), fixedResolver(accounts, "o", "r"), nil)
+	waitRefresh(t, r)
+	a, err := r.Saved(context.Background())
+	if err != nil || len(a.Runs) != 52 {
+		t.Fatalf("saved = %d runs, %v", len(a.Runs), err)
+	}
+	if oldest := a.Runs[51]; oldest.ID != 100 || oldest.Status != "completed" || oldest.Conclusion != "failure" {
+		t.Fatalf("oldest = %+v", oldest)
+	}
+	if a.Runs[50].Status != "in_progress" || fake.count("/repos/o/r/actions/runs/100") != 1 || fake.count("/repos/o/r/actions/runs/101") != 1 {
+		t.Fatalf("next = %+v, reads %d and %d", a.Runs[50], fake.count("/repos/o/r/actions/runs/100"), fake.count("/repos/o/r/actions/runs/101"))
+	}
+	waitRefresh(t, r)
+	if fake.count("/repos/o/r/actions/runs/101") != 1 {
+		t.Fatal("read again within Intervals.Unfinished")
 	}
 }

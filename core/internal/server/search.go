@@ -33,9 +33,7 @@ func (s *service) SearchRuns(ctx context.Context, request *corev1.SearchRunsRequ
 		CachedRunIds: found.Cached, CachedSearched: uint32(found.CachedSearched), IndexedSearched: uint32(found.IndexedSearched),
 		Problems: q.Problems,
 	}
-	for _, run := range found.Indexed {
-		out.IndexedRuns = append(out.IndexedRuns, runMessage(run))
-	}
+	out.IndexedRuns = runMessages(found.Indexed)
 	addStarts(ctx, rt, out.IndexedRuns)
 	return out, nil
 }
@@ -63,9 +61,7 @@ func (s *service) SearchRunsOnGitHub(ctx context.Context, request *corev1.Search
 		Pages: uint32(step.Pages), RunsRead: uint32(step.Read), Problems: q.Problems,
 		Stop: stopMessage(step.Stop),
 	}
-	for _, run := range step.Runs {
-		out.Runs = append(out.Runs, runMessage(run))
-	}
+	out.Runs = runMessages(step.Runs)
 	addStarts(ctx, rt, out.Runs)
 	return out, nil
 }
@@ -105,9 +101,7 @@ func (s *service) SearchWorkspaces(ctx context.Context, request *corev1.SearchWo
 			WorkspaceId: w.WorkspaceID, Open: w.Open, Repository: w.Repository, SavedAt: timestamp(w.SavedAt), Problem: w.Problem,
 			RunsMatched: uint32(w.RunsMatched), PullRequestsMatched: uint32(w.PullRequestsMatched),
 			WorkflowsMatched: uint32(w.WorkflowsMatched), LocalRunsMatched: uint32(w.LocalRunsMatched),
-		}
-		for _, run := range w.Runs {
-			hits.Runs = append(hits.Runs, runMessage(run))
+			Runs: runMessages(w.Runs),
 		}
 		for _, p := range w.PullRequests {
 			hits.PullRequests = append(hits.PullRequests, &corev1.SearchedPullRequest{

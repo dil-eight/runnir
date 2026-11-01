@@ -1,51 +1,6 @@
 import AppKit
 import SwiftUI
 
-// MARK: Dismissed items
-
-/// A JSON file in the app's support directory of items removed from a menu
-/// bar list, by key, with when: closed pull requests in
-/// dismissed-pull-requests.json, failed runs in dismissed-runs.json.
-/// Entries older than a week are dropped.
-struct FileDismissalStore: Sendable {
-    let fileURL: URL
-
-    static let pullRequestsFile = "dismissed-pull-requests.json"
-    static let runsFile = "dismissed-runs.json"
-    static let maxEntries = 1000
-    static let maxFileBytes = 256 * 1024
-    static let keepFor: TimeInterval = 7 * 24 * 3600
-
-    private struct Snapshot: Codable {
-        var version = 1
-        var dismissed: [String: Date]
-    }
-
-    init(directory: URL, fileName: String) {
-        fileURL = directory.appendingPathComponent(fileName)
-    }
-
-    static func live(_ fileName: String) throws -> FileDismissalStore {
-        FileDismissalStore(directory: try RunnirSupportDirectory.url(), fileName: fileName)
-    }
-
-    func load() throws -> [String: Date] {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [:] }
-        let size = try fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        guard size <= Self.maxFileBytes else { throw DesktopStoreError.tooLarge }
-        let snapshot = try JSONDecoder().decode(Snapshot.self, from: Data(contentsOf: fileURL))
-        guard snapshot.version == 1, snapshot.dismissed.count <= Self.maxEntries else { throw DesktopStoreError.invalidState }
-        return snapshot.dismissed
-    }
-
-    func save(_ dismissed: [String: Date]) throws {
-        guard dismissed.count <= Self.maxEntries else { throw DesktopStoreError.invalidState }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        try AtomicFile.write(try encoder.encode(Snapshot(dismissed: dismissed)), to: fileURL)
-    }
-}
-
 // MARK: Model
 
 /// The signed-in user's open pull requests with their CI, and those closed
@@ -53,7 +8,7 @@ struct FileDismissalStore: Sendable {
 /// every three minutes while signed in, and when the menu or window opens.
 @MainActor
 @Observable
-final class PullRequestsModel {
+final class PullRequestsModel: MenuList {
     private(set) var access: CoreGitHubAccess?
     private(set) var open: [CorePullRequest] = []
     private(set) var recentlyClosed: [CorePullRequest] = []
@@ -62,28 +17,26 @@ final class PullRequestsModel {
     private(set) var pendingInstallations: [CoreGitHubInstallation] = []
     private(set) var loadedAt: Date?
     private(set) var isLoading = false
-    private(set) var dismissed: [String: Date] = [:]
-    @ObservationIgnored private let store: FileDismissalStore?
-    @ObservationIgnored private var poll: Task<Void, Never>?
+    private(set) var dismissed: Dismissals
+    @ObservationIgnored let poller = MenuListPoller()
     @ObservationIgnored var now: () -> Date = Date.init
     /// An open pull request's checks finished since the last read.
     @ObservationIgnored var onChecksFinished: (@MainActor (CorePullRequest) -> Void)?
 
     static let closedWindow: TimeInterval = 24 * 3600
-    static let pollInterval: Duration = .seconds(180)
-    static let staleAfter: TimeInterval = 60
 
     init(store: FileDismissalStore?) {
-        self.store = store
-        let loaded = (try? store?.load()) ?? [:]
-        let cutoff = Date().addingTimeInterval(-FileDismissalStore.keepFor)
-        dismissed = loaded.filter { $0.value > cutoff }
+        dismissed = Dismissals(store: store)
     }
 
     /// Closed in the last day and not removed from the list.
     var closed: [CorePullRequest] {
-        recentlyClosed.filter { dismissed[$0.id] == nil }
+        recentlyClosed.filter { !dismissed.contains($0.id) }
     }
+
+    /// Until a first read succeeds, an unready Core is tried again soon.
+    var awaitingCore: Bool { access == .unavailable }
+    var isCurrent: Bool { access == .ok }
 
     /// The worst CI among open pull requests, for the menu bar icon.
     var worstCI: CorePullRequestCI? {
@@ -91,7 +44,9 @@ final class PullRequestsModel {
         return [.failed, .running, .passed].first { states.contains($0) }
     }
 
-    func refresh(hub: CoreHub) async {
+    /// Reads the pull requests; they are read from GitHub every time, so
+    /// `force` changes nothing.
+    func refresh(hub: CoreHub, force: Bool = false) async {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
@@ -120,61 +75,16 @@ final class PullRequestsModel {
         }
     }
 
-    /// Reads again when the list is older than a minute.
-    func refreshIfStale(hub: CoreHub) async {
-        if let loadedAt, now().timeIntervalSince(loadedAt) < Self.staleAfter, access == .ok { return }
-        await refresh(hub: hub)
-    }
-
     /// Removes a closed pull request from the list, on this Mac.
     func dismiss(_ pullRequest: CorePullRequest) {
-        var candidate = dismissed
-        candidate[pullRequest.id] = now()
-        let cutoff = now().addingTimeInterval(-FileDismissalStore.keepFor)
-        candidate = candidate.filter { $0.value > cutoff }
-        try? store?.save(candidate)
-        dismissed = candidate
+        dismissed.add(pullRequest.id, at: now())
     }
 
-    /// Brings back the closed pull requests removed from the list.
     func restoreDismissed() {
-        try? store?.save([:])
-        dismissed = [:]
+        dismissed.removeAll()
     }
 
-    /// Reads every three minutes while `isSignedIn` holds, looking every
-    /// `retry`: a sign-in (the saved one comes up after launch, as does the
-    /// Core) is read within seconds, so the menu bar icon is right, and a
-    /// sign-out clears the list.
-    func startPolling(hub: CoreHub, retry: Duration = .seconds(5), isSignedIn: @escaping @MainActor () -> Bool) {
-        poll?.cancel()
-        poll = Task { [weak self] in
-            let clock = ContinuousClock()
-            var lastRead: ContinuousClock.Instant?
-            while !Task.isCancelled {
-                guard let self else { return }
-                if !isSignedIn() {
-                    self.clear()
-                    lastRead = nil
-                } else {
-                    // Until a first read succeeds, an unready Core is tried again soon.
-                    let every = self.loadedAt == nil && self.access == .unavailable ? retry : Self.pollInterval
-                    if lastRead.map({ clock.now - $0 >= every }) ?? true {
-                        lastRead = clock.now
-                        await self.refresh(hub: hub)
-                    }
-                }
-                try? await Task.sleep(for: retry)
-            }
-        }
-    }
-
-    func stopPolling() {
-        poll?.cancel()
-        poll = nil
-    }
-
-    private func clear() {
+    func clear() {
         guard access != nil || loadedAt != nil else { return }
         access = nil
         open = []
@@ -238,34 +148,18 @@ struct PullRequestRow: View {
                 }
                 Text(subtitle).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
             }
-            trailing
+            if let dismiss {
+                ListRemoveButton(visible: hovering, action: dismiss)
+            } else {
+                Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(RunnirTheme.secondaryForeground)
+                    .frame(width: 14).padding(.top, 2)
+                    .opacity(hovering ? 1 : 0)
+                    .accessibilityHidden(true)
+            }
         }
-        .padding(.vertical, 7).padding(.horizontal, 8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(hovering ? RunnirTheme.selected : .clear))
-        .clickable()
-        .onHover { hovering = $0 }
-        .onTapGesture { if let url = pullRequest.htmlURL { openURL(url) } }
-        .help("Open \(pullRequest.repository) #\(pullRequest.number) on GitHub")
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction { if let url = pullRequest.htmlURL { openURL(url) } }
-        .accessibilityAction(named: "Remove from this list") { dismiss?() }
-    }
-
-    @ViewBuilder private var trailing: some View {
-        if let dismiss {
-            ListRemoveButton(action: dismiss)
-                .opacity(hovering ? 1 : 0)
-                .padding(.top, -6).padding(.trailing, -6)
-                .help("Remove from this list")
-                .accessibilityLabel("Remove \(pullRequest.title) from this list")
-        } else {
-            Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(RunnirTheme.secondaryForeground)
-                .frame(width: 14).padding(.top, 2)
-                .opacity(hovering ? 1 : 0)
-                .accessibilityHidden(true)
-        }
+        .menuListRow(hovering: $hovering, help: "Open \(pullRequest.repository) #\(pullRequest.number) on GitHub",
+                     open: { if let url = pullRequest.htmlURL { openURL(url) } }, remove: dismiss)
     }
 
     private var subtitle: String { Self.subtitle(pullRequest, serverHost: serverHost) }
@@ -324,71 +218,6 @@ struct PullRequestRow: View {
     }
 }
 
-/// A count with a symbol above a menu bar list: "2 failing", "3 running".
-struct ListChip: View {
-    let symbol: String
-    let label: String
-    let tint: Color
-    let background: Color
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: symbol).font(.system(size: 10))
-            Text(label).font(.system(size: 11, weight: .medium))
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, 8).padding(.vertical, 3)
-        .background(Capsule().fill(background))
-    }
-}
-
-/// A section's title and count in a menu bar list.
-struct ListSectionHeader: View {
-    let title: String
-    let count: Int
-    let inset: CGFloat
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Text(title).font(.system(size: 10, weight: .semibold)).tracking(0.8).foregroundStyle(RunnirTheme.secondaryForeground)
-            Text("\(count)").font(.system(size: 10, weight: .semibold)).foregroundStyle(RunnirTheme.mutedForeground)
-        }
-        .padding(.horizontal, inset).padding(.top, 10).padding(.bottom, 4)
-        .accessibilityAddTraits(.isHeader)
-    }
-}
-
-/// Removes a row from a menu bar list: a 28-point target with its own
-/// hover, so a near miss removes instead of opening the row under it.
-struct ListRemoveButton: View {
-    let action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(hovering ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
-                .frame(width: 28, height: 28)
-                .background(Circle().fill(hovering ? RunnirTheme.secondary : .clear).frame(width: 22, height: 22))
-        }
-        .buttonStyle(.hit)
-        .onHover { hovering = $0 }
-    }
-}
-
-/// What the list shows: signed out, checking the saved sign-in, or lists.
-enum PullRequestsListState: Equatable {
-    case restoring, signedOut, lists
-
-    @MainActor
-    static func of(_ desktop: DesktopCoordinator) -> PullRequestsListState {
-        let enterprise = !(desktop.core?.signedInServers.isEmpty ?? true)
-        guard let github = desktop.github, github.user == nil, !enterprise else { return .lists }
-        if case .restoring = github.connection { return .restoring }
-        return .signedOut
-    }
-}
-
 /// The list the menu bar and the window share (S19): a summary of the open
 /// pull requests' CI, the open ones, then those closed today, each
 /// removable.
@@ -400,18 +229,7 @@ struct PullRequestsList: View {
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            switch PullRequestsListState.of(desktop) {
-            case .restoring:
-                HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Checking the saved sign-in...") }
-                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                    .padding(.horizontal, inset).padding(.vertical, 16)
-            case .signedOut:
-                PullRequestsSignedOut(desktop: desktop)
-            case .lists:
-                lists
-            }
-        }
+        MenuListContent(desktop: desktop, inset: inset) { lists }
     }
 
     @ViewBuilder private var lists: some View {
@@ -427,11 +245,11 @@ struct PullRequestsList: View {
         if model.open.isEmpty {
             nothingOpen
         }
-        ForEach(model.open) { PullRequestRow(pullRequest: $0, serverHost: host(of: $0)).padding(.horizontal, inset - 8) }
+        ForEach(model.open) { PullRequestRow(pullRequest: $0, serverHost: desktop.core?.listHost(server: $0.server)).padding(.horizontal, inset - 8) }
         if !model.closed.isEmpty {
             ListSectionHeader(title: "CLOSED TODAY", count: model.closed.count, inset: inset)
             ForEach(model.closed) { pr in
-                PullRequestRow(pullRequest: pr, serverHost: host(of: pr)) { model.dismiss(pr) }.padding(.horizontal, inset - 8)
+                PullRequestRow(pullRequest: pr, serverHost: desktop.core?.listHost(server: pr.server)) { model.dismiss(pr) }.padding(.horizontal, inset - 8)
             }
         }
         if model.access == .ok {
@@ -493,38 +311,21 @@ struct PullRequestsList: View {
         let running = model.open.count { $0.ci == .running }
         let passed = model.open.count { $0.ci == .passed }
         if failing + running + passed > 0 {
-            HStack(spacing: 6) {
+            ListChips(inset: inset) {
                 if failing > 0 { ListChip(symbol: "xmark.circle.fill", label: "\(failing) failing", tint: RunnirTheme.destructive, background: PullRequestColors.failedSoft) }
                 if running > 0 { ListChip(symbol: "arrow.triangle.2.circlepath", label: "\(running) running", tint: PullRequestColors.running, background: PullRequestColors.runningSoft) }
                 if passed > 0 { ListChip(symbol: "checkmark.circle.fill", label: "\(passed) passed", tint: RunnirTheme.success, background: PullRequestColors.passedSoft) }
             }
-            .padding(.horizontal, inset).padding(.bottom, 12)
-            .accessibilityElement(children: .combine)
         }
     }
 
     @ViewBuilder private var nothingOpen: some View {
         if model.isLoading && model.loadedAt == nil {
-            HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Reading pull requests...") }
-                .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                .padding(.horizontal, inset).padding(.vertical, 12)
+            ListProgress(text: "Reading pull requests...").padding(.horizontal, inset).padding(.vertical, 12)
         } else {
-            VStack(spacing: 6) {
-                Image(systemName: "checkmark.circle").font(.system(size: 20)).foregroundStyle(RunnirTheme.success)
-                Text("No open pull requests").font(.system(size: 13, weight: .medium))
-                Text("New ones you open on GitHub show up here with their CI.")
-                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, inset).padding(.top, 14).padding(.bottom, 16)
+            ListEmptyState(symbol: "checkmark.circle", tint: RunnirTheme.success, title: "No open pull requests",
+                           detail: "New ones you open on GitHub show up here with their CI.", inset: inset)
         }
-    }
-
-    /// The pull request's server host, when more than one account is
-    /// signed in; nil otherwise.
-    private func host(of pullRequest: CorePullRequest) -> String? {
-        guard let hub = desktop.core, hub.signedInServers.count > 1 else { return nil }
-        return pullRequest.server.isEmpty ? "github.com" : hub.serverRef(for: pullRequest.server)?.webHost
     }
 
     private func notice(_ access: CoreGitHubAccess) -> GitHubAccessHelp? {
@@ -537,11 +338,10 @@ struct PullRequestsList: View {
     /// Pull requests are found, but their heads need Pull requests read.
     private var headsNote: some View {
         let personal = desktop.core?.credentialKind?.isPersonal == true
-        return Label(personal
-                     ? "CI of some pull requests can't be shown: the token needs Pull requests: Read-only (a fine-grained token) for their repositories."
-                     : "CI of some pull requests can't be shown: Runnir Desktop needs Pull requests: Read-only. The app's owner adds it on GitHub, then each installation accepts it.",
-                     systemImage: "info.circle")
-            .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).fixedSize(horizontal: false, vertical: true)
+        return ListNote(text: personal
+                        ? "CI of some pull requests can't be shown: the token needs Pull requests: Read-only (a fine-grained token) for their repositories."
+                        : "CI of some pull requests can't be shown: Runnir Desktop needs Pull requests: Read-only. The app's owner adds it on GitHub, then each installation accepts it.",
+                        symbol: "info.circle")
     }
 }
 
@@ -582,22 +382,16 @@ struct PullRequestsMenu: View {
 
     static let maxListHeight: CGFloat = 460
 
-    private var signedOut: Bool { PullRequestsListState.of(desktop) != .lists }
-    private var runs: WatchedRunsModel { desktop.watchedRuns }
+    private var signedOut: Bool { MenuListState.of(desktop) != .lists }
+    private var list: any MenuList { tab == .runs ? desktop.watchedRuns : model }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             ScrollView {
-                Group {
-                    if tab == .runs {
-                        WatchedRunsList(model: runs, desktop: desktop)
-                    } else {
-                        PullRequestsList(model: model, desktop: desktop)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
+                MenuTabList(tab: tab, model: model, desktop: desktop, inset: 16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
             }
             .frame(height: min(max(listHeight, 16), Self.maxListHeight))
             DesignDivider()
@@ -608,47 +402,32 @@ struct PullRequestsMenu: View {
         // the wallpaper through and the list becomes hard to read.
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
-        // Both lists feed the menu bar icon.
-        .task {
-            if let hub = desktop.core {
-                async let pullRequests: Void = model.refreshIfStale(hub: hub)
-                async let watched: Void = runs.refreshIfStale(hub: hub)
-                _ = await (pullRequests, watched)
-            }
-        }
+        .task { await desktop.refreshMenuListsIfStale() }
     }
 
     private var header: some View {
         HStack(alignment: .top, spacing: 4) {
             VStack(alignment: .leading, spacing: 6) {
-                MenuListTabPicker(tab: $tab, failedCount: runs.failed.count)
+                MenuListTabPicker(tab: $tab, failedCount: desktop.watchedRuns.failed.count)
                 TimelineView(.periodic(from: .now, by: 15)) { _ in
                     Text(updatedText).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
             }
             Spacer()
             if !signedOut, let hub = desktop.core {
-                iconButton("arrow.clockwise", help: tab == .runs ? "Read runs again" : "Read pull requests again") {
-                    Task { await refresh(hub) }
-                }
-                .disabled(tab == .runs ? runs.isLoading : model.isLoading)
+                iconButton("arrow.clockwise", help: tab.refreshHelp) { Task { await list.refresh(hub: hub, force: true) } }
+                    .disabled(list.isLoading)
                 iconButton("macwindow", help: "Open the \(tab.title) window") { desktop.showPullRequests() }
             }
         }
         .padding(.top, 12).padding(.bottom, 10).padding(.leading, 16).padding(.trailing, 12)
     }
 
-    private func refresh(_ hub: CoreHub) async {
-        if tab == .runs { await runs.refresh(hub: hub, force: true) } else { await model.refresh(hub: hub) }
-    }
-
     private var updatedText: String {
         if signedOut { return "Not connected" }
-        let loadedAt = tab == .runs ? runs.loadedAt : model.loadedAt
-        let isLoading = tab == .runs ? runs.isLoading : model.isLoading
-        guard let loaded = loadedAt else { return isLoading ? "Reading..." : "Not read yet" }
+        guard let loaded = list.loadedAt else { return list.isLoading ? "Reading..." : "Not read yet" }
         let when = Date().timeIntervalSince(loaded) < 30 ? "Updated just now" : "Updated " + loaded.formatted(.relative(presentation: .named))
-        return tab == .runs ? when + WatchedRunText.updated(count: runs.watched.count) : when
+        return when + list.updatedDetail
     }
 
     private func iconButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
@@ -675,14 +454,11 @@ struct PullRequestsMenu: View {
                         .accessibilityLabel("Shortcut \(shortcut)")
                 }
                 Spacer()
-                let removed = tab == .runs ? runs.dismissed.count : model.dismissed.count
-                if removed > 0 {
-                    Button("Show Removed (\(removed))") {
-                        if tab == .runs { runs.restoreDismissed() } else { model.restoreDismissed() }
-                    }
-                    .buttonStyle(.hit)
-                    .foregroundStyle(RunnirTheme.secondaryForeground)
-                    .help(tab == .runs ? "Bring back the runs removed from this list" : "Bring back the closed pull requests removed from this list")
+                if !list.dismissed.isEmpty {
+                    Button("Show Removed (\(list.dismissed.count))") { list.restoreDismissed() }
+                        .buttonStyle(.hit)
+                        .foregroundStyle(RunnirTheme.secondaryForeground)
+                        .help(tab.restoreHelp)
                 }
             }
         }
@@ -698,55 +474,52 @@ struct PullRequestsWindowView: View {
     let desktop: DesktopCoordinator
     @AppStorage(MenuListTab.defaultsKey) private var tab: MenuListTab = .pullRequests
 
-    private var runs: WatchedRunsModel { desktop.watchedRuns }
+    private var list: any MenuList { tab == .runs ? desktop.watchedRuns : model }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                MenuListTabPicker(tab: $tab, failedCount: runs.failed.count)
-                if let loaded = tab == .runs ? runs.loadedAt : model.loadedAt {
+                MenuListTabPicker(tab: $tab, failedCount: desktop.watchedRuns.failed.count)
+                if let loaded = list.loadedAt {
                     // Ticks while the window stays open, not only when the list is read.
                     TimelineView(.periodic(from: .now, by: 15)) { _ in
-                        Text("updated \(loaded.formatted(.relative(presentation: .named)))"
-                             + (tab == .runs ? WatchedRunText.updated(count: runs.watched.count) : ""))
+                        Text("updated \(loaded.formatted(.relative(presentation: .named)))" + list.updatedDetail)
                     }
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
                 Spacer()
                 if let hub = desktop.core {
-                    Button {
-                        Task {
-                            if tab == .runs { await runs.refresh(hub: hub, force: true) } else { await model.refresh(hub: hub) }
-                        }
-                    } label: { Label("Refresh", systemImage: "arrow.clockwise") }
-                        .buttonStyle(DesignButtonStyle())
-                        .disabled(tab == .runs ? runs.isLoading : model.isLoading)
+                    Button { Task { await list.refresh(hub: hub, force: true) } } label: { Label("Refresh", systemImage: "arrow.clockwise") }
+                        .buttonStyle(DesignButtonStyle()).disabled(list.isLoading)
                 }
             }
             .padding(.horizontal, 20).padding(.top, 34).padding(.bottom, 12)
             DesignDivider()
             ScrollView {
-                Group {
-                    if tab == .runs {
-                        WatchedRunsList(model: runs, desktop: desktop, inset: 20)
-                    } else {
-                        PullRequestsList(model: model, desktop: desktop, inset: 20)
-                    }
-                }
-                .padding(.top, 14)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                MenuTabList(tab: tab, model: model, desktop: desktop, inset: 20).padding(.top, 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .frame(minWidth: 480, minHeight: 360)
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
         .navigationTitle(tab.title)
-        .task {
-            if let hub = desktop.core {
-                async let pullRequests: Void = model.refreshIfStale(hub: hub)
-                async let watched: Void = runs.refreshIfStale(hub: hub)
-                _ = await (pullRequests, watched)
-            }
+        .task { await desktop.refreshMenuListsIfStale() }
+    }
+}
+
+/// The list of the chosen tab, in the menu or the window.
+struct MenuTabList: View {
+    let tab: MenuListTab
+    let model: PullRequestsModel
+    let desktop: DesktopCoordinator
+    let inset: CGFloat
+
+    var body: some View {
+        if tab == .runs {
+            WatchedRunsList(model: desktop.watchedRuns, desktop: desktop, inset: inset)
+        } else {
+            PullRequestsList(model: model, desktop: desktop, inset: inset)
         }
     }
 }

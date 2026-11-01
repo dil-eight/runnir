@@ -4,12 +4,8 @@ import Testing
 
 @MainActor
 struct WorkflowFavoritesTests {
-    private func directory() -> URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-    }
-
     @Test func favoritesComeFirstAndSurviveARestart() throws {
-        let folder = directory()
+        let folder = temporaryFolder()
         defer { try? FileManager.default.removeItem(at: folder) }
         let workspace = UUID(), other = UUID()
         let favorites = WorkflowFavorites(store: FileWorkflowFavoritesStore(directory: folder))
@@ -34,7 +30,7 @@ struct WorkflowFavoritesTests {
     }
 
     @Test func aRenamedWorkflowKeepsItsStarInPlace() throws {
-        let folder = directory()
+        let folder = temporaryFolder()
         defer { try? FileManager.default.removeItem(at: folder) }
         let workspace = UUID()
         let favorites = WorkflowFavorites(store: FileWorkflowFavoritesStore(directory: folder))
@@ -50,7 +46,7 @@ struct WorkflowFavoritesTests {
     }
 
     @Test func anUnreadableFileTurnsFavoritesOffAndIsLeftAlone() throws {
-        let folder = directory()
+        let folder = temporaryFolder()
         defer { try? FileManager.default.removeItem(at: folder) }
         let store = FileWorkflowFavoritesStore(directory: folder)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -63,7 +59,7 @@ struct WorkflowFavoritesTests {
     }
 
     @Test func workflowsGitHubAddsItselfCannotBeFavorites() throws {
-        let folder = directory()
+        let folder = temporaryFolder()
         defer { try? FileManager.default.removeItem(at: folder) }
         let favorites = WorkflowFavorites(store: FileWorkflowFavoritesStore(directory: folder))
         #expect(!WorkflowFavorites.canFavorite("dynamic/github-code-scanning/codeql"))

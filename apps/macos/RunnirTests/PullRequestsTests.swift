@@ -7,29 +7,16 @@ import Testing
 @MainActor
 @Suite(.timeLimit(.minutes(1)))
 struct PullRequestsTests {
-    private func directory() -> URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent("pulls-" + UUID().uuidString, isDirectory: true)
-    }
-
     private func pr(_ number: Int64, state: String = "open", ci: CorePullRequestCI = .passed) -> CorePullRequest {
         CorePullRequest(repository: "o/r", number: number, title: "PR \(number)", htmlURL: URL(string: "https://github.com/o/r/pull/\(number)"),
                         state: state, draft: false, headBranch: "b", updatedAt: Date(), closedAt: state == "open" ? nil : Date(),
                         ci: ci, ciRuns: 1, ciFailed: ci == .failed ? 1 : 0, ciRunning: ci == .running ? 1 : 0, ciURL: nil)
     }
 
-    private func readyHub() async -> (CoreHub, FakeProvider) {
-        let provider = FakeProvider()
-        let hub = CoreHub(provider: provider)
-        hub.startMonitoring()
-        provider.ready()
-        _ = await eventually { hub.status == .ready(version: "fake") }
-        return (hub, provider)
-    }
-
     @Test func closedPullRequestsCanBeRemovedAndStayRemoved() async throws {
-        let folder = directory()
+        let folder = temporaryFolder("pulls-")
         defer { try? FileManager.default.removeItem(at: folder) }
-        let (hub, provider) = await readyHub()
+        let (hub, provider) = await makeReadyHub()
         provider.core.pullRequestsResult = CorePullRequests(access: .ok, open: [pr(1, ci: .failed), pr(2, ci: .running)],
                                                             closed: [pr(3, state: "merged"), pr(4, state: "closed")], headsUnreadable: false)
         let model = PullRequestsModel(store: FileDismissalStore(directory: folder, fileName: FileDismissalStore.pullRequestsFile))
@@ -50,7 +37,7 @@ struct PullRequestsTests {
     }
 
     @Test func signingOutClearsAndAFailedReadKeeps() async {
-        let (hub, provider) = await readyHub()
+        let (hub, provider) = await makeReadyHub()
         provider.core.pullRequestsResult = CorePullRequests(access: .ok, open: [pr(1)], closed: [], headsUnreadable: true)
         let model = PullRequestsModel(store: nil)
         await model.refresh(hub: hub)
@@ -66,7 +53,7 @@ struct PullRequestsTests {
     }
 
     @Test func aFreshListIsNotReadAgainWhenTheMenuOpens() async {
-        let (hub, provider) = await readyHub()
+        let (hub, provider) = await makeReadyHub()
         provider.core.pullRequestsResult = CorePullRequests(access: .ok, open: [], closed: [], headsUnreadable: false)
         let model = PullRequestsModel(store: nil)
         await model.refreshIfStale(hub: hub)
@@ -78,10 +65,10 @@ struct PullRequestsTests {
     }
 
     @Test func pollingReadsSoonAfterSignInAndClearsOnSignOut() async {
-        let (hub, provider) = await readyHub()
+        let (hub, provider) = await makeReadyHub()
         provider.core.pullRequestsResult = CorePullRequests(access: .ok, open: [pr(1, ci: .failed)], closed: [], headsUnreadable: false)
         let model = PullRequestsModel(store: nil)
-        var signedIn = false
+        nonisolated(unsafe) var signedIn = false
         model.startPolling(hub: hub, retry: .milliseconds(20)) { signedIn }
         defer { model.stopPolling() }
         try? await Task.sleep(for: .milliseconds(60))
@@ -143,7 +130,7 @@ struct PullRequestsTests {
     }
 
     @Test func anAccountThatHasNotAcceptedPullRequestsIsNamed() async {
-        let (hub, provider) = await readyHub()
+        let (hub, provider) = await makeReadyHub()
         let team = CoreGitHubInstallation(id: 2, account: "dil-eight", accountType: "Organization", repositorySelection: "all",
                                           htmlURL: URL(string: "https://github.com/organizations/dil-eight/settings/installations/2"),
                                           missingPermissions: ["pull_requests: read"])

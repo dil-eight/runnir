@@ -3,7 +3,6 @@ package workspace
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"time"
 
@@ -30,7 +29,7 @@ type Target struct {
 
 // Source names the target for the cache: server id and lowercased owner/name.
 func (t Target) Source() store.Source {
-	return store.Source{ServerID: t.Account.Server.ID, Repository: strings.ToLower(t.Owner + "/" + t.Name)}
+	return store.SourceOf(t.Account.Server.ID, t.Owner, t.Name)
 }
 
 // Resolver returns the repository's current target with OK, or the status
@@ -99,8 +98,10 @@ type Runtime struct {
 	// searchMu lets one deep search on GitHub run at a time.
 	searchMu sync.Mutex
 	// branchFor is the target whose default branch a pass read in this
-	// process; only the loop goroutine uses it.
-	branchFor store.Source
+	// process; unfinishedAt when a pass last read the unfinished runs
+	// again. Only the loop goroutine uses them.
+	branchFor    store.Source
+	unfinishedAt time.Time
 
 	mu           sync.Mutex
 	repositoryID string
@@ -253,6 +254,7 @@ func (r *Runtime) pass() {
 		_, _ = r.cfg.store.ApplySync(r.ctx, p)
 		if p.OK && target != nil {
 			r.branchFor = p.Source
+			r.refreshUnfinished(*target)
 			// Only after this pass read the list: a refusal, or a refresh
 			// clearing it meanwhile, never starts lookups GitHub refuses.
 			if p.PullRequests != nil && !p.PullRequests.Refused {
@@ -352,6 +354,36 @@ func (r *Runtime) read(resolve Resolver) (store.Pass, *Target) {
 	}
 	p.At, p.OK, p.Access = r.cfg.now(), true, int32(corev1.GithubAccess_GITHUB_ACCESS_OK)
 	return p, &target
+}
+
+// refreshUnfinished reads again, one by one, at most maxRefreshed cached
+// runs not completed that fell off the newest page, at most every
+// Intervals.Unfinished: the newest page never shows them again, so without
+// this they would stay in progress. A run GitHub no longer has is dropped.
+func (r *Runtime) refreshUnfinished(target Target) {
+	now := r.cfg.now()
+	if !r.unfinishedAt.IsZero() && now.Sub(r.unfinishedAt) < r.cfg.intervals.Unfinished {
+		return
+	}
+	r.unfinishedAt = now
+	source := target.Source()
+	ids, err := r.cfg.store.Unfinished(r.ctx, source, pageSize, maxRefreshed)
+	if err != nil || len(ids) == 0 {
+		return
+	}
+	update := store.RefreshedRuns{Source: source}
+	for _, id := range ids {
+		run, err := target.Account.Client.Run(r.ctx, target.Owner, target.Name, id)
+		if errors.Is(err, github.ErrNotVisible) {
+			update.Gone = append(update.Gone, id)
+			continue
+		}
+		if err != nil {
+			break
+		}
+		update.Runs = append(update.Runs, run)
+	}
+	_, _ = r.cfg.store.ApplyRefreshed(r.ctx, update)
 }
 
 func (r *Runtime) refusePulls() {

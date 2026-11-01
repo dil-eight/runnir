@@ -337,6 +337,14 @@ func humanStatus(status string) string {
 	}
 }
 
+func runMessages(runs []github.Run) []*corev1.WorkflowRun {
+	out := make([]*corev1.WorkflowRun, len(runs))
+	for i, r := range runs {
+		out[i] = runMessage(r)
+	}
+	return out
+}
+
 func runMessage(r github.Run) *corev1.WorkflowRun {
 	return &corev1.WorkflowRun{
 		Id: r.ID, WorkflowId: r.WorkflowID, Name: r.Name, DisplayTitle: r.DisplayTitle, RunNumber: r.RunNumber,

@@ -7,9 +7,8 @@ struct RunnirApp: App {
     /// The logo glyph, with a dot when a check or a run failed or runs,
     /// dimmed while no account is signed in.
     private var menuBarImage: NSImage {
-        let signedIn = delegate.github.user != nil || !delegate.coreHub.signedInServers.isEmpty
         let badge = MenuBarIcon.badge(for: delegate.desktop.pullRequests.worstCI, runs: delegate.desktop.watchedRuns.badge)
-        return MenuBarIcon.image(badge: badge, dimmed: !signedIn)
+        return MenuBarIcon.image(badge: badge, dimmed: !delegate.desktop.isSignedIn)
     }
 
     private var menuBarLabel: String {

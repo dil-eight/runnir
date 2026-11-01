@@ -63,27 +63,13 @@ struct WatchedRunRow: View {
             }
             if hovering {
                 Text(action).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1).padding(.top, 2)
+                    .accessibilityHidden(true)
             }
             if let dismiss {
-                ListRemoveButton(action: dismiss)
-                    .opacity(hovering ? 1 : 0)
-                    .padding(.top, -6).padding(.trailing, -6)
-                    .help("Remove from this list")
-                    .accessibilityLabel("Remove \(WatchedRunText.title(row.run)) from this list")
+                ListRemoveButton(visible: hovering, action: dismiss)
             }
         }
-        .padding(.vertical, 7).padding(.horizontal, 8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(hovering ? RunnirTheme.selected : .clear))
-        .clickable()
-        .onHover { hovering = $0 }
-        .onTapGesture(perform: open)
-        .help(action)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction { open() }
-        .accessibilityActions {
-            if let dismiss { Button("Remove from this list", action: dismiss) }
-        }
+        .menuListRow(hovering: $hovering, help: action, open: open, remove: dismiss)
     }
 
     /// "From Runnir · " in the accent colour before the rest.
@@ -112,18 +98,7 @@ struct WatchedRunsList: View {
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            switch PullRequestsListState.of(desktop) {
-            case .restoring:
-                HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Checking the saved sign-in...") }
-                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-                    .padding(.horizontal, inset).padding(.vertical, 16)
-            case .signedOut:
-                PullRequestsSignedOut(desktop: desktop)
-            case .lists:
-                lists
-            }
-        }
+        MenuListContent(desktop: desktop, inset: inset) { lists }
     }
 
     @ViewBuilder private var lists: some View {
@@ -175,17 +150,14 @@ struct WatchedRunsList: View {
     }
 
     private func note(_ text: String, symbol: String) -> some View {
-        Label(text, systemImage: symbol)
-            .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, inset).padding(.bottom, 10)
+        ListNote(text: text, symbol: symbol).padding(.horizontal, inset).padding(.bottom, 10)
     }
 
     /// Chips counting failed and running runs.
     @ViewBuilder private var summary: some View {
         let failed = model.failed.count, running = model.running.count
         if failed + running > 0 {
-            HStack(spacing: 6) {
+            ListChips(inset: inset) {
                 if failed > 0 {
                     ListChip(symbol: "xmark.circle.fill", label: "\(failed) failed", tint: RunnirTheme.destructive, background: PullRequestColors.failedSoft)
                 }
@@ -193,42 +165,25 @@ struct WatchedRunsList: View {
                     ListChip(symbol: "arrow.triangle.2.circlepath", label: "\(running) running", tint: PullRequestColors.running, background: PullRequestColors.runningSoft)
                 }
             }
-            .padding(.horizontal, inset).padding(.bottom, 12)
-            .accessibilityElement(children: .combine)
         }
     }
 
     private var reading: some View {
-        HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Reading runs...") }
-            .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-            .padding(.horizontal, inset).padding(.vertical, 12)
+        ListProgress(text: "Reading runs...").padding(.horizontal, inset).padding(.vertical, 12)
     }
 
     private var nothingListed: some View {
-        VStack(spacing: 6) {
-            Image(systemName: "checkmark.circle").font(.system(size: 20)).foregroundStyle(RunnirTheme.success)
-            Text("No failed or running runs").font(.system(size: 13, weight: .medium))
-            if let scope = WatchedRunText.scope(workspaces: model.scope.workspaces, starred: model.scope.starred) {
-                Text(scope)
-                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).multilineTextAlignment(.center)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, inset).padding(.top, 14).padding(.bottom, 16)
+        ListEmptyState(symbol: "checkmark.circle", tint: RunnirTheme.success, title: "No failed or running runs",
+                       detail: WatchedRunText.scope(workspaces: model.scope.workspaces, starred: model.scope.starred), inset: inset)
     }
 
     private var nothingToWatch: some View {
-        VStack(spacing: 6) {
-            Image(systemName: "star").font(.system(size: 20)).foregroundStyle(RunnirTheme.secondaryForeground)
-            Text("Nothing to watch yet").font(.system(size: 13, weight: .medium))
-            Text("Star repositories in the Workspace Manager's GitHub tab, or link a workspace to its GitHub repository, to see your failed and running runs here.")
-                .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+        ListEmptyState(symbol: "star", tint: RunnirTheme.secondaryForeground, title: "Nothing to watch yet",
+                       detail: "Star repositories in the Workspace Manager's GitHub tab, or link a workspace to its GitHub repository, to see your failed and running runs here.",
+                       inset: inset) {
             Button("Open Workspace Manager") { desktop.showManager() }
                 .buttonStyle(DesignButtonStyle()).padding(.top, 4)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, inset).padding(.top, 14).padding(.bottom, 16)
     }
 
     private func action(_ row: WatchedRun) -> String {
@@ -245,10 +200,7 @@ struct WatchedRunsList: View {
         }
     }
 
-    /// The run's server host, when more than one account is signed in.
     private func host(of row: WatchedRun) -> String? {
-        guard let hub = desktop.core, hub.signedInServers.count > 1 else { return nil }
-        let server = row.repository.repository.serverID
-        return server.isEmpty ? "github.com" : hub.serverRef(for: server)?.webHost
+        desktop.core?.listHost(server: row.repository.repository.serverID)
     }
 }

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"runnir/core/internal/github"
@@ -18,6 +19,12 @@ var MaxRuns = 5000
 type Source struct {
 	ServerID   string // "" is github.com
 	Repository string // "owner/name", lowercased
+}
+
+// SourceOf is the Source of owner/name on serverID: GitHub matches names
+// without case.
+func SourceOf(serverID, owner, name string) Source {
+	return Source{ServerID: serverID, Repository: strings.ToLower(owner + "/" + name)}
 }
 
 // RunsUpdate is one read of the newest runs.
@@ -505,6 +512,84 @@ func (s *Store) Newest(ctx context.Context, src Source) (time.Time, bool, error)
 		return time.Time{}, false, nil
 	}
 	return fromMillis(newest.Int64), true, nil
+}
+
+// Unfinished lists, newest first, at most limit cached runs of src that are
+// not completed, beyond its newest `beyond`: the newest page a pass reads
+// keeps those up to date, and older pages are read only down to the newest
+// cached run, so nothing else updates the rest.
+func (s *Store) Unfinished(ctx context.Context, src Source, beyond, limit int) ([]int64, error) {
+	current, has, err := readSource(ctx, s.db)
+	if err != nil || !has || current != src {
+		return nil, err
+	}
+	rows, err := s.db.QueryContext(ctx, `
+SELECT id FROM (SELECT id, status, created_at FROM runs ORDER BY created_at DESC, id DESC LIMIT -1 OFFSET ?)
+WHERE status <> 'completed' ORDER BY created_at DESC, id DESC LIMIT ?`, beyond, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// RefreshedRuns are cached runs read again one by one (Unfinished).
+type RefreshedRuns struct {
+	Source Source
+	Runs   []github.Run
+	// Gone are the runs GitHub no longer has.
+	Gone []int64
+}
+
+// ApplyRefreshed stores the runs read again and drops those gone, while the
+// cache holds u.Source, and reports whether cached rows changed. A run no
+// longer cached is not added back.
+func (s *Store) ApplyRefreshed(ctx context.Context, u RefreshedRuns) (bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	current, has, err := readSource(ctx, tx)
+	if err != nil || !has || current != u.Source {
+		return false, err
+	}
+	changed := false
+	for _, r := range u.Runs {
+		var cached bool
+		if err := tx.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM runs WHERE id = ?)", r.ID).Scan(&cached); err != nil {
+			return false, err
+		}
+		if !cached {
+			continue
+		}
+		c, err := upsertRun(ctx, tx, r)
+		if err != nil {
+			return false, err
+		}
+		if err := indexRun(ctx, tx, u.Source, r); err != nil {
+			return false, err
+		}
+		changed = changed || c
+	}
+	if len(u.Gone) > 0 {
+		result, err := tx.ExecContext(ctx, "DELETE FROM runs WHERE id IN (SELECT value FROM json_each(?))", idsJSON(u.Gone, func(id int64) int64 { return id }))
+		if err != nil {
+			return false, err
+		}
+		if n, _ := result.RowsAffected(); n > 0 {
+			changed = true
+		}
+	}
+	return changed, tx.Commit()
 }
 
 // ETags returns the stored ETags when the cache holds this repository's

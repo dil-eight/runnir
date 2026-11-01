@@ -7,15 +7,6 @@ import Testing
 struct WatchedRunsTests {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
-    private func readyHub() async -> (CoreHub, FakeProvider) {
-        let provider = FakeProvider()
-        let hub = CoreHub(provider: provider)
-        hub.startMonitoring()
-        provider.ready()
-        _ = await eventually { hub.status == .ready(version: "fake") }
-        return (hub, provider)
-    }
-
     private func ref(_ key: String) -> GitHubRepositoryRef { GitHubRepositoryRef(key: key)! }
 
     private func run(_ id: Int64, status: String = "completed", conclusion: String? = "failure", attempt: Int64 = 1,
@@ -49,7 +40,7 @@ struct WatchedRunsTests {
     }
 
     @Test func sectionsChipsAndTheDot() async {
-        let (hub, provider) = await readyHub()
+        let (hub, provider) = await makeReadyHub()
         provider.core.watchedRunsResult = CoreWatchedRunsList(repositories: [
             answer("o/r", failed: [run(1, minutesAgo: 30)], running: [run(2, status: "queued", conclusion: nil, minutesAgo: 9)]),
             answer("o/s", failed: [run(3, minutesAgo: 2)], running: [run(4, status: "in_progress", conclusion: nil, minutesAgo: 1)]),
@@ -69,9 +60,9 @@ struct WatchedRunsTests {
     }
 
     @Test func aRemovedRunStaysRemovedUntilAnotherAttemptFails() async throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("runs-" + UUID().uuidString, isDirectory: true)
+        let folder = temporaryFolder("runs-")
         defer { try? FileManager.default.removeItem(at: folder) }
-        let (hub, provider) = await readyHub()
+        let (hub, provider) = await makeReadyHub()
         provider.core.watchedRunsResult = CoreWatchedRunsList(repositories: [answer("o/r", failed: [run(5)])], pauses: [:])
         let store = FileDismissalStore(directory: folder, fileName: FileDismissalStore.runsFile)
         let model = WatchedRunsModel(store: store)
@@ -92,7 +83,7 @@ struct WatchedRunsTests {
     }
 
     @Test func aRenamedRepositoryListsItsRunsOnceAndTheScopeCountsWhatWasRead() async {
-        let (hub, provider) = await readyHub()
+        let (hub, provider) = await makeReadyHub()
         let queued = run(2, status: "queued", conclusion: nil)
         // A workspace links the old name, the star the new one: GitHub answers both.
         provider.core.watchedRunsResult = CoreWatchedRunsList(repositories: [
@@ -108,7 +99,7 @@ struct WatchedRunsTests {
     }
 
     @Test func noAnswerFromTheCoreKeepsWhatWasRead() async {
-        let (hub, provider) = await readyHub()
+        let (hub, provider) = await makeReadyHub()
         let model = WatchedRunsModel(store: nil)
         model.repositories = { [CoreWatchedRepository(repository: GitHubRepositoryRef(key: "o/r")!)] }
         await model.refresh(hub: hub)
@@ -122,17 +113,17 @@ struct WatchedRunsTests {
     }
 
     @Test func nothingToWatchAsksNothing() async {
-        let (hub, provider) = await readyHub()
+        let (hub, provider) = await makeReadyHub()
         let model = WatchedRunsModel(store: nil)
         await model.refresh(hub: hub)
         #expect(provider.core.watchedRunsCalls.isEmpty && model.answers.isEmpty && model.loadedAt != nil)
     }
 
     @Test func pollingAsksAgainWhenTheWatchedRepositoriesChange() async {
-        let (hub, provider) = await readyHub()
+        let (hub, provider) = await makeReadyHub()
         provider.core.watchedRunsResult = CoreWatchedRunsList(repositories: [], pauses: [:])
         let model = WatchedRunsModel(store: nil)
-        var keys = ["o/r"]
+        nonisolated(unsafe) var keys = ["o/r"]
         model.repositories = { keys.map { CoreWatchedRepository(repository: GitHubRepositoryRef(key: $0)!) } }
         model.startPolling(hub: hub, retry: .milliseconds(20)) { true }
         defer { model.stopPolling() }
