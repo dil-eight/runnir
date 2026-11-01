@@ -185,10 +185,16 @@ func TestNoTokenMeansNoRequest(t *testing.T) {
 	}
 }
 
-func TestNoAnswerIsUnreachableAndAServerErrorIsNot(t *testing.T) {
+func TestNoAnswerIsUnreachableAndAServerErrorOrARedirectIsNot(t *testing.T) {
 	failing, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(502) })
 	if _, err := failing.Runs(context.Background(), "o", "r", "", 0); !errors.Is(err, ErrUnavailable) || errors.Is(err, ErrUnreachable) {
 		t.Fatalf("502 = %v", err)
+	}
+	away, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://elsewhere.test/login", http.StatusFound)
+	})
+	if _, err := away.Runs(context.Background(), "o", "r", "", 0); !errors.Is(err, ErrUnavailable) || errors.Is(err, ErrUnreachable) {
+		t.Fatalf("a redirect to another origin = %v", err)
 	}
 	server := httptest.NewServer(http.NotFoundHandler())
 	server.Close()
@@ -383,32 +389,52 @@ func TestTheCoreRateLimitOfTheLatestAnswerIsKept(t *testing.T) {
 	}
 }
 
-func TestTheLoginIsReadOncePerToken(t *testing.T) {
-	users := 0
-	client, credential := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
-		users++
-		if r.Header.Get("Authorization") == "Bearer ghu_other" {
-			_, _ = w.Write([]byte(`{"login":"bo"}`))
+func TestTheNewestRateLimitIsKeptWhateverOrderAnswersComeIn(t *testing.T) {
+	client := NewClient(&Credential{}, "https://api.test", "test")
+	window := time.Date(2026, 10, 29, 13, 0, 0, 0, time.UTC)
+	note := func(remaining int, reset time.Time, generation uint64) RateLimit {
+		header := http.Header{}
+		header.Set("X-RateLimit-Limit", "5000")
+		header.Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+		header.Set("X-RateLimit-Reset", strconv.FormatInt(reset.Unix(), 10))
+		client.noteRateLimit(header, generation)
+		return client.RateLimit()
+	}
+	if got := note(4000, window, 2); got.Remaining != 4000 {
+		t.Fatalf("first = %+v", got)
+	}
+	if got := note(4100, window, 2); got.Remaining != 4000 {
+		t.Fatal("an answer sent earlier in the window replaced a newer one")
+	}
+	if got := note(10, window.Add(-time.Hour), 2); got.Remaining != 4000 {
+		t.Fatal("an answer of an earlier window replaced a newer one")
+	}
+	if got := note(3, window, 1); got.Remaining != 4000 {
+		t.Fatal("an answer read with an older token replaced a newer one")
+	}
+	if got := note(5000, window.Add(time.Hour), 2); got.Remaining != 5000 {
+		t.Fatalf("a new window = %+v", got)
+	}
+	if got := note(4999, window, 3); got.Remaining != 4999 || !got.Reset.Equal(window) {
+		t.Fatalf("a new token = %+v", got)
+	}
+}
+
+func TestTheLoginIsReadWithGetUser(t *testing.T) {
+	login := "ana"
+	client, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/user" {
+			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		_, _ = w.Write([]byte(`{"login":"ana"}`))
+		_, _ = fmt.Fprintf(w, `{"login":%q}`, login)
 	})
-	for range 2 {
-		if login, err := client.Login(context.Background()); err != nil || login != "ana" {
-			t.Fatalf("login = %q, %v", login, err)
-		}
+	if got, err := client.Login(context.Background()); err != nil || got != "ana" {
+		t.Fatalf("login = %q, %v", got, err)
 	}
-	if users != 1 {
-		t.Fatalf("GET /user = %d", users)
-	}
-	_ = credential.Set("ghu_test") // the same token again
-	_, _ = client.Login(context.Background())
-	if users != 1 {
-		t.Fatal("the same token is not read again")
-	}
-	_ = credential.Set("ghu_other")
-	if login, _ := client.Login(context.Background()); login != "bo" || users != 2 {
-		t.Fatalf("after a new token = %q, %d", login, users)
+	login = ""
+	if _, err := client.Login(context.Background()); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("no login = %v", err)
 	}
 }
 

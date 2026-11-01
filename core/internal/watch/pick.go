@@ -19,30 +19,36 @@ const FailedFor = 7 * 24 * time.Hour
 // repository. A run is running while it is not completed. A workflow on a
 // branch is failed when its newest finished run is in the Failed group and
 // finished within FailedFor of now: a later run that passed, was cancelled
-// or was skipped, or a re-run that passed, lists nothing. Failed runs come
-// newest first by UpdatedAt, running ones by CreatedAt.
+// or was skipped, or a re-run that passed, lists nothing. A new run in
+// progress does not change that, but a re-run in progress lists nothing
+// until it finishes: its run is the newest, and how it ends is not known.
+// Failed runs come newest first by UpdatedAt, running ones by CreatedAt.
 func Pick(runs []github.Run, login string, now time.Time) (failed, running []github.Run) {
 	type group struct {
 		workflow int64
 		branch   string
 	}
-	newest := map[group]github.Run{}
+	groups := map[group][]github.Run{}
 	for _, r := range runs {
 		if login == "" || !strings.EqualFold(r.Actor, login) {
 			continue
 		}
 		if r.Status != "completed" {
 			running = append(running, r)
-			continue
 		}
 		key := group{r.WorkflowID, r.Branch}
-		if kept, ok := newest[key]; !ok || later(r.CreatedAt, r.ID, kept.CreatedAt, kept.ID) {
-			newest[key] = r
-		}
+		groups[key] = append(groups[key], r)
 	}
-	for _, r := range newest {
-		if runsearch.StatusOf(r.Status, r.Conclusion) == runsearch.Failed && now.Sub(r.UpdatedAt) <= FailedFor {
-			failed = append(failed, r)
+	for _, list := range groups {
+		sort.Slice(list, func(i, j int) bool { return later(list[i].CreatedAt, list[i].ID, list[j].CreatedAt, list[j].ID) })
+		for _, r := range list {
+			if r.Status != "completed" && r.RunAttempt <= 1 {
+				continue
+			}
+			if r.Status == "completed" && runsearch.StatusOf(r.Status, r.Conclusion) == runsearch.Failed && now.Sub(r.UpdatedAt) <= FailedFor {
+				failed = append(failed, r)
+			}
+			break
 		}
 	}
 	sort.Slice(failed, func(i, j int) bool {

@@ -8,6 +8,7 @@ import (
 	"runnir/core/internal/flow"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
+	"runnir/core/internal/store"
 	"runnir/core/internal/workspace"
 )
 
@@ -57,7 +58,7 @@ func (s *service) explainSkips(ctx context.Context, request *corev1.GetRunWorkfl
 	if err != nil {
 		return last()
 	}
-	repository := strings.ToLower(target.owner + "/" + target.name)
+	repository := store.SourceOf(target.account.Server.ID, target.owner, target.name).Repository
 	var defaultBranch string
 	var pull *github.RepositoryPullRequest
 	var refs func() (map[string]bool, map[string]bool)

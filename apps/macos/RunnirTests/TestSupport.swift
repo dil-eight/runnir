@@ -20,6 +20,11 @@ func eventuallyAsync(_ condition: @Sendable () async -> Bool) async -> Bool {
     return false
 }
 
+/// A folder in the temporary directory that does not exist yet.
+func temporaryFolder(_ prefix: String = "") -> URL {
+    FileManager.default.temporaryDirectory.appendingPathComponent(prefix + UUID().uuidString, isDirectory: true)
+}
+
 /// A hub on a fake Core that is ready.
 @MainActor
 func makeReadyHub() async -> (CoreHub, FakeProvider) {

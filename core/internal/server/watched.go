@@ -8,7 +8,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
-	"runnir/core/internal/github"
 	"runnir/core/internal/watch"
 )
 
@@ -42,12 +41,4 @@ func (s *service) ListWatchedRuns(ctx context.Context, request *corev1.ListWatch
 		out.Pauses = append(out.Pauses, &corev1.ServerPause{GithubServer: p.ServerID, Until: timestamppb.New(p.Until)})
 	}
 	return out, nil
-}
-
-func runMessages(runs []github.Run) []*corev1.WorkflowRun {
-	out := make([]*corev1.WorkflowRun, len(runs))
-	for i, r := range runs {
-		out[i] = runMessage(r)
-	}
-	return out
 }

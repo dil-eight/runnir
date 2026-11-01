@@ -299,6 +299,13 @@ final class CoreHub {
         return enterpriseServers.first { $0.id == serverID }
     }
 
+    /// The host a list of several servers' items names a server by; nil
+    /// while only one account is signed in.
+    func listHost(server serverID: String) -> String? {
+        guard signedInServers.count > 1 else { return nil }
+        return serverID.isEmpty ? "github.com" : serverRef(for: serverID)?.webHost
+    }
+
     /// The kind of token the Core holds for a server; "" or nil is github.com.
     func credentialKind(for serverID: String?) -> CoreGitHubCredentialKind? {
         credentialKinds[serverID ?? ""]

@@ -29,7 +29,8 @@ var (
 	ErrUnavailable       = errors.New("GitHub is unavailable")
 	ErrInvalid           = errors.New("unexpected GitHub response")
 	// ErrUnreachable is ErrUnavailable without any answer: the server could
-	// not be reached or did not answer in time.
+	// not be reached or did not answer in time. A redirect that is not
+	// followed is an answer.
 	ErrUnreachable = fmt.Errorf("%w: no answer", ErrUnavailable)
 	// ErrNotModified is a conditional read's answer when nothing changed
 	// (HTTP 304). GitHub does not count it against the rate limit.
@@ -68,11 +69,10 @@ type Client struct {
 	userAgent  string
 
 	mu sync.Mutex
-	// rate is the core rate limit of the latest answer that said it.
-	rate RateLimit
-	// login is the user's login, read with the token of loginFor.
-	login    string
-	loginFor uint64
+	// rate is the core rate limit of the newest answer that said it, read
+	// with the token of generation rateFor.
+	rate    RateLimit
+	rateFor uint64
 }
 
 // RateLimit is what GitHub said of the core rate limit in an answer; Limit
@@ -90,9 +90,12 @@ func (c *Client) RateLimit() RateLimit {
 	return c.rate
 }
 
-// noteRateLimit keeps the core rate limit an answer reports. Search and
-// GraphQL have limits of their own and are not kept.
-func (c *Client) noteRateLimit(header http.Header) {
+// noteRateLimit keeps the core rate limit an answer reports, read with the
+// token of generation. Search and GraphQL have limits of their own and are
+// not kept. Answers can come back out of order: one read with an older
+// token, of an earlier window, or with more left in the same window is
+// older than the one kept.
+func (c *Client) noteRateLimit(header http.Header, generation uint64) {
 	if resource := header.Get("X-RateLimit-Resource"); resource != "" && resource != "core" {
 		return
 	}
@@ -102,22 +105,20 @@ func (c *Client) noteRateLimit(header http.Header) {
 	if limitErr != nil || remainingErr != nil || resetErr != nil || limit <= 0 {
 		return
 	}
+	next := RateLimit{Remaining: remaining, Limit: limit, Reset: time.Unix(reset, 0)}
 	c.mu.Lock()
-	c.rate = RateLimit{Remaining: remaining, Limit: limit, Reset: time.Unix(reset, 0)}
-	c.mu.Unlock()
+	defer c.mu.Unlock()
+	if generation < c.rateFor {
+		return
+	}
+	if generation == c.rateFor && (next.Reset.Before(c.rate.Reset) || next.Reset.Equal(c.rate.Reset) && next.Remaining >= c.rate.Remaining) {
+		return
+	}
+	c.rate, c.rateFor = next, generation
 }
 
-// Login is the signed-in user's login, read with GET /user once per token
-// and kept until the token changes.
+// Login reads the signed-in user's login with GET /user.
 func (c *Client) Login(ctx context.Context) (string, error) {
-	generation := c.credential.Generation()
-	c.mu.Lock()
-	if c.login != "" && c.loginFor == generation {
-		login := c.login
-		c.mu.Unlock()
-		return login, nil
-	}
-	c.mu.Unlock()
 	var user struct {
 		Login string `json:"login"`
 	}
@@ -127,15 +128,15 @@ func (c *Client) Login(ctx context.Context) (string, error) {
 	if user.Login == "" {
 		return "", ErrInvalid
 	}
-	c.mu.Lock()
-	c.login, c.loginFor = user.Login, generation
-	c.mu.Unlock()
 	return user.Login, nil
 }
 
-// errCrossOriginRedirect ends a request GitHub redirected to another origin,
-// which must not get the token.
-var errCrossOriginRedirect = errors.New("redirect to another origin")
+var (
+	// errCrossOriginRedirect ends a request GitHub redirected to another
+	// origin, which must not get the token.
+	errCrossOriginRedirect = errors.New("redirect to another origin")
+	errTooManyRedirects    = errors.New("stopped after 10 redirects")
+)
 
 // sameOriginRedirects follows a redirect only on the API's own origin (a
 // renamed repository moves within it), so a token never leaves its server.
@@ -145,7 +146,7 @@ func sameOriginRedirects(request *http.Request, via []*http.Request) error {
 		return errCrossOriginRedirect
 	}
 	if len(via) >= 10 {
-		return errors.New("stopped after 10 redirects")
+		return errTooManyRedirects
 	}
 	return nil
 }
@@ -606,8 +607,8 @@ func (c *Client) exchange(ctx context.Context, method, path string, query url.Va
 
 // exchangeWith is exchange with extra request headers, such as If-None-Match.
 func (c *Client) exchangeWith(ctx context.Context, method, path string, query url.Values, body []byte, accept string, extra http.Header) ([]byte, int, http.Header, error) {
-	token, ok := c.credential.Token()
-	if !ok {
+	token, generation := c.credential.current()
+	if token == "" {
 		return nil, 0, nil, ErrNoCredential
 	}
 	target := c.baseURL + path
@@ -636,14 +637,18 @@ func (c *Client) exchangeWith(ctx context.Context, method, path string, query ur
 	}
 
 	response, err := c.http.Do(request)
-	if err != nil {
-		if ctx.Err() != nil {
-			return nil, 0, nil, ctx.Err()
-		}
+	switch {
+	case err == nil:
+	case ctx.Err() != nil:
+		return nil, 0, nil, ctx.Err()
+	case errors.Is(err, errCrossOriginRedirect), errors.Is(err, errTooManyRedirects):
+		// The server answered, with a redirect not followed.
+		return nil, 0, nil, ErrUnavailable
+	default:
 		return nil, 0, nil, ErrUnreachable
 	}
 	defer response.Body.Close()
-	c.noteRateLimit(response.Header)
+	c.noteRateLimit(response.Header, generation)
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes+1))
 	if err != nil {
 		return nil, response.StatusCode, response.Header, ErrUnavailable

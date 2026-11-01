@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -41,7 +40,7 @@ func (s *service) recordRerun(ctx context.Context, prepared runAction, sentAt ti
 		return
 	}
 	_ = rt.Store().RecordStart(ctx, store.RunStart{
-		Source: store.Source{ServerID: prepared.ServerID, Repository: strings.ToLower(prepared.Owner + "/" + prepared.Name)},
+		Source: store.SourceOf(prepared.ServerID, prepared.Owner, prepared.Name),
 		RunID:  prepared.RunID, Attempt: prepared.Attempt + 1, Kind: kind, SentAt: sentAt,
 	})
 }

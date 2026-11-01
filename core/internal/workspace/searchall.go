@@ -3,10 +3,10 @@ package workspace
 import (
 	"context"
 	"strings"
-	"sync"
 	"time"
 
 	"runnir/core/internal/github"
+	"runnir/core/internal/parallel"
 	"runnir/core/internal/runsearch"
 	"runnir/core/internal/store"
 )
@@ -63,18 +63,7 @@ func (m *Runtimes) SearchAll(ctx context.Context, requested []string, text strin
 		}
 		return out, nil
 	}
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, 4)
-	for i, id := range ids {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			out[i] = m.searchWorkspace(ctx, id, q, perKind)
-		}()
-	}
-	wg.Wait()
+	parallel.Each(len(ids), 4, func(i int) { out[i] = m.searchWorkspace(ctx, ids[i], q, perKind) })
 	return out, ctx.Err()
 }
 
