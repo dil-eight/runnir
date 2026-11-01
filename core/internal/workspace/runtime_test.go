@@ -169,6 +169,11 @@ func TestEveryPassAnnouncesItselfForItsRepository(t *testing.T) {
 	log := &eventLog{}
 	r := startRuntime(t, t.TempDir(), fixedResolver(accounts, "o", "r"), log)
 	waitRefresh(t, r)
+	// A pass announces its end just after it lets Refresh return.
+	deadline := time.Now().Add(5 * time.Second)
+	for log.count.Load() < 2 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
 	log.mu.Lock()
 	defer log.mu.Unlock()
 	if len(log.events) < 2 {
