@@ -17,29 +17,6 @@ final class GitHubRESTClient: GitHubService {
         try await send(.currentUser, responseType: GitHubUser.self)
     }
 
-    func listRepositories() async throws -> [Repository] {
-        let repositories = try await sendPaginated { page in
-            try await send(.repositories(page: page), responseType: [GitHubRepositoryDTO].self)
-        }
-        return repositories.map { $0.domainModel() }
-    }
-
-    func repository(owner: String, name: String) async throws -> Repository {
-        try await send(.repository(owner: owner, name: name), responseType: GitHubRepositoryDTO.self).domainModel()
-    }
-
-    func listWorkflows(owner: String, repository: String) async throws -> [Workflow] {
-        let fullName = "\(owner)/\(repository)"
-        let workflows = try await sendPaginated { page in
-            let response = try await send(
-                .workflows(owner: owner, repository: repository, page: page),
-                responseType: GitHubWorkflowListResponse.self
-            )
-            return response.workflows
-        }
-        return workflows.map { $0.domainModel(repositoryFullName: fullName) }
-    }
-
     private func send<Response: Decodable & Sendable>(
         _ endpoint: GitHubEndpoint,
         responseType: Response.Type
@@ -68,22 +45,6 @@ final class GitHubRESTClient: GitHubService {
         } catch {
             throw GitHubAPIError.networkUnavailable
         }
-    }
-
-    /// At most `maxPages` pages of 100, so an account with very many items
-    /// cannot spend the rate limit on one listing.
-    static let maxPages = 10
-
-    private func sendPaginated<Item: Sendable>(
-        _ loadPage: (Int) async throws -> [Item]
-    ) async throws -> [Item] {
-        var allItems: [Item] = []
-        for page in 1...Self.maxPages {
-            let items = try await loadPage(page)
-            allItems.append(contentsOf: items)
-            if items.count < 100 { break }
-        }
-        return allItems
     }
 
     private func mapStatus(_ response: HTTPURLResponse, data: Data) throws {
