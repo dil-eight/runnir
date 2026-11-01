@@ -4,7 +4,6 @@ package server
 
 import (
 	"context"
-	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
@@ -22,22 +21,8 @@ import (
 func historyRig(t *testing.T) (corev1.RunnirCoreClient, string, *fakeDispatchGitHub, context.Context) {
 	t.Helper()
 	fake := &fakeDispatchGitHub{}
-	server := httptest.NewServer(fake.handler(t))
-	t.Cleanup(server.Close)
-	path := socketPath(t)
-	stop := startWith(t, path, Options{GitHubBaseURL: server.URL})
-	t.Cleanup(func() { _ = stop() })
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	t.Cleanup(cancel)
-	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: linkedRepository(t, "https://github.com/o/r.git"), WorkspaceId: testWorkspace})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := client.SetGitHubCredential(ctx, &corev1.SetGitHubCredentialRequest{Token: "ghu_test"}); err != nil {
-		t.Fatal(err)
-	}
-	return client, opened.Repository.Id, fake, ctx
+	client, id, ctx := linkedRig(t, fake.handler(t), testWorkspace)
+	return client, id, fake, ctx
 }
 
 func sendDispatch(t *testing.T, client corev1.RunnirCoreClient, ctx context.Context, id, ref string, inputs map[string]string) *corev1.ConfirmWorkflowDispatchResponse {

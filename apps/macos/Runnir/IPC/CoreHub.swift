@@ -372,6 +372,23 @@ final class CoreHub {
         if isDotCom(target) { await onGitHubTokenRejected?() }
     }
 
+    /// Asks the Core about target; nil when it is not ready or the call
+    /// failed. A github.com sign-in GitHub rejected is forgotten.
+    private func ask<Answer: CoreGitHubAnswer>(_ target: GitHubTarget,
+                                               _ call: (any CoreServicing, CoreGitHubTarget) async throws -> Answer) async -> Answer? {
+        guard let (service, coreTarget) = await serviceAndTarget(target), let answer = try? await call(service, coreTarget) else { return nil }
+        if answer.access == .tokenRejected { await tokenRejected(on: target) }
+        return answer
+    }
+
+    /// `ask` about a workspace's repository, by its Core id.
+    private func ask<Answer: CoreGitHubAnswer>(workspace workspaceID: UUID,
+                                               _ call: (any CoreServicing, String) async throws -> Answer) async -> Answer? {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID), let answer = try? await call(service, coreID) else { return nil }
+        if answer.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
+        return answer
+    }
+
     // MARK: GitHub activity
 
     /// How many runs a session reads at first, and how many more each time
@@ -540,12 +557,8 @@ final class CoreHub {
     func refs(workspaceID: UUID) async -> CoreGitHubRefs { await refs(target: .workspace(workspaceID)) }
 
     func refs(target: GitHubTarget) async -> CoreGitHubRefs {
-        guard let (service, coreTarget) = await serviceAndTarget(target),
-              let refs = try? await service.listGitHubRefs(target: coreTarget) else {
-            return CoreGitHubRefs(access: .unavailable, defaultBranch: "", branches: [], tags: [])
-        }
-        if refs.access == .tokenRejected { await tokenRejected(on: target) }
-        return refs
+        await ask(target) { try await $0.listGitHubRefs(target: $1) }
+            ?? CoreGitHubRefs(access: .unavailable, defaultBranch: "", branches: [], tags: [])
     }
 
     func describeDispatch(workspaceID: UUID, workflowPath: String, ref: String) async -> CoreDispatchDefinition {
@@ -553,12 +566,8 @@ final class CoreHub {
     }
 
     func describeDispatch(target: GitHubTarget, workflowPath: String, ref: String) async -> CoreDispatchDefinition {
-        guard let (service, coreTarget) = await serviceAndTarget(target),
-              let definition = try? await service.describeWorkflowDispatch(target: coreTarget, workflowPath: workflowPath, ref: ref) else {
-            return CoreDispatchDefinition(access: .unavailable, dispatchable: false, inputs: [], parseError: nil)
-        }
-        if definition.access == .tokenRejected { await tokenRejected(on: target) }
-        return definition
+        await ask(target) { try await $0.describeWorkflowDispatch(target: $1, workflowPath: workflowPath, ref: ref) }
+            ?? CoreDispatchDefinition(access: .unavailable, dispatchable: false, inputs: [], parseError: nil)
     }
 
     func prepareDispatch(workspaceID: UUID, workflowID: Int64, ref: String, inputs: [String: String]) async -> CorePreparedDispatch {
@@ -566,12 +575,8 @@ final class CoreHub {
     }
 
     func prepareDispatch(target: GitHubTarget, workflowID: Int64, ref: String, inputs: [String: String]) async -> CorePreparedDispatch {
-        guard let (service, coreTarget) = await serviceAndTarget(target),
-              let prepared = try? await service.prepareWorkflowDispatch(target: coreTarget, workflowID: workflowID, ref: ref, inputs: inputs) else {
-            return CorePreparedDispatch(access: .unavailable, dispatchID: nil, expiresAt: nil, problems: [], workflowPath: "")
-        }
-        if prepared.access == .tokenRejected { await tokenRejected(on: target) }
-        return prepared
+        await ask(target) { try await $0.prepareWorkflowDispatch(target: $1, workflowID: workflowID, ref: ref, inputs: inputs) }
+            ?? CorePreparedDispatch(access: .unavailable, dispatchID: nil, expiresAt: nil, problems: [], workflowPath: "")
     }
 
     func confirmDispatch(workspaceID: UUID, dispatchID: String) async -> CoreDispatchResult? {
@@ -581,10 +586,7 @@ final class CoreHub {
     /// Sends a prepared dispatch. nil means the confirmation expired or was
     /// already used, or the Core was not reachable: nothing was sent.
     func confirmDispatch(target: GitHubTarget, dispatchID: String) async -> CoreDispatchResult? {
-        guard let (service, _) = await serviceAndTarget(target),
-              let result = try? await service.confirmWorkflowDispatch(dispatchID: dispatchID) else { return nil }
-        if result.access == .tokenRejected { await tokenRejected(on: target) }
-        return result
+        await ask(target) { service, _ in try await service.confirmWorkflowDispatch(dispatchID: dispatchID) }
     }
 
     /// The dispatches sent from this Mac for a workflow of a workspace, newest
@@ -662,10 +664,7 @@ final class CoreHub {
     @discardableResult
     func githubRepository(target: GitHubTarget) async -> CoreGitHubRepository {
         if case .workspace(let workspaceID) = target { return await githubRepository(workspaceID: workspaceID) }
-        guard let (service, coreTarget) = await serviceAndTarget(target),
-              let repository = try? await service.gitHubRepository(target: coreTarget) else { return .failed(.unavailable) }
-        if repository.access == .tokenRejected { await tokenRejected(on: target) }
-        return repository
+        return await ask(target) { try await $0.gitHubRepository(target: $1) } ?? .failed(.unavailable)
     }
 
     // MARK: Repositories without a local clone
@@ -748,22 +747,12 @@ final class CoreHub {
 
     /// A repository's workflows on GitHub.
     func workflows(of target: GitHubTarget) async -> CoreGitHubResult<CoreGitHubWorkflow> {
-        guard let (service, coreTarget) = await serviceAndTarget(target),
-              let result = try? await service.listGitHubWorkflows(target: coreTarget) else {
-            return CoreGitHubResult(access: .unavailable, items: [])
-        }
-        if result.access == .tokenRejected { await tokenRejected(on: target) }
-        return result
+        await ask(target) { try await $0.listGitHubWorkflows(target: $1) } ?? CoreGitHubResult(access: .unavailable, items: [])
     }
 
     /// A repository's newest runs on GitHub, read now.
     func runs(of target: GitHubTarget, limit: Int) async -> CoreGitHubResult<CoreWorkflowRun> {
-        guard let (service, coreTarget) = await serviceAndTarget(target),
-              let result = try? await service.listWorkflowRuns(target: coreTarget, branch: nil, limit: limit) else {
-            return CoreGitHubResult(access: .unavailable, items: [])
-        }
-        if result.access == .tokenRejected { await tokenRejected(on: target) }
-        return result
+        await ask(target) { try await $0.listWorkflowRuns(target: $1, branch: nil, limit: limit) } ?? CoreGitHubResult(access: .unavailable, items: [])
     }
 
     /// The linked GitHub repository as the Core sees it with the current
@@ -783,32 +772,14 @@ final class CoreHub {
 
     /// Jobs and steps of one run, read on demand.
     func jobs(workspaceID: UUID, runID: Int64) async -> CoreGitHubResult<CoreRunJob> {
-        guard let coreID = sessions[workspaceID]?.coreID, isReady,
-              let service = try? await provider.service() else {
-            return CoreGitHubResult(access: .unavailable, items: [])
-        }
-        do {
-            let result = try await service.listRunJobs(repositoryID: coreID, runID: runID)
-            if result.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
-            return result
-        } catch {
-            return CoreGitHubResult(access: .unavailable, items: [])
-        }
+        await ask(workspace: workspaceID) { try await $0.listRunJobs(repositoryID: $1, runID: runID) } ?? CoreGitHubResult(access: .unavailable, items: [])
     }
 
     /// The jobs of the workflow file one run used, with their needs, for the
     /// run's graph, and why the attempt shown skipped its jobs. Without jobs
     /// and with a problem when the file cannot be read.
     func runWorkflow(workspaceID: UUID, runID: Int64, runAttempt: Int64) async -> CoreRunWorkflow {
-        guard let coreID = sessions[workspaceID]?.coreID, isReady,
-              let service = try? await provider.service() else { return .failed(.unavailable) }
-        do {
-            let result = try await service.getRunWorkflow(repositoryID: coreID, runID: runID, runAttempt: runAttempt)
-            if result.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
-            return result
-        } catch {
-            return .failed(.unavailable)
-        }
+        await ask(workspace: workspaceID) { try await $0.getRunWorkflow(repositoryID: $1, runID: runID, runAttempt: runAttempt) } ?? .failed(.unavailable)
     }
 
     /// The pipeline of the workspace's change in a scenario (nil: the
@@ -875,14 +846,7 @@ final class CoreHub {
 
     /// One step of a deep search on GitHub.
     func searchRunsOnGitHub(workspaceID: UUID, query: String, cursor: Date?) async -> CoreGitHubRunSearch {
-        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return .failed(.unavailable) }
-        do {
-            let result = try await service.searchRunsOnGitHub(repositoryID: coreID, query: query, cursor: cursor, pages: 10)
-            if result.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
-            return result
-        } catch {
-            return .failed(.unavailable)
-        }
+        await ask(workspace: workspaceID) { try await $0.searchRunsOnGitHub(repositoryID: $1, query: query, cursor: cursor, pages: 10) } ?? .failed(.unavailable)
     }
 
     /// Deletes a closed workspace's data on this Mac, once the Core has
@@ -940,12 +904,8 @@ final class CoreHub {
             let result = try await service.saveWorkflowFile(repositoryID: coreID, workflowID: workflowID, content: content,
                                                             baseSHA256: baseSHA256, overwrite: overwrite)
             return result.conflict ? .conflict : .saved(result.sha256)
-        } catch CoreServiceError.notFound {
-            return .failed("Runnir Core does not know this workflow file yet. Refresh, then save again.")
-        } catch CoreServiceError.invalidArgument(let message), CoreServiceError.failedPrecondition(let message) {
-            return .failed(Self.sentence(message))
         } catch {
-            return .failed(Self.describe(error))
+            return .failed(Self.refusal(error, notFound: "Runnir Core does not know this workflow file yet. Refresh, then save again."))
         }
     }
 
@@ -1060,12 +1020,8 @@ final class CoreHub {
             return .prepared(try await service.prepareLocalRun(repositoryID: coreID, workflowID: workflowID, jobID: jobID,
                                                                event: event, useInstalledAct: useInstalledAct,
                                                                limits: limits, resetLimits: resetLimits))
-        } catch CoreServiceError.notFound {
-            return .failed("This workflow or job is no longer in the working tree. Refresh and review again.")
-        } catch CoreServiceError.invalidArgument(let message), CoreServiceError.failedPrecondition(let message) {
-            return .failed(Self.sentence(message))
         } catch {
-            return .failed(Self.describe(error))
+            return .failed(Self.refusal(error, notFound: "This workflow or job is no longer in the working tree. Refresh and review again."))
         }
     }
 
@@ -1146,6 +1102,17 @@ final class CoreHub {
     }
 
     /// "the workflow file changed" -> "The workflow file changed."
+    /// What to say when the Core refused a change: `notFound` when it does
+    /// not know what was named, its reason when it refused, otherwise what
+    /// went wrong.
+    static func refusal(_ error: any Error, notFound: String) -> String {
+        switch error as? CoreServiceError {
+        case .notFound?: notFound
+        case .invalidArgument(let message)?, .failedPrecondition(let message)?: sentence(message)
+        default: describe(error)
+        }
+    }
+
     nonisolated static func sentence(_ message: String) -> String {
         guard let first = message.first else { return message }
         let text = first.uppercased() + message.dropFirst()
@@ -1156,44 +1123,23 @@ final class CoreHub {
 
     /// The end of one job's log.
     func jobLog(workspaceID: UUID, jobID: Int64) async -> CoreJobLog {
-        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return .failed(.unavailable) }
-        do {
-            let log = try await service.jobLog(repositoryID: coreID, jobID: jobID)
-            if log.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
-            return log
-        } catch {
-            return .failed(.unavailable)
-        }
+        await ask(workspace: workspaceID) { try await $0.jobLog(repositoryID: $1, jobID: jobID) } ?? .failed(.unavailable)
     }
 
     /// One job's whole log, written to a file by the Core.
     func saveJobLog(workspaceID: UUID, jobID: Int64) async -> CoreSavedJobLog {
-        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return .failed(.unavailable) }
-        do {
-            let saved = try await service.saveJobLog(repositoryID: coreID, jobID: jobID)
-            if saved.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
-            return saved
-        } catch {
-            return .failed(.unavailable)
-        }
+        await ask(workspace: workspaceID) { try await $0.saveJobLog(repositoryID: $1, jobID: jobID) } ?? .failed(.unavailable)
     }
 
     func prepareRunAction(workspaceID: UUID, runID: Int64, action: CoreRunAction) async -> CorePreparedRunAction {
-        guard let (service, coreID) = await serviceAndCoreID(workspaceID),
-              let prepared = try? await service.prepareRunAction(repositoryID: coreID, runID: runID, action: action) else {
-            return CorePreparedRunAction(access: .unavailable, actionID: nil, expiresAt: nil, problems: [], run: nil)
-        }
-        if prepared.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
-        return prepared
+        await ask(workspace: workspaceID) { try await $0.prepareRunAction(repositoryID: $1, runID: runID, action: action) }
+            ?? CorePreparedRunAction(access: .unavailable, actionID: nil, expiresAt: nil, problems: [], run: nil)
     }
 
     /// Sends a prepared run action. nil means the confirmation expired or was
     /// already used, or the Core was not reachable: nothing was sent.
     func confirmRunAction(workspaceID: UUID, actionID: String) async -> CoreRunActionResult? {
-        guard let (service, _) = await serviceAndCoreID(workspaceID),
-              let result = try? await service.confirmRunAction(actionID: actionID) else { return nil }
-        if result.access == .tokenRejected { await tokenRejected(on: .workspace(workspaceID)) }
-        return result
+        await ask(workspace: workspaceID) { service, _ in try await service.confirmRunAction(actionID: actionID) }
     }
 
     /// After GitHub accepted a cancel or re-run, reloads runs until the run

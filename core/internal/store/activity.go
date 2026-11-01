@@ -127,9 +127,9 @@ func (s *Store) ApplySync(ctx context.Context, p Pass) (bool, error) {
 		}
 	}
 	if p.DefaultBranch != "" {
-		if current, has, err := readSource(ctx, tx); err != nil {
+		if held, err := holds(ctx, tx, p.Source); err != nil {
 			return false, err
-		} else if has && current == p.Source {
+		} else if held {
 			result, err := tx.ExecContext(ctx, "UPDATE cache_source SET default_branch = ? WHERE id = 1 AND default_branch <> ?", p.DefaultBranch, p.DefaultBranch)
 			if err != nil {
 				return false, err
@@ -207,6 +207,14 @@ func readSource(ctx context.Context, q interface {
 		return Source{}, false, nil
 	}
 	return src, err == nil, err
+}
+
+// holds reports whether the cache holds src's data.
+func holds(ctx context.Context, q interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, src Source) (bool, error) {
+	current, has, err := readSource(ctx, q)
+	return err == nil && has && current == src, err
 }
 
 func setETag(ctx context.Context, tx *sql.Tx, scope, etag string) error {
@@ -500,8 +508,7 @@ func (s *Store) links(ctx context.Context) (map[int64][]int64, error) {
 // Newest returns the created_at of the newest cached run of src; false when
 // none is cached for it.
 func (s *Store) Newest(ctx context.Context, src Source) (time.Time, bool, error) {
-	current, has, err := readSource(ctx, s.db)
-	if err != nil || !has || current != src {
+	if held, err := holds(ctx, s.db, src); !held {
 		return time.Time{}, false, err
 	}
 	var newest sql.NullInt64
@@ -519,8 +526,7 @@ func (s *Store) Newest(ctx context.Context, src Source) (time.Time, bool, error)
 // keeps those up to date, and older pages are read only down to the newest
 // cached run, so nothing else updates the rest.
 func (s *Store) Unfinished(ctx context.Context, src Source, beyond, limit int) ([]int64, error) {
-	current, has, err := readSource(ctx, s.db)
-	if err != nil || !has || current != src {
+	if held, err := holds(ctx, s.db, src); !held {
 		return nil, err
 	}
 	rows, err := s.db.QueryContext(ctx, `
@@ -558,8 +564,7 @@ func (s *Store) ApplyRefreshed(ctx context.Context, u RefreshedRuns) (bool, erro
 		return false, err
 	}
 	defer tx.Rollback()
-	current, has, err := readSource(ctx, tx)
-	if err != nil || !has || current != u.Source {
+	if held, err := holds(ctx, tx, u.Source); !held {
 		return false, err
 	}
 	changed := false
@@ -595,8 +600,7 @@ func (s *Store) ApplyRefreshed(ctx context.Context, u RefreshedRuns) (bool, erro
 // ETags returns the stored ETags when the cache holds this repository's
 // data, otherwise empty strings, so another repository's never match.
 func (s *Store) ETags(ctx context.Context, src Source) (Tags, error) {
-	current, has, err := readSource(ctx, s.db)
-	if err != nil || !has || current != src {
+	if held, err := holds(ctx, s.db, src); !held {
 		return Tags{}, err
 	}
 	rows, err := s.db.QueryContext(ctx, "SELECT scope, etag FROM sync_state WHERE scope IN (?, ?, ?)", scopeRuns, scopeWorkflows, scopePulls)

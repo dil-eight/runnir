@@ -14,10 +14,7 @@ import (
 // or were read moments ago; otherwise read once for every caller asking at
 // the same time.
 func (r *Runtime) Jobs(ctx context.Context, runID int64) ([]github.Job, corev1.GithubAccess, time.Time, error) {
-	r.mu.Lock()
-	resolve := r.resolve
-	r.mu.Unlock()
-	target, problem := resolve()
+	target, problem := r.target()
 	if problem != corev1.GithubAccess_GITHUB_ACCESS_OK {
 		return nil, problem, time.Time{}, nil
 	}

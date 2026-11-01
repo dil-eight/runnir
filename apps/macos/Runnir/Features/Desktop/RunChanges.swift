@@ -49,7 +49,7 @@ enum RunPresentation {
     }
 
     static func hiddenCount(_ runs: [CoreWorkflowRun]) -> Int {
-        runs.count { $0.isSuperseded && !$0.outcome.isActive }
+        runs.count(where: \.isDimmed)
     }
 
     /// The pull requests the changes describe, by number.

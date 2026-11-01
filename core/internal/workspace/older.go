@@ -42,10 +42,7 @@ func (r *Runtime) LoadOlderRuns(ctx context.Context) (OlderRuns, error) {
 }
 
 func (r *Runtime) loadOlder() (OlderRuns, error) {
-	r.mu.Lock()
-	resolve := r.resolve
-	r.mu.Unlock()
-	target, problem := resolve()
+	target, problem := r.target()
 	if problem != corev1.GithubAccess_GITHUB_ACCESS_OK {
 		return OlderRuns{Access: problem}, nil
 	}

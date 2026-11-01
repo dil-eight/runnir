@@ -6,7 +6,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -22,12 +21,7 @@ func withSecret(ctx context.Context, secret string) context.Context {
 }
 
 func TestOnlyTheClientWithTheSecretCanUseTheCore(t *testing.T) {
-	path := socketPath(t)
-	stop := startWith(t, path, Options{ClientSecret: []byte(testSecret)})
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := servedWith(t, Options{ClientSecret: []byte(testSecret)})
 
 	// HealthCheck stays open so a supervisor can see the Core answer.
 	if _, err := client.HealthCheck(ctx, &corev1.HealthCheckRequest{}); err != nil {
@@ -67,12 +61,7 @@ func TestOnlyTheClientWithTheSecretCanUseTheCore(t *testing.T) {
 }
 
 func TestGitHubCredentialIsHeldButNeverReturned(t *testing.T) {
-	path := socketPath(t)
-	stop := start(t, path)
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := served(t)
 
 	health := func() *corev1.HealthCheckResponse {
 		t.Helper()

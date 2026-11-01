@@ -1,6 +1,7 @@
 package flow
 
 import (
+	"slices"
 	"sort"
 	"strings"
 )
@@ -89,7 +90,7 @@ func Scenarios(workflows []Workflow, repo Repo) []Scenario {
 				for _, b := range e.Branches {
 					if name, ok := exactName(b); ok {
 						count[name]++
-					} else if !strings.HasPrefix(b, "!") && !contains(patterns, b) {
+					} else if !strings.HasPrefix(b, "!") && !slices.Contains(patterns, b) {
 						patterns = append(patterns, b)
 					}
 				}
@@ -105,7 +106,7 @@ func Scenarios(workflows []Workflow, repo Repo) []Scenario {
 			}
 			return names[i] < names[j]
 		})
-		if repo.DefaultBranch != "" && !contains(names, repo.DefaultBranch) {
+		if repo.DefaultBranch != "" && !slices.Contains(names, repo.DefaultBranch) {
 			names = append(names, repo.DefaultBranch)
 		}
 		return append(names, patterns...)
@@ -268,7 +269,7 @@ func Plan(s Scenario, workflows []Workflow, repo Repo, changes Changes) Flow {
 				continue
 			}
 			e, ok := w.Events["workflow_run"]
-			if !ok || !contains(e.Workflows, source.Name) {
+			if !ok || !slices.Contains(e.Workflows, source.Name) {
 				continue
 			}
 			if ok, _, reason := refFilter("branches", e.Branches, e.BranchesIgnore, ref, noun); !ok {
@@ -474,7 +475,7 @@ func pullRequestTypes(types []string) string {
 
 // completes: workflow_run starts when the source completes, by default too.
 func completes(types []string) bool {
-	return len(types) == 0 || contains(types, "completed")
+	return len(types) == 0 || slices.Contains(types, "completed")
 }
 
 // runsOn says what does start a workflow the scenario does not.
@@ -626,15 +627,6 @@ func plannedJobs(w Workflow, ctx Context) []PlannedJob {
 		out = append(out, planned[j.ID])
 	}
 	return out
-}
-
-func contains(list []string, value string) bool {
-	for _, item := range list {
-		if item == value {
-			return true
-		}
-	}
-	return false
 }
 
 func plural(n int, one, many string) string {

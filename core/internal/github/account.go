@@ -148,25 +148,8 @@ func (c *Client) AccountRepositories(ctx context.Context) (AccountRepositories, 
 				break
 			}
 			var body struct {
-				TotalCount   int `json:"total_count"`
-				Repositories []struct {
-					FullName string `json:"full_name"`
-					Name     string `json:"name"`
-					Owner    struct {
-						Login string `json:"login"`
-					} `json:"owner"`
-					Description   *string    `json:"description"`
-					Private       bool       `json:"private"`
-					Visibility    string     `json:"visibility"`
-					DefaultBranch string     `json:"default_branch"`
-					HTMLURL       string     `json:"html_url"`
-					PushedAt      *time.Time `json:"pushed_at"`
-					Archived      bool       `json:"archived"`
-					Fork          bool       `json:"fork"`
-					Permissions   struct {
-						Push bool `json:"push"`
-					} `json:"permissions"`
-				} `json:"repositories"`
+				TotalCount   int              `json:"total_count"`
+				Repositories []repositoryJSON `json:"repositories"`
 			}
 			query := url.Values{"per_page": {"100"}, "page": {strconv.Itoa(page)}}
 			path := fmt.Sprintf("/user/installations/%d/repositories", installation.ID)
@@ -180,22 +163,7 @@ func (c *Client) AccountRepositories(ctx context.Context) (AccountRepositories, 
 					continue
 				}
 				seen[r.FullName] = true
-				visibility := r.Visibility
-				if visibility == "" {
-					visibility = "public"
-					if r.Private {
-						visibility = "private"
-					}
-				}
-				description := ""
-				if r.Description != nil {
-					description = truncate(*r.Description, maxDescriptionChars)
-				}
-				out.Repositories = append(out.Repositories, AccountRepository{
-					FullName: r.FullName, Owner: r.Owner.Login, Name: r.Name, Description: description,
-					Visibility: visibility, DefaultBranch: r.DefaultBranch, HTMLURL: r.HTMLURL, PushedAt: deref(r.PushedAt),
-					Archived: r.Archived, Fork: r.Fork, CanPush: r.Permissions.Push, InstallationID: installation.ID,
-				})
+				out.Repositories = append(out.Repositories, r.accountRepository(installation.ID))
 			}
 			if len(body.Repositories) < 100 || page*100 >= body.TotalCount {
 				break

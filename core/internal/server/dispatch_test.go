@@ -237,7 +237,16 @@ func itoa(v int64) string { b, _ := json.Marshal(v); return string(b) }
 func dispatchRig(t *testing.T) (corev1.RunnirCoreClient, string, *fakeDispatchGitHub, context.Context) {
 	t.Helper()
 	fake := &fakeDispatchGitHub{}
-	server := httptest.NewServer(fake.handler(t))
+	client, id, ctx := linkedRig(t, fake.handler(t), "")
+	return client, id, fake, ctx
+}
+
+// linkedRig is a Core reading GitHub from handler, signed in, with a
+// repository linked to o/r open (in workspaceID when not ""): the client,
+// the repository's id and a context of 15 seconds.
+func linkedRig(t *testing.T, handler http.Handler, workspaceID string) (corev1.RunnirCoreClient, string, context.Context) {
+	t.Helper()
+	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	path := socketPath(t)
 	stop := startWith(t, path, Options{GitHubBaseURL: server.URL})
@@ -245,14 +254,14 @@ func dispatchRig(t *testing.T) (corev1.RunnirCoreClient, string, *fakeDispatchGi
 	client := connect(t, path)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	t.Cleanup(cancel)
-	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: linkedRepository(t, "https://github.com/o/r.git")})
+	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: linkedRepository(t, "https://github.com/o/r.git"), WorkspaceId: workspaceID})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := client.SetGitHubCredential(ctx, &corev1.SetGitHubCredentialRequest{Token: "ghu_test"}); err != nil {
 		t.Fatal(err)
 	}
-	return client, opened.Repository.Id, fake, ctx
+	return client, opened.Repository.Id, ctx
 }
 
 func TestRefsAndDispatchDefinitionAtARef(t *testing.T) {
@@ -414,12 +423,7 @@ func TestARepositoryWithoutALocalCloneIsReadAndRunByName(t *testing.T) {
 	}))
 	defer server.Close()
 
-	path := socketPath(t)
-	stop := startWith(t, path, Options{GitHubBaseURL: server.URL})
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := servedWith(t, Options{GitHubBaseURL: server.URL})
 
 	listed, err := client.ListGitHubRepositories(ctx, &corev1.ListGitHubRepositoriesRequest{})
 	if err != nil || listed.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_SIGNED_OUT {

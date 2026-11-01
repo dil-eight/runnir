@@ -16,17 +16,7 @@ struct DispatchFormModelTests {
 
     /// A ready hub with one linked workspace on branch "feature".
     private func rig() async -> (CoreHub, FakeProvider, UUID) {
-        let provider = FakeProvider()
-        let hub = CoreHub(provider: provider)
-        hub.startMonitoring()
-        provider.ready()
-        hub.runLookupInterval = .milliseconds(10)
-        hub.runLookupTimeout = .milliseconds(300)
-        provider.core.setBranch("feature", for: "/repo/linked")
-        let workspace = UUID()
-        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
-        _ = await eventually { hub.session(for: workspace)?.githubAccess == .ok }
-        return (hub, provider, workspace)
+        await makeLinkedHub()
     }
 
     private func model(_ hub: CoreHub, _ workspace: UUID) -> DispatchFormModel {

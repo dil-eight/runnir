@@ -611,12 +611,7 @@ struct GRPCCoreService: CoreServicing {
     func listGitHubWorkflows(target: CoreGitHubTarget) async throws -> CoreGitHubResult<CoreGitHubWorkflow> {
         let response = try await call {
             try await client.listGitHubWorkflows(.with {
-                switch target {
-                case .repository(let id): $0.repositoryID = id
-                case .named(let ref):
-                    $0.githubRepository = ref.fullName
-                    $0.githubServer = ref.serverID
-                }
+                $0.target(target)
             }, options: Self.options(Self.callTimeout))
         }
         return CoreGitHubResult(access: Self.map(response.status), items: response.workflows.map(Self.map))
@@ -625,12 +620,7 @@ struct GRPCCoreService: CoreServicing {
     func gitHubRepository(target: CoreGitHubTarget) async throws -> CoreGitHubRepository {
         let response = try await call {
             try await client.getGitHubRepository(.with {
-                switch target {
-                case .repository(let id): $0.repositoryID = id
-                case .named(let ref):
-                    $0.githubRepository = ref.fullName
-                    $0.githubServer = ref.serverID
-                }
+                $0.target(target)
             }, options: Self.options(Self.callTimeout))
         }
         return CoreGitHubRepository(access: Self.map(response.status), fullName: response.fullName, visibility: response.visibility,
@@ -647,12 +637,7 @@ struct GRPCCoreService: CoreServicing {
     func listWorkflowRuns(target: CoreGitHubTarget, branch: String?, limit: Int) async throws -> CoreGitHubResult<CoreWorkflowRun> {
         let response = try await call {
             try await client.listWorkflowRuns(.with {
-                switch target {
-                case .repository(let id): $0.repositoryID = id
-                case .named(let ref):
-                    $0.githubRepository = ref.fullName
-                    $0.githubServer = ref.serverID
-                }
+                $0.target(target)
                 $0.branch = branch ?? ""
                 $0.limit = UInt32(clamping: max(0, min(limit, 100)))
             }, options: Self.options(Self.callTimeout))
@@ -823,12 +808,7 @@ struct GRPCCoreService: CoreServicing {
     func listGitHubRefs(target: CoreGitHubTarget) async throws -> CoreGitHubRefs {
         let response = try await call {
             try await client.listGitHubRefs(.with {
-                switch target {
-                case .repository(let id): $0.repositoryID = id
-                case .named(let ref):
-                    $0.githubRepository = ref.fullName
-                    $0.githubServer = ref.serverID
-                }
+                $0.target(target)
             }, options: Self.options(Self.callTimeout))
         }
         return CoreGitHubRefs(access: Self.map(response.status), defaultBranch: response.defaultBranch,
@@ -838,12 +818,7 @@ struct GRPCCoreService: CoreServicing {
     func describeWorkflowDispatch(target: CoreGitHubTarget, workflowPath: String, ref: String) async throws -> CoreDispatchDefinition {
         let response = try await call {
             try await client.describeWorkflowDispatch(.with {
-                switch target {
-                case .repository(let id): $0.repositoryID = id
-                case .named(let ref):
-                    $0.githubRepository = ref.fullName
-                    $0.githubServer = ref.serverID
-                }
+                $0.target(target)
                 $0.workflowPath = workflowPath
                 $0.ref = ref
             }, options: Self.options(Self.callTimeout))
@@ -859,12 +834,7 @@ struct GRPCCoreService: CoreServicing {
     func prepareWorkflowDispatch(target: CoreGitHubTarget, workflowID: Int64, ref: String, inputs: [String: String]) async throws -> CorePreparedDispatch {
         let response = try await call {
             try await client.prepareWorkflowDispatch(.with {
-                switch target {
-                case .repository(let id): $0.repositoryID = id
-                case .named(let ref):
-                    $0.githubRepository = ref.fullName
-                    $0.githubServer = ref.serverID
-                }
+                $0.target(target)
                 $0.workflowID = workflowID
                 $0.ref = ref
                 $0.inputs = inputs
@@ -931,12 +901,7 @@ struct GRPCCoreService: CoreServicing {
                 $0.jobID = jobID
             }, options: Self.options(.seconds(330)))
         }
-        let availability: CoreJobLogAvailability = switch response.availability {
-        case .expired: .expired
-        case .notReady: .notReady
-        default: .available
-        }
-        return CoreSavedJobLog(access: Self.map(response.status), availability: availability,
+        return CoreSavedJobLog(access: Self.map(response.status), availability: Self.map(response.availability),
                                file: response.path.isEmpty ? nil : URL(fileURLWithPath: response.path),
                                stoppedEarly: response.stoppedEarly)
     }
@@ -953,13 +918,8 @@ struct GRPCCoreService: CoreServicing {
                 $0.jobID = jobID
             }, options: options)
         }
-        let availability: CoreJobLogAvailability = switch response.availability {
-        case .expired: .expired
-        case .notReady: .notReady
-        default: .available
-        }
         return CoreJobLog(
-            access: Self.map(response.status), availability: availability,
+            access: Self.map(response.status), availability: Self.map(response.availability),
             lines: response.lines.map { line in
                 let kind: CoreLogLineKind = switch line.kind {
                 case .error: .error
@@ -1285,3 +1245,39 @@ struct GRPCCoreService: CoreServicing {
         )
     }
 }
+
+extension GRPCCoreService {
+    static func map(_ availability: Runnir_Core_V1_JobLogAvailability) -> CoreJobLogAvailability {
+        switch availability {
+        case .expired: .expired
+        case .notReady: .notReady
+        default: .available
+        }
+    }
+}
+
+/// A request that names its repository by the id of one open in the Core, or
+/// by server and owner/name.
+protocol GitHubTargetRequest {
+    var repositoryID: String { get set }
+    var githubRepository: String { get set }
+    var githubServer: String { get set }
+}
+
+extension GitHubTargetRequest {
+    mutating func target(_ target: CoreGitHubTarget) {
+        switch target {
+        case .repository(let id): repositoryID = id
+        case .named(let ref):
+            githubRepository = ref.fullName
+            githubServer = ref.serverID
+        }
+    }
+}
+
+extension Runnir_Core_V1_ListGitHubWorkflowsRequest: GitHubTargetRequest {}
+extension Runnir_Core_V1_GetGitHubRepositoryRequest: GitHubTargetRequest {}
+extension Runnir_Core_V1_ListWorkflowRunsRequest: GitHubTargetRequest {}
+extension Runnir_Core_V1_ListGitHubRefsRequest: GitHubTargetRequest {}
+extension Runnir_Core_V1_DescribeWorkflowDispatchRequest: GitHubTargetRequest {}
+extension Runnir_Core_V1_PrepareWorkflowDispatchRequest: GitHubTargetRequest {}

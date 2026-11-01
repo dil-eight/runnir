@@ -29,19 +29,14 @@ struct FileRepositoryFavoritesStore: Sendable {
     }
 
     func load() throws -> [String] {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
-        let size = try fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        guard size <= Self.maxFileBytes else { throw DesktopStoreError.tooLarge }
-        let snapshot = try JSONDecoder().decode(Snapshot.self, from: Data(contentsOf: fileURL))
+        guard let snapshot = try JSONFile.read(Snapshot.self, from: fileURL, maxBytes: Self.maxFileBytes) else { return [] }
         guard snapshot.version == 1, Self.isValid(snapshot.repositories) else { throw DesktopStoreError.invalidState }
         return snapshot.repositories
     }
 
     func save(_ names: [String]) throws {
         guard Self.isValid(names) else { throw DesktopStoreError.invalidState }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        try AtomicFile.write(try encoder.encode(Snapshot(repositories: names)), to: fileURL)
+        try JSONFile.write(Snapshot(repositories: names), to: fileURL, maxBytes: Self.maxFileBytes)
     }
 }
 

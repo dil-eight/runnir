@@ -14,6 +14,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"runnir/core/internal/scanner"
+	"runnir/core/internal/yamlnode"
 )
 
 // Event is one trigger of a workflow, with its filters.
@@ -65,13 +66,13 @@ func Parse(path string, data []byte) Workflow {
 	var document yaml.Node
 	if err := yaml.NewDecoder(bytes.NewReader(data)).Decode(&document); err == nil &&
 		document.Kind == yaml.DocumentNode && len(document.Content) == 1 {
-		if top := resolve(document.Content[0]); top.Kind == yaml.MappingNode {
+		if top := yamlnode.Resolve(document.Content[0]); top.Kind == yaml.MappingNode {
 			for i := 0; i+1 < len(top.Content); i += 2 {
 				switch top.Content[i].Value {
 				case "on":
-					workflow.Events = events(resolve(top.Content[i+1]))
+					workflow.Events = events(yamlnode.Resolve(top.Content[i+1]))
 				case "jobs":
-					extras = jobExtras(resolve(top.Content[i+1]))
+					extras = jobExtras(yamlnode.Resolve(top.Content[i+1]))
 				}
 			}
 		}
@@ -108,13 +109,13 @@ func events(node *yaml.Node) map[string]Event {
 		out[node.Value] = Event{}
 	case yaml.SequenceNode:
 		for _, item := range node.Content {
-			if item = resolve(item); item.Kind == yaml.ScalarNode {
+			if item = yamlnode.Resolve(item); item.Kind == yaml.ScalarNode {
 				out[item.Value] = Event{}
 			}
 		}
 	case yaml.MappingNode:
 		for i := 0; i+1 < len(node.Content); i += 2 {
-			out[node.Content[i].Value] = event(resolve(node.Content[i+1]))
+			out[node.Content[i].Value] = event(yamlnode.Resolve(node.Content[i+1]))
 		}
 	}
 	return out
@@ -126,7 +127,7 @@ func event(node *yaml.Node) Event {
 		return e
 	}
 	for i := 0; i+1 < len(node.Content); i += 2 {
-		values := scalars(resolve(node.Content[i+1]))
+		values := yamlnode.Scalars(yamlnode.Resolve(node.Content[i+1]))
 		switch node.Content[i].Value {
 		case "branches":
 			e.Branches = values
@@ -156,12 +157,12 @@ func jobExtras(node *yaml.Node) map[string]Job {
 	}
 	for i := 0; i+1 < len(node.Content); i += 2 {
 		var job Job
-		body := resolve(node.Content[i+1])
+		body := yamlnode.Resolve(node.Content[i+1])
 		if body.Kind != yaml.MappingNode {
 			continue
 		}
 		for j := 0; j+1 < len(body.Content); j += 2 {
-			value := resolve(body.Content[j+1])
+			value := yamlnode.Resolve(body.Content[j+1])
 			switch body.Content[j].Value {
 			case "if":
 				if value.Kind == yaml.ScalarNode {
@@ -177,7 +178,7 @@ func jobExtras(node *yaml.Node) map[string]Job {
 				if value.Kind == yaml.MappingNode {
 					for k := 0; k+1 < len(value.Content); k += 2 {
 						if value.Content[k].Value == "matrix" {
-							job.Matrix = matrixSize(resolve(value.Content[k+1]))
+							job.Matrix = matrixSize(yamlnode.Resolve(value.Content[k+1]))
 						}
 					}
 				}
@@ -195,7 +196,7 @@ func environmentName(node *yaml.Node) string {
 	case yaml.MappingNode:
 		for i := 0; i+1 < len(node.Content); i += 2 {
 			if node.Content[i].Value == "name" {
-				if value := resolve(node.Content[i+1]); value.Kind == yaml.ScalarNode {
+				if value := yamlnode.Resolve(node.Content[i+1]); value.Kind == yaml.ScalarNode {
 					return value.Value
 				}
 			}
@@ -221,14 +222,14 @@ func matrixSize(node *yaml.Node) int {
 	var axes []axis
 	var include, exclude []map[string]string
 	for i := 0; i+1 < len(node.Content); i += 2 {
-		key, value := node.Content[i].Value, resolve(node.Content[i+1])
+		key, value := node.Content[i].Value, yamlnode.Resolve(node.Content[i+1])
 		switch key {
 		case "include", "exclude":
 			if value.Kind != yaml.SequenceNode {
 				return -1
 			}
 			for _, item := range value.Content {
-				entry, ok := literalMap(resolve(item))
+				entry, ok := literalMap(yamlnode.Resolve(item))
 				if !ok {
 					return -1
 				}
@@ -244,7 +245,7 @@ func matrixSize(node *yaml.Node) int {
 			}
 			var values []string
 			for _, item := range value.Content {
-				values = append(values, literal(resolve(item)))
+				values = append(values, literal(yamlnode.Resolve(item)))
 			}
 			axes = append(axes, axis{key, values})
 		}
@@ -315,7 +316,7 @@ func literalMap(node *yaml.Node) (map[string]string, bool) {
 	}
 	out := map[string]string{}
 	for i := 0; i+1 < len(node.Content); i += 2 {
-		out[node.Content[i].Value] = literal(resolve(node.Content[i+1]))
+		out[node.Content[i].Value] = literal(yamlnode.Resolve(node.Content[i+1]))
 	}
 	return out, true
 }
@@ -329,25 +330,6 @@ func literal(node *yaml.Node) string {
 	return fmt.Sprintf("\x00%d:%d", node.Line, node.Column)
 }
 
-func scalars(node *yaml.Node) []string {
-	switch node.Kind {
-	case yaml.ScalarNode:
-		if node.Value == "" {
-			return nil
-		}
-		return []string{node.Value}
-	case yaml.SequenceNode:
-		var out []string
-		for _, item := range node.Content {
-			if item = resolve(item); item.Kind == yaml.ScalarNode {
-				out = append(out, item.Value)
-			}
-		}
-		return out
-	}
-	return nil
-}
-
 // unwrap drops the ${{ }} around a whole condition.
 func unwrap(condition string) string {
 	text := strings.TrimSpace(condition)
@@ -357,11 +339,4 @@ func unwrap(condition string) string {
 		}
 	}
 	return text
-}
-
-func resolve(node *yaml.Node) *yaml.Node {
-	for depth := 0; node.Kind == yaml.AliasNode && node.Alias != nil && depth < 8; depth++ {
-		node = node.Alias
-	}
-	return node
 }

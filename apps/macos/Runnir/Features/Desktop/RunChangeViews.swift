@@ -145,8 +145,6 @@ struct RunChangeRow: View {
     var pullRequest: CoreChangePullRequest? = nil
     var newer: CoreWorkflowRun? = nil
 
-    private var dimmed: Bool { run.isSuperseded && !run.outcome.isActive }
-
     var body: some View {
         HStack(spacing: 8) {
             Circle().fill(RunOutcomeIcon.color(run.outcome)).frame(width: 6, height: 6)
@@ -157,24 +155,13 @@ struct RunChangeRow: View {
             }
             Text("\(run.name) #\(run.runNumber)").font(.system(size: 12, weight: .medium)).lineLimit(1)
             Text(run.event).font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).lineLimit(1)
-            if run.isOutdated {
-                RunTag(text: "outdated", tint: RunnirTheme.info).help(RunPresentation.outdatedHelp(run, newer: newer))
-            } else if dimmed {
-                RunTag(text: "older commit", tint: RunnirTheme.secondaryForeground)
-            }
+            RunSupersededTag(run: run, newer: newer)
             Spacer(minLength: 8)
-            if let created = run.createdAt {
-                Text(created, format: .relative(presentation: .numeric, unitsStyle: .narrow))
-                    .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
-                    .lineLimit(1).fixedSize()
-            }
+            RunAge(run: run)
         }
-        .opacity(dimmed ? 0.6 : 1)
+        .opacity(run.isDimmed ? 0.6 : 1)
         .padding(.leading, RunChangeBlock.indent - 1).padding(.trailing, 10).frame(height: 26)
-        .clickable()
-        .background(selected ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
-        .help(([run.title] + [RunPresentation.rowHelp(run, pullRequest: pullRequest)]).joined(separator: "\n"))
-        .accessibilityElement(children: .combine)
+        .runRow(selected: selected, help: ([run.title] + [RunPresentation.rowHelp(run, pullRequest: pullRequest)]).joined(separator: "\n"))
     }
 }
 

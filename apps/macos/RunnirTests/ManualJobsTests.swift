@@ -68,16 +68,7 @@ struct ManualJobsTests {
     }
 
     private func hub(_ configure: (FakeCore) -> Void = { _ in }) async -> (CoreHub, UUID, FakeCore) {
-        let provider = FakeProvider()
-        configure(provider.core)
-        let hub = CoreHub(provider: provider)
-        hub.startMonitoring()
-        provider.ready()
-        _ = await eventually { hub.status == .ready(version: "fake") }
-        let workspace = UUID()
-        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
-        _ = await eventually { hub.session(for: workspace)?.phase == .ready }
-        return (hub, workspace, provider.core)
+        await makeWorkspaceHub(configure)
     }
 
     @Test func playStartsTheWorkflowWithTheConditionsInputsAndWaitsForTheRun() async {

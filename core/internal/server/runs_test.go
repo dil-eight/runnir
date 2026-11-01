@@ -6,7 +6,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -127,22 +126,8 @@ func (f *fakeRunsGitHub) handler() http.HandlerFunc {
 func runsRig(t *testing.T) (corev1.RunnirCoreClient, string, *fakeRunsGitHub, context.Context) {
 	t.Helper()
 	fake := &fakeRunsGitHub{runStatus: "completed"}
-	server := httptest.NewServer(fake.handler())
-	t.Cleanup(server.Close)
-	path := socketPath(t)
-	stop := startWith(t, path, Options{GitHubBaseURL: server.URL})
-	t.Cleanup(func() { _ = stop() })
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	t.Cleanup(cancel)
-	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: linkedRepository(t, "https://github.com/o/r.git")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := client.SetGitHubCredential(ctx, &corev1.SetGitHubCredentialRequest{Token: "ghu_test"}); err != nil {
-		t.Fatal(err)
-	}
-	return client, opened.Repository.Id, fake, ctx
+	client, id, ctx := linkedRig(t, fake.handler(), "")
+	return client, id, fake, ctx
 }
 
 func TestJobLogLinesCarryKindAndStep(t *testing.T) {

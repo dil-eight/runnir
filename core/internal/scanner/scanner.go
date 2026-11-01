@@ -27,6 +27,7 @@ import (
 
 	"runnir/core/internal/references"
 	"runnir/core/internal/repository"
+	"runnir/core/internal/yamlnode"
 )
 
 const (
@@ -459,7 +460,7 @@ func parse(id string, data []byte) repository.Workflow {
 	if document.Kind != yaml.DocumentNode || len(document.Content) != 1 {
 		return fail("file is empty")
 	}
-	top := resolve(document.Content[0])
+	top := yamlnode.Resolve(document.Content[0])
 	if top.Kind != yaml.MappingNode {
 		return fail("workflow must be a mapping")
 	}
@@ -467,7 +468,7 @@ func parse(id string, data []byte) repository.Workflow {
 	// Each job's if, by index, to find the jobs started by hand.
 	conditions := map[int]string{}
 	for i := 0; i+1 < len(top.Content); i += 2 {
-		key, value := top.Content[i], resolve(top.Content[i+1])
+		key, value := top.Content[i], yamlnode.Resolve(top.Content[i+1])
 		switch key.Value {
 		case "name":
 			if value.Kind == yaml.ScalarNode && value.Value != "" {
@@ -496,25 +497,7 @@ func triggers(node *yaml.Node) []string {
 		}
 		return out
 	}
-	return scalarList(node)
-}
-
-// scalarList accepts a scalar or a sequence of scalars, the shape of "needs"
-// and of the short forms of "on"; anything else yields nothing.
-func scalarList(node *yaml.Node) []string {
-	switch node.Kind {
-	case yaml.ScalarNode:
-		return []string{node.Value}
-	case yaml.SequenceNode:
-		var out []string
-		for _, item := range node.Content {
-			if item = resolve(item); item.Kind == yaml.ScalarNode {
-				out = append(out, item.Value)
-			}
-		}
-		return out
-	}
-	return nil
+	return yamlnode.Scalars(node)
 }
 
 func jobs(node *yaml.Node, workflow *repository.Workflow, conditions map[int]string) []repository.Job {
@@ -528,16 +511,16 @@ func jobs(node *yaml.Node, workflow *repository.Workflow, conditions map[int]str
 			break
 		}
 		job := repository.Job{ID: node.Content[i].Value, Name: node.Content[i].Value}
-		if body := resolve(node.Content[i+1]); body.Kind == yaml.MappingNode {
+		if body := yamlnode.Resolve(node.Content[i+1]); body.Kind == yaml.MappingNode {
 			for j := 0; j+1 < len(body.Content); j += 2 {
-				value := resolve(body.Content[j+1])
+				value := yamlnode.Resolve(body.Content[j+1])
 				switch body.Content[j].Value {
 				case "name":
 					if value.Kind == yaml.ScalarNode && value.Value != "" {
 						job.Name = value.Value
 					}
 				case "needs":
-					job.Needs = scalarList(value)
+					job.Needs = yamlnode.Scalars(value)
 				case "if":
 					if value.Kind == yaml.ScalarNode {
 						conditions[len(out)] = value.Value
@@ -550,15 +533,6 @@ func jobs(node *yaml.Node, workflow *repository.Workflow, conditions map[int]str
 		out = append(out, job)
 	}
 	return out
-}
-
-// resolve follows aliases a bounded number of steps. Aliases are never
-// expanded wholesale, so alias bombs cost nothing.
-func resolve(node *yaml.Node) *yaml.Node {
-	for depth := 0; node.Kind == yaml.AliasNode && node.Alias != nil && depth < 8; depth++ {
-		node = node.Alias
-	}
-	return node
 }
 
 // truncate bounds a message without splitting a character: gRPC refuses to

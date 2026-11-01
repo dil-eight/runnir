@@ -101,13 +101,10 @@ func (m *Runtimes) Attach(workspaceID, repositoryID string, resolve Resolver) (*
 			m.mu.Unlock()
 			return rt, nil
 		}
-		if wait, busy := m.opening[id]; busy {
-			m.mu.Unlock()
-			<-wait
+		if m.waitOpening(id) {
 			continue
 		}
-		done := make(chan struct{})
-		m.opening[id] = done
+		opened := m.reserve(id)
 		m.mu.Unlock()
 
 		// Opening may migrate or recover; other workspaces are not held up,
@@ -115,8 +112,7 @@ func (m *Runtimes) Attach(workspaceID, repositoryID string, resolve Resolver) (*
 		// file and falling back to memory.
 		st, err := store.Open(m.dir(id), store.Options{Now: m.now})
 		m.mu.Lock()
-		delete(m.opening, id)
-		close(done)
+		opened()
 		if err != nil {
 			m.mu.Unlock()
 			return nil, err
@@ -189,20 +185,39 @@ func (m *Runtimes) claim(id string) (*Runtime, func()) {
 			m.mu.Unlock()
 			return rt, func() {}
 		}
-		if wait, busy := m.opening[id]; busy {
-			m.mu.Unlock()
-			<-wait
+		if m.waitOpening(id) {
 			continue
 		}
-		done := make(chan struct{})
-		m.opening[id] = done
+		claimed := m.reserve(id)
 		m.mu.Unlock()
 		return nil, func() {
 			m.mu.Lock()
-			delete(m.opening, id)
-			close(done)
+			claimed()
 			m.mu.Unlock()
 		}
+	}
+}
+
+// waitOpening, with mu held: while id is being opened or claimed, it lets
+// go of mu, waits until that ends and reports true, for the caller to look
+// again with mu taken anew.
+func (m *Runtimes) waitOpening(id string) bool {
+	wait, busy := m.opening[id]
+	if busy {
+		m.mu.Unlock()
+		<-wait
+	}
+	return busy
+}
+
+// reserve, with mu held, marks id as being opened; the function it returns,
+// called with mu held, ends that and wakes whoever waits.
+func (m *Runtimes) reserve(id string) func() {
+	done := make(chan struct{})
+	m.opening[id] = done
+	return func() {
+		delete(m.opening, id)
+		close(done)
 	}
 }
 

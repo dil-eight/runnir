@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"io"
+	"runnir/core/internal/yamlnode"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -56,13 +57,13 @@ func InsertConcurrency(content string) ConcurrencyEdit {
 	if document.Kind != yaml.DocumentNode || len(document.Content) != 1 {
 		return ConcurrencyEdit{Refusal: ConcurrencyParseError}
 	}
-	top := resolve(document.Content[0])
+	top := yamlnode.Resolve(document.Content[0])
 	if top.Kind != yaml.MappingNode || top.Style&yaml.FlowStyle != 0 {
 		return ConcurrencyEdit{Refusal: ConcurrencyNotBlockMapping}
 	}
 	jobsLine := 0
 	for i := 0; i+1 < len(top.Content); i += 2 {
-		key, value := top.Content[i], resolve(top.Content[i+1])
+		key, value := top.Content[i], yamlnode.Resolve(top.Content[i+1])
 		switch key.Value {
 		case "concurrency":
 			return ConcurrencyEdit{Refusal: ConcurrencyAlreadyPresent}
@@ -73,7 +74,7 @@ func InsertConcurrency(content string) ConcurrencyEdit {
 			jobsLine = key.Line
 			if value.Kind == yaml.MappingNode {
 				for j := 0; j+1 < len(value.Content); j += 2 {
-					if body := resolve(value.Content[j+1]); body.Kind == yaml.MappingNode && hasKey(body, "concurrency") {
+					if body := yamlnode.Resolve(value.Content[j+1]); body.Kind == yaml.MappingNode && hasKey(body, "concurrency") {
 						return ConcurrencyEdit{Refusal: ConcurrencyAlreadyPresent}
 					}
 				}

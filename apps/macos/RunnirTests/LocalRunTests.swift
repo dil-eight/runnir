@@ -104,16 +104,7 @@ struct LocalRunTests {
 
     /// A ready hub with one open workspace, backed by the provider's fake Core.
     private func hub(_ configure: (FakeCore) -> Void = { _ in }) async -> (CoreHub, UUID, FakeCore) {
-        let provider = FakeProvider()
-        configure(provider.core)
-        let hub = CoreHub(provider: provider)
-        hub.startMonitoring()
-        provider.ready()
-        _ = await eventually { hub.status == .ready(version: "fake") }
-        let workspace = UUID()
-        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/a")
-        _ = await eventually { hub.session(for: workspace)?.phase == .ready }
-        return (hub, workspace, provider.core)
+        await makeWorkspaceHub(configure)
     }
 
     @Test func reviewNeedsTrustAndStartsOnce() async throws {
@@ -196,7 +187,7 @@ struct LocalRunTests {
     @Test func envFileIsReadByTheAppAndParsedByTheCore() async throws {
         let file = CoreEnvFile(entries: [CoreEnvEntry(name: "A", value: "1", encrypted: false, line: 1)], problems: [])
         let (hub, _, fake) = await hub { $0.envFile = file }
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = temporaryFolder()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let env = directory.appendingPathComponent(".env")

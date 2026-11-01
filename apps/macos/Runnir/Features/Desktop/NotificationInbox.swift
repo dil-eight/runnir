@@ -30,19 +30,11 @@ struct FileNotificationInboxStore: Sendable {
     }
 
     func load() throws -> [InboxEntry] {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
-        let size = try fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        guard size <= Self.maxFileBytes else { throw DesktopStoreError.tooLarge }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .secondsSince1970
-        return try decoder.decode([InboxEntry].self, from: Data(contentsOf: fileURL))
+        try JSONFile.read([InboxEntry].self, from: fileURL, maxBytes: Self.maxFileBytes, dates: .secondsSince1970) ?? []
     }
 
     func save(_ entries: [InboxEntry]) throws {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .secondsSince1970
-        encoder.outputFormatting = [.sortedKeys]
-        try AtomicFile.write(try encoder.encode(entries), to: fileURL)
+        try JSONFile.write(entries, to: fileURL, maxBytes: Self.maxFileBytes, dates: .secondsSince1970)
     }
 }
 

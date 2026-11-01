@@ -119,11 +119,7 @@ final class RunSearchModel {
     /// Starts a deep search from the newest runs.
     func searchGitHub() {
         guard canSearchGitHub else { return }
-        githubRuns = []
-        lookedBackTo = nil
-        runsRead = 0
-        pagesRead = 0
-        cursor = nil
+        clearDeepResults()
         step()
     }
 
@@ -177,6 +173,11 @@ final class RunSearchModel {
         deepTask?.cancel()
         deepTask = nil
         deep = .idle
+        clearDeepResults()
+    }
+
+    /// Forgets what a deep search found and where it was.
+    private func clearDeepResults() {
         githubRuns = []
         lookedBackTo = nil
         runsRead = 0

@@ -5,6 +5,7 @@
 package changes
 
 import (
+	"slices"
 	"sort"
 	"time"
 
@@ -111,7 +112,7 @@ func Analyze(in Input) Analysis {
 				o := a.Overlaps[k.workflow]
 				o.RunIDs = append(o.RunIDs, r.ID)
 				o.Duration += d
-				if !contains(o.PullRequests, k.pull) {
+				if !slices.Contains(o.PullRequests, k.pull) {
 					o.PullRequests = append(o.PullRequests, k.pull)
 				}
 				a.Overlaps[k.workflow] = o
@@ -124,13 +125,4 @@ func Analyze(in Input) Analysis {
 		a.Overlaps[workflow] = o
 	}
 	return a
-}
-
-func contains(list []int64, value int64) bool {
-	for _, item := range list {
-		if item == value {
-			return true
-		}
-	}
-	return false
 }

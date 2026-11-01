@@ -3,10 +3,8 @@
 package server
 
 import (
-	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -15,12 +13,7 @@ import (
 )
 
 func TestParseEnvFile(t *testing.T) {
-	path := socketPath(t)
-	stop := startWith(t, path, Options{})
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := servedWith(t, Options{})
 
 	parsed, err := client.ParseEnvFile(ctx, &corev1.ParseEnvFileRequest{Content: []byte("npm_token=abc\nSEALED=encrypted:xyz\nbad line\n")})
 	if err != nil {

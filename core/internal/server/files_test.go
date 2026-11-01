@@ -3,11 +3,9 @@
 package server
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -17,12 +15,7 @@ import (
 )
 
 func TestSaveWorkflowFileOverGRPC(t *testing.T) {
-	path := socketPath(t)
-	stop := start(t, path)
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := served(t)
 
 	original := "name: CI\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps: [{run: echo}]\n"
 	root := repoWithWorkflows(t, map[string]string{"ci.yml": original})
@@ -82,12 +75,7 @@ func TestSaveWorkflowFileOverGRPC(t *testing.T) {
 }
 
 func TestCreateAndRenameWorkflowFilesOverGRPC(t *testing.T) {
-	path := socketPath(t)
-	stop := start(t, path)
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := served(t)
 
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {

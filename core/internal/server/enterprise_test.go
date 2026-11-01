@@ -3,13 +3,11 @@
 package server
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -50,12 +48,7 @@ func fakeAPI(t *testing.T) (*httptest.Server, func() []string) {
 func TestEnterpriseCallsGoToTheirServer(t *testing.T) {
 	dotcom, dotcomTokens := fakeAPI(t)
 	company, companyTokens := fakeAPI(t)
-	path := socketPath(t)
-	stop := startWith(t, path, Options{GitHubBaseURL: dotcom.URL})
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := servedWith(t, Options{GitHubBaseURL: dotcom.URL})
 
 	if _, err := client.SetGitHubCredential(ctx, &corev1.SetGitHubCredentialRequest{Token: "ghu_dotcom"}); err != nil {
 		t.Fatal(err)
@@ -138,12 +131,7 @@ func TestEnterpriseRejectedTokenIsForgottenOnlyThere(t *testing.T) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer rejecting.Close()
-	path := socketPath(t)
-	stop := startWith(t, path, Options{GitHubBaseURL: dotcom.URL})
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := servedWith(t, Options{GitHubBaseURL: dotcom.URL})
 	if _, err := client.SetGitHubCredential(ctx, &corev1.SetGitHubCredentialRequest{Token: "ghu_dotcom"}); err != nil {
 		t.Fatal(err)
 	}
@@ -166,12 +154,7 @@ func TestEnterpriseRejectedTokenIsForgottenOnlyThere(t *testing.T) {
 }
 
 func TestEnterpriseServerMustBeValid(t *testing.T) {
-	path := socketPath(t)
-	stop := startWith(t, path, Options{})
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := servedWith(t, Options{})
 	bad := &corev1.GithubServer{Id: companyID, ApiUrl: "http://github.company.com/api/v3", WebHost: "github.company.com"}
 	_, err := client.SetGitHubCredential(ctx, &corev1.SetGitHubCredentialRequest{Token: "ghp_x", Server: bad})
 	if status.Code(err) != codes.InvalidArgument {

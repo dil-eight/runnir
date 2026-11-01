@@ -119,11 +119,7 @@ struct WorkspaceManagerView: View {
                 Spacer()
                 ProjectLink().buttonStyle(.hit)
                 if !desktop.snapshot.workspaces.isEmpty {
-                    Button { desktop.importRepository() } label: {
-                        Label("Import Repository...", systemImage: "folder.badge.plus")
-                    }
-                    .buttonStyle(DesignButtonStyle(primary: true))
-                    .disabled(desktop.persistenceBlocked)
+                    ImportRepositoryButton(desktop: desktop)
                 }
             }
             .frame(height: 51).padding(.bottom, 16)
@@ -159,12 +155,8 @@ struct WorkspaceManagerView: View {
                     Text("Import a repository to begin").font(.system(size: 18, weight: .semibold))
                     Text("Choose a local Git working tree. You can connect GitHub later.")
                         .font(.system(size: 13)).foregroundStyle(RunnirTheme.secondaryForeground).multilineTextAlignment(.center).frame(maxWidth: 420)
-                    Button { desktop.importRepository() } label: {
-                        Label("Import Repository...", systemImage: "folder.badge.plus")
-                    }
-                    .buttonStyle(DesignButtonStyle(primary: true))
-                    .disabled(desktop.persistenceBlocked)
-                    .accessibilityIdentifier("import-repository")
+                    ImportRepositoryButton(desktop: desktop)
+                        .accessibilityIdentifier("import-repository")
                     Label("No repository files are changed when you import.", systemImage: "lock")
                         .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
@@ -1658,5 +1650,18 @@ struct GitHubLinkCard: View {
         if details.access == .ok { return .linked(details) }
         return .problem(hub?.accessHelp(details.access, workspaceID: workspaceID, purpose: .read, details: details)
                         ?? GitHubAccessHelp.forAccess(.unavailable, repository: repository, purpose: .read)!)
+    }
+}
+
+/// Imports a local working tree as a workspace.
+struct ImportRepositoryButton: View {
+    let desktop: DesktopCoordinator
+
+    var body: some View {
+        Button { desktop.importRepository() } label: {
+            Label("Import Repository...", systemImage: "folder.badge.plus")
+        }
+        .buttonStyle(DesignButtonStyle(primary: true))
+        .disabled(desktop.persistenceBlocked)
     }
 }

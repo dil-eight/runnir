@@ -123,10 +123,7 @@ func searchSaved(ctx context.Context, st *store.Store, q runsearch.Query, limit 
 // searchSource is the repository the search is about: the origin's now, or
 // the one the cache holds when the origin names none.
 func (r *Runtime) searchSource(ctx context.Context) (store.Source, bool) {
-	r.mu.Lock()
-	resolve := r.resolve
-	r.mu.Unlock()
-	if target, problem := resolve(); problem == corev1.GithubAccess_GITHUB_ACCESS_OK {
+	if target, problem := r.target(); problem == corev1.GithubAccess_GITHUB_ACCESS_OK {
 		return target.Source(), true
 	}
 	source, has, err := r.cfg.store.CacheSource(ctx)
@@ -187,10 +184,7 @@ func (r *Runtime) SearchGitHub(ctx context.Context, q runsearch.Query, cursor ti
 		return GitHubSearch{Stop: SearchBusy}, nil
 	}
 	defer r.searchMu.Unlock()
-	r.mu.Lock()
-	resolve := r.resolve
-	r.mu.Unlock()
-	target, problem := resolve()
+	target, problem := r.target()
 	if problem != corev1.GithubAccess_GITHUB_ACCESS_OK {
 		return GitHubSearch{Access: problem, Stop: SearchUnavailable}, nil
 	}

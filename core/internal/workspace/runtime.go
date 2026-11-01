@@ -147,6 +147,15 @@ func (r *Runtime) RepositoryID() string {
 
 // rebind moves the runtime to another repository context of the same
 // workspace (a relinked folder) and syncs again, the origin may differ.
+// target is the GitHub repository the origin points at now, or why there
+// is none.
+func (r *Runtime) target() (Target, corev1.GithubAccess) {
+	r.mu.Lock()
+	resolve := r.resolve
+	r.mu.Unlock()
+	return resolve()
+}
+
 func (r *Runtime) rebind(repositoryID string, resolve Resolver) {
 	r.mu.Lock()
 	r.repositoryID, r.resolve = repositoryID, resolve
