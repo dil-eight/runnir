@@ -331,16 +331,22 @@ actor CoreProcessSupervisor {
     /// stop the process, which also releases its instance lock.
     private func becameUnresponsive(generation current: Int) async {
         guard current == generation, case .running = state else { return }
-        let oldConnection = connection
-        let oldProcess = process
+        let (oldConnection, oldProcess) = forgetRunning(lost: .unresponsive)
+        await oldConnection?.close()
+        await oldProcess?.terminate()
+    }
+
+    /// The running Core is lost: forgets its connection and process, and
+    /// returns them to close.
+    private func forgetRunning(lost reason: CoreLossReason) -> ((any CoreConnection)?, (any CoreProcessHandle)?) {
+        let old = (connection, process)
         liveness = nil
         connection = nil
         process = nil
         quitHandle.clear()
         socketIsStale = true
-        state = .lost(.unresponsive)
-        await oldConnection?.close()
-        await oldProcess?.terminate()
+        state = .lost(reason)
+        return old
     }
 
     private func processExited(generation exitedGeneration: Int, status: Int32) async {
@@ -348,13 +354,7 @@ actor CoreProcessSupervisor {
         switch state {
         case .running:
             liveness?.cancel()
-            liveness = nil
-            let old = connection
-            connection = nil
-            process = nil
-            quitHandle.clear()
-            socketIsStale = true
-            state = .lost(.processExited(status))
+            let (old, _) = forgetRunning(lost: .processExited(status))
             await old?.close()
         case .starting:
             earlyExit = status

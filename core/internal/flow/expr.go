@@ -3,6 +3,7 @@ package flow
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -183,32 +184,20 @@ func (p *parser) note(name string, v any, known bool) {
 	p.unknown = append(p.unknown, name)
 }
 
-func (p *parser) or() val {
-	left := p.and()
-	for p.peek("||") {
-		p.pos++
-		right := p.and()
-		switch {
-		case !left.unknown && truthy(left.value):
-		case !right.unknown && truthy(right.value):
-			left = right
-		case left.unknown || right.unknown:
-			left = val{unknown: true}
-		default:
-			left = right
-		}
-	}
-	return left
-}
+func (p *parser) or() val  { return p.chain("||", p.and, true) }
+func (p *parser) and() val { return p.chain("&&", p.compare, false) }
 
-func (p *parser) and() val {
-	left := p.compare()
-	for p.peek("&&") {
+// chain folds operands joined by op: the first known operand as truthy as
+// decides is the result; an unknown one before it makes the result unknown;
+// otherwise the last operand is.
+func (p *parser) chain(op string, operand func() val, decides bool) val {
+	left := operand()
+	for p.peek(op) {
 		p.pos++
-		right := p.compare()
+		right := operand()
 		switch {
-		case !left.unknown && !truthy(left.value):
-		case !right.unknown && !truthy(right.value):
+		case !left.unknown && truthy(left.value) == decides:
+		case !right.unknown && truthy(right.value) == decides:
 			left = right
 		case left.unknown || right.unknown:
 			left = val{unknown: true}
@@ -354,7 +343,7 @@ func (p *parser) call(name string) val {
 		return val{unknown: true}
 	case "startswith", "endswith", "contains", "format":
 	default:
-		if shown := name + "()"; !contains(p.unsupported, shown) {
+		if shown := name + "()"; !slices.Contains(p.unsupported, shown) {
 			p.unsupported = append(p.unsupported, shown)
 		}
 		return val{unknown: true}

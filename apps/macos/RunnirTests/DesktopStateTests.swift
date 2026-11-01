@@ -135,7 +135,7 @@ struct DesktopStateTests {
     }
 
     @Test func manualClosePersistsWithoutResurrectingOnReload() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = temporaryFolder()
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = FileDesktopStateStore(directory: directory)
         let workspace = WorkspaceRecord(id: UUID(), path: "/test/repo", name: "repo", bookmark: Data(), lastOpenedAt: Date())
@@ -169,7 +169,7 @@ struct DesktopStateTests {
     }
 
     @Test func invalidUpdateDoesNotReplaceCommittedState() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = temporaryFolder()
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = FileDesktopStateStore(directory: directory)
         try store.save(DesktopSnapshot())
@@ -179,7 +179,7 @@ struct DesktopStateTests {
     }
 
     @Test func unknownSchemaAndCorruptStateAreNotSilentlyReset() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = temporaryFolder()
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = FileDesktopStateStore(directory: directory)
         var invalid = DesktopSnapshot()
@@ -281,11 +281,7 @@ struct DesktopCoordinatorTests {
     @Test func removingARegistrationDeletesItsSavedData() async throws {
         let fixture = try CoordinatorFixture()
         defer { fixture.remove() }
-        let provider = FakeProvider()
-        let hub = CoreHub(provider: provider)
-        hub.startMonitoring()
-        provider.ready()
-        _ = await eventually { hub.status == .ready(version: "fake") }
+        let (hub, provider) = await makeReadyHub()
         let coordinator = DesktopCoordinator(store: fixture.store, core: hub)
         await coordinator.loadSession()
         coordinator.removeRegistration(fixture.original)
@@ -776,17 +772,20 @@ struct RepositoryReaderTests {
 
 @MainActor
 struct DesktopCoreIntegrationTests {
-    @Test func windowsShareOneCoreRepositoryAndTheLastCloseReleasesIt() async throws {
-        let fixture = try CoordinatorFixture()
-        defer { fixture.remove() }
-        let provider = FakeProvider()
-        let hub = CoreHub(provider: provider)
-        hub.startMonitoring()
-        provider.ready()
+    /// The fixture's session on a ready hub, with test windows.
+    private func rig(_ fixture: CoordinatorFixture) async -> (DesktopCoordinator, CoreHub, FakeProvider, TestWindowFactory) {
+        let (hub, provider) = await makeReadyHub()
         let factory = TestWindowFactory()
         let coordinator = DesktopCoordinator(store: fixture.store, core: hub, makeGrant: factory.makeGrant,
                                              makeWorkspaceWindow: factory.makeWindow)
         await coordinator.loadSession()
+        return (coordinator, hub, provider, factory)
+    }
+
+    @Test func windowsShareOneCoreRepositoryAndTheLastCloseReleasesIt() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let (coordinator, hub, provider, factory) = await rig(fixture)
         coordinator.openRegistered(fixture.original)
         coordinator.openRegistered(fixture.original)
         #expect(await eventually { hub.session(for: fixture.original.id)?.phase == .ready })
@@ -804,14 +803,7 @@ struct DesktopCoreIntegrationTests {
     @Test func relinkingMovesTheRepositoryInTheCore() async throws {
         let fixture = try CoordinatorFixture()
         defer { fixture.remove() }
-        let provider = FakeProvider()
-        let hub = CoreHub(provider: provider)
-        hub.startMonitoring()
-        provider.ready()
-        let factory = TestWindowFactory()
-        let coordinator = DesktopCoordinator(store: fixture.store, core: hub, makeGrant: factory.makeGrant,
-                                             makeWorkspaceWindow: factory.makeWindow)
-        await coordinator.loadSession()
+        let (coordinator, hub, provider, _) = await rig(fixture)
         coordinator.openRegistered(fixture.original)
         #expect(await eventually { hub.session(for: fixture.original.id)?.phase == .ready })
 
@@ -823,14 +815,7 @@ struct DesktopCoreIntegrationTests {
     @Test func quittingDoesNotTouchTheCore() async throws {
         let fixture = try CoordinatorFixture()
         defer { fixture.remove() }
-        let provider = FakeProvider()
-        let hub = CoreHub(provider: provider)
-        hub.startMonitoring()
-        provider.ready()
-        let factory = TestWindowFactory()
-        let coordinator = DesktopCoordinator(store: fixture.store, core: hub, makeGrant: factory.makeGrant,
-                                             makeWorkspaceWindow: factory.makeWindow)
-        await coordinator.loadSession()
+        let (coordinator, hub, provider, factory) = await rig(fixture)
         coordinator.openRegistered(fixture.original)
         #expect(await eventually { hub.session(for: fixture.original.id)?.phase == .ready })
         #expect(coordinator.prepareToQuit())

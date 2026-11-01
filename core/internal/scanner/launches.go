@@ -18,6 +18,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"runnir/core/internal/repository"
+	"runnir/core/internal/yamlnode"
 )
 
 const (
@@ -128,14 +129,14 @@ func parseLaunchPreset(rel string, data []byte, workflows map[string]bool) repos
 	if document.Kind != yaml.DocumentNode || len(document.Content) != 1 {
 		return fail("file is empty")
 	}
-	top := resolve(document.Content[0])
+	top := yamlnode.Resolve(document.Content[0])
 	if top.Kind != yaml.MappingNode {
 		return fail("a preset must be a mapping of name, workflow, ref and inputs")
 	}
 	preset := repository.LaunchPreset{Path: rel}
 	seen := map[string]bool{}
 	for i := 0; i+1 < len(top.Content); i += 2 {
-		key, value := top.Content[i], resolve(top.Content[i+1])
+		key, value := top.Content[i], yamlnode.Resolve(top.Content[i+1])
 		if seen[key.Value] {
 			return fail("line %d: %q appears twice", key.Line, key.Value)
 		}
@@ -193,7 +194,7 @@ func launchInputs(node *yaml.Node) (map[string]string, string) {
 	}
 	inputs := make(map[string]string, len(node.Content)/2)
 	for i := 0; i+1 < len(node.Content); i += 2 {
-		key, value := node.Content[i], resolve(node.Content[i+1])
+		key, value := node.Content[i], yamlnode.Resolve(node.Content[i+1])
 		name := key.Value
 		if name == "" || utf8.RuneCountInString(name) > maxInputName {
 			return nil, fmt.Sprintf("line %d: input names have 1 to %d characters", key.Line, maxInputName)

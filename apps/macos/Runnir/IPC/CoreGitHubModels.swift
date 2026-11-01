@@ -643,3 +643,21 @@ struct CoreRunActionResult: Equatable, Sendable {
     /// GitHub's reason when it refused the request.
     let rejection: String?
 }
+
+/// An answer of the Core that says how GitHub answered.
+protocol CoreGitHubAnswer {
+    var access: CoreGitHubAccess { get }
+}
+
+extension CoreGitHubResult: CoreGitHubAnswer {}
+extension CoreGitHubRefs: CoreGitHubAnswer {}
+extension CoreGitHubRepository: CoreGitHubAnswer {}
+extension CoreDispatchDefinition: CoreGitHubAnswer {}
+extension CorePreparedDispatch: CoreGitHubAnswer {}
+extension CoreDispatchResult: CoreGitHubAnswer {}
+extension CoreRunWorkflow: CoreGitHubAnswer {}
+extension CoreGitHubRunSearch: CoreGitHubAnswer {}
+extension CoreJobLog: CoreGitHubAnswer {}
+extension CoreSavedJobLog: CoreGitHubAnswer {}
+extension CorePreparedRunAction: CoreGitHubAnswer {}
+extension CoreRunActionResult: CoreGitHubAnswer {}

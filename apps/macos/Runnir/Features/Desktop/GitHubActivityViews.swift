@@ -37,8 +37,6 @@ struct RunRow: View {
     /// The run that superseded this one, for the outdated label's help.
     var newer: CoreWorkflowRun? = nil
 
-    private var dimmed: Bool { run.isSuperseded && !run.outcome.isActive }
-
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             RunOutcomeIcon(outcome: run.outcome).padding(.top, 1)
@@ -47,17 +45,9 @@ struct RunRow: View {
                 // the full width for what the run belongs to.
                 HStack(spacing: 6) {
                     Text(run.title).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                    if run.isOutdated {
-                        RunTag(text: "outdated", tint: RunnirTheme.info).help(RunPresentation.outdatedHelp(run, newer: newer))
-                    } else if dimmed {
-                        RunTag(text: "older commit", tint: RunnirTheme.secondaryForeground)
-                    }
+                    RunSupersededTag(run: run, newer: newer)
                     Spacer(minLength: 8)
-                    if let created = run.createdAt {
-                        Text(created, format: .relative(presentation: .numeric, unitsStyle: .narrow))
-                            .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
-                            .lineLimit(1).fixedSize()
-                    }
+                    RunAge(run: run)
                 }
                 HStack(spacing: 0) {
                     if run.startedFromRunnir {
@@ -69,12 +59,54 @@ struct RunRow: View {
                 .font(.system(size: 11)).lineLimit(1)
             }
         }
-        .opacity(dimmed ? 0.6 : 1)
+        .opacity(run.isDimmed ? 0.6 : 1)
         .padding(.horizontal, 10).padding(.vertical, 8)
-        .clickable()
-        .background(selected ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
-        .help(RunPresentation.rowHelp(run, pullRequest: pullRequest))
-        .accessibilityElement(children: .combine)
+        .runRow(selected: selected, help: RunPresentation.rowHelp(run, pullRequest: pullRequest))
+    }
+}
+
+/// "outdated" on a superseded run still going, "older commit" on one that
+/// finished: shown on request, dimmed.
+struct RunSupersededTag: View {
+    let run: CoreWorkflowRun
+    /// The run that superseded this one, for the outdated label's help.
+    let newer: CoreWorkflowRun?
+
+    var body: some View {
+        if run.isOutdated {
+            RunTag(text: "outdated", tint: RunnirTheme.info).help(RunPresentation.outdatedHelp(run, newer: newer))
+        } else if run.isDimmed {
+            RunTag(text: "older commit", tint: RunnirTheme.secondaryForeground)
+        }
+    }
+}
+
+/// How long ago a run was created, narrow: "4m".
+struct RunAge: View {
+    let run: CoreWorkflowRun
+
+    var body: some View {
+        if let created = run.createdAt {
+            Text(created, format: .relative(presentation: .numeric, unitsStyle: .narrow))
+                .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                .lineLimit(1).fixedSize()
+        }
+    }
+}
+
+extension CoreWorkflowRun {
+    /// Superseded and finished: shown on request, dimmed.
+    var isDimmed: Bool { isSuperseded && !outcome.isActive }
+}
+
+extension View {
+    /// A run's row in a list: clickable, highlighted when selected, read by
+    /// VoiceOver as one.
+    func runRow(selected: Bool, help: String) -> some View {
+        clickable()
+            .background(selected ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
+            .help(help)
+            .accessibilityElement(children: .combine)
     }
 }
 
@@ -96,9 +128,7 @@ struct RecentRunsList: View {
                let help = hub?.accessHelp(access, workspaceID: session.workspaceID, purpose: .read, details: session.githubDetails)
                    ?? GitHubAccessHelp.forAccess(access, repository: session.githubRepository, purpose: .read, details: session.githubDetails) {
                 if showsAccessNotice {
-                    GitHubAccessNotice(help: help, style: .note, github: github) {
-                        Task { await hub?.loadGitHubActivity(workspaceID: session.workspaceID) }
-                    }
+                    ActivityAccessNotice(help: help, style: .note, session: session, hub: hub, github: github)
                 } else if session.runs.isEmpty {
                     Text("Runs appear here once Runnir can read them from GitHub.")
                         .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(.vertical, 6)
@@ -208,19 +238,14 @@ struct WorkspaceRunsView: View {
                 ActivityFreshnessLine(session: session).lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.bottom, 10)
                 if let help = hub.pullRequestsHelp(workspaceID: session.workspaceID) {
-                    GitHubAccessNotice(help: help, style: .note, github: github) {
-                        Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
-                    }
-                    .padding(.horizontal, 12).padding(.bottom, 8)
+                    ActivityAccessNotice(help: help, style: .note, session: session, hub: hub, github: github)
+                        .padding(.horizontal, 12).padding(.bottom, 8)
                 }
                 DesignDivider()
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 2) {
-                        if let access = session.githubAccess,
-                           let help = hub.accessHelp(access, workspaceID: session.workspaceID, purpose: .read, details: session.githubDetails) {
-                            GitHubAccessNotice(help: help, style: .banner, github: github) {
-                                Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
-                            }.padding(8)
+                        if let help = hub.readHelp(for: session) {
+                            ActivityAccessNotice(help: help, style: .banner, session: session, hub: hub, github: github).padding(8)
                         }
                         switch mode {
                         case .list: listRows
@@ -315,6 +340,18 @@ struct WorkspaceRunsView: View {
         .font(.system(size: 12))
     }
 
+    /// Above the list while searching or filtering: the search failing or
+    /// under way, or what it shows and covers.
+    @ViewBuilder private func searchState(found: Int, noun: String, summary: @autoclosure () -> String) -> some View {
+        if searching && search.unavailable {
+            searchUnavailable
+        } else if awaitingAnswer {
+            searchingLine
+        } else if narrowing {
+            searchNote(found: found, noun: noun, summary: summary())
+        }
+    }
+
     /// What a search shows and covers, or what it found nothing in.
     @ViewBuilder private func searchNote(found: Int, noun: String, summary: String) -> some View {
         if found == 0 {
@@ -341,15 +378,9 @@ struct WorkspaceRunsView: View {
         let runs = RunPresentation.list(session.runs, branch: branch, matching: matchingIDs, filter: filter, showingSuperseded: showingSuperseded)
         let indexed = searching ? beyondSaved(search.indexedRuns) : []
         let github = searching ? beyondSaved(search.foundOnGitHub(excluding: Set(session.runs.map(\.id)))) : []
-        if searching && search.unavailable {
-            searchUnavailable
-        } else if awaitingAnswer {
-            searchingLine
-        } else if narrowing {
-            searchNote(found: runs.count + indexed.count + github.count, noun: "runs",
-                       summary: RunSearch.summary(matches: runs.count, saved: savedRuns, indexed: searching ? (search.saved?.indexedSearched ?? 0) : 0,
-                                                  historyComplete: session.historyComplete))
-        }
+        searchState(found: runs.count + indexed.count + github.count, noun: "runs",
+                    summary: RunSearch.summary(matches: runs.count, saved: savedRuns, indexed: searching ? (search.saved?.indexedSearched ?? 0) : 0,
+                                               historyComplete: session.historyComplete))
         ForEach(runs) { run in
             RunRow(run: run, selected: run.id == selectedRunID, pullRequest: run.link.pullRequest.flatMap { pullRequests[$0] },
                    newer: run.supersededBy.flatMap { runsByID[$0] })
@@ -402,14 +433,8 @@ struct WorkspaceRunsView: View {
 
     @ViewBuilder private var changeBlocks: some View {
         let changes = RunPresentation.changes(session.changes, runs: runsByID, branch: branch, matching: matchingIDs, filter: filter)
-        if searching && search.unavailable {
-            searchUnavailable
-        } else if awaitingAnswer {
-            searchingLine
-        } else if narrowing {
-            searchNote(found: changes.count, noun: "changes",
-                       summary: "Showing \(changes.count) of \(session.changes.count) changes" + (session.historyComplete ? "" : ". Older runs are on GitHub."))
-        }
+        searchState(found: changes.count, noun: "changes",
+                    summary: "Showing \(changes.count) of \(session.changes.count) changes" + (session.historyComplete ? "" : ". Older runs are on GitHub."))
         ForEach(changes) { change in
             RunChangeBlock(change: change, runs: runsByID, selectedRunID: selectedRunID, expanded: $expanded,
                            hints: hints.filter { hint in change.pullRequest.map { hint.pullRequests.contains($0.number) } ?? false },
@@ -458,11 +483,8 @@ struct WorkspaceWorkflowsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 4) {
-                if let access = session.githubAccess,
-                   let help = hub.accessHelp(access, workspaceID: session.workspaceID, purpose: .read, details: session.githubDetails) {
-                    GitHubAccessNotice(help: help, style: .banner, github: github) {
-                        Task { await hub.loadGitHubActivity(workspaceID: session.workspaceID) }
-                    }.padding(.bottom, 12)
+                if let help = hub.readHelp(for: session) {
+                    ActivityAccessNotice(help: help, style: .banner, session: session, hub: hub, github: github).padding(.bottom, 12)
                 } else if let installation = session.githubDetails?.installation,
                           let help = GitHubAccessHelp.installationBlocker(installation, purpose: .run, refused: false) {
                     // Workflows can be read, but starting them waits for an owner.
@@ -515,5 +537,29 @@ struct WorkspaceWorkflowsView: View {
                 }
             }.padding(24)
         }
+    }
+}
+
+/// What keeps GitHub from answering for a workspace; its retry reads the
+/// workspace's activity again.
+struct ActivityAccessNotice: View {
+    let help: GitHubAccessHelp
+    let style: GitHubAccessNoticeStyle
+    let session: RepositorySession
+    let hub: CoreHub?
+    let github: GitHubSession?
+
+    var body: some View {
+        GitHubAccessNotice(help: help, style: style, github: github) {
+            Task { await hub?.loadGitHubActivity(workspaceID: session.workspaceID) }
+        }
+    }
+}
+
+extension CoreHub {
+    /// What keeps GitHub from answering the workspace's reads; nil when
+    /// nothing does.
+    func readHelp(for session: RepositorySession) -> GitHubAccessHelp? {
+        session.githubAccess.flatMap { accessHelp($0, workspaceID: session.workspaceID, purpose: .read, details: session.githubDetails) }
     }
 }

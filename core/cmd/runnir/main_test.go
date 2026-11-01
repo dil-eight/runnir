@@ -109,40 +109,7 @@ func TestServeUsage(t *testing.T) {
 }
 
 func TestServeStopsWhenStdinCloses(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("serve is not supported on windows")
-	}
-	dir, err := os.MkdirTemp("/tmp", "rn")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-	socket := filepath.Join(dir, "core.sock")
-	reader, writer := io.Pipe()
-	result := make(chan int, 1)
-	go func() {
-		var out, diagnostics bytes.Buffer
-		result <- run([]string{"serve", "--socket", socket, "--exit-on-stdin-eof"}, reader, &out, &diagnostics)
-	}()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		if info, err := os.Stat(socket); err == nil && info.Mode()&os.ModeSocket != 0 {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("socket did not appear")
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	writer.Close()
-	select {
-	case code := <-result:
-		if code != 0 {
-			t.Fatalf("exit code %d", code)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("serve did not stop after stdin closed")
-	}
+	serveUntilStdinCloses(t, nil)
 }
 
 func TestServeRequiresAWellFormedSecretWhenAsked(t *testing.T) {
@@ -159,6 +126,14 @@ func TestServeRequiresAWellFormedSecretWhenAsked(t *testing.T) {
 }
 
 func TestServeReadsTheSecretThenWatchesStdin(t *testing.T) {
+	serveUntilStdinCloses(t, []byte("0123456789abcdef0123456789abcdef\n"), "--client-secret-stdin")
+}
+
+// serveUntilStdinCloses runs serve with --exit-on-stdin-eof and flags,
+// writes secret to its stdin, waits for its socket, then closes stdin and
+// expects it to stop with 0.
+func serveUntilStdinCloses(t *testing.T, secret []byte, flags ...string) {
+	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("serve is not supported on windows")
 	}
@@ -172,10 +147,12 @@ func TestServeReadsTheSecretThenWatchesStdin(t *testing.T) {
 	result := make(chan int, 1)
 	go func() {
 		var out, diagnostics bytes.Buffer
-		result <- run([]string{"serve", "--socket", socket, "--exit-on-stdin-eof", "--client-secret-stdin"}, reader, &out, &diagnostics)
+		result <- run(append([]string{"serve", "--socket", socket, "--exit-on-stdin-eof"}, flags...), reader, &out, &diagnostics)
 	}()
-	if _, err := writer.Write([]byte("0123456789abcdef0123456789abcdef\n")); err != nil {
-		t.Fatal(err)
+	if secret != nil {
+		if _, err := writer.Write(secret); err != nil {
+			t.Fatal(err)
+		}
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for {

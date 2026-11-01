@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -148,14 +149,14 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 	}
 
 	for _, event := range workflow.On {
-		if name := event.EventName(); eventNamePattern.MatchString(name) && !contains(plan.Events, name) {
+		if name := event.EventName(); eventNamePattern.MatchString(name) && !slices.Contains(plan.Events, name) {
 			plan.Events = append(plan.Events, name)
 		}
 	}
 	plan.Event = request.Event
 	if plan.Event == "" {
 		plan.Event = defaultEvent(plan.Events)
-	} else if !contains(plan.Events, plan.Event) {
+	} else if !slices.Contains(plan.Events, plan.Event) {
 		return Plan{}, ErrUnknownEvent
 	}
 	if plan.Event == "" {
@@ -257,7 +258,7 @@ func toolBlockers(report tools.Report, useInstalledAct bool) []string {
 
 func defaultEvent(events []string) string {
 	for _, preferred := range []string{"push", "pull_request", "workflow_dispatch"} {
-		if contains(events, preferred) {
+		if slices.Contains(events, preferred) {
 			return preferred
 		}
 	}
@@ -462,15 +463,6 @@ func notes(plan Plan, report tools.Report, containerJobs, services []string, sou
 		notes = append(notes, "actions/cache finds no cache locally: Runnir does not start act's cache server.")
 	}
 	return notes
-}
-
-func contains(list []string, value string) bool {
-	for _, item := range list {
-		if item == value {
-			return true
-		}
-	}
-	return false
 }
 
 func plural(n int, one, many string) string {

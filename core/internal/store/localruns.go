@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
 
@@ -40,11 +41,13 @@ func terminal(state string) bool {
 	return false
 }
 
+const localColumns = "execution_id, workflow_path, job_id, event, started_at, finished_at, state, message, act_version, engine"
+
 // RecordLocalRun adds a run. When an event already created its row, only
 // the details are filled in: the state and times events set are kept.
 func (s *Store) RecordLocalRun(ctx context.Context, r LocalRun) error {
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO local_runs (execution_id, workflow_path, job_id, event, started_at, finished_at, state, message, act_version, engine)
+INSERT INTO local_runs (`+localColumns+`)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (execution_id) DO UPDATE SET
 	workflow_path = excluded.workflow_path, job_id = excluded.job_id, event = excluded.event,
@@ -80,18 +83,28 @@ ON CONFLICT (execution_id) DO UPDATE SET
 // LocalRuns lists recorded runs, newest first.
 func (s *Store) LocalRuns(ctx context.Context, limit int) ([]LocalRun, error) {
 	rows, err := s.db.QueryContext(ctx, `
-SELECT execution_id, workflow_path, job_id, event, started_at, finished_at, state, message, act_version, engine
+SELECT `+localColumns+`
 FROM local_runs ORDER BY started_at DESC, execution_id DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+	out, err := readLocalRuns(rows)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// readLocalRuns reads the rows of a query of localColumns, and those
+// read before an error with it: a damaged file may give some of them.
+func readLocalRuns(rows *sql.Rows) ([]LocalRun, error) {
 	var out []LocalRun
 	for rows.Next() {
 		var r LocalRun
 		var started, finished int64
 		if err := rows.Scan(&r.ExecutionID, &r.WorkflowPath, &r.JobID, &r.Event, &started, &finished, &r.State, &r.Message, &r.ActVersion, &r.Engine); err != nil {
-			return nil, err
+			return out, err
 		}
 		r.StartedAt, r.FinishedAt = fromMillis(started), fromMillis(finished)
 		out = append(out, r)

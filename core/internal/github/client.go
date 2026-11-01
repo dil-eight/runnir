@@ -299,24 +299,12 @@ func (c *Client) WorkflowsIfChanged(ctx context.Context, owner, name, etag strin
 
 // Runs lists the newest workflow runs, optionally for one branch.
 func (c *Client) Runs(ctx context.Context, owner, name, branch string, limit int) ([]Run, error) {
-	if limit <= 0 || limit > maxRuns {
-		limit = maxRuns
-	}
-	query := url.Values{"per_page": {strconv.Itoa(limit)}}
+	query := url.Values{"per_page": {perPage(limit)}}
 	if branch != "" {
 		query.Set("branch", branch)
 	}
-	var body struct {
-		WorkflowRuns []runJSON `json:"workflow_runs"`
-	}
-	if err := c.get(ctx, repoPath(owner, name, "/actions/runs"), query, &body); err != nil {
-		return nil, err
-	}
-	runs := make([]Run, 0, len(body.WorkflowRuns))
-	for _, r := range body.WorkflowRuns {
-		runs = append(runs, r.run(owner, name))
-	}
-	return runs, nil
+	runs, _, err := c.runList(ctx, owner, name, query, "")
+	return runs, err
 }
 
 // RunsQuery reads one page of up to 100 runs by the filters of a search
@@ -332,35 +320,33 @@ func (c *Client) RunsQuery(ctx context.Context, owner, name string, filters url.
 			}
 		}
 	}
-	var body struct {
-		WorkflowRuns []runJSON `json:"workflow_runs"`
-	}
-	if err := c.get(ctx, repoPath(owner, name, "/actions/runs"), query, &body); err != nil {
-		return nil, err
-	}
-	runs := make([]Run, 0, len(body.WorkflowRuns))
-	for _, r := range body.WorkflowRuns {
-		runs = append(runs, r.run(owner, name))
-	}
-	return runs, nil
+	runs, _, err := c.runList(ctx, owner, name, query, "")
+	return runs, err
 }
 
 // RunsIfChanged reads the newest runs like Runs; with etag set GitHub
 // answers ErrNotModified when they did not change. It returns the new ETag.
 func (c *Client) RunsIfChanged(ctx context.Context, owner, name string, limit int, etag string) ([]Run, string, error) {
-	return c.runsIfChanged(ctx, owner, name, url.Values{}, limit, etag)
+	return c.runList(ctx, owner, name, url.Values{"per_page": {perPage(limit)}}, etag)
 }
 
 // ActorRunsIfChanged is RunsIfChanged for the runs actor started.
 func (c *Client) ActorRunsIfChanged(ctx context.Context, owner, name, actor string, limit int, etag string) ([]Run, string, error) {
-	return c.runsIfChanged(ctx, owner, name, url.Values{"actor": {actor}}, limit, etag)
+	return c.runList(ctx, owner, name, url.Values{"actor": {actor}, "per_page": {perPage(limit)}}, etag)
 }
 
-func (c *Client) runsIfChanged(ctx context.Context, owner, name string, query url.Values, limit int, etag string) ([]Run, string, error) {
-	if limit <= 0 || limit > maxRuns {
-		limit = maxRuns
-	}
-	query.Set("per_page", strconv.Itoa(limit))
+// OlderRuns reads up to limit runs created at or before `before`, newest
+// first: a page of history older than what the caller holds. Runs created
+// in the same second as `before` come again; callers drop the ones they have.
+func (c *Client) OlderRuns(ctx context.Context, owner, name string, before time.Time, limit int) ([]Run, error) {
+	query := url.Values{"per_page": {perPage(limit)}, "created": {"<=" + before.UTC().Format(time.RFC3339)}}
+	runs, _, err := c.runList(ctx, owner, name, query, "")
+	return runs, err
+}
+
+// runList reads one page of the repository's runs; with etag set GitHub
+// answers ErrNotModified when they did not change. It returns the ETag.
+func (c *Client) runList(ctx context.Context, owner, name string, query url.Values, etag string) ([]Run, string, error) {
 	var body struct {
 		WorkflowRuns []runJSON `json:"workflow_runs"`
 	}
@@ -375,25 +361,12 @@ func (c *Client) runsIfChanged(ctx context.Context, owner, name string, query ur
 	return runs, tag, nil
 }
 
-// OlderRuns reads up to limit runs created at or before `before`, newest
-// first: a page of history older than what the caller holds. Runs created
-// in the same second as `before` come again; callers drop the ones they have.
-func (c *Client) OlderRuns(ctx context.Context, owner, name string, before time.Time, limit int) ([]Run, error) {
+// perPage is limit as a page size: maxRuns when out of range.
+func perPage(limit int) string {
 	if limit <= 0 || limit > maxRuns {
 		limit = maxRuns
 	}
-	query := url.Values{"per_page": {strconv.Itoa(limit)}, "created": {"<=" + before.UTC().Format(time.RFC3339)}}
-	var body struct {
-		WorkflowRuns []runJSON `json:"workflow_runs"`
-	}
-	if err := c.get(ctx, repoPath(owner, name, "/actions/runs"), query, &body); err != nil {
-		return nil, err
-	}
-	runs := make([]Run, 0, len(body.WorkflowRuns))
-	for _, r := range body.WorkflowRuns {
-		runs = append(runs, r.run(owner, name))
-	}
-	return runs, nil
+	return strconv.Itoa(limit)
 }
 
 // Run reads one workflow run.

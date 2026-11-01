@@ -40,10 +40,7 @@ struct FileWorkflowFavoritesStore: WorkflowFavoritesStoring {
     }
 
     func load() throws -> [FavoriteWorkflows] {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
-        let size = try fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        guard size <= Self.maxFileBytes else { throw DesktopStoreError.tooLarge }
-        let snapshot = try JSONDecoder().decode(Snapshot.self, from: Data(contentsOf: fileURL))
+        guard let snapshot = try JSONFile.read(Snapshot.self, from: fileURL, maxBytes: Self.maxFileBytes) else { return [] }
         guard snapshot.version == 1, snapshot.workspaces.count <= Self.maxWorkspaces,
               snapshot.workspaces.allSatisfy(\.isValid) else { throw DesktopStoreError.invalidState }
         return snapshot.workspaces
@@ -51,11 +48,7 @@ struct FileWorkflowFavoritesStore: WorkflowFavoritesStoring {
 
     func save(_ favorites: [FavoriteWorkflows]) throws {
         guard favorites.count <= Self.maxWorkspaces, favorites.allSatisfy(\.isValid) else { throw DesktopStoreError.invalidState }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        let data = try encoder.encode(Snapshot(workspaces: favorites))
-        guard data.count <= Self.maxFileBytes else { throw DesktopStoreError.tooLarge }
-        try AtomicFile.write(data, to: fileURL)
+        try JSONFile.write(Snapshot(workspaces: favorites), to: fileURL, maxBytes: Self.maxFileBytes)
     }
 }
 

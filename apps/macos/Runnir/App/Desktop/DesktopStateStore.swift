@@ -84,20 +84,44 @@ struct FileDesktopStateStore: DesktopStateStoring {
         FileDesktopStateStore(directory: try RunnirSupportDirectory.url())
     }
 
+    static let maxFileBytes = 2 * 1024 * 1024
+
     func load() throws -> DesktopSnapshot {
-        guard FileManager.default.fileExists(atPath: stateURL.path) else { return DesktopSnapshot() }
-        let size = try stateURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        guard size <= 2 * 1024 * 1024 else { throw DesktopStoreError.tooLarge }
-        let snapshot = try JSONDecoder().decode(DesktopSnapshot.self, from: Data(contentsOf: stateURL))
+        guard let snapshot = try JSONFile.read(DesktopSnapshot.self, from: stateURL, maxBytes: Self.maxFileBytes) else { return DesktopSnapshot() }
         try snapshot.validate()
         return snapshot
     }
 
     func save(_ snapshot: DesktopSnapshot) throws {
         try snapshot.validate()
-        let data = try JSONEncoder().encode(snapshot)
-        guard data.count <= 2 * 1024 * 1024 else { throw DesktopStoreError.tooLarge }
-        try AtomicFile.write(data, to: stateURL)
+        try JSONFile.write(snapshot, to: stateURL, maxBytes: Self.maxFileBytes)
+    }
+}
+
+/// A small JSON file in the app's support directory, read whole and written
+/// with AtomicFile. A file larger than maxBytes is refused both ways, so
+/// nothing is written that could not be read back.
+enum JSONFile {
+    /// The file's value; nil when there is no file.
+    static func read<Value: Decodable>(_ type: Value.Type, from url: URL, maxBytes: Int,
+                                        dates: JSONDecoder.DateDecodingStrategy = .deferredToDate) throws -> Value? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        guard size <= maxBytes else { throw DesktopStoreError.tooLarge }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = dates
+        return try decoder.decode(Value.self, from: Data(contentsOf: url))
+    }
+
+    /// Writes the value with sorted keys, indented when `pretty`.
+    static func write<Value: Encodable>(_ value: Value, to url: URL, maxBytes: Int,
+                                         dates: JSONEncoder.DateEncodingStrategy = .deferredToDate, pretty: Bool = false) throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = dates
+        encoder.outputFormatting = pretty ? [.sortedKeys, .prettyPrinted] : [.sortedKeys]
+        let data = try encoder.encode(value)
+        guard data.count <= maxBytes else { throw DesktopStoreError.tooLarge }
+        try AtomicFile.write(data, to: url)
     }
 }
 

@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import Runnir
 
-private func temporaryDirectory() -> URL {
-    FileManager.default.temporaryDirectory.appendingPathComponent("presets-" + UUID().uuidString, isDirectory: true)
-}
-
 private final class FailingPresetStore: DispatchPresetStoring, @unchecked Sendable {
     var saves = 0
     func load() throws -> [DispatchPreset] { throw DesktopStoreError.invalidState }
@@ -16,7 +12,7 @@ private final class FailingPresetStore: DispatchPresetStoring, @unchecked Sendab
 struct DispatchPresetStoreTests {
     @Test
     func presetsRoundTripInAPrivateFile() throws {
-        let directory = temporaryDirectory()
+        let directory = temporaryFolder("presets-")
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = FileDispatchPresetStore(directory: directory)
         #expect(try store.load().isEmpty)
@@ -30,7 +26,7 @@ struct DispatchPresetStoreTests {
 
     @Test
     func aDamagedFileIsRefusedNotGuessed() throws {
-        let directory = temporaryDirectory()
+        let directory = temporaryFolder("presets-")
         defer { try? FileManager.default.removeItem(at: directory) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let store = FileDispatchPresetStore(directory: directory)
@@ -65,7 +61,7 @@ struct DispatchPresetStoreTests {
 struct DispatchPresetLibraryTests {
     @Test
     func presetsAreAddedRenamedUpdatedAndRemoved() throws {
-        let directory = temporaryDirectory()
+        let directory = temporaryFolder("presets-")
         defer { try? FileManager.default.removeItem(at: directory) }
         let library = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: directory))
         library.prepare()
@@ -91,7 +87,7 @@ struct DispatchPresetLibraryTests {
 
     @Test
     func presetsFollowARenamedWorkflowFile() throws {
-        let directory = temporaryDirectory()
+        let directory = temporaryFolder("presets-")
         defer { try? FileManager.default.removeItem(at: directory) }
         let library = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: directory))
         let workspace = UUID(), other = UUID()
@@ -127,7 +123,7 @@ struct DispatchPresetLibraryTests {
 
     @Test
     func aWorkflowHoldsAtMostFiftyPresets() {
-        let library = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: temporaryDirectory()))
+        let library = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: temporaryFolder("presets-")))
         library.prepare()
         let workspace = UUID()
         for index in 0..<DispatchPresetLibrary.perWorkflowLimit {
@@ -148,17 +144,14 @@ struct DispatchPresetFormTests {
         CoreDispatchInput(name: "deploy_token", description: "", kind: .string, required: false, defaultValue: "", options: []),
     ]
 
+    /// A linked workspace whose workflow takes `inputs`.
+    private func linkedHub() async -> (CoreHub, FakeProvider, UUID) {
+        await makeLinkedHub { [inputs] in $0.dispatchDefinition = CoreDispatchDefinition(access: .ok, dispatchable: true, inputs: inputs, parseError: nil) }
+    }
+
     private func rig() async -> (DispatchFormModel, DispatchPresetLibrary, FakeProvider, URL) {
-        let provider = FakeProvider()
-        let hub = CoreHub(provider: provider)
-        hub.startMonitoring()
-        provider.ready()
-        provider.core.setBranch("feature", for: "/repo/linked")
-        provider.core.dispatchDefinition = CoreDispatchDefinition(access: .ok, dispatchable: true, inputs: inputs, parseError: nil)
-        let workspace = UUID()
-        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
-        _ = await eventually { hub.session(for: workspace)?.githubAccess == .ok }
-        let directory = temporaryDirectory()
+        let (hub, provider, workspace) = await linkedHub()
+        let directory = temporaryFolder("presets-")
         let library = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: directory))
         let form = DispatchFormModel(workspaceID: workspace, hub: hub, workflows: [workflow], workflowID: nil,
                                      currentBranch: "feature", presets: library)
@@ -191,16 +184,8 @@ struct DispatchPresetFormTests {
 
     @Test
     func aPresetChosenOnTheOverviewIsAppliedWhenTheSheetOpens() async throws {
-        let provider = FakeProvider()
-        let hub = CoreHub(provider: provider)
-        hub.startMonitoring()
-        provider.ready()
-        provider.core.setBranch("feature", for: "/repo/linked")
-        provider.core.dispatchDefinition = CoreDispatchDefinition(access: .ok, dispatchable: true, inputs: inputs, parseError: nil)
-        let workspace = UUID()
-        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
-        _ = await eventually { hub.session(for: workspace)?.githubAccess == .ok }
-        let directory = temporaryDirectory()
+        let (hub, _, workspace) = await linkedHub()
+        let directory = temporaryFolder("presets-")
         defer { try? FileManager.default.removeItem(at: directory) }
         let library = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: directory))
         let preset = try #require(library.add(name: "Production", workspaceID: workspace, workflowPath: workflow.path,
@@ -286,7 +271,7 @@ struct RepositoryPresetFormTests {
         _ = await eventually {
             hub.session(for: workspace)?.githubAccess == .ok && hub.session(for: workspace)?.launchPresets.count == launchPresets.count
         }
-        let directory = temporaryDirectory()
+        let directory = temporaryFolder("presets-")
         let library = DispatchPresetLibrary(store: FileDispatchPresetStore(directory: directory))
         let form = DispatchFormModel(workspaceID: workspace, hub: hub, workflows: [workflow], workflowID: workflow.id,
                                      currentBranch: "feature", presets: library,

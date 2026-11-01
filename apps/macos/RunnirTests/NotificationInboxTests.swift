@@ -79,7 +79,7 @@ import Testing
     }
 
     @Test func theListSurvivesARestart() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = temporaryFolder()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = FileNotificationInboxStore(directory: directory)

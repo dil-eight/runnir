@@ -91,12 +91,7 @@ struct FileDispatchPresetStore: DispatchPresetStoring {
     }
 
     func load() throws -> [DispatchPreset] {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
-        let size = try fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        guard size <= Self.maxFileBytes else { throw DesktopStoreError.tooLarge }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let snapshot = try decoder.decode(Snapshot.self, from: Data(contentsOf: fileURL))
+        guard let snapshot = try JSONFile.read(Snapshot.self, from: fileURL, maxBytes: Self.maxFileBytes, dates: .iso8601) else { return [] }
         guard snapshot.version == 1, snapshot.presets.count <= Self.maxPresets,
               snapshot.presets.allSatisfy(\.isValid) else { throw DesktopStoreError.invalidState }
         return snapshot.presets
@@ -104,12 +99,7 @@ struct FileDispatchPresetStore: DispatchPresetStoring {
 
     func save(_ presets: [DispatchPreset]) throws {
         guard presets.count <= Self.maxPresets, presets.allSatisfy(\.isValid) else { throw DesktopStoreError.invalidState }
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.sortedKeys]
-        let data = try encoder.encode(Snapshot(presets: presets))
-        guard data.count <= Self.maxFileBytes else { throw DesktopStoreError.tooLarge }
-        try AtomicFile.write(data, to: fileURL)
+        try JSONFile.write(Snapshot(presets: presets), to: fileURL, maxBytes: Self.maxFileBytes, dates: .iso8601)
     }
 }
 

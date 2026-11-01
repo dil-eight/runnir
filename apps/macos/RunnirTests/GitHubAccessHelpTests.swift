@@ -108,11 +108,7 @@ struct GitHubAccessHelpTests {
     }
 
     @Test func aRefusedDispatchExplainsItself() async {
-        let provider = FakeProvider()
-        let hub = CoreHub(provider: provider)
-        hub.startMonitoring()
-        provider.ready()
-        _ = await eventually { hub.status == .ready(version: "fake") }
+        let (hub, provider) = await makeReadyHub()
         provider.core.preparedAccess = .permissionMissing
         provider.core.repositoryResult = CoreGitHubRepository(access: .ok, fullName: "o/r", visibility: "private", defaultBranch: "main",
                                                               htmlURL: nil, canPush: false)

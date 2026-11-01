@@ -57,12 +57,7 @@ func TestGitHubDataForAnOpenRepository(t *testing.T) {
 	}))
 	defer fake.Close()
 
-	path := socketPath(t)
-	stop := startWith(t, path, Options{GitHubBaseURL: fake.URL})
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := servedWith(t, Options{GitHubBaseURL: fake.URL})
 
 	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: linkedRepository(t, "git@github.com:o/r.git")})
 	if err != nil {
@@ -106,12 +101,7 @@ func TestGitHubDataForAnOpenRepository(t *testing.T) {
 }
 
 func TestGitHubCallsReportMissingRemoteAndBadInput(t *testing.T) {
-	path := socketPath(t)
-	stop := startWith(t, path, Options{GitHubBaseURL: "http://127.0.0.1:1"})
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := servedWith(t, Options{GitHubBaseURL: "http://127.0.0.1:1"})
 
 	gitlab, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: linkedRepository(t, "https://gitlab.com/o/r.git")})
 	if err != nil {
@@ -185,12 +175,7 @@ func TestATokenIsCheckedWithoutReplacingTheHeldOne(t *testing.T) {
 		}
 	}))
 	defer fake.Close()
-	path := socketPath(t)
-	stop := startWith(t, path, Options{GitHubBaseURL: fake.URL})
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := servedWith(t, Options{GitHubBaseURL: fake.URL})
 
 	set, err := client.SetGitHubCredential(ctx, &corev1.SetGitHubCredentialRequest{Token: "ghu_held"})
 	if err != nil || set.Kind != corev1.GithubCredentialKind_GITHUB_CREDENTIAL_KIND_APP_USER {
@@ -237,12 +222,7 @@ func TestPullRequestsOverGRPC(t *testing.T) {
 		}
 	}))
 	defer fake.Close()
-	path := socketPath(t)
-	stop := startWith(t, path, Options{GitHubBaseURL: fake.URL})
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := servedWith(t, Options{GitHubBaseURL: fake.URL})
 
 	signedOut, err := client.ListPullRequests(ctx, &corev1.ListPullRequestsRequest{})
 	if err != nil || signedOut.Status.Access != corev1.GithubAccess_GITHUB_ACCESS_SIGNED_OUT {

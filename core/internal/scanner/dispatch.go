@@ -8,6 +8,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"runnir/core/internal/repository"
+	"runnir/core/internal/yamlnode"
 )
 
 // DispatchInput is one `on.workflow_dispatch.inputs` entry.
@@ -35,7 +36,7 @@ func ParseDispatch(data []byte) (DispatchDefinition, error) {
 	if document.Kind != yaml.DocumentNode || len(document.Content) != 1 {
 		return DispatchDefinition{}, nil
 	}
-	top := resolve(document.Content[0])
+	top := yamlnode.Resolve(document.Content[0])
 	if top.Kind != yaml.MappingNode {
 		return DispatchDefinition{}, nil
 	}
@@ -51,7 +52,7 @@ func dispatchOf(top *yaml.Node) DispatchDefinition {
 	}
 	switch on.Kind {
 	case yaml.ScalarNode, yaml.SequenceNode:
-		for _, trigger := range scalarList(on) {
+		for _, trigger := range yamlnode.Scalars(on) {
 			if trigger == "workflow_dispatch" {
 				return DispatchDefinition{Dispatchable: true}
 			}
@@ -72,9 +73,9 @@ func dispatchOf(top *yaml.Node) DispatchDefinition {
 		}
 		for i := 0; i+1 < len(inputs.Content) && len(definition.Inputs) < maxDispatchInputs; i += 2 {
 			input := DispatchInput{Name: inputs.Content[i].Value, Type: "string"}
-			if body := resolve(inputs.Content[i+1]); body.Kind == yaml.MappingNode {
+			if body := yamlnode.Resolve(inputs.Content[i+1]); body.Kind == yaml.MappingNode {
 				for j := 0; j+1 < len(body.Content); j += 2 {
-					value := resolve(body.Content[j+1])
+					value := yamlnode.Resolve(body.Content[j+1])
 					switch body.Content[j].Value {
 					case "description":
 						input.Description = value.Value
@@ -90,7 +91,7 @@ func dispatchOf(top *yaml.Node) DispatchDefinition {
 							input.Default = value.Value
 						}
 					case "options":
-						input.Options = scalarList(value)
+						input.Options = yamlnode.Scalars(value)
 					}
 				}
 			}
@@ -105,7 +106,7 @@ func dispatchOf(top *yaml.Node) DispatchDefinition {
 func mappingEntry(mapping *yaml.Node, key string) (*yaml.Node, bool) {
 	for i := 0; i+1 < len(mapping.Content); i += 2 {
 		if mapping.Content[i].Value == key {
-			value := resolve(mapping.Content[i+1])
+			value := yamlnode.Resolve(mapping.Content[i+1])
 			if value.Kind == yaml.ScalarNode && (value.Tag == "!!null" || value.Value == "") {
 				return nil, true
 			}

@@ -134,8 +134,7 @@ func (s *Store) ApplyLookups(ctx context.Context, u LookupsUpdate) (bool, error)
 		return false, err
 	}
 	defer tx.Rollback()
-	current, has, err := readSource(ctx, tx)
-	if err != nil || !has || current != u.Source {
+	if held, err := holds(ctx, tx, u.Source); !held {
 		return false, err
 	}
 	changed := false
@@ -173,8 +172,7 @@ ON CONFLICT (scope) DO UPDATE SET access = excluded.access`, scopePulls, u.Acces
 
 // History returns what is cached of src's runs; false when nothing is.
 func (s *Store) History(ctx context.Context, src Source) (History, bool, error) {
-	current, has, err := readSource(ctx, s.db)
-	if err != nil || !has || current != src {
+	if held, err := holds(ctx, s.db, src); !held {
 		return History{}, false, err
 	}
 	var h History
@@ -199,8 +197,7 @@ func (s *Store) AddOlderRuns(ctx context.Context, src Source, before time.Time, 
 		return 0, err
 	}
 	defer tx.Rollback()
-	current, has, err := readSource(ctx, tx)
-	if err != nil || !has || current != src {
+	if held, err := holds(ctx, tx, src); !held {
 		return 0, err
 	}
 	added := 0

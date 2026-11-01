@@ -147,12 +147,7 @@ func TestLocalRunIsPreparedConfirmedAndCancelled(t *testing.T) {
 }
 
 func TestOptedInInstalledActIsUsed(t *testing.T) {
-	path := socketPath(t)
-	stop := startWith(t, path, Options{Runner: execution.RunnerFunc(func(context.Context, execution.Job) error { return nil }), Tools: readyTools()})
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := servedWith(t, Options{Runner: execution.RunnerFunc(func(context.Context, execution.Job) error { return nil }), Tools: readyTools()})
 	root := repoWithWorkflows(t, map[string]string{"ci.yml": localWorkflow})
 	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: root})
 	if err != nil {
@@ -169,12 +164,7 @@ func TestOptedInInstalledActIsUsed(t *testing.T) {
 }
 
 func TestLocalRunIsRefusedWhenTheFileChangedAfterReview(t *testing.T) {
-	path := socketPath(t)
-	stop := startWith(t, path, Options{Runner: execution.RunnerFunc(func(context.Context, execution.Job) error { return nil }), Tools: readyTools()})
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := servedWith(t, Options{Runner: execution.RunnerFunc(func(context.Context, execution.Job) error { return nil }), Tools: readyTools()})
 	root := repoWithWorkflows(t, map[string]string{"ci.yml": localWorkflow})
 	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: root})
 	if err != nil {
@@ -237,13 +227,8 @@ func TestBlockedPlanHasNoConfirmation(t *testing.T) {
 }
 
 func TestToolReadinessReportsEveryTool(t *testing.T) {
-	path := socketPath(t)
 	fake := readyTools()
-	stop := startWith(t, path, Options{Tools: fake})
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := servedWith(t, Options{Tools: fake})
 	response, err := client.GetToolReadiness(ctx, &corev1.GetToolReadinessRequest{Refresh: true})
 	if err != nil {
 		t.Fatal(err)

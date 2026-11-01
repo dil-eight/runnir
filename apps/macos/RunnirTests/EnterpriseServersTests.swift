@@ -27,7 +27,7 @@ final class LockedStores: @unchecked Sendable {
 @Suite(.timeLimit(.minutes(1)))
 struct EnterpriseServersTests {
     private func folder() -> URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent("servers-" + UUID().uuidString, isDirectory: true)
+        temporaryFolder("servers-")
     }
 
     private func server(_ host: String = "github.company.com", name: String = "Company") -> EnterpriseServer {

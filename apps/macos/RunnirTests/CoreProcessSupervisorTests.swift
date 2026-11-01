@@ -492,7 +492,7 @@ struct ProcessCoreLauncherTests {
     /// log is kept beside it.
     @Test
     func theCoreWritesItsDiagnosticsToALogAndTheLastOneIsKept() async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = temporaryFolder()
         defer { try? FileManager.default.removeItem(at: directory) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let helper = directory.appendingPathComponent("fake-core")

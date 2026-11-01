@@ -16,8 +16,6 @@ import (
 
 const keptMigrationCopies = 3
 
-const localColumns = "execution_id, workflow_path, job_id, event, started_at, finished_at, state, message, act_version, engine"
-
 // localData is what exists only on this Mac.
 type localData struct {
 	runs       []LocalRun
@@ -112,17 +110,7 @@ func scanLocalRuns(db *sql.DB, query string) ([]LocalRun, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []LocalRun
-	for rows.Next() {
-		var r LocalRun
-		var started, finished int64
-		if err := rows.Scan(&r.ExecutionID, &r.WorkflowPath, &r.JobID, &r.Event, &started, &finished, &r.State, &r.Message, &r.ActVersion, &r.Engine); err != nil {
-			return out, err
-		}
-		r.StartedAt, r.FinishedAt = fromMillis(started), fromMillis(finished)
-		out = append(out, r)
-	}
-	return out, rows.Err()
+	return readLocalRuns(rows)
 }
 
 // quarantine moves the database files to recovery/<stamp>/, never deleting

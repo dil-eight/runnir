@@ -56,12 +56,7 @@ func collect(t *testing.T, stream corev1.RunnirCore_SubscribeEventsClient, want 
 }
 
 func TestStartWorkflowWithStubRunnerFailsHonestly(t *testing.T) {
-	path := socketPath(t)
-	stop := start(t, path)
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := served(t)
 
 	root := repoWithWorkflows(t, map[string]string{"ci.yml": "on: push\njobs:\n  a: {}\n", "bad.yml": "on: [push\n"})
 	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: root})
@@ -92,12 +87,7 @@ func TestStartWorkflowWithStubRunnerFailsHonestly(t *testing.T) {
 }
 
 func TestStartWorkflowRejectsBadRequests(t *testing.T) {
-	path := socketPath(t)
-	stop := start(t, path)
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := served(t)
 
 	root := repoWithWorkflows(t, map[string]string{"bad.yml": "on: [push\n"})
 	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: root})

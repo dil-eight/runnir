@@ -14,10 +14,7 @@ import (
 // read without asking GitHub for the job again. Only jobs cached for the
 // repository the origin points at now are used.
 func (r *Runtime) CompletedJob(ctx context.Context, jobID int64) (github.Job, bool) {
-	r.mu.Lock()
-	resolve := r.resolve
-	r.mu.Unlock()
-	target, problem := resolve()
+	target, problem := r.target()
 	source, has, err := r.cfg.store.CacheSource(ctx)
 	if problem != corev1.GithubAccess_GITHUB_ACCESS_OK || err != nil || !has || source != target.Source() {
 		return github.Job{}, false

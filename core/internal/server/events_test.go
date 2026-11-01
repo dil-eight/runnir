@@ -27,12 +27,7 @@ func next(t *testing.T, stream corev1.RunnirCore_SubscribeEventsClient) *corev1.
 }
 
 func TestEventStreamReportsRepositoryLifecycle(t *testing.T) {
-	path := socketPath(t)
-	stop := start(t, path)
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := served(t)
 
 	stream, err := client.SubscribeEvents(ctx, &corev1.SubscribeEventsRequest{})
 	if err != nil {
@@ -70,12 +65,7 @@ func TestEventStreamReportsRepositoryLifecycle(t *testing.T) {
 }
 
 func TestEventStreamFiltersByRepository(t *testing.T) {
-	path := socketPath(t)
-	stop := start(t, path)
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := served(t)
 
 	other, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: t.TempDir()})
 	if err != nil {

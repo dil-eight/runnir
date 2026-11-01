@@ -144,6 +144,29 @@ func TestOverlongSocketPathIsRejected(t *testing.T) {
 	}
 }
 
+// served is a Core on a socket of its own for the test, a client of it and
+// a context of 10 seconds, all ending with the test.
+func served(t *testing.T) (corev1.RunnirCoreClient, context.Context) {
+	t.Helper()
+	path := socketPath(t)
+	return serving(t, path, start(t, path))
+}
+
+// servedWith is served with options.
+func servedWith(t *testing.T, options Options) (corev1.RunnirCoreClient, context.Context) {
+	t.Helper()
+	path := socketPath(t)
+	return serving(t, path, startWith(t, path, options))
+}
+
+func serving(t *testing.T, path string, stop func() error) (corev1.RunnirCoreClient, context.Context) {
+	t.Helper()
+	t.Cleanup(func() { _ = stop() })
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+	return connect(t, path), ctx
+}
+
 func connect(t *testing.T, path string) corev1.RunnirCoreClient {
 	t.Helper()
 	conn, err := grpc.NewClient("unix://"+path, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -155,12 +178,7 @@ func connect(t *testing.T, path string) corev1.RunnirCoreClient {
 }
 
 func TestRepositoryLifecycleOverGRPC(t *testing.T) {
-	path := socketPath(t)
-	stop := start(t, path)
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := served(t)
 
 	repoDir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -209,12 +227,7 @@ func TestOpenRepositoryRejectsInvalidPath(t *testing.T) {
 }
 
 func TestListWorkflowsAndBranchOverGRPC(t *testing.T) {
-	path := socketPath(t)
-	stop := start(t, path)
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := served(t)
 
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -293,12 +306,7 @@ func TestOpenRepositoryReportsAnUnreadableFolder(t *testing.T) {
 }
 
 func TestListLaunchPresetsOverGRPC(t *testing.T) {
-	path := socketPath(t)
-	stop := start(t, path)
-	defer stop()
-	client := connect(t, path)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	client, ctx := served(t)
 
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
