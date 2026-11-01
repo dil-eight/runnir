@@ -2,14 +2,10 @@ import Foundation
 
 enum GitHubEndpoint: Sendable {
     case currentUser
-    case repositories(page: Int)
-    case repository(owner: String, name: String)
-    case workflows(owner: String, repository: String, page: Int)
 
     func request(baseURL: URL, token: String?) throws -> URLRequest {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         components?.path = path
-        components?.queryItems = queryItems
 
         guard let url = components?.url else {
             throw GitHubAPIError.invalidRequest
@@ -32,30 +28,6 @@ enum GitHubEndpoint: Sendable {
         switch self {
         case .currentUser:
             "/user"
-        case .repositories:
-            "/user/repos"
-        case .repository(let owner, let name):
-            "/repos/\(owner)/\(name)"
-        case .workflows(let owner, let repository, _):
-            "/repos/\(owner)/\(repository)/actions/workflows"
-        }
-    }
-
-    private var queryItems: [URLQueryItem]? {
-        switch self {
-        case .currentUser, .repository:
-            nil
-        case .repositories(let page):
-            [
-                URLQueryItem(name: "per_page", value: "100"),
-                URLQueryItem(name: "page", value: String(page)),
-                URLQueryItem(name: "sort", value: "updated")
-            ]
-        case .workflows(_, _, let page):
-            [
-                URLQueryItem(name: "per_page", value: "100"),
-                URLQueryItem(name: "page", value: String(page))
-            ]
         }
     }
 }

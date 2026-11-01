@@ -32,11 +32,6 @@ private actor FakeGitHubAPI: GitHubService {
     var userResult: Result<GitHubUser, GitHubAPIError> = .success(GitHubUser(id: 1, login: "octocat", name: nil))
     func set(_ result: Result<GitHubUser, GitHubAPIError>) { userResult = result }
     func getCurrentUser() async throws -> GitHubUser { try userResult.get() }
-    func listRepositories() async throws -> [Repository] { [] }
-    var repositoryResult: Result<Repository, GitHubAPIError> = .failure(.notFound)
-    func set(repository: Result<Repository, GitHubAPIError>) { repositoryResult = repository }
-    func repository(owner: String, name: String) async throws -> Repository { try repositoryResult.get() }
-    func listWorkflows(owner: String, repository: String) async throws -> [Workflow] { [] }
 }
 
 private actor FailingCredentialStore: CredentialStoring {
