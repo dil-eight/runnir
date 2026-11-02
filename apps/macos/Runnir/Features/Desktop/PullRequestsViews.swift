@@ -488,6 +488,7 @@ struct PullRequestsWindowView: View {
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
                 Spacer()
+                DevBuildBadge()
                 if let hub = desktop.core {
                     Button { Task { await list.refresh(hub: hub, force: true) } } label: { Label("Refresh", systemImage: "arrow.clockwise") }
                         .buttonStyle(DesignButtonStyle()).disabled(list.isLoading)

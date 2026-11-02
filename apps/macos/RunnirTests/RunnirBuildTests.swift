@@ -18,6 +18,7 @@ import Testing
         #expect(RunnirBuild.allCases.map(\.spokenName) == ["Runnir Dev", "Runnir Alpha", "Runnir Beta", "Runnir"])
         #expect(RunnirBuild.allCases.map(\.folderName) == ["Runnir Dev", "Runnir", "Runnir", "Runnir"])
         #expect(RunnirBuild.allCases.map(\.keychainPrefix) == ["io.dil8.runnir.dev", "io.dil8.runnir", "io.dil8.runnir", "io.dil8.runnir"])
+        #expect(RunnirBuild.allCases.map(\.marksWindows) == [true, false, false, false], "only dev says so in its windows")
     }
 
     @Test func theTestHostIsADevBuild() {
