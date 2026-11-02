@@ -423,9 +423,12 @@ struct DesktopCoordinatorTests {
         let factory = TestWindowFactory()
         let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant,
                                              makeWorkspaceWindow: factory.makeWindow)
+        var revealed = 0
+        coordinator.revealNotice = { _ in revealed += 1 }
         await coordinator.loadSession()
         coordinator.openRegistered(fixture.original)
         #expect(coordinator.message == DesktopCoordinator.tooManyWindowsMessage)
+        #expect(revealed == 1, "the Manager comes forward, so the message is seen from any window")
         #expect(factory.windows.isEmpty && factory.calls == 0, "no window and no folder access is attempted")
         #expect(try fixture.store.load().windows.count == DesktopSnapshot.maxWindows)
     }
@@ -437,9 +440,12 @@ struct DesktopCoordinatorTests {
         factory.failGrantOnCall = 1
         let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant,
                                              makeWorkspaceWindow: factory.makeWindow)
+        var revealed = 0
+        coordinator.revealNotice = { _ in revealed += 1 }
         await coordinator.loadSession()
         coordinator.openRegistered(fixture.original)
         #expect(factory.windows.isEmpty)
+        #expect(revealed == 1, "switching from another workspace's window shows the Manager with the message")
         let notice = try #require(coordinator.notice)
         #expect(notice.locate == fixture.original.id)
         #expect(notice.text.contains("fixture"), "the message names the workspace")
