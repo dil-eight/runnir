@@ -112,7 +112,7 @@ For v0.4, consider explicit artifact promotion and build-once-deploy-many throug
 - Several queue reports may describe the same incident. Reported causes are not independent reproductions or proof that Runnir can repair GitHub infrastructure.
 - API findings describe the checked github.com contract; GHES support requires version-specific verification. Monetary savings, arbitrary-workflow safety, and full local/remote parity are unproven.
 
-See the [baseline findings](weekly/2026-10-26.md) and [latest findings](weekly/2026-11-02.md). The latest review adds seven evidence rows for six parent threads without changing the baseline weekly report.
+See the [baseline findings](weekly/2026-10-26.md) and [latest findings](weekly/2026-11-02.md). The latest review adds seven evidence rows for seven parent threads, six of them newly represented without changing the baseline weekly report.
 
 ## Latest API and upstream review - 2026-11-02
 
