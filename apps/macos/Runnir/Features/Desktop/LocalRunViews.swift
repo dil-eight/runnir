@@ -779,7 +779,7 @@ struct LocalJobIcon: View {
     @ViewBuilder private var icon: some View {
         switch state {
         case .waiting: Image(systemName: "clock").foregroundStyle(RunnirTheme.secondaryForeground)
-        case .running: Image(systemName: "arrow.triangle.2.circlepath").foregroundStyle(RunnirTheme.info)
+        case .running: Image(systemName: "arrow.triangle.2.circlepath").foregroundStyle(RunnirTheme.info).spinning(true)
         case .succeeded: Image(systemName: "checkmark.circle").foregroundStyle(RunnirTheme.success)
         case .failed: Image(systemName: "xmark.circle").foregroundStyle(RunnirTheme.destructive)
         case .cancelled: Image(systemName: "stop.circle").foregroundStyle(RunnirTheme.secondaryForeground)

@@ -393,6 +393,7 @@ struct RunGraphView: View {
             HStack(spacing: 12) {
                 Image(systemName: focus.failed ? "xmark.circle.fill" : "arrow.triangle.2.circlepath")
                     .foregroundStyle(focus.failed ? RunnirTheme.destructive : RunnirTheme.primary)
+                    .spinning(!focus.failed)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(focus.failed ? "Failed" : "Running") in \(focus.job.name)\(focus.step.map { " › \($0.name)" } ?? "")")
                         .font(.system(size: 13, weight: .semibold))
