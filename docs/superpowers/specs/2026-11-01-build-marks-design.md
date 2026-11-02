@@ -1,6 +1,6 @@
 # Build marks (B47)
 
-Status: design approved on 2026-11-01. Drawn in `runnir.pen` (journey F, Row — Menu bar, `S19 / Menu bar icon / Build marks`). Builds on the app icon script (`scripts/make-app-icon.swift`), the menu bar icon (S19, `MenuBarIcon`), the release workflow and ADR 0005.
+Status: design approved on 2026-11-01, built on branch dilbarov/build-marks. Drawn in `runnir.pen` (journey F, Row — Menu bar, `S19 / Menu bar icon / Build marks`). Builds on the app icon script (`scripts/make-app-icon.swift`), the menu bar icon (S19, `MenuBarIcon`), the release workflow and ADR 0005.
 
 ## Problem
 
