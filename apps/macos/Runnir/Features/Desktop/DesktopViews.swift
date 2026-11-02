@@ -153,13 +153,17 @@ struct WorkspaceManagerView: View {
                 Spacer()
             }.padding(.bottom, 14)
 
-            if let message = desktop.message {
+            if let notice = desktop.notice {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "exclamationmark.triangle").foregroundStyle(RunnirTheme.warning)
-                    Text(message).font(.callout).frame(maxWidth: .infinity, alignment: .leading)
+                    Text(notice.text).font(.callout).frame(maxWidth: .infinity, alignment: .leading)
                     if desktop.persistenceBlocked {
                         Button("Back Up and Reset...") { desktop.resetUnreadableSession() }
                     } else {
+                        if let workspaceID = notice.locate {
+                            Button("Locate...") { desktop.importRepository(relinkID: workspaceID) }
+                                .help("Choose the workspace's folder again to give Runnir access to it")
+                        }
                         Button { desktop.message = nil } label: { Image(systemName: "xmark") }
                             .buttonStyle(.hit).help("Dismiss message")
                     }
