@@ -945,6 +945,8 @@ struct DesktopWorkspaceView: View {
                     }.font(.system(size: 12)).frame(maxWidth: 150)
                         .padding(.horizontal, 10).frame(height: 26)
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
+                        // The whole framed button opens the menu, not only its text.
+                        .contentShape(RoundedRectangle(cornerRadius: 6))
                 }.menuStyle(.button).buttonStyle(.plain).pointerStyle(.link).menuIndicator(.hidden).fixedSize().disabled(reader == nil)
                 editorStatus
             }
