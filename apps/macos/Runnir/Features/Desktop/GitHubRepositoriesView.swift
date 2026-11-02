@@ -427,12 +427,8 @@ struct GitHubRepositoriesView: View {
                 }.buttonStyle(.borderless).pointerStyle(.link).disabled(model.isLoading).help("Read the repositories from GitHub again")
             }.padding(10)
             HStack(spacing: 8) {
-                Picker("Owner", selection: $model.owner) {
-                    Text("All owners").tag(String?.none)
-                    ForEach(model.owners, id: \.self) { owner in
-                        Text(owner).tag(Optional(owner))
-                    }
-                }.handPointer().labelsHidden().fixedSize()
+                DropdownPicker("Owner", selection: $model.owner,
+                               options: [.init(value: nil, title: "All owners")] + model.owners.map { .init(value: Optional($0), title: $0) })
                 Toggle("Starred", isOn: $model.starredOnly).toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12))
                 if accounts.count > 1 {
                     Toggle("By Server", isOn: $groupByServer).toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12))

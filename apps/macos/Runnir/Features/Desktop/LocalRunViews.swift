@@ -244,11 +244,14 @@ struct EngineSetupButton: View {
                 NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
             }.help("Start \(engine.name), then press Recheck")
         } else if engine.state == .missing {
-            Menu("Install...") {
+            DropdownMenu {
                 ForEach(ContainerEngineApp.instructions, id: \.name) { item in
-                    Button(item.name) { openURL(item.url) }
+                    DropdownItem(item.name) { openURL(item.url) }
                 }
-            }.handPointer().fixedSize().help("Opens the vendor's official instructions")
+            } label: { _ in
+                Text("Install...")
+            }
+            .buttonStyle(DesignButtonStyle()).fixedSize().help("Opens the vendor's official instructions")
         } else {
             Button("Recheck", action: recheck)
         }
@@ -302,6 +305,7 @@ struct LocalRunSheet: View {
                 }
             }
         }
+        .dropdownHost()
         .task { await model.prepare() }
     }
 
@@ -336,17 +340,21 @@ struct LocalRunSheet: View {
             HStack(spacing: 8) {
                 Text(URL(fileURLWithPath: model.workflowID).lastPathComponent)
                 Image(systemName: "chevron.right").font(.system(size: 9)).foregroundStyle(RunnirTheme.mutedForeground)
-                Menu {
-                    Button("All jobs") { choose(job: nil) }
-                    Divider()
-                    ForEach(model.jobs, id: \.id) { job in Button(job.id) { choose(job: job.id) } }
-                } label: { Text("job: \(model.jobID ?? "all")") }
-                    .menuStyle(.button).buttonStyle(.plain).pointerStyle(.link).fixedSize()
+                DropdownMenu {
+                    DropdownItem("All jobs", checked: model.jobID == nil) { choose(job: nil) }
+                    DropdownDivider()
+                    ForEach(model.jobs, id: \.id) { job in
+                        DropdownItem(job.id, checked: model.jobID == job.id) { choose(job: job.id) }
+                    }
+                } label: { _ in Text("job: \(model.jobID ?? "all")") }
+                    .buttonStyle(.hit).fixedSize()
                 Image(systemName: "chevron.right").font(.system(size: 9)).foregroundStyle(RunnirTheme.mutedForeground)
-                Menu {
-                    ForEach(model.prepared?.plan.events ?? [], id: \.self) { event in Button(event) { choose(event: event) } }
-                } label: { Text("event: \(model.event ?? model.prepared?.plan.event ?? "—")") }
-                    .menuStyle(.button).buttonStyle(.plain).pointerStyle(.link).fixedSize()
+                DropdownMenu {
+                    ForEach(model.prepared?.plan.events ?? [], id: \.self) { event in
+                        DropdownItem(event, checked: event == (model.event ?? model.prepared?.plan.event)) { choose(event: event) }
+                    }
+                } label: { _ in Text("event: \(model.event ?? model.prepared?.plan.event ?? "—")") }
+                    .buttonStyle(.hit).fixedSize()
                     .disabled((model.prepared?.plan.events.count ?? 0) < 2)
                 if model.isPreparing { ProgressView().controlSize(.small) }
             }

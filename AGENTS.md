@@ -9,6 +9,7 @@ Runnir combines a native macOS desktop app with a portable Go Core. Keep impleme
 - Keep Swift-to-Go IPC separate from domain logic; version contracts and use local IPC only (gRPC over a Unix socket per ADR 0004; JSON-RPC over stdio for the version handshake).
 - Preserve existing Swift services until feature-level migrations are tested. Do not duplicate new GitHub domain logic across runtimes.
 - Do not introduce Node.js, npm, pnpm, React, Electron, Tauri, Rust, CocoaPods, or Carthage.
+- In the macOS app, a list of actions or choices behind a button uses Runnir's own dropdowns (`DropdownMenu`, `DropdownPicker`, `.dropdown` with `.dropdownHost()` at the window or sheet root, in `apps/macos/Runnir/Features/Desktop/Dropdown.swift`), never SwiftUI `Menu`, `.popover` or a menu-style `Picker`. `DropdownTests` fails the unit tests otherwise.
 - Store credentials only in macOS Keychain.
 - Do not add telemetry by default. The approved analytics design (B21, [spec](docs/superpowers/specs/2026-10-25-anonymous-analytics-design.md)) changes this rule when it is implemented; until then the rule holds.
 - Do not claim authentication, signing, notarization, auto-update, or deployment features are complete until they are implemented and verified.

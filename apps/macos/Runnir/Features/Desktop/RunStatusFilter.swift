@@ -141,7 +141,7 @@ struct StatusFilterButton: View {
         .help("Filter by status, or to the runs started from Runnir")
         .accessibilityLabel("Filter runs")
         .accessibilityValue(active ? "\(filter.count) selected" : "none")
-        .popover(isPresented: $showing, arrowEdge: .bottom) {
+        .dropdown(isPresented: $showing, alignment: .trailing) {
             StatusFilterMenu(filter: $filter, counts: counts, fromRunnirCount: fromRunnirCount, query: query)
         }
     }
