@@ -99,10 +99,10 @@ Run unit tests:
 xcodebuild -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'platform=macOS' test -only-testing:RunnirTests
 ```
 
-A Debug build is signed by the linker with the identifier `Runnir` rather than its bundle identifier, and macOS refuses notifications to it. To try notifications from a Debug build, sign it ad hoc with its bundle identifier first:
+A build made without a tag is Runnir Dev (`io.dil8.runnir.dev`, B47): its own app beside an installed release, with its own data, sign-in and Core. A Debug build is signed by the linker with the identifier `Runnir` rather than its bundle identifier, and macOS refuses notifications to it. To try notifications from a Debug build, sign it ad hoc with its bundle identifier first:
 
 ```bash
-codesign --force --sign - --identifier com.dileight.runnir path/to/Runnir.app
+codesign --force --sign - --identifier io.dil8.runnir.dev path/to/Runnir.app
 ```
 
 Run static analyzer:
