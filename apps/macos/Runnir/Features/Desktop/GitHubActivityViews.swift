@@ -9,6 +9,7 @@ struct RunOutcomeIcon: View {
         Image(systemName: outcome.symbol)
             .font(.system(size: size))
             .foregroundStyle(color)
+            .spinning(outcome == .running)
             .accessibilityLabel(outcome.label)
             .help(outcome.label)
     }
@@ -22,6 +23,21 @@ struct RunOutcomeIcon: View {
         case .running, .queued: RunnirTheme.info
         case .cancelled, .skipped, .neutral: RunnirTheme.secondaryForeground
         }
+    }
+}
+
+extension View {
+    /// Turns a status symbol while its run, job or step is in progress; it
+    /// stays still with Reduce Motion.
+    func spinning(_ active: Bool) -> some View { modifier(Spinning(active: active)) }
+}
+
+private struct Spinning: ViewModifier {
+    let active: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content.symbolEffect(.rotate.wholeSymbol, options: .repeat(.continuous), isActive: active && !reduceMotion)
     }
 }
 
