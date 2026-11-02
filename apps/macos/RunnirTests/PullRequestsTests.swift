@@ -294,7 +294,7 @@ struct MenuBarIconTests {
 
     @Test func theGlyphWithADotIsTheRightWayUp() throws {
         let glyph = MenuBarIcon.glyph
-        let badged = MenuBarIcon.image(badge: .failed, dimmed: false)
+        let badged = MenuBarIcon.image(badge: .failed, dimmed: false, build: .release)
         let plain = try mask(glyph, size: badged.size)
         let drawn = try mask(badged, size: badged.size)
         // The dot and its clear ring sit in the bottom right corner.
@@ -308,5 +308,32 @@ struct MenuBarIconTests {
         }
         #expect(asymmetric > 20, "the glyph is not symmetric, so a flip would show")
         #expect(differ <= 4, "the badged glyph matches the plain one, not its mirror image")
+    }
+
+    @Test func aReleaseKeepsThePlainTemplateGlyph() {
+        let plain = MenuBarIcon.image(badge: .none, dimmed: false, build: .release)
+        #expect(plain.isTemplate)
+        #expect(plain.size == MenuBarIcon.glyph.size)
+    }
+
+    @Test func otherBuildsCarryTheirWordInACapsuleAfterTheGlyph() throws {
+        for build in [RunnirBuild.dev, .alpha, .beta] {
+            let mark = try #require(build.mark)
+            let image = MenuBarIcon.image(badge: .none, dimmed: false, build: build)
+            #expect(!image.isTemplate)
+            #expect(image.size.width == 21 + MenuBarIcon.markGap + MenuBarIcon.markWidth(mark))
+            #expect(image.size.height == 18)
+            #expect(MenuBarIcon.image(badge: .failed, dimmed: false, build: build).size == image.size, "the dot adds no width")
+            // Across the capsule's middle row the word is cut out of the fill.
+            let pixels = try mask(image, size: image.size)
+            let row = pixels[pixels.count / 2]
+            let capsule = row[Int(21 + MenuBarIcon.markGap) + 1 ..< row.count - 1]
+            #expect(capsule.contains(true) && capsule.contains(false), "\(build): the capsule is filled and the word is clear")
+        }
+    }
+
+    @Test func theLabelBeginsWithTheBuildsName() {
+        #expect(MenuBarIcon.accessibilityLabel(checks: .passed, runs: .failed, build: .beta) == "Runnir Beta, a run failed")
+        #expect(MenuBarIcon.accessibilityLabel(checks: .passed, runs: .none, build: .dev) == "Runnir Dev")
     }
 }
