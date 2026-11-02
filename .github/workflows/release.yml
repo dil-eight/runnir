@@ -43,6 +43,23 @@ jobs:
             done
           done
 
+      - name: Pick the build
+        # v1.2.3 is a release, v1.2.3-alpha.N an alpha and v1.2.3-beta.N a
+        # beta (B47); any other tag stops here instead of shipping unmarked.
+        run: |
+          if [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            build=release icon=AppIcon
+          elif [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]; then
+            build=alpha icon=AppIcon-Alpha
+          elif [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
+            build=beta icon=AppIcon-Beta
+          else
+            echo "::error::Tag $GITHUB_REF_NAME is not vX.Y.Z, vX.Y.Z-alpha.N or vX.Y.Z-beta.N"
+            exit 1
+          fi
+          echo "RUNNIR_BUILD=$build" >> "$GITHUB_ENV"
+          echo "RUNNIR_ICON=$icon" >> "$GITHUB_ENV"
+
       - name: Build archive
         run: |
           xcodebuild archive \
@@ -51,7 +68,11 @@ jobs:
             -destination 'generic/platform=macOS' \
             -archivePath "$PWD/build/Runnir.xcarchive" \
             MARKETING_VERSION="${GITHUB_REF_NAME#v}" \
+            RUNNIR_BUILD="$RUNNIR_BUILD" \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Check the build
+        run: scripts/check-app-build.sh build/Runnir.xcarchive/Products/Applications/Runnir.app io.dil8.runnir "$RUNNIR_BUILD" "$RUNNIR_ICON"
 
       - name: Package app
         run: |
