@@ -30,6 +30,24 @@ struct BrandLogo: View {
     }
 }
 
+/// DEV in an amber capsule, as on the Dock icon, in the windows of a dev build
+/// (B47); nothing in alpha, beta and release.
+struct DevBuildBadge: View {
+    var build: RunnirBuild = .current
+
+    var body: some View {
+        if build.marksWindows {
+            Text("DEV")
+                .font(.system(size: 10, weight: .heavy)).tracking(0.6)
+                .foregroundStyle(Color(nsColor: RunnirPalette.neutral950.nsColor))
+                .padding(.horizontal, 7).padding(.vertical, 2)
+                .background(Capsule().fill(Color(nsColor: RunnirPalette.amber400.nsColor)))
+                .help("Runnir Dev: built without a tag, with its own data and sign-in")
+                .accessibilityLabel("Runnir Dev")
+        }
+    }
+}
+
 struct StartupSplashView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animate = false
@@ -48,8 +66,11 @@ struct StartupSplashView: View {
                 Text("Loading workspaces...").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
             }.padding(.top, 22)
             Spacer()
-            Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0")")
-                .font(.system(size: 11, design: .monospaced)).foregroundStyle(RunnirTheme.mutedForeground).padding(.bottom, 13)
+            HStack(spacing: 8) {
+                Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0")")
+                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(RunnirTheme.mutedForeground)
+                DevBuildBadge()
+            }.padding(.bottom, 13)
         }
         .frame(width: 480, height: 280)
         .background(RunnirTheme.background)
@@ -116,6 +137,7 @@ struct WorkspaceManagerView: View {
         VStack(spacing: 0) {
             HStack {
                 BrandLogo(height: 51, width: 140)
+                DevBuildBadge().padding(.leading, 6)
                 Spacer()
                 ProjectLink().buttonStyle(.hit)
                 if !desktop.snapshot.workspaces.isEmpty {
@@ -1013,6 +1035,7 @@ struct DesktopWorkspaceView: View {
         HStack(spacing: 0) {
             Color.clear.frame(width: 64)
             workspaceSwitcherButton
+            DevBuildBadge().padding(.leading, 8)
             Spacer(minLength: 0)
             Color.clear.frame(width: 16)
             // Runnir's repository, next to the bell: it belongs to the app, not to the workspace's toolbar.

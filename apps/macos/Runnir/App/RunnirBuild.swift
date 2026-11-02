@@ -19,6 +19,9 @@ enum RunnirBuild: String, CaseIterable, Sendable {
     /// The word on the app icon and in the menu bar; nil for a release.
     var mark: String? { self == .release ? nil : rawValue.uppercased() }
 
+    /// The app's windows say DEV too; alpha and beta look like a release there.
+    var marksWindows: Bool { self == .dev }
+
     /// What VoiceOver calls the app: Runnir, Runnir Dev, Runnir Alpha, Runnir Beta.
     var spokenName: String { self == .release ? "Runnir" : "Runnir " + rawValue.capitalized }
 
