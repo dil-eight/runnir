@@ -124,17 +124,30 @@ actor CoreProcessSupervisor {
             launcher: ProcessCoreLauncher(
                 executableURL: bundle.appendingPathComponent("Contents/Helpers/runnir-core"),
                 logURL: logURL,
-                dataDirectory: try? RunnirSupportDirectory.url()
+                dataDirectory: try? RunnirSupportDirectory.url(),
+                cacheDirectory: cacheURL(for: .current)
             ),
             connector: GRPCCoreConnector(),
             socketPath: socketPath(in: FileManager.default.temporaryDirectory, instance: instanceTag(for: bundle))
         )
     }
 
-    /// Where the Core's standard error goes: ~/Library/Logs/Runnir/core.log.
-    /// The previous launch's log is kept as core.previous.log.
-    static let logURL: URL? = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?
-        .appendingPathComponent("Logs/Runnir/core.log")
+    /// Where the Core's standard error goes: ~/Library/Logs/Runnir/core.log,
+    /// Runnir Dev for a dev build. The previous launch's log is kept as
+    /// core.previous.log.
+    static let logURL: URL? = logURL(for: .current)
+
+    static func logURL(for build: RunnirBuild) -> URL? {
+        FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("Logs/\(build.folderName)/core.log")
+    }
+
+    /// The Core's cache folder, where act keeps its clones of actions:
+    /// ~/Library/Caches/Runnir, or Runnir Dev for a dev build.
+    static func cacheURL(for build: RunnirBuild) -> URL? {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+            .appendingPathComponent(build.folderName, isDirectory: true)
+    }
 
     static let maxSocketPathBytes = 103
 

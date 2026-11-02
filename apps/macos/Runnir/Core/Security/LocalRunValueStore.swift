@@ -28,7 +28,7 @@ protocol LocalRunValueStoring: Sendable {
 
 extension Notification.Name {
     /// Values of a workspace changed; `userInfo["workspaceID"]` names it.
-    static let localRunValuesChanged = Notification.Name("dev.runnir.localRunValuesChanged")
+    static let localRunValuesChanged = Notification.Name("io.dil8.runnir.localRunValuesChanged")
 }
 
 /// Tells open views that a workspace's values changed.
@@ -48,10 +48,13 @@ actor KeychainLocalRunValueStore: LocalRunValueStoring {
     /// UI tests of a Debug build keep their own items.
     static var defaultPrefix: String {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return "dev.runnir.local-run.ui-testing" }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return "io.dil8.runnir.local-run.ui-testing" }
         #endif
-        return "dev.runnir.local-run"
+        return prefix(for: .current)
     }
+
+    /// The build's prefix: Runnir Dev keeps its own values (B47).
+    static func prefix(for build: RunnirBuild) -> String { "\(build.keychainPrefix).local-run" }
 
     static func service(prefix: String, workspaceID: UUID) -> String {
         "\(prefix).\(workspaceID.uuidString.lowercased())"

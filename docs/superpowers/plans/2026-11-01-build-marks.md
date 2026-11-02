@@ -582,6 +582,7 @@ Append to `apps/macos/RunnirTests/RunnirBuildTests.swift`:
         #expect(KeychainLocalRunValueStore.prefix(for: .beta) == "io.dil8.runnir.local-run")
     }
 
+    @MainActor
     @Test func notificationNamesAreUnderTheCompanyDomain() {
         #expect(RunNotifier.categoryID == "io.dil8.runnir.run")
         #expect(RunNotifier.failedChecksCategoryID == "io.dil8.runnir.checks.failed")

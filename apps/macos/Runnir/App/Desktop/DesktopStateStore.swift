@@ -165,7 +165,9 @@ enum AtomicFile {
 /// for UI tests of a Debug build, the folder they name, so a test run never
 /// writes into the user's own session, presets or favorites.
 enum RunnirSupportDirectory {
-    static func url() throws -> URL {
+    /// The build's folder in Application Support: Runnir, or Runnir Dev for a
+    /// dev build (B47).
+    static func url(build: RunnirBuild = .current) throws -> URL {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-testing"),
            let path = ProcessInfo.processInfo.environment["RUNNIR_UI_TEST_STATE_DIRECTORY"] {
@@ -174,6 +176,6 @@ enum RunnirSupportDirectory {
         #endif
         let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                  appropriateFor: nil, create: false)
-        return support.appendingPathComponent("Runnir", isDirectory: true)
+        return support.appendingPathComponent(build.folderName, isDirectory: true)
     }
 }
