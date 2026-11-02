@@ -104,6 +104,24 @@ check "signature: unsigned" 1 "code object is not signed at all" \
 check "signature: ad hoc, without a team" 1 "TeamIdentifier is not set, expected $team" \
     env APPLE_TEAM_ID=$team "$here/check-signature.sh" "$tmp/adhoc"
 
+# sign-binary.sh and sign-app.sh
+mkdir -p "$tmp/Fake.app/Contents"
+touch "$tmp/Fake.app/Contents/Info.plist"
+identities "$other:OTHER00001"
+check "sign-binary: missing file" 1 "$tmp/missing does not exist" \
+    env APPLE_TEAM_ID=$team "$here/sign-binary.sh" "$tmp/missing" io.dil8.runnir.cli
+check "sign-binary: no identity of the team" 1 "No valid Developer ID Application identity of team $team" \
+    env APPLE_TEAM_ID=$team "$here/sign-binary.sh" "$tmp/adhoc" io.dil8.runnir.cli
+check "sign-app: not an app" 1 "$tmp is not an app bundle" \
+    env APPLE_TEAM_ID=$team "$here/sign-app.sh" "$tmp"
+check "sign-app: no APPLE_TEAM_ID" 1 "APPLE_TEAM_ID is not set" \
+    "$here/sign-app.sh" "$tmp/Fake.app"
+check "sign-app: no identity of the team" 1 "No valid Developer ID Application identity of team $team" \
+    env APPLE_TEAM_ID=$team "$here/sign-app.sh" "$tmp/Fake.app"
+identities "$one:$team" "$two:$team"
+check "sign-app: several identities" 1 "set SIGNING_IDENTITY to one SHA-1" \
+    env APPLE_TEAM_ID=$team "$here/sign-app.sh" "$tmp/Fake.app"
+
 # Summary
 if [ "$failures" -ne 0 ]; then
     echo "$failures signing script checks failed" >&2
