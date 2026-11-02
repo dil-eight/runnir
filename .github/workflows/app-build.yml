@@ -11,6 +11,7 @@ on:
       - "contracts/**"
       - "docs/design/assets/**"
       - "scripts/build-core-macos.sh"
+      - "scripts/check-app-build.sh"
       - "third_party/act/**"
       - ".github/workflows/app-build.yml"
   push:
@@ -61,6 +62,10 @@ jobs:
             echo "$binary: $archs"
             case "$archs" in *arm64*x86_64*|*x86_64*arm64*) ;; *) echo "not universal" >&2; exit 1 ;; esac
           done
+
+      - name: Check the build
+        # Built without a tag: Runnir Dev (B47).
+        run: scripts/check-app-build.sh build/Runnir.xcarchive/Products/Applications/Runnir.app io.dil8.runnir.dev dev AppIcon-Dev
 
       - name: Summary
         run: |
