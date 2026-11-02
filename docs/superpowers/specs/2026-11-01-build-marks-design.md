@@ -10,7 +10,7 @@ Every Runnir build looks the same: a build made in Xcode, a pre-release from a t
 
 | Question | Decision |
 | --- | --- |
-| Which builds there are | Four: `release`, `alpha`, `beta` and `dev` |
+| Which builds there are | Four: `release`, `alpha`, `beta` and `dev`. B48 adds a fifth, `local`, for a build signed on a Mac: Runnir Local, an app of its own like dev, with a pink LOCAL mark ([B48 spec](2026-11-01-signing-notarization-design.md#the-local-build)) |
 | What decides the build | The tag the release workflow builds: `v1.2.3` is release, `v1.2.3-alpha.N` is alpha, `v1.2.3-beta.N` is beta. Any other suffix (`-rc.1`) stops the release workflow with an error. Everything built without a tag is dev: Xcode on a Mac, Debug or Release, and the CI checks' archive |
 | Where the build is set | One build setting, `RUNNIR_BUILD`, `dev` unless the release workflow passes another value. Xcode derives the bundle ID, the display name and the app icon from it; the app reads it from Info.plist |
 | Release, alpha and beta | One app: bundle ID `com.runnir.app`, name Runnir, the same data, Keychain items and sign-in. An alpha is replaced in place by a beta and a beta by a release |

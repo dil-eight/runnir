@@ -317,7 +317,7 @@ struct MenuBarIconTests {
     }
 
     @Test func otherBuildsCarryTheirWordInACapsuleAfterTheGlyph() throws {
-        for build in [RunnirBuild.dev, .alpha, .beta] {
+        for build in [RunnirBuild.dev, .local, .alpha, .beta] {
             let mark = try #require(build.mark)
             let image = MenuBarIcon.image(badge: .none, dimmed: false, build: build)
             #expect(!image.isTemplate)
@@ -335,5 +335,6 @@ struct MenuBarIconTests {
     @Test func theLabelBeginsWithTheBuildsName() {
         #expect(MenuBarIcon.accessibilityLabel(checks: .passed, runs: .failed, build: .beta) == "Runnir Beta, a run failed")
         #expect(MenuBarIcon.accessibilityLabel(checks: .passed, runs: .none, build: .dev) == "Runnir Dev")
+        #expect(MenuBarIcon.accessibilityLabel(checks: .passed, runs: .none, build: .local) == "Runnir Local")
     }
 }

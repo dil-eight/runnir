@@ -24,6 +24,7 @@ struct BuildMark { let word: String; let color: UInt32 }
 let sets: [(name: String, mark: BuildMark?)] = [
     ("AppIcon", nil),
     ("AppIcon-Dev", BuildMark(word: "DEV", color: 0xFBBF24)),
+    ("AppIcon-Local", BuildMark(word: "LOCAL", color: 0xF472B6)),
     ("AppIcon-Alpha", BuildMark(word: "ALPHA", color: 0xA78BFA)),
     ("AppIcon-Beta", BuildMark(word: "BETA", color: 0x7C9CFF)),
 ]

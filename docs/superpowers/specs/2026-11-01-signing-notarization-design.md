@@ -1,6 +1,6 @@
 # Signing and notarization (B48)
 
-Status: design approved on 2026-11-01. Builds on the build marks (B47), ADR 0005 (Developer ID without the App Sandbox) and the release workflow.
+Status: design approved on 2026-11-01; the local build added on 2026-11-02. Builds on the build marks (B47), ADR 0005 (Developer ID without the App Sandbox) and the release workflow.
 
 ## Problem
 
@@ -17,6 +17,7 @@ Tagged builds are published unsigned. macOS's Gatekeeper refuses to open an unsi
 | Team ID | Never in the repository: the GitHub variable `APPLE_TEAM_ID` of the `release` environment in CI, the environment variable `APPLE_TEAM_ID` on a Mac. The scripts find the Developer ID identity of that team in the keychain |
 | Missing credentials | A tag fails, naming what is missing. No unsigned build is published |
 | Package | A zip of the stapled app, as today, named `Runnir-<tag>.zip` (no `-unsigned`) |
+| A build signed on a Mac | A local build (`RUNNIR_BUILD=local`): Runnir Local, an app of its own with a pink LOCAL mark, so it is never taken for a tagged build ([below](#the-local-build)) |
 
 ## Credentials
 
@@ -35,6 +36,8 @@ The user sets them; they are never written to the repository, the logs or a file
 
 ## Scripts
 
+`scripts/signing-identity.sh` prints the identity's SHA-1 by the rule below, and `scripts/check-signature.sh CODE...` checks each signature's team, hardened runtime and timestamp; `sign-app.sh` and `sign-binary.sh` both use them.
+
 ### `scripts/sign-app.sh APP`
 
 Signs a built `Runnir.app` with the Developer ID Application identity of `$APPLE_TEAM_ID`, inside out:
@@ -45,7 +48,7 @@ Signs a built `Runnir.app` with the Developer ID Application identity of `$APPLE
 
 Every signature uses `--options runtime` (the hardened runtime) and `--timestamp`. Afterwards the script checks `codesign --verify --deep --strict` and that the app's and each helper's `TeamIdentifier` is `$APPLE_TEAM_ID`, and exits 1 on any difference.
 
-The identity is `SIGNING_IDENTITY` (a certificate's SHA-1) when set; otherwise the one valid `Developer ID Application: … ($APPLE_TEAM_ID)` that `security find-identity -v -p codesigning` lists. When several are valid (a renewed certificate beside the old one), the script stops and lists their SHA-1s and expiry dates, so the caller sets `SIGNING_IDENTITY` or removes the old one. It is passed to `codesign` by its SHA-1, so two certificates with one name never mix. In CI the temporary keychain holds one certificate.
+The identity (`signing-identity.sh`) is `SIGNING_IDENTITY` (a certificate's SHA-1) when set; otherwise the one valid `Developer ID Application: … ($APPLE_TEAM_ID)` that `security find-identity -v -p codesigning` lists. When several are valid (a renewed certificate beside the old one), the script stops and lists their SHA-1s and expiry dates, so the caller sets `SIGNING_IDENTITY` or removes the old one. It is passed to `codesign` by its SHA-1, so two certificates with one name never mix. In CI the temporary keychain holds one certificate.
 
 ### `scripts/sign-binary.sh FILE IDENTIFIER`
 
@@ -61,28 +64,44 @@ Staples the ticket to the app, then checks `xcrun stapler validate` and `spctl -
 
 ## The release workflow
 
-`release.yml`'s job runs in the `release` environment, with a 90-minute limit. After picking the build (B47):
+`release.yml`'s job runs in the `release` environment, with a 90-minute limit. It picks the build (B47) first, so a bad tag fails before any work, then:
 
 1. **Check credentials**: each secret and the variable is present, else fail naming the missing ones.
-2. **Keychain**: a temporary keychain with a random password, the `.p12` imported into it for `codesign` only (`security set-key-partition-list`), added to the search list. The `.p8` is written to the job's temporary folder.
+2. **Keychain**: a temporary keychain with a random password, the `.p12` imported into it for `codesign` only (`security set-key-partition-list`), added to the search list. Apple's Developer ID G2 intermediate (from apple.com) is imported into it too, so the chain does not depend on the runner image, and the step checks that exactly one identity of the team is there. The `.p8` is written to the job's temporary folder.
 3. **Core binaries**: built as today; the two darwin binaries are signed with `sign-binary.sh`, zipped together and notarized.
 4. **Archive**: as today, unsigned, then checked against the build (B47).
 5. **App**: `sign-app.sh`, a zip, `notarize.sh`, `staple-app.sh`, and the final zip of the stapled app, `Runnir-<tag>.zip`.
 6. **Publish**: the draft release as today, its notes saying the app and the macOS binaries are signed with Developer ID and notarized by Apple.
 7. **Clean up**, whatever happened before: the temporary keychain is deleted and the search list restored, the `.p8` removed.
 
-`app-build.yml` does not change: pull requests build unsigned, and pull requests from forks never see the secrets.
+`app-build.yml` does not change: pull requests build unsigned, and pull requests from forks never see the secrets. `ci.yml` runs `scripts/test-signing.sh`.
 
 ## On a Mac
 
-The same scripts sign and notarize a local archive, with the certificate in the login keychain and the `runnir-notary` profile (`xcrun notarytool store-credentials`):
+The same scripts sign and notarize a local archive, with the certificate in the login keychain and the `runnir-notary` profile (`xcrun notarytool store-credentials`). The archive is a local build:
 
 ```bash
+xcodebuild archive -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'generic/platform=macOS' -archivePath "$PWD/build/Runnir.xcarchive" RUNNIR_BUILD=local CODE_SIGNING_ALLOWED=NO
 export APPLE_TEAM_ID=… NOTARY_PROFILE=runnir-notary
 scripts/sign-app.sh build/Runnir.xcarchive/Products/Applications/Runnir.app
 ```
 
 `README.md` documents this next to the release section.
+
+### The local build
+
+A build signed on a Mac would otherwise be archived as a beta, and a signed beta from a Mac looks exactly like one from a tag. It is a fifth build of B47's kind instead, `local`, which only a person passes to `xcodebuild` (`RUNNIR_BUILD=local`); Xcode's own builds stay dev and the release workflow never makes one.
+
+| What | Local |
+| --- | --- |
+| The app | Runnir Local, `io.dil8.runnir.local`: an app of its own, as Runnir Dev is, that runs beside an installed Runnir and Runnir Dev |
+| Data, logs, caches | `~/Library/Application Support/Runnir Local`, `~/Library/Logs/Runnir Local`, `~/Library/Caches/Runnir Local` |
+| Keychain services | `io.dil8.runnir.local.github`, `io.dil8.runnir.local.local-run` |
+| The app icon | `AppIcon-Local`: the pill of B47 with LOCAL in pink, `#F472B6`; amber, violet, blue, green and red already mean dev, alpha, beta, success and failure |
+| The menu bar | The LOCAL capsule after the glyph, as for dev, alpha and beta |
+| The windows | LOCAL in a pink capsule where a dev build shows DEV (`BuildBadge`, formerly `DevBuildBadge`); its tooltip says it is signed on this Mac, with its own data and sign-in |
+
+`RunnirBuild` gets `case local` (palette `pink400`); `marksWindows`, `folderName` and `keychainPrefix` treat dev and local as apps of their own. The build settings gain `RUNNIR_BUNDLE_SUFFIX_local = .local`, `RUNNIR_DISPLAY_NAME_local = Runnir Local` and `RUNNIR_APPICON_local = AppIcon-Local`. Drawn in `runnir.pen`, journey F: `S19 / Menu bar icon / Build marks / Dark / 680x640` (a fifth app icon and the LOCAL capsule in the menu bar) and `S19 / Build marks / DEV and LOCAL in the windows / Dark / 560x640`.
 
 ## Not in this change
 
@@ -92,9 +111,10 @@ scripts/sign-app.sh build/Runnir.xcarchive/Products/Applications/Runnir.app
 
 ## Tests
 
-- `shellcheck` on the four scripts and actionlint on `release.yml`.
-- `sign-app.sh` and `notarize.sh` refuse to run without `APPLE_TEAM_ID`, without an identity of that team, with several identities and no `SIGNING_IDENTITY`, or without notarization credentials, each with a message naming what is missing.
-- On a Mac, the whole path on a Release archive of a beta build (`RUNNIR_BUILD=beta`): sign, verify, notarize, staple, `spctl` says `Notarized Developer ID`; the signed darwin Core binary is notarized; the app then opens, reads a chosen folder, keeps its sign-in in Keychain and starts its Core under the hardened runtime.
+- `shellcheck` on the signing scripts and actionlint on `release.yml`.
+- `scripts/test-signing.sh`, in CI's build job, runs the scripts against a stand-in for `security`: `signing-identity.sh`, `sign-app.sh` and `sign-binary.sh` refuse without `APPLE_TEAM_ID`, without an identity of that team, and with several identities and no `SIGNING_IDENTITY`; `check-signature.sh` refuses unsigned and ad hoc code; `notarize.sh` refuses without credentials, naming the missing ones.
+- `RunnirBuildTests` and the menu bar test cover the local build: its Info.plist value, mark, spoken name, folders, Keychain prefix, window mark and menu bar capsule.
+- On a Mac, the whole path on a Release archive of a local build (`RUNNIR_BUILD=local`): sign, verify, notarize, staple, `spctl` says `Notarized Developer ID`; the signed darwin Core binary is notarized; the app then opens, reads a chosen folder, keeps its sign-in in Keychain and starts its Core under the hardened runtime.
 - The CI path is checked by the first tag; until then the release workflow's signing is written but not verified.
 
 ## Delivery
