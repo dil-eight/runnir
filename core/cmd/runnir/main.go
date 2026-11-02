@@ -27,7 +27,7 @@ func run(args []string, input io.Reader, output, diagnostics io.Writer) int {
 		return serve(args[1:], input, diagnostics)
 	}
 	if len(args) != 1 {
-		fmt.Fprintln(diagnostics, "usage: runnir version | rpc | serve --socket PATH [--data-dir PATH]")
+		fmt.Fprintln(diagnostics, "usage: runnir version | rpc | serve --socket PATH [--data-dir PATH] [--cache-dir PATH]")
 		return 2
 	}
 	var err error
@@ -37,7 +37,7 @@ func run(args []string, input io.Reader, output, diagnostics io.Writer) int {
 	case "rpc":
 		err = ipc.Serve(input, output, handle)
 	default:
-		fmt.Fprintln(diagnostics, "unknown command; usage: runnir version | rpc | serve --socket PATH [--data-dir PATH]")
+		fmt.Fprintln(diagnostics, "unknown command; usage: runnir version | rpc | serve --socket PATH [--data-dir PATH] [--cache-dir PATH]")
 		return 2
 	}
 	if err != nil {
@@ -69,7 +69,8 @@ func handle(method string, params json.RawMessage) (any, *ipc.Error) {
 // With --client-secret-stdin the first stdin line is a per-launch secret that
 // every call except HealthCheck must present; it never appears in argv or env.
 // --data-dir is the app's support folder, where workspace databases live;
-// without it nothing is written to disk.
+// without it nothing is written to disk. --cache-dir is the app's cache
+// folder, where act keeps its clones of actions (B47: Runnir Dev has its own).
 func serve(args []string, input io.Reader, diagnostics io.Writer) int {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
@@ -77,12 +78,14 @@ func serve(args []string, input io.Reader, diagnostics io.Writer) int {
 	exitOnEOF := flags.Bool("exit-on-stdin-eof", false, "stop when stdin closes")
 	secretOnStdin := flags.Bool("client-secret-stdin", false, "read the client secret from the first stdin line")
 	dataDir := flags.String("data-dir", "", "the app's support folder for workspace databases")
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || *socket == "" || (*dataDir != "" && !filepath.IsAbs(*dataDir)) {
-		fmt.Fprintln(diagnostics, "usage: runnir serve --socket PATH [--data-dir PATH] [--exit-on-stdin-eof] [--client-secret-stdin]")
+	cacheDir := flags.String("cache-dir", "", "the app's cache folder for act's clones of actions")
+	relative := func(dir string) bool { return dir != "" && !filepath.IsAbs(dir) }
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || *socket == "" || relative(*dataDir) || relative(*cacheDir) {
+		fmt.Fprintln(diagnostics, "usage: runnir serve --socket PATH [--data-dir PATH] [--cache-dir PATH] [--exit-on-stdin-eof] [--client-secret-stdin]")
 		return 2
 	}
 	reader := bufio.NewReaderSize(input, 512)
-	options := server.Options{BundledAct: bundledAct(), DataDir: *dataDir}
+	options := server.Options{BundledAct: bundledAct(), DataDir: *dataDir, ActCache: actCache(*cacheDir)}
 	if *secretOnStdin {
 		secret, err := readSecret(reader)
 		if err != nil {
@@ -97,6 +100,15 @@ func serve(args []string, input io.Reader, diagnostics io.Writer) int {
 		go func() { _, _ = io.Copy(io.Discard, reader); stop() }()
 	}
 	return finishServe(server.RunWithOptions(ctx, *socket, options), diagnostics)
+}
+
+// actCache is where act keeps its clones of actions: the act folder of
+// --cache-dir, or empty for the server's default in the user cache folder.
+func actCache(cacheDir string) string {
+	if cacheDir == "" {
+		return ""
+	}
+	return filepath.Join(cacheDir, "act")
 }
 
 // bundledAct is where the app ships act: next to the Core. The tool check

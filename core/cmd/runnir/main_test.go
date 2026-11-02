@@ -100,7 +100,7 @@ func TestUnknownCommand(t *testing.T) {
 }
 
 func TestServeUsage(t *testing.T) {
-	for _, args := range [][]string{{"serve"}, {"serve", "--socket"}, {"serve", "--socket", "/tmp/x", "extra"}, {"serve", "--bogus"}, {"serve", "--socket", "/tmp/x", "--data-dir", "relative/path"}} {
+	for _, args := range [][]string{{"serve"}, {"serve", "--socket"}, {"serve", "--socket", "/tmp/x", "extra"}, {"serve", "--bogus"}, {"serve", "--socket", "/tmp/x", "--data-dir", "relative/path"}, {"serve", "--socket", "/tmp/x", "--cache-dir", "relative/path"}} {
 		var out, diagnostics bytes.Buffer
 		if code := run(args, strings.NewReader(""), &out, &diagnostics); code != 2 || out.Len() != 0 {
 			t.Fatalf("%v: code=%d out=%q", args, code, out.String())
@@ -110,6 +110,20 @@ func TestServeUsage(t *testing.T) {
 
 func TestServeStopsWhenStdinCloses(t *testing.T) {
 	serveUntilStdinCloses(t, nil)
+}
+
+func TestServeTakesACacheFolder(t *testing.T) {
+	serveUntilStdinCloses(t, nil, "--cache-dir", t.TempDir())
+}
+
+func TestActKeepsItsCacheInTheCacheFolder(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "Runnir Dev")
+	if got := actCache(dir); filepath.Dir(got) != dir || filepath.Base(got) != "act" {
+		t.Fatalf("act cache = %q, want the act folder of %q", got, dir)
+	}
+	if got := actCache(""); got != "" {
+		t.Fatalf("without --cache-dir the server's default is kept, got %q", got)
+	}
 }
 
 func TestServeRequiresAWellFormedSecretWhenAsked(t *testing.T) {
