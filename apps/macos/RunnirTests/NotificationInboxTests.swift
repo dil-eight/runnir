@@ -105,4 +105,12 @@ import Testing
         #expect(text(2 * 86_400) == "2 days ago")
         #expect(text(30 * 86_400) != "30 days ago", "a month back shows the date")
     }
+
+    @Test func theListIsAsTallAsItsRowsUpToFive() {
+        let measured: [String: CGFloat] = ["a": 70, "b": 90, "c": 70, "d": 70, "e": 70, "f": 200]
+        #expect(NotificationList.listHeight(ids: ["a", "b"], measured: measured) == 160, "a short list leaves no space under it")
+        #expect(NotificationList.listHeight(ids: ["a", "b", "c", "d", "e", "f"], measured: measured) == 370, "the sixth row scrolls")
+        #expect(NotificationList.listHeight(ids: ["new"], measured: measured) == NotificationList.estimatedRowHeight,
+                "a row not drawn yet counts as two lines")
+    }
 }

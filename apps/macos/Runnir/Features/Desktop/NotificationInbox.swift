@@ -213,6 +213,20 @@ struct NotificationList: View {
     let openSettings: () -> Void
     /// The entry under the pointer, drawn as the one a click opens.
     @State private var hovered: String?
+    /// Each drawn row's height with its divider: titles and bodies wrap, so
+    /// rows differ.
+    @State private var rowHeights: [String: CGFloat] = [:]
+
+    /// The panel shows this many rows at most; the rest scroll.
+    static let visibleRows = 5
+    /// A row's height before it is drawn: a two-line body.
+    static let estimatedRowHeight: CGFloat = 82
+
+    /// The list's height: its rows up to the fifth, as drawn, so a short list
+    /// leaves no empty space under it.
+    static func listHeight(ids: [String], measured: [String: CGFloat]) -> CGFloat {
+        ids.prefix(visibleRows).reduce(0) { $0 + (measured[$1] ?? estimatedRowHeight) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -239,11 +253,14 @@ struct NotificationList: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(inbox.entries) { entry in
-                            row(entry)
-                            DesignDivider()
+                            VStack(spacing: 0) {
+                                row(entry)
+                                DesignDivider()
+                            }
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { rowHeights[entry.id] = $0 }
                         }
                     }
-                }.frame(maxHeight: 480)
+                }.frame(height: Self.listHeight(ids: inbox.entries.map(\.id), measured: rowHeights))
             }
             DesignDivider()
             Button { openSettings() } label: {
