@@ -15,8 +15,9 @@ Every Runnir build looks the same: a build made in Xcode, a pre-release from a t
 | Where the build is set | One build setting, `RUNNIR_BUILD`, `dev` unless the release workflow passes another value. Xcode derives the bundle ID, the display name and the app icon from it; the app reads it from Info.plist |
 | Release, alpha and beta | One app: bundle ID `io.dil8.runnir`, name Runnir, the same data, Keychain items and sign-in. An alpha is replaced in place by a beta and a beta by a release |
 | Dev | A separate app, Runnir Dev: bundle ID `io.dil8.runnir.dev`, its own data, logs, caches, Keychain items, preferences and notification permission. It runs beside an installed release with its own Core |
-| The app icon | Release: as today. Dev, alpha and beta: a pill on the lower edge of the tile with DEV, ALPHA or BETA, amber, violet and blue |
+| The app icon | Release: as today. Dev, alpha and beta: a pill inside the tile's lower edge with DEV, ALPHA or BETA, amber, violet and blue. The pill never leaves the tile: macOS puts an icon whose shape leaves the rounded tile on a plain backing tile |
 | The menu bar icon | Release: as today. Dev, alpha and beta: a capsule with the word to the right of the glyph, in the menu bar's text color with the word cut out of it. Color keeps meaning the CI state only; the dot stays on the glyph's corner |
+| The windows | Dev only: DEV in an amber capsule, as on its Dock icon, next to the workspace switcher in a workspace window's title strip, beside the logo in the Workspace Manager, before Refresh in the Pull Requests window and after the version on the splash. Alpha, beta and release windows look as today |
 | The domain of names | `io.dil8.runnir`, from dil8.io, the company's domain, for the bundle IDs and every reverse-DNS name: the Keychain services, the notification categories and actions, the in-app notification name and the Core's container label. No name of the earlier domains is kept |
 | Data of earlier builds | No migration (AGENTS.md). The data folder `Runnir` stays with release, alpha and beta; the sign-in, the local run values in Keychain and the preferences of earlier builds are not read again, so the first new build is signed in again. Runnir Dev starts empty |
 
@@ -41,6 +42,7 @@ A new `enum RunnirBuild: String { case dev, alpha, beta, release }` in `App/Runn
 - `static let current` reads `RunnirBuild` from `Bundle.main`'s Info.plist. A missing or unknown value is `dev`, so a build that lost the key shows DEV instead of passing for a release.
 - `init(infoValue: String?)` does the reading, for tests.
 - `mark: String?`: nil for release, else `DEV`, `ALPHA` or `BETA`.
+- `marksWindows: Bool`: true for dev only.
 - `spokenName: String`: `Runnir`, `Runnir Dev`, `Runnir Alpha` or `Runnir Beta`, for VoiceOver.
 - `folderName: String`: `Runnir Dev` for dev, `Runnir` for the others.
 - `keychainPrefix: String`: `io.dil8.runnir.dev` for dev, `io.dil8.runnir` for the others.
@@ -71,9 +73,13 @@ The other reverse-DNS names move to the same domain, the same for every build: t
 
 `MenuBarIcon.accessibilityLabel` begins with the build's `spokenName`, then the states as today ("Runnir Beta, a run failed").
 
+### The windows
+
+`DevBuildBadge` (next to `BrandLogo` in `DesktopViews.swift`) shows DEV when `RunnirBuild.current.marksWindows`, and nothing otherwise: the system font at 10 points, heavy, 0.6 points of tracking, `#14161A` on an `#FBBF24` capsule with 7 by 2 points of padding. VoiceOver reads it as Runnir Dev; its tooltip says the build has its own data and sign-in. It sits after the workspace switcher in a workspace window's title strip, after the logo in the Workspace Manager's header, before Refresh in the Pull Requests window's header, and after the version on the startup splash.
+
 ### The app icon
 
-`scripts/make-app-icon.swift` renders four icon sets into `Assets.xcassets`: `AppIcon`, `AppIcon-Dev`, `AppIcon-Alpha` and `AppIcon-Beta`. The marked sets draw the tile and the mark as today, then a pill on the 1024 canvas: 180 points high, centered, its lower edge 70 points above the canvas's, 60 points of padding each side of the word, a 14-point outline in `#0E0F12`, and the word in the system font, heavy, 112 points, 6 points of tracking, in `#14161A`. Colors: DEV `#FBBF24`, ALPHA `#A78BFA`, BETA `#7C9CFF`. The generated PNGs are committed, as today.
+`scripts/make-app-icon.swift` renders four icon sets into `Assets.xcassets`: `AppIcon`, `AppIcon-Dev`, `AppIcon-Alpha` and `AppIcon-Beta`. The marked sets draw the tile and the mark as today, then a pill on the 1024 canvas: 170 points high, centered, its lower edge 40 points above the tile's (140 above the canvas's), so pill and outline stay inside the tile, 60 points of padding each side of the word, a 14-point outline in `#0E0F12`, and the word in the system font, heavy, 112 points, 6 points of tracking, in `#14161A`. Colors: DEV `#FBBF24`, ALPHA `#A78BFA`, BETA `#7C9CFF`. The generated PNGs are committed, as today.
 
 ## The Core
 
@@ -89,13 +95,13 @@ The label the Core puts on local run containers becomes `io.dil8.runnir.executio
 
 ## States drawn
 
-`S19 / Menu bar icon / Build marks / Dark / 560x640` in journey F, after `S19 / Menu bar icon / Glyph, sizes and CI states`: the app icon of the four builds at 96 and 32 points, the menu bar glyph of the four builds in a light and a dark menu bar, and the four with a failed check.
+`S19 / Menu bar icon / Build marks / Dark / 560x640` in journey F, after `S19 / Menu bar icon / Glyph, sizes and CI states`: the app icon of the four builds at 96 and 32 points, the menu bar glyph of the four builds in a light and a dark menu bar, and the four with a failed check. `S19 / Build marks / DEV in the windows / Dark / 560x640` after it: the DEV capsule in a workspace window's title strip, the Workspace Manager's header, the Pull Requests window's header and the splash.
 
 ## Not in this change
 
 - Developer ID signing and notarization (ADR 0005): its own change, once the certificates and the notarization key exist.
 - Updates from one build to the next, and channels to receive them.
-- The build in window titles, the About panel or Settings.
+- An alpha's or beta's build in its windows, the About panel or Settings.
 - Moving the data of earlier development builds to Runnir Dev.
 
 ## Tests
@@ -103,7 +109,7 @@ The label the Core puts on local run containers becomes `io.dil8.runnir.executio
 Swift (RunnirTests):
 
 - `RunnirBuild(infoValue:)`: each of the four values, nil and an unknown value (dev).
-- Each build's `mark`, `spokenName`, `folderName` and `keychainPrefix`.
+- Each build's `mark`, `spokenName`, `folderName`, `keychainPrefix` and `marksWindows`.
 - `RunnirSupportDirectory`, the Core log URL, the cache folder and the two Keychain services for dev and for release; the UI-testing overrides still win.
 - `KeychainLocalRunValueStore.service(prefix:workspaceID:)` with the new prefix, and the notification identifiers.
 - `ProcessCoreLauncher.arguments` carries `--cache-dir`.
