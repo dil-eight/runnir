@@ -66,19 +66,21 @@ func render(size: Int, buildMark: BuildMark?) -> Data {
     context.draw(markImage, in: CGRect(x: 512 - markWidth / 2, y: 512 - markHeight / 2, width: markWidth, height: markHeight))
 
     if let buildMark {
-        // A pill on the tile's lower edge naming the build: 180 high, its
-        // lower edge 70 above the canvas's, outlined to stand off the tile.
+        // A pill inside the tile's lower edge naming the build: 170 high,
+        // its lower edge 40 above the tile's, outlined to stand off the mark.
+        // It stays within the tile: macOS puts an icon whose shape leaves the
+        // rounded tile on a plain backing tile.
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 112, weight: .heavy), .kern: 6,
             .foregroundColor: NSColor(cgColor: srgb(0x14161A))!,
         ]
         let line = CTLineCreateWithAttributedString(NSAttributedString(string: buildMark.word, attributes: attributes))
         let text = CTLineGetBoundsWithOptions(line, .useOpticalBounds)
-        let pill = CGRect(x: 512 - (text.width + 120) / 2, y: 70, width: text.width + 120, height: 180)
-        context.addPath(CGPath(roundedRect: pill.insetBy(dx: -14, dy: -14), cornerWidth: 104, cornerHeight: 104, transform: nil))
+        let pill = CGRect(x: 512 - (text.width + 120) / 2, y: 140, width: text.width + 120, height: 170)
+        context.addPath(CGPath(roundedRect: pill.insetBy(dx: -14, dy: -14), cornerWidth: 99, cornerHeight: 99, transform: nil))
         context.setFillColor(srgb(0x0E0F12))
         context.fillPath()
-        context.addPath(CGPath(roundedRect: pill, cornerWidth: 90, cornerHeight: 90, transform: nil))
+        context.addPath(CGPath(roundedRect: pill, cornerWidth: 85, cornerHeight: 85, transform: nil))
         context.setFillColor(srgb(buildMark.color))
         context.fillPath()
         context.textPosition = CGPoint(x: pill.midX - text.width / 2 - text.minX, y: pill.midY - text.height / 2 - text.minY)
