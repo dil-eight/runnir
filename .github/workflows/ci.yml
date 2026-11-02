@@ -45,6 +45,10 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: Signing scripts
+        # Their refusals; the signing itself is checked on a Mac and by a tag.
+        run: scripts/test-signing.sh
+
       - name: Build
         run: xcodebuild -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'platform=macOS' build
 
