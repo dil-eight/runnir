@@ -2,7 +2,9 @@ name: Release Build
 
 # The only workflow that keeps build output: the tagged app and Core binaries
 # are published as assets of a draft GitHub release. One job builds them all,
-# so no Actions artifacts are needed to pass files between jobs.
+# so no Actions artifacts are needed to pass files between jobs. The app and
+# the macOS Core binaries are signed with Developer ID and notarized (B48);
+# the credentials live in the release environment, which only v* tags reach.
 on:
   push:
     tags:
@@ -13,11 +15,81 @@ permissions:
 
 jobs:
   build-release:
-    name: Build unsigned release
+    name: Build signed release
     runs-on: macos-26
-    timeout-minutes: 45
+    environment: release
+    timeout-minutes: 90
+    env:
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      APP: build/Runnir.xcarchive/Products/Applications/Runnir.app
     steps:
       - uses: actions/checkout@v7
+
+      - name: Pick the build
+        # v1.2.3 is a release, v1.2.3-alpha.N an alpha and v1.2.3-beta.N a
+        # beta (B47); any other tag stops here instead of shipping unmarked.
+        run: |
+          if [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            build=release icon=AppIcon
+          elif [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]; then
+            build=alpha icon=AppIcon-Alpha
+          elif [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
+            build=beta icon=AppIcon-Beta
+          else
+            echo "::error::Tag $GITHUB_REF_NAME is not vX.Y.Z, vX.Y.Z-alpha.N or vX.Y.Z-beta.N"
+            exit 1
+          fi
+          echo "RUNNIR_BUILD=$build" >> "$GITHUB_ENV"
+          echo "RUNNIR_ICON=$icon" >> "$GITHUB_ENV"
+
+      - name: Check signing credentials
+        # A tag without them fails here instead of publishing unsigned.
+        env:
+          DEVELOPER_ID_P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          missing=""
+          for name in DEVELOPER_ID_P12 DEVELOPER_ID_P12_PASSWORD NOTARY_KEY_P8 NOTARY_KEY_ID NOTARY_ISSUER_ID APPLE_TEAM_ID; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing in the release environment:$missing"
+            exit 1
+          fi
+
+      - name: Set up the signing keychain
+        # A temporary keychain holds the Developer ID certificate for codesign
+        # only, with Apple's Developer ID G2 intermediate to complete its
+        # chain; the notarization key goes to the job's temporary folder.
+        env:
+          DEVELOPER_ID_P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+        run: |
+          umask 077
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(openssl rand -hex 24)
+          echo "::add-mask::$password"
+          security list-keychains -d user | sed 's/^ *"//; s/"$//' > "$RUNNER_TEMP/keychains.txt"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          printf '%s' "$DEVELOPER_ID_P12" | base64 --decode > "$RUNNER_TEMP/developer-id.p12"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -f pkcs12 \
+            -P "$DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/developer-id.p12"
+          curl -fsSL -o "$RUNNER_TEMP/DeveloperIDG2CA.cer" https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
+          set -- "$keychain"
+          while IFS= read -r existing; do set -- "$@" "$existing"; done < "$RUNNER_TEMP/keychains.txt"
+          security list-keychains -d user -s "$@"
+          printf '%s' "$NOTARY_KEY_P8" | base64 --decode > "$RUNNER_TEMP/notary-key.p8"
+          echo "NOTARY_KEY_FILE=$RUNNER_TEMP/notary-key.p8" >> "$GITHUB_ENV"
+          scripts/signing-identity.sh > /dev/null
 
       - name: Select newest Xcode
         # Swift package dependencies (gRPC, SwiftNIO) need Swift 6.2 or newer.
@@ -43,22 +115,18 @@ jobs:
             done
           done
 
-      - name: Pick the build
-        # v1.2.3 is a release, v1.2.3-alpha.N an alpha and v1.2.3-beta.N a
-        # beta (B47); any other tag stops here instead of shipping unmarked.
+      - name: Sign and notarize Core binaries
+        # The two darwin binaries go to Apple in one zip. A bare command-line
+        # binary cannot carry a ticket, so macOS checks it online.
+        env:
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
         run: |
-          if [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            build=release icon=AppIcon
-          elif [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]; then
-            build=alpha icon=AppIcon-Alpha
-          elif [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
-            build=beta icon=AppIcon-Beta
-          else
-            echo "::error::Tag $GITHUB_REF_NAME is not vX.Y.Z, vX.Y.Z-alpha.N or vX.Y.Z-beta.N"
-            exit 1
-          fi
-          echo "RUNNIR_BUILD=$build" >> "$GITHUB_ENV"
-          echo "RUNNIR_ICON=$icon" >> "$GITHUB_ENV"
+          for goarch in arm64 amd64; do
+            scripts/sign-binary.sh "build/export/runnir-${GITHUB_REF_NAME}-darwin-${goarch}" io.dil8.runnir.cli
+          done
+          zip -j "$RUNNER_TEMP/runnir-darwin.zip" build/export/runnir-"${GITHUB_REF_NAME}"-darwin-*
+          scripts/notarize.sh "$RUNNER_TEMP/runnir-darwin.zip"
 
       - name: Build archive
         run: |
@@ -72,13 +140,22 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
       - name: Check the build
-        run: scripts/check-app-build.sh build/Runnir.xcarchive/Products/Applications/Runnir.app com.runnir.app "$RUNNIR_BUILD" "$RUNNIR_ICON"
+        run: scripts/check-app-build.sh "$APP" io.dil8.runnir "$RUNNIR_BUILD" "$RUNNIR_ICON"
+
+      - name: Sign the app
+        run: scripts/sign-app.sh "$APP"
+
+      - name: Notarize and staple the app
+        env:
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/Runnir-notarize.zip"
+          scripts/notarize.sh "$RUNNER_TEMP/Runnir-notarize.zip"
+          scripts/staple-app.sh "$APP"
 
       - name: Package app
-        run: |
-          ditto -c -k --sequesterRsrc --keepParent \
-            build/Runnir.xcarchive/Products/Applications/Runnir.app \
-            build/export/Runnir-${GITHUB_REF_NAME}-unsigned.zip
+        run: ditto -c -k --sequesterRsrc --keepParent "$APP" "build/export/Runnir-${GITHUB_REF_NAME}.zip"
 
       - name: Publish draft release
         env:
@@ -90,12 +167,12 @@ jobs:
           fi
 
           gh release create "${GITHUB_REF_NAME}" \
-            build/export/Runnir-${GITHUB_REF_NAME}-unsigned.zip \
+            "build/export/Runnir-${GITHUB_REF_NAME}.zip" \
             build/export/runnir-* \
             --draft \
             ${prerelease_flag} \
             --title "Runnir ${GITHUB_REF_NAME}" \
-            --notes "Unsigned bootstrap build. Production releases require Developer ID signing and notarization."
+            --notes "Runnir.app and the macOS command-line binaries are signed with Developer ID and notarized by Apple. The Linux and Windows binaries are not signed."
 
       - name: Check release assets
         # Downloads every asset back from the release and compares it with
@@ -107,3 +184,16 @@ jobs:
           gh release download "${GITHUB_REF_NAME}" --dir "$RUNNER_TEMP/downloaded"
           (cd "$RUNNER_TEMP/downloaded" && shasum -a 256 -c "$RUNNER_TEMP/built.sha256")
           test "$(ls "$RUNNER_TEMP/downloaded" | wc -l)" -eq "$(wc -l < "$RUNNER_TEMP/built.sha256")"
+
+      - name: Clean up signing
+        # Whatever happened before: the keychain search list as it was, the
+        # temporary keychain and the key files gone.
+        if: always()
+        run: |
+          if [ -s "$RUNNER_TEMP/keychains.txt" ]; then
+            set --
+            while IFS= read -r existing; do set -- "$@" "$existing"; done < "$RUNNER_TEMP/keychains.txt"
+            security list-keychains -d user -s "$@"
+          fi
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/notary-key.p8"
