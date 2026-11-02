@@ -29,6 +29,7 @@ enum RunnirPalette: UInt32, Sendable {
     case amber700 = 0xA16207
     case red400 = 0xF87171
     case red700 = 0xB91C1C
+    case pink400 = 0xF472B6
 
     var nsColor: NSColor {
         NSColor(srgbRed: Double((rawValue >> 16) & 255) / 255,

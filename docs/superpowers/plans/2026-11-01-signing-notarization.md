@@ -837,23 +837,42 @@ git commit -m "CI: the release workflow signs and notarizes tagged builds (B48)"
 
 ---
 
+### Task 4a: The local build (added 2026-11-02)
+
+A signed build made on a Mac must not look like a tagged one. It gets its own build, `local`: Runnir Local, `io.dil8.runnir.local`, a pink LOCAL mark (`#F472B6`) on the app icon, in the menu bar and in its windows, and its own folders and Keychain items, as Runnir Dev has.
+
+**Files:**
+- Modify: `apps/macos/Runnir/App/RunnirBuild.swift` (`case local`; dev and local are apps of their own)
+- Modify: `apps/macos/Runnir/DesignSystem/Theme/RunnirTheme.swift` (`pink400 = 0xF472B6`)
+- Modify: `apps/macos/Runnir/Features/Desktop/DesktopViews.swift`, `PullRequestsViews.swift` (`DevBuildBadge` becomes `BuildBadge`: amber DEV or pink LOCAL)
+- Modify: `apps/macos/Runnir.xcodeproj/project.pbxproj` (`RUNNIR_APPICON_local`, `RUNNIR_BUNDLE_SUFFIX_local`, `RUNNIR_DISPLAY_NAME_local`), `apps/macos/Runnir/Info.plist` (comment)
+- Modify: `scripts/make-app-icon.swift`; Create: `apps/macos/Runnir/Assets.xcassets/AppIcon-Local.appiconset`
+- Test: `apps/macos/RunnirTests/RunnirBuildTests.swift`, `PullRequestsTests.swift`
+- Docs: the spec ("The local build"), the B47 spec's note, the docs that name Runnir Dev's folders and Keychain services, `runnir.pen` (`S19 / Menu bar icon / Build marks` and `S19 / Build marks / DEV and LOCAL in the windows`)
+
+- [x] **Step 1:** The tests expect five builds: `local` reads from Info.plist, marks LOCAL, is spoken as Runnir Local, keeps the `Runnir Local` folders and the `io.dil8.runnir.local` Keychain prefix, and marks its windows; the menu bar test covers it.
+- [x] **Step 2:** `RunnirBuild`, the palette, `BuildBadge`, the build settings and the icon set (`swift scripts/make-app-icon.swift`; the other sets do not change).
+- [x] **Step 3:** `RunnirTests` pass.
+
+---
+
 ### Task 5: The whole path on a Mac
 
-No files change. This checks the scripts end to end with the Developer ID certificate in the login keychain and the `runnir-notary` profile, on a Release archive of a beta build. Write down what passed and the date: Task 6 states exactly that, no more.
+This checks the scripts end to end with the Developer ID certificate in the login keychain and the `runnir-notary` profile, on a Release archive of a local build (`RUNNIR_BUILD=local`, see "The local build" in the spec). Write down what passed and the date: Task 6 states exactly that, no more.
 
-The beta build is `io.dil8.runnir`, so it uses the release folders (`~/Library/Application Support/Runnir`, `~/Library/Logs/Runnir`) and Keychain items. Data from earlier development builds there may be discarded (AGENTS.md: no backward compatibility before the first release tag).
+The local build is Runnir Local, `io.dil8.runnir.local`, with its own folders (`~/Library/Application Support/Runnir Local`, `~/Library/Logs/Runnir Local`) and Keychain items, so it never touches an installed Runnir. (The first run of this task, on 2026-11-01 and 2026-11-02, used a beta build and passed Steps 1 to 4; a beta signed on a Mac looks exactly like a tagged one, so the check moved to the local build, Task 4a.)
 
-- [ ] **Step 1: Build and check a beta Release archive**
+- [ ] **Step 1: Build and check a local Release archive**
 
 ```bash
-xcodebuild archive -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'generic/platform=macOS' -archivePath "$PWD/build/signing/Runnir.xcarchive" MARKETING_VERSION=0.0.0 RUNNIR_BUILD=beta CODE_SIGNING_ALLOWED=NO
+xcodebuild archive -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'generic/platform=macOS' -archivePath "$PWD/build/signing/Runnir.xcarchive" MARKETING_VERSION=0.0.0 RUNNIR_BUILD=local CODE_SIGNING_ALLOWED=NO
 ```
 
 ```bash
-scripts/check-app-build.sh build/signing/Runnir.xcarchive/Products/Applications/Runnir.app io.dil8.runnir beta AppIcon-Beta
+scripts/check-app-build.sh build/signing/Runnir.xcarchive/Products/Applications/Runnir.app io.dil8.runnir.local local AppIcon-Local
 ```
 
-Expected: `** ARCHIVE SUCCEEDED **`, then `CFBundleIdentifier: io.dil8.runnir`, `RunnirBuild: beta`, `CFBundleIconName: AppIcon-Beta`.
+Expected: `** ARCHIVE SUCCEEDED **`, then `CFBundleIdentifier: io.dil8.runnir.local`, `RunnirBuild: local`, `CFBundleIconName: AppIcon-Local`.
 
 - [ ] **Step 2: Sign and check the app**
 
@@ -915,11 +934,11 @@ Expected: the version is printed; no "cannot be opened" dialog.
 xattr -w com.apple.quarantine "0081;$(printf %x "$(date +%s)");Safari;" "$APP" && open "$APP"
 ```
 
-Expected: macOS says Runnir was downloaded from the internet and that Apple checked it for malicious software; Open starts it. No "cannot be opened" or "unidentified developer" dialog. The app icon and menu bar show BETA.
+Expected: macOS says Runnir Local was downloaded from the internet and that Apple checked it for malicious software; Open starts it. No "cannot be opened" or "unidentified developer" dialog. The app icon, the menu bar and the windows show LOCAL.
 
 - [ ] **Step 6: The signed app works under the hardened runtime**
 
-By hand, with the user, in the opened beta:
+By hand, with the user, in the opened Runnir Local:
 
 1. Sign in to GitHub (Device Flow). Quit with ⌘Q, open the app again: still signed in, no Keychain prompt.
 2. Add a workspace for a folder with workflows (for example this repository): its workflow files are listed and open in the editor.
@@ -935,7 +954,7 @@ Expected: one process whose path is inside `build/signing/…/Runnir.app`.
 
 - [ ] **Step 7: Clean up**
 
-Quit the beta. Remove `build/signing` (it is ignored by git) and run `unset APPLE_TEAM_ID NOTARY_PROFILE APP`.
+Quit Runnir Local. Remove `build/signing` (it is ignored by git) and run `unset APPLE_TEAM_ID NOTARY_PROFILE APP`.
 
 ---
 
@@ -969,7 +988,7 @@ In the spec:
 In the built list (above `## Planned`), after the bullet that starts `- Swift 6 with strict concurrency`, add:
 
 ```markdown
-- Tagged builds signed with Developer ID and notarized by the release workflow: Runnir.app with its helpers, and the macOS Core binaries (B48). Checked on a Mac with a beta build on <date>; not yet run from a tag.
+- Tagged builds signed with Developer ID and notarized by the release workflow: Runnir.app with its helpers, and the macOS Core binaries (B48). Checked on a Mac with a local build (Runnir Local) on <date>; not yet run from a tag.
 ```
 
 In `## Planned`, replace `- Distribution work: Developer ID signing, notarization, packaging and secure automatic updates; completion is not claimed.` with:
@@ -983,9 +1002,10 @@ In `## Releases`, replace the paragraph that starts `The release workflow builds
 ````markdown
 The release workflow runs in the GitHub environment `release`, which only `v*` tags reach. It builds the app and the Core binaries, signs Runnir.app (with `runnir-core` and `act` inside) and the macOS Core binaries with Developer ID, the hardened runtime and a secure timestamp, has Apple notarize them, staples the app and attaches `Runnir-<tag>.zip` and the binaries to a draft release; after it uploads them it downloads them back and checks their SHA-256 against the built files. A tag fails, naming what is missing, when one of the secrets `DEVELOPER_ID_P12`, `DEVELOPER_ID_P12_PASSWORD`, `NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID` or the variable `APPLE_TEAM_ID` is not set. The Linux and Windows binaries are not signed. Release assets are the only build output CI keeps: pull request and `main` runs build and check the app and Core but upload no Actions artifacts, and no workflow saves Actions caches. Release notes, packaging beyond a zip and automatic updates remain planned.
 
-The same scripts sign and notarize a local archive, with the Developer ID certificate in the login keychain and a `notarytool` keychain profile (`xcrun notarytool store-credentials`). The team ID comes from the environment and is never written into the repository:
+The same scripts sign and notarize a local archive, with the Developer ID certificate in the login keychain and a `notarytool` keychain profile (`xcrun notarytool store-credentials`). Archive it as a local build: Runnir Local (`io.dil8.runnir.local`) is an app of its own with a pink LOCAL mark and its own data and sign-in, so it is never taken for a tagged build and never touches an installed Runnir. The team ID comes from the environment and is never written into the repository:
 
 ```bash
+xcodebuild archive -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'generic/platform=macOS' -archivePath "$PWD/build/Runnir.xcarchive" RUNNIR_BUILD=local CODE_SIGNING_ALLOWED=NO
 export APPLE_TEAM_ID=<team ID> NOTARY_PROFILE=<profile> APP=build/Runnir.xcarchive/Products/Applications/Runnir.app
 scripts/sign-app.sh "$APP"
 ditto -c -k --keepParent "$APP" build/Runnir-notarize.zip
@@ -1001,13 +1021,13 @@ With several valid Developer ID identities of the team, set `SIGNING_IDENTITY` t
 In `## Progress`, after the `| B47 |` row, add (adjust the checked part to Task 5):
 
 ```markdown
-| B48 | Tagged builds are signed and notarized ([spec](../superpowers/specs/2026-11-01-signing-notarization-design.md)): the release workflow runs in the `release` environment (tags `v*` only), signs Runnir.app inside out (Frameworks, `runnir-core`, `act`, the app) and the darwin Core binaries with Developer ID, the hardened runtime and a secure timestamp from a temporary keychain, notarizes them with an App Store Connect API key, staples the app and publishes `Runnir-<tag>.zip`; a missing secret or `APPLE_TEAM_ID` fails the tag; the scripts also run on a Mac, and `scripts/test-signing.sh` checks their refusals in CI; on <date> a beta signed, notarized and stapled on a Mac passed `spctl` as Notarized Developer ID, opened from quarantine, kept its sign-in, read a folder and started its Core | A run of the release workflow from a tag |
+| B48 | Tagged builds are signed and notarized ([spec](../superpowers/specs/2026-11-01-signing-notarization-design.md)): the release workflow runs in the `release` environment (tags `v*` only), signs Runnir.app inside out (Frameworks, `runnir-core`, `act`, the app) and the darwin Core binaries with Developer ID, the hardened runtime and a secure timestamp from a temporary keychain, notarizes them with an App Store Connect API key, staples the app and publishes `Runnir-<tag>.zip`; a missing secret or `APPLE_TEAM_ID` fails the tag; the scripts also run on a Mac, and `scripts/test-signing.sh` checks their refusals in CI; on <date> a local build (Runnir Local) signed, notarized and stapled on a Mac passed `spctl` as Notarized Developer ID, opened from quarantine, kept its sign-in, read a folder and started its Core | A run of the release workflow from a tag |
 ```
 
 In `## Prioritized Backlog`, after the `| B47 |` row, add:
 
 ```markdown
-| B48 | P1 / v0.1 | Tagged builds (release, alpha, beta) are signed with Developer ID and notarized: the app with its helpers and the macOS Core binaries ([spec](../superpowers/specs/2026-11-01-signing-notarization-design.md)) | B47, ADR 0005 | Signing and notarization scripts that run on a Mac and in CI; the release workflow in the `release` environment with a temporary keychain; a missing credential fails the tag; `spctl` reports Notarized Developer ID; refusal tests in CI; a signed beta checked on a Mac; the first tag checks the CI path |
+| B48 | P1 / v0.1 | Tagged builds (release, alpha, beta) are signed with Developer ID and notarized: the app with its helpers and the macOS Core binaries ([spec](../superpowers/specs/2026-11-01-signing-notarization-design.md)) | B47, ADR 0005 | Signing and notarization scripts that run on a Mac and in CI; the release workflow in the `release` environment with a temporary keychain; a missing credential fails the tag; `spctl` reports Notarized Developer ID; refusal tests in CI; a signed local build checked on a Mac; the first tag checks the CI path |
 ```
 
 - [ ] **Step 4: ADR 0005 and the gap analysis**
@@ -1015,21 +1035,21 @@ In `## Prioritized Backlog`, after the `| B47 |` row, add:
 Replace the body of `## Not Yet Verified` in ADR 0005 with:
 
 ```markdown
-A build signed by the release workflow from a tag. On <date> a beta build signed with Developer ID by the same scripts on a Mac, notarized and stapled (B48), passed `spctl` as Notarized Developer ID, opened from quarantine, kept its GitHub sign-in in Keychain across a relaunch, read a chosen folder and started its Core under the hardened runtime. The data-protection keychain is not adopted.
+A build signed by the release workflow from a tag. On <date> a local build (Runnir Local) signed with Developer ID by the same scripts on a Mac, notarized and stapled (B48), passed `spctl` as Notarized Developer ID, opened from quarantine, kept its GitHub sign-in in Keychain across a relaunch, read a chosen folder and started its Core under the hardened runtime. The data-protection keychain is not adopted.
 ```
 
 In `docs/architecture/gap-analysis.md`:
 - Replace the `| Release (B17) |` row with:
 
 ```markdown
-| Release (B17) | Partly implemented | `Release Build` workflow signs the app and the macOS Core binaries with Developer ID, notarizes them and creates draft release assets on version tags (B48); a signed beta checked on a Mac | A run of the signing path from a tag, an updater, the license decision and the end-to-end acceptance checklist; no distribution claim until then |
+| Release (B17) | Partly implemented | `Release Build` workflow signs the app and the macOS Core binaries with Developer ID, notarizes them and creates draft release assets on version tags (B48); a signed local build checked on a Mac | A run of the signing path from a tag, an updater, the license decision and the end-to-end acceptance checklist; no distribution claim until then |
 ```
 
 - In the `- **Not present:**` line, replace `a signed build.` with `a signed build from the release workflow.`
 - Replace the `| No Developer ID signed, notarized build |` row with:
 
 ```markdown
-| No signed build from a tag yet | FR-01, FR-05, FR-06, B17 | Push the first tag and check the release workflow's signed, notarized app; repeat the folder-grant, process and container checks on it (a beta signed on a Mac passed the Keychain, folder and Core checks, B48). No updater claim before |
+| No signed build from a tag yet | FR-01, FR-05, FR-06, B17 | Push the first tag and check the release workflow's signed, notarized app; repeat the folder-grant, process and container checks on it (a local build signed on a Mac passed the Keychain, folder and Core checks, B48). No updater claim before |
 ```
 
 - [ ] **Step 5: The full check**
@@ -1056,7 +1076,7 @@ xcodebuild -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'pla
 grep -rn -e "$(gh variable get APPLE_TEAM_ID --env release --repo dil-eight/runnir)" --exclude-dir=.git --exclude-dir=build . || echo "team ID not in the repository"
 ```
 
-Expected: `All signing script checks passed`; no shellcheck or actionlint output; `** BUILD SUCCEEDED **`; `team ID not in the repository`. No Swift or Go code changed, so the unit tests and `go test` are not needed; run them anyway if anything outside `scripts/`, `.github/` and `docs/` changed.
+Expected: `All signing script checks passed`; no shellcheck or actionlint output; `** BUILD SUCCEEDED **`; `team ID not in the repository`. The local build (Task 4a) changed Swift, so run the unit tests too (`xcodebuild … test -only-testing:RunnirTests`); no Go code changed.
 
 - [ ] **Step 6: Commit**
 

@@ -8,17 +8,18 @@ import Testing
         #expect(RunnirBuild(infoValue: "alpha") == .alpha)
         #expect(RunnirBuild(infoValue: "beta") == .beta)
         #expect(RunnirBuild(infoValue: "dev") == .dev)
+        #expect(RunnirBuild(infoValue: "local") == .local)
         #expect(RunnirBuild(infoValue: nil) == .dev, "a build that lost the key is not taken for a release")
         #expect(RunnirBuild(infoValue: "$(RUNNIR_BUILD)") == .dev)
         #expect(RunnirBuild(infoValue: "Release") == .dev)
     }
 
     @Test func eachBuildNamesItself() {
-        #expect(RunnirBuild.allCases.map(\.mark) == ["DEV", "ALPHA", "BETA", nil])
-        #expect(RunnirBuild.allCases.map(\.spokenName) == ["Runnir Dev", "Runnir Alpha", "Runnir Beta", "Runnir"])
-        #expect(RunnirBuild.allCases.map(\.folderName) == ["Runnir Dev", "Runnir", "Runnir", "Runnir"])
-        #expect(RunnirBuild.allCases.map(\.keychainPrefix) == ["com.runnir.app.dev", "com.runnir.app", "com.runnir.app", "com.runnir.app"])
-        #expect(RunnirBuild.allCases.map(\.marksWindows) == [true, false, false, false], "only dev says so in its windows")
+        #expect(RunnirBuild.allCases.map(\.mark) == ["DEV", "LOCAL", "ALPHA", "BETA", nil])
+        #expect(RunnirBuild.allCases.map(\.spokenName) == ["Runnir Dev", "Runnir Local", "Runnir Alpha", "Runnir Beta", "Runnir"])
+        #expect(RunnirBuild.allCases.map(\.folderName) == ["Runnir Dev", "Runnir Local", "Runnir", "Runnir", "Runnir"])
+        #expect(RunnirBuild.allCases.map(\.keychainPrefix) == ["com.runnir.app.dev", "com.runnir.app.local", "com.runnir.app", "com.runnir.app", "com.runnir.app"])
+        #expect(RunnirBuild.allCases.map(\.marksWindows) == [true, true, false, false, false], "dev and local say so in their windows")
     }
 
     @Test func theTestHostIsADevBuild() {
@@ -30,18 +31,21 @@ import Testing
 }
 
 @Suite struct BuildFolderTests {
-    @Test func devKeepsItsOwnFolders() throws {
+    @Test func devAndLocalKeepTheirOwnFolders() throws {
         #expect(try RunnirSupportDirectory.url(build: .dev).lastPathComponent == "Runnir Dev")
+        #expect(try RunnirSupportDirectory.url(build: .local).lastPathComponent == "Runnir Local")
         #expect(try RunnirSupportDirectory.url(build: .release).lastPathComponent == "Runnir")
         #expect(try RunnirSupportDirectory.url(build: .beta).deletingLastPathComponent().lastPathComponent == "Application Support")
         #expect(CoreProcessSupervisor.logURL(for: .dev)?.path.hasSuffix("/Library/Logs/Runnir Dev/core.log") == true)
         #expect(CoreProcessSupervisor.logURL(for: .alpha)?.path.hasSuffix("/Library/Logs/Runnir/core.log") == true)
         #expect(CoreProcessSupervisor.cacheURL(for: .dev)?.path.hasSuffix("/Library/Caches/Runnir Dev") == true)
+        #expect(CoreProcessSupervisor.logURL(for: .local)?.path.hasSuffix("/Library/Logs/Runnir Local/core.log") == true)
         #expect(CoreProcessSupervisor.cacheURL(for: .release)?.path.hasSuffix("/Library/Caches/Runnir") == true)
     }
 
-    @Test func devKeepsItsOwnKeychainItems() {
+    @Test func devAndLocalKeepTheirOwnKeychainItems() {
         #expect(KeychainCredentialStore.service(for: .dev) == "com.runnir.app.dev.github")
+        #expect(KeychainCredentialStore.service(for: .local) == "com.runnir.app.local.github")
         #expect(KeychainCredentialStore.service(for: .release) == "com.runnir.app.github")
         #expect(KeychainLocalRunValueStore.prefix(for: .dev) == "com.runnir.app.dev.local-run")
         #expect(KeychainLocalRunValueStore.prefix(for: .beta) == "com.runnir.app.local-run")
