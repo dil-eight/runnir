@@ -122,6 +122,19 @@ identities "$one:$team" "$two:$team"
 check "sign-app: several identities" 1 "set SIGNING_IDENTITY to one SHA-1" \
     env APPLE_TEAM_ID=$team "$here/sign-app.sh" "$tmp/Fake.app"
 
+# notarize.sh and staple-app.sh
+touch "$tmp/key.p8"
+check "notarize: no credentials" 1 "set NOTARY_PROFILE, or NOTARY_KEY_FILE, NOTARY_KEY_ID and NOTARY_ISSUER_ID" \
+    "$here/notarize.sh" "$tmp/adhoc"
+check "notarize: a missing key ID is named" 1 "Missing: NOTARY_KEY_ID" \
+    env NOTARY_KEY_FILE="$tmp/key.p8" NOTARY_ISSUER_ID=issuer "$here/notarize.sh" "$tmp/adhoc"
+check "notarize: missing key file" 1 "NOTARY_KEY_FILE $tmp/missing.p8 does not exist" \
+    env NOTARY_KEY_FILE="$tmp/missing.p8" NOTARY_KEY_ID=key NOTARY_ISSUER_ID=issuer "$here/notarize.sh" "$tmp/adhoc"
+check "notarize: missing file" 1 "$tmp/missing.zip does not exist" \
+    env NOTARY_PROFILE=profile "$here/notarize.sh" "$tmp/missing.zip"
+check "staple: not an app" 1 "$tmp is not an app bundle" \
+    "$here/staple-app.sh" "$tmp"
+
 # Summary
 if [ "$failures" -ne 0 ]; then
     echo "$failures signing script checks failed" >&2
