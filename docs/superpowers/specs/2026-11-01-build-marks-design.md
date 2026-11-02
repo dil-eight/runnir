@@ -65,7 +65,7 @@ The other reverse-DNS names move to the same domain, the same for every build: t
 `MenuBarIcon.image(badge:dimmed:build:)`:
 
 - Release: as today, the template glyph when there is nothing to show.
-- Dev, alpha, beta: the image is the glyph, a 3-point gap and a capsule 11 points high with a 3-point corner radius and 3 points of padding each side. The capsule is drawn in the menu bar's text color, like the glyph with a dot; its word, in the system font at 7.5 points, bold, with 0.4 points of tracking, is cut out of it (`.clear`). The image is not a template and is drawn again for each appearance, as the dot case is now.
+- Dev, alpha, beta: the image is the glyph's area as today (at least 21 by 18 points, where the dot sits), a 2-point gap and a capsule 11 points high with a 3-point corner radius and 3 points of padding each side. The capsule is drawn in the menu bar's text color, like the glyph with a dot; its word, in the system font at 7.5 points, bold, with 0.4 points of tracking, is cut out of it (`.clear`). The image is not a template and is drawn again for each appearance, as the dot case is now.
 - The dot keeps its place and its clear ring on the glyph's lower right corner, never on the capsule.
 - A dimmed glyph (signed out) dims the capsule too.
 
