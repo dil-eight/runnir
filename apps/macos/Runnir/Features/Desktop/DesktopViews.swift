@@ -212,6 +212,7 @@ struct WorkspaceManagerView: View {
         .tint(RunnirTheme.primary)
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: DesktopCoordinator.managerWindowID)
+        .dropdownHost()
     }
 }
 
@@ -246,13 +247,18 @@ private struct WorkspaceRegistryRow: View {
                     Text(action).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
             }.frame(width: 112)
-            Menu {
-                Button("Open New Window") { desktop.openRegistered(workspace) }
-                Button("Locate / Grant Access...") { desktop.importRepository(relinkID: workspace.id) }
-                Button("Remove Registration", role: .destructive) { desktop.removeRegistration(workspace) }.disabled(count > 0)
+            DropdownMenu(alignment: .trailing) {
+                DropdownItem("Open New Window") { desktop.openRegistered(workspace) }
+                DropdownItem("Locate / Grant Access...") { desktop.importRepository(relinkID: workspace.id) }
+                DropdownDivider()
+                DropdownItem("Remove Registration", destructive: true) { desktop.removeRegistration(workspace) }.disabled(count > 0)
                     .help("Forget this workspace in Runnir and delete its saved activity and local run history on this Mac. The repository's files stay.")
-            } label: { Image(systemName: "ellipsis") }
-            .menuStyle(.button).buttonStyle(.plain).pointerStyle(.link).menuIndicator(.hidden).fixedSize().help("Workspace actions")
+            } label: { open in
+                Image(systemName: "ellipsis").frame(width: 26, height: 26)
+                    .background(open ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.hit).help("Workspace actions").accessibilityLabel("Workspace actions")
             Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(hovering ? RunnirTheme.secondaryForeground : RunnirTheme.mutedForeground)
         }
@@ -658,6 +664,7 @@ struct DesktopWorkspaceView: View {
         }
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: windowID)
+        .dropdownHost()
         .sheet(isPresented: $reportingBug) {
             BugReportSheet(draft: BugReportDraft.current(coreVersion: desktop.core?.status.coreVersion))
         }
@@ -924,30 +931,32 @@ struct DesktopWorkspaceView: View {
         HStack(spacing: 10) {
             Text(state.selectedSection.title).font(.system(size: 15, weight: .semibold))
             if state.selectedSection == .workspace {
-                Menu {
+                DropdownMenu {
                     ForEach(desktop.favorites.ordered(files.files, workspaceID: workspace.id, path: \.relativePath)) { file in
-                        Button(menuTitle(file)) { open(file) }
+                        DropdownItem(menuTitle(file), checked: file == files.selected) { open(file) }
                     }
-                    if !files.files.isEmpty { Divider() }
-                    Button("New Workflow File...") { askForFileName(.create) }
+                    if !files.files.isEmpty { DropdownDivider() }
+                    DropdownItem("New Workflow File...") { askForFileName(.create) }
                         .disabled(!canValidate)
                         .help(canValidate ? "Add a workflow file to .github/workflows" : "Files are created by Runnir Core, which has not opened this repository yet")
                     if let file = files.selected {
-                        Button("Rename \(file.name)...") { askForFileName(.rename(file)) }
+                        DropdownItem("Rename \(file.name)...") { askForFileName(.rename(file)) }
                             .disabled(!canValidate || files.isSaving || files.isLoadingSource)
                             .help(renameHelp)
                     }
-                } label: {
+                } label: { open in
                     HStack(spacing: 6) {
                         Image(systemName: "doc.text")
                         Text(files.selected?.name ?? "No workflow").lineLimit(1)
                         Image(systemName: "chevron.down").font(.system(size: 9))
+                            .rotationEffect(.degrees(open ? 180 : 0))
                     }.font(.system(size: 12)).frame(maxWidth: 150)
                         .padding(.horizontal, 10).frame(height: 26)
+                        .background(open ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
                         // The whole framed button opens the menu, not only its text.
                         .contentShape(RoundedRectangle(cornerRadius: 6))
-                }.menuStyle(.button).buttonStyle(.plain).pointerStyle(.link).menuIndicator(.hidden).fixedSize().disabled(reader == nil)
+                }.buttonStyle(.hit).fixedSize().disabled(reader == nil)
                 editorStatus
             }
             Spacer(minLength: 4)

@@ -569,6 +569,7 @@ struct RunWorkflowSheet: View {
         .frame(width: 540)
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
+        .dropdownHost()
         .task { await model.load() }
         .githubAccessAlert(Binding(get: { model.accessHelp }, set: { model.accessHelp = $0 }), github: github)
         .alert(presetPrompt == .rename ? "Rename Preset" : "Save Preset", isPresented: Binding(
@@ -601,36 +602,34 @@ struct RunWorkflowSheet: View {
     @ViewBuilder private var presetControl: some View {
         if let presets = model.presets {
             LabeledContent("Preset") {
-                Menu {
+                DropdownMenu {
                     if model.repositoryPresets.isEmpty {
                         ForEach(model.availablePresets) { presetButton($0) }
                     } else {
-                        Section("In This Repository") {
-                            ForEach(model.repositoryPresets) { presetButton($0) }
-                        }
+                        DropdownHeader("In This Repository")
+                        ForEach(model.repositoryPresets) { presetButton($0) }
                         if !model.availablePresets.isEmpty {
-                            Section("On This Mac") {
-                                ForEach(model.availablePresets) { presetButton($0) }
-                            }
+                            DropdownHeader("On This Mac")
+                            ForEach(model.availablePresets) { presetButton($0) }
                         }
                     }
-                    if !model.availablePresets.isEmpty || !model.repositoryPresets.isEmpty { Divider() }
-                    Button("Save as New Preset...") { presetName = ""; presetPrompt = .save }.disabled(!model.canSavePreset)
+                    if !model.availablePresets.isEmpty || !model.repositoryPresets.isEmpty { DropdownDivider() }
+                    DropdownItem("Save as New Preset...") { presetName = ""; presetPrompt = .save }.disabled(!model.canSavePreset)
                     if let applied = model.appliedPreset {
                         if model.appliedPresetIsShared {
-                            Text("Edit \(model.appliedPresetFile ?? ".runnir/launches") to change this preset")
+                            DropdownNote("Edit \(model.appliedPresetFile ?? ".runnir/launches") to change this preset")
                         } else {
-                            Button("Update \"\(applied.name)\"") { model.updateAppliedPreset() }
+                            DropdownItem("Update \"\(applied.name)\"") { model.updateAppliedPreset() }
                                 .disabled(!model.canSavePreset || !model.presetIsModified)
-                            Button("Rename \"\(applied.name)\"...") { presetName = applied.name; presetPrompt = .rename }
-                            Button("Delete \"\(applied.name)\"...", role: .destructive) { confirmingDelete = true }
+                            DropdownItem("Rename \"\(applied.name)\"...") { presetName = applied.name; presetPrompt = .rename }
+                            DropdownItem("Delete \"\(applied.name)\"...", destructive: true) { confirmingDelete = true }
                         }
                     }
-                } label: {
+                } label: { _ in
                     Label(presetTitle, systemImage: "bookmark")
                 }
+                .buttonStyle(DesignButtonStyle())
                 .fixedSize()
-                .handPointer()
                 .disabled(!model.canChoosePreset)
             }
             if let problem = presets.problem {
@@ -647,22 +646,22 @@ struct RunWorkflowSheet: View {
         if model.workspaceID != nil {
             LabeledContent("History") {
                 HStack(spacing: 8) {
-                    Menu {
+                    DropdownMenu {
                         ForEach(model.history.prefix(15)) { record in
-                            Button { model.applyHistory(record) } label: { Text(DispatchHistory.menuTitle(record)) }
+                            DropdownItem(DispatchHistory.menuTitle(record)) { model.applyHistory(record) }
                                 .help(DispatchHistory.leftOut(record) ?? "Fills the form with these values; nothing is sent")
                         }
                         if !model.history.isEmpty {
-                            Divider()
-                            Button("Clear history...", role: .destructive) { confirmingClear = true }
+                            DropdownDivider()
+                            DropdownItem("Clear history...", destructive: true) { confirmingClear = true }
                         }
-                    } label: {
+                    } label: { _ in
                         Label(model.history.isEmpty ? "Nothing sent from Runnir yet" : "Earlier runs", systemImage: "clock.arrow.circlepath")
                     }
-                    .fixedSize().handPointer().disabled(model.history.isEmpty)
+                    .buttonStyle(DesignButtonStyle()).fixedSize().disabled(model.history.isEmpty)
                     Button("Compare...") { comparing = true }
                         .buttonStyle(.link).handPointer().disabled(model.history.count < 2)
-                        .popover(isPresented: $comparing) { DispatchComparisonView(records: model.history) }
+                        .dropdown(isPresented: $comparing) { DispatchComparisonView(records: model.history) }
                 }
             }
             .confirmationDialog("Clear the dispatch history?", isPresented: $confirmingClear, titleVisibility: .visible) {
@@ -678,10 +677,7 @@ struct RunWorkflowSheet: View {
 
 
     private func presetButton(_ preset: DispatchPreset) -> some View {
-        // No hand pointer: an item of the preset menu.
-        Button { model.apply(preset) } label: {
-            if preset.id == model.appliedPresetID { Label(preset.name, systemImage: "checkmark") } else { Text(preset.name) }
-        }
+        DropdownItem(preset.name, checked: preset.id == model.appliedPresetID) { model.apply(preset) }
     }
 
     private var presetTitle: String {
@@ -719,15 +715,18 @@ struct RunWorkflowSheet: View {
             if model.workflows.isEmpty {
                 Text("No active workflows on GitHub for this repository.").foregroundStyle(RunnirTheme.secondaryForeground)
             }
-            Picker("Workflow", selection: Binding(get: { model.selectedWorkflowID ?? -1 }, set: { model.select(workflowID: $0) })) {
-                ForEach(model.workflows) { workflow in Text(workflow.name).tag(workflow.id) }
-            }.handPointer().disabled(model.workflows.isEmpty)
+            LabeledContent("Workflow") {
+                DropdownPicker("Workflow", selection: Binding(get: { model.selectedWorkflowID ?? -1 }, set: { model.select(workflowID: $0) }),
+                               options: model.workflows.map { .init(value: $0.id, title: $0.name) })
+                    .disabled(model.workflows.isEmpty)
+            }
             if let refs = model.refs {
                 if refs.access == .ok {
-                    Picker("Branch or tag", selection: Binding(get: { model.ref }, set: { model.select(ref: $0) })) {
-                        Section("Branches") { ForEach(refs.branches, id: \.self) { Text($0).tag($0) } }
-                        if !refs.tags.isEmpty { Section("Tags") { ForEach(refs.tags, id: \.self) { Text($0).tag($0) } } }
-                    }.handPointer()
+                    LabeledContent("Branch or tag") {
+                        DropdownPicker("Branch or tag", selection: Binding(get: { model.ref }, set: { model.select(ref: $0) }),
+                                       options: refs.branches.map { .init(value: $0, title: $0, section: "Branches") }
+                                           + refs.tags.map { .init(value: $0, title: $0, section: "Tags") })
+                    }
                 } else {
                     Text(DispatchFormModel.describe(refs.access)).foregroundStyle(RunnirTheme.warning)
                 }
@@ -776,9 +775,9 @@ struct RunWorkflowSheet: View {
                     Text(input.name)
                 }.toggleStyle(.checkbox).pointerStyle(.link)
             case .choice:
-                Picker(input.name + (input.required ? " *" : ""), selection: binding) {
-                    ForEach(input.options, id: \.self) { Text($0).tag($0) }
-                }.handPointer()
+                LabeledContent(input.name + (input.required ? " *" : "")) {
+                    DropdownPicker(input.name, selection: binding, options: input.options.map { .init(value: $0, title: $0) })
+                }
             default:
                 LabeledContent(input.name + (input.required ? " *" : "")) {
                     TextField(input.defaultValue.isEmpty ? (input.kind == .number ? "Number" : "Value") : input.defaultValue, text: binding)
@@ -859,12 +858,12 @@ private struct DispatchComparisonView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("First", selection: $firstID) {
-                ForEach(records) { Text(DispatchHistory.menuTitle($0)).tag($0.id) }
-            }.handPointer()
-            Picker("Second", selection: $secondID) {
-                ForEach(records) { Text(DispatchHistory.menuTitle($0)).tag($0.id) }
-            }.handPointer()
+            LabeledContent("First") {
+                DropdownPicker("First", selection: $firstID, options: records.map { .init(value: $0.id, title: DispatchHistory.menuTitle($0)) })
+            }
+            LabeledContent("Second") {
+                DropdownPicker("Second", selection: $secondID, options: records.map { .init(value: $0.id, title: DispatchHistory.menuTitle($0)) })
+            }
             if let first, let second {
                 let rows = DispatchHistory.compare(first, second)
                 Text(DispatchHistory.changedCount(rows) == 0 ? "Everything sent is the same."

@@ -386,15 +386,22 @@ struct RunInspectorView: View {
             Button { } label: { Label("Re-run (finished runs only)", systemImage: "arrow.clockwise") }
                 .buttonStyle(DesignButtonStyle(primary: true)).disabled(true)
         } else if run.canRerunFailedJobs {
-            Menu {
-                Button(CoreRunAction.rerun.title) { Task { await actions.prepare(.rerun, for: run) } }
-            } label: {
-                Label(CoreRunAction.rerunFailed.title, systemImage: "arrow.clockwise")
-            } primaryAction: {
-                Task { await actions.prepare(.rerunFailed, for: run) }
+            HStack(spacing: 4) {
+                Button { Task { await actions.prepare(.rerunFailed, for: run) } } label: {
+                    Label(CoreRunAction.rerunFailed.title, systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(DesignButtonStyle(primary: true))
+                .help("Re-run the failed and cancelled jobs")
+                DropdownMenu(alignment: .trailing) {
+                    DropdownItem(CoreRunAction.rerun.title) { Task { await actions.prepare(.rerun, for: run) } }
+                } label: { _ in
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(DesignButtonStyle(primary: true))
+                .help("Re-run every job")
+                .accessibilityLabel("More re-run choices")
             }
-            .menuStyle(.borderedButton).fixedSize().handPointer().disabled(actions.isBusy)
-            .help("Re-run the failed and cancelled jobs; the menu re-runs every job")
+            .fixedSize().disabled(actions.isBusy)
         } else {
             Button { Task { await actions.prepare(.rerun, for: run) } } label: {
                 Label(CoreRunAction.rerun.title, systemImage: "arrow.clockwise")
