@@ -9,11 +9,14 @@ struct ProcessCoreLauncher: CoreProcessLaunching {
     var logURL: URL? = nil
     /// The app's support folder, where the Core keeps workspace databases.
     var dataDirectory: URL? = nil
+    /// The app's cache folder, where the Core keeps act's clones of actions.
+    var cacheDirectory: URL? = nil
 
     /// The Core's command line.
-    static func arguments(socketPath: String, dataDirectory: URL?) -> [String] {
+    static func arguments(socketPath: String, dataDirectory: URL?, cacheDirectory: URL?) -> [String] {
         var arguments = ["serve", "--socket", socketPath, "--exit-on-stdin-eof", "--client-secret-stdin"]
         if let dataDirectory { arguments += ["--data-dir", dataDirectory.path] }
+        if let cacheDirectory { arguments += ["--cache-dir", cacheDirectory.path] }
         return arguments
     }
 
@@ -24,7 +27,7 @@ struct ProcessCoreLauncher: CoreProcessLaunching {
         let process = Process()
         let stdin = Pipe()
         process.executableURL = executableURL
-        process.arguments = Self.arguments(socketPath: socketPath, dataDirectory: dataDirectory)
+        process.arguments = Self.arguments(socketPath: socketPath, dataDirectory: dataDirectory, cacheDirectory: cacheDirectory)
         // TMPDIR keeps the Core's temporary files in the per-user temporary
         // directory; the reduced environment would otherwise leave Go on /tmp.
         // HOME lets the Core find the user's Docker contexts and its cache for

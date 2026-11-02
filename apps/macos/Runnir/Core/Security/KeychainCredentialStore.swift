@@ -17,10 +17,13 @@ actor KeychainCredentialStore: CredentialStoring {
     /// Sign Out never removes it.
     static var defaultService: String {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return "dev.runnir.github.ui-testing" }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return "io.dil8.runnir.github.ui-testing" }
         #endif
-        return "dev.runnir.github"
+        return service(for: .current)
     }
+
+    /// The build's sign-in service: Runnir Dev keeps its own (B47).
+    static func service(for build: RunnirBuild) -> String { "\(build.keychainPrefix).github" }
 
     func token() async throws -> String? {
         guard let data = try GenericPassword.read(service: service, account: account) else { return nil }

@@ -92,11 +92,11 @@ final class RunNotifier: NSObject, UNUserNotificationCenterDelegate {
     private let defaults: UserDefaults
     /// The category of run notifications: macOS tells the delegate when one
     /// is dismissed, which reads it in the bell too.
-    static let categoryID = "dev.runnir.run"
+    static let categoryID = "io.dil8.runnir.run"
     /// Failed pull request checks also offer Open Run: the failed run, as a
     /// click on the notification opens it.
-    static let failedChecksCategoryID = "dev.runnir.checks.failed"
-    static let openRunActionID = "dev.runnir.open-run"
+    static let failedChecksCategoryID = "io.dil8.runnir.checks.failed"
+    static let openRunActionID = "io.dil8.runnir.open-run"
 
     /// The category a notification is posted in.
     static func category(of notification: RunNotification) -> String {

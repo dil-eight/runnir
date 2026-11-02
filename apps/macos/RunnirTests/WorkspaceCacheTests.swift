@@ -3,12 +3,15 @@ import Testing
 @testable import Runnir
 
 @Suite struct CoreLaunchArgumentTests {
-    @Test func theDataDirectoryIsPassedToTheCore() {
+    @Test func theDataAndCacheFoldersArePassedToTheCore() {
         let arguments = ProcessCoreLauncher.arguments(socketPath: "/tmp/s.sock",
-                                                      dataDirectory: URL(fileURLWithPath: "/Users/me/Library/Application Support/Runnir"))
+                                                      dataDirectory: URL(fileURLWithPath: "/Users/me/Library/Application Support/Runnir Dev"),
+                                                      cacheDirectory: URL(fileURLWithPath: "/Users/me/Library/Caches/Runnir Dev"))
         #expect(arguments == ["serve", "--socket", "/tmp/s.sock", "--exit-on-stdin-eof", "--client-secret-stdin",
-                              "--data-dir", "/Users/me/Library/Application Support/Runnir"])
-        #expect(!ProcessCoreLauncher.arguments(socketPath: "/tmp/s.sock", dataDirectory: nil).contains("--data-dir"))
+                              "--data-dir", "/Users/me/Library/Application Support/Runnir Dev",
+                              "--cache-dir", "/Users/me/Library/Caches/Runnir Dev"])
+        let bare = ProcessCoreLauncher.arguments(socketPath: "/tmp/s.sock", dataDirectory: nil, cacheDirectory: nil)
+        #expect(!bare.contains("--data-dir") && !bare.contains("--cache-dir"))
     }
 }
 
