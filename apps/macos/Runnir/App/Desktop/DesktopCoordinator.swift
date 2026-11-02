@@ -107,6 +107,10 @@ final class DesktopCoordinator {
     @ObservationIgnored var confirmStoppingLocalRuns: @MainActor (LocalRunStopPrompt) -> Bool = LocalRunStopPrompt.ask
     /// Asks before unsaved workflow edits would be lost; tests replace it.
     @ObservationIgnored var confirmUnsavedChanges: @MainActor ([String]) -> UnsavedChoice = UnsavedChangesPrompt.ask(files:)
+    /// Brings the Workspace Manager forward, so a notice about a workspace
+    /// that did not open is seen from the switcher or the menu bar too;
+    /// tests replace it.
+    @ObservationIgnored var revealNotice: @MainActor (DesktopCoordinator) -> Void = { $0.showManager() }
     let accountState = AppState()
     /// The app's connection to the single Core process; nil in tests that do not need it.
     let core: CoreHub?
@@ -369,10 +373,13 @@ final class DesktopCoordinator {
 
     func openRegistered(_ workspace: WorkspaceRecord, reuseWindowID: UUID? = nil) {
         do { try open(workspace, reuseWindowID: reuseWindowID) }
-        catch DesktopStoreError.tooManyWindows { message = Self.tooManyWindowsMessage }
-        catch {
+        catch DesktopStoreError.tooManyWindows {
+            message = Self.tooManyWindowsMessage
+            revealNotice(self)
+        } catch {
             notice = Notice(text: "Runnir can't open \(workspace.name): it has no access to \(WorkspaceSwitcher.abbreviate(workspace.path)) anymore. Locate the folder to give access again; open windows stay as they are.",
                             locate: workspace.id)
+            revealNotice(self)
         }
     }
 
