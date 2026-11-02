@@ -1,9 +1,10 @@
 import AppKit
 
 /// The menu bar item's image (S19): the glyph cut from the logo mark, with a
-/// colored dot for pull request checks and the user's runs. The plain glyph is a template that
-/// macOS tints; with a dot the image draws the glyph in the menu bar's text
-/// color itself, since a template cannot carry a color.
+/// colored dot for pull request checks and the user's runs, and the build's
+/// word in a capsule after it on a build other than a release (B47). The plain
+/// glyph is a template that macOS tints; otherwise the image draws in the menu
+/// bar's text color itself, since a template cannot carry a color.
 enum MenuBarIcon {
     enum Badge: Equatable {
         case none
@@ -39,9 +40,9 @@ enum MenuBarIcon {
         return .none
     }
 
-    /// "Runnir, a run failed, checks running": what the dot stands for.
-    static func accessibilityLabel(checks ci: CorePullRequestCI?, runs: Badge) -> String {
-        var parts = ["Runnir"]
+    /// "Runnir Beta, a run failed, checks running": what the icon stands for.
+    static func accessibilityLabel(checks ci: CorePullRequestCI?, runs: Badge, build: RunnirBuild = .current) -> String {
+        var parts = [build.spokenName]
         switch runs {
         case .failed: parts.append("a run failed")
         case .running: parts.append("runs in progress")
@@ -55,16 +56,34 @@ enum MenuBarIcon {
         return parts.joined(separator: ", ")
     }
 
+    /// The space between the glyph's area and the build's capsule.
+    static let markGap: CGFloat = 2
+    /// The height of the build's capsule.
+    static let markHeight: CGFloat = 11
+    private static let markPadding: CGFloat = 3
+    private static var markAttributes: [NSAttributedString.Key: Any] {
+        [.font: NSFont.systemFont(ofSize: 7.5, weight: .bold), .kern: 0.4, .foregroundColor: NSColor.black]
+    }
+
+    /// The width of the capsule holding `mark`.
+    static func markWidth(_ mark: String) -> CGFloat {
+        ceil((mark as NSString).size(withAttributes: markAttributes).width) + 2 * markPadding
+    }
+
     /// The image for a state; `dimmed` when no account is signed in.
-    static func image(badge: Badge, dimmed: Bool) -> NSImage {
+    static func image(badge: Badge, dimmed: Bool, build: RunnirBuild = .current) -> NSImage {
         let base = glyph
-        guard badge != .none || dimmed else { return base }
+        let mark = build.mark
+        guard badge != .none || dimmed || mark != nil else { return base }
         let dot: NSColor? = switch badge {
         case .failed: failedColor
         case .running: runningColor
         case .none: nil
         }
-        let size = NSSize(width: max(base.size.width, 21), height: max(base.size.height, 18))
+        // The glyph's area, as wide as the dot needs; the capsule follows it.
+        let area = NSSize(width: max(base.size.width, 21), height: max(base.size.height, 18))
+        let capsuleWidth = mark.map(markWidth) ?? 0
+        let size = NSSize(width: area.width + (mark == nil ? 0 : markGap + capsuleWidth), height: area.height)
         let image = NSImage(size: size, flipped: true) { rect in
             // The glyph in the menu bar's text color, drawn for the current
             // appearance each time the item is drawn.
@@ -77,13 +96,27 @@ enum MenuBarIcon {
             glyphRect.fill(using: .sourceAtop)
             NSGraphicsContext.restoreGraphicsState()
             if let dot {
-                let dotRect = NSRect(x: rect.maxX - 7.5, y: rect.maxY - 7, width: 7, height: 7)
+                let dotRect = NSRect(x: area.width - 7.5, y: area.height - 7, width: 7, height: 7)
                 // A ring of clear space keeps the dot apart from the ring.
                 NSGraphicsContext.current?.compositingOperation = .clear
                 NSBezierPath(ovalIn: dotRect.insetBy(dx: -1.5, dy: -1.5)).fill()
                 NSGraphicsContext.current?.compositingOperation = .sourceOver
                 dot.set()
                 NSBezierPath(ovalIn: dotRect).fill()
+            }
+            if let mark {
+                // The capsule in the text color with the word cut out, so it
+                // reads on any menu bar and leaves color to the dot.
+                let capsule = NSRect(x: area.width + Self.markGap, y: (rect.height - Self.markHeight) / 2,
+                                     width: capsuleWidth, height: Self.markHeight)
+                NSGraphicsContext.saveGraphicsState()
+                NSColor.labelColor.withAlphaComponent(dimmed ? 0.45 : 1).set()
+                NSBezierPath(roundedRect: capsule, xRadius: 3, yRadius: 3).fill()
+                NSGraphicsContext.current?.compositingOperation = .destinationOut
+                let text = (mark as NSString).size(withAttributes: Self.markAttributes)
+                (mark as NSString).draw(at: NSPoint(x: capsule.midX - text.width / 2, y: capsule.midY - text.height / 2),
+                                        withAttributes: Self.markAttributes)
+                NSGraphicsContext.restoreGraphicsState()
             }
             return true
         }

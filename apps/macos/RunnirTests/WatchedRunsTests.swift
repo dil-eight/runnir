@@ -138,8 +138,8 @@ struct WatchedRunsTests {
         #expect(MenuBarIcon.badge(for: .running, runs: .none) == .running)
         #expect(MenuBarIcon.badge(for: nil, runs: .running) == .running)
         #expect(MenuBarIcon.badge(for: .passed, runs: .none) == .none)
-        #expect(MenuBarIcon.accessibilityLabel(checks: .running, runs: .failed) == "Runnir, a run failed, checks running")
-        #expect(MenuBarIcon.accessibilityLabel(checks: .passed, runs: .none) == "Runnir")
+        #expect(MenuBarIcon.accessibilityLabel(checks: .running, runs: .failed, build: .release) == "Runnir, a run failed, checks running")
+        #expect(MenuBarIcon.accessibilityLabel(checks: .passed, runs: .none, build: .release) == "Runnir")
     }
 
     @Test func aRowSaysWhatItIsAndWhatAClickDoes() {
