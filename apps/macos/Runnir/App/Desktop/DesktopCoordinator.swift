@@ -31,7 +31,18 @@ extension WorkspaceWindowManaging {
 final class DesktopCoordinator {
     private(set) var snapshot = DesktopSnapshot()
     private(set) var isLoading = true
-    var message: String?
+    /// What the Workspace Manager says, and the workspace whose folder it
+    /// offers to locate again.
+    struct Notice: Equatable {
+        let text: String
+        var locate: UUID?
+    }
+    private(set) var notice: Notice?
+    /// The notice's text. Setting it replaces the notice, Locate included.
+    var message: String? {
+        get { notice?.text }
+        set { notice = newValue.map { Notice(text: $0) } }
+    }
     private(set) var persistenceBlocked = false
     @ObservationIgnored private var store: (any DesktopStateStoring)?
     @ObservationIgnored private var manager: NSWindow?
@@ -280,6 +291,11 @@ final class DesktopCoordinator {
         panel.allowsMultipleSelection = false
         panel.prompt = relinkID == nil ? "Import Repository" : "Locate Repository"
         panel.message = "Choose a local Git working tree. Runnir changes a workflow file in it only when you save that file."
+        // Locating starts in the folder Runnir knew: Locate Repository then
+        // chooses it as it is.
+        if let relinkID, let workspace = snapshot.workspaces.first(where: { $0.id == relinkID }) {
+            panel.directoryURL = URL(fileURLWithPath: workspace.path, isDirectory: true)
+        }
         guard panel.runModal() == .OK, let selected = panel.url else { return }
         register(selected: selected, relinkID: relinkID, reuseWindowID: reuseWindowID)
     }
@@ -354,7 +370,10 @@ final class DesktopCoordinator {
     func openRegistered(_ workspace: WorkspaceRecord, reuseWindowID: UUID? = nil) {
         do { try open(workspace, reuseWindowID: reuseWindowID) }
         catch DesktopStoreError.tooManyWindows { message = Self.tooManyWindowsMessage }
-        catch { message = "Workspace unavailable. Locate the folder to restore access; existing windows are unchanged." }
+        catch {
+            notice = Notice(text: "Runnir can't open \(workspace.name): it has no access to \(WorkspaceSwitcher.abbreviate(workspace.path)) anymore. Locate the folder to give access again; open windows stay as they are.",
+                            locate: workspace.id)
+        }
     }
 
     private func open(_ workspace: WorkspaceRecord, reuseWindowID: UUID? = nil) throws {

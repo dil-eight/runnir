@@ -430,6 +430,25 @@ struct DesktopCoordinatorTests {
         #expect(try fixture.store.load().windows.count == DesktopSnapshot.maxWindows)
     }
 
+    @Test func aFolderWithoutAccessNamesTheWorkspaceAndOffersLocate() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let factory = TestWindowFactory()
+        factory.failGrantOnCall = 1
+        let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant,
+                                             makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        #expect(factory.windows.isEmpty)
+        let notice = try #require(coordinator.notice)
+        #expect(notice.locate == fixture.original.id)
+        #expect(notice.text.contains("fixture"), "the message names the workspace")
+        #expect(notice.text.contains(WorkspaceSwitcher.abbreviate(fixture.original.path)), "and its folder")
+
+        coordinator.message = "Window positions could not be saved."
+        #expect(coordinator.notice?.locate == nil, "another message drops the Locate button")
+    }
+
     @Test func theRunsModeIsKeptPerWindow() async throws {
         let fixture = try CoordinatorFixture()
         defer { fixture.remove() }
