@@ -6320,12 +6320,14 @@ type GetFlowResponse struct {
 	// The scenarios of the branch, the default first.
 	Scenarios []*Scenario `protobuf:"bytes,1,rep,name=scenarios,proto3" json:"scenarios,omitempty"`
 	// The scenario planned; unset when the workflows react to nothing.
-	Scenario      *Scenario          `protobuf:"bytes,2,opt,name=scenario,proto3" json:"scenario,omitempty"`
-	Changes       *FlowChanges       `protobuf:"bytes,3,opt,name=changes,proto3" json:"changes,omitempty"`
-	Lanes         []*FlowLane        `protobuf:"bytes,4,rep,name=lanes,proto3" json:"lanes,omitempty"`
-	Skipped       []*SkippedWorkflow `protobuf:"bytes,5,rep,name=skipped,proto3" json:"skipped,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Scenario *Scenario          `protobuf:"bytes,2,opt,name=scenario,proto3" json:"scenario,omitempty"`
+	Changes  *FlowChanges       `protobuf:"bytes,3,opt,name=changes,proto3" json:"changes,omitempty"`
+	Lanes    []*FlowLane        `protobuf:"bytes,4,rep,name=lanes,proto3" json:"lanes,omitempty"`
+	Skipped  []*SkippedWorkflow `protobuf:"bytes,5,rep,name=skipped,proto3" json:"skipped,omitempty"`
+	// The base of the current branch's open pull request; empty without one.
+	PullRequestBase string `protobuf:"bytes,6,opt,name=pull_request_base,json=pullRequestBase,proto3" json:"pull_request_base,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *GetFlowResponse) Reset() {
@@ -6391,6 +6393,13 @@ func (x *GetFlowResponse) GetSkipped() []*SkippedWorkflow {
 		return x.Skipped
 	}
 	return nil
+}
+
+func (x *GetFlowResponse) GetPullRequestBase() string {
+	if x != nil {
+		return x.PullRequestBase
+	}
+	return ""
 }
 
 type ListRunJobsResponse struct {
@@ -13204,13 +13213,14 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x0fSkippedWorkflow\x12#\n" +
 	"\rworkflow_path\x18\x01 \x01(\tR\fworkflowPath\x12#\n" +
 	"\rworkflow_name\x18\x02 \x01(\tR\fworkflowName\x12\x16\n" +
-	"\x06reason\x18\x03 \x01(\tR\x06reason\"\xa1\x02\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"\xcd\x02\n" +
 	"\x0fGetFlowResponse\x126\n" +
 	"\tscenarios\x18\x01 \x03(\v2\x18.runnir.core.v1.ScenarioR\tscenarios\x124\n" +
 	"\bscenario\x18\x02 \x01(\v2\x18.runnir.core.v1.ScenarioR\bscenario\x125\n" +
 	"\achanges\x18\x03 \x01(\v2\x1b.runnir.core.v1.FlowChangesR\achanges\x12.\n" +
 	"\x05lanes\x18\x04 \x03(\v2\x18.runnir.core.v1.FlowLaneR\x05lanes\x129\n" +
-	"\askipped\x18\x05 \x03(\v2\x1f.runnir.core.v1.SkippedWorkflowR\askipped\"w\n" +
+	"\askipped\x18\x05 \x03(\v2\x1f.runnir.core.v1.SkippedWorkflowR\askipped\x12*\n" +
+	"\x11pull_request_base\x18\x06 \x01(\tR\x0fpullRequestBase\"w\n" +
 	"\x13ListRunJobsResponse\x124\n" +
 	"\x06status\x18\x01 \x01(\v2\x1c.runnir.core.v1.GitHubStatusR\x06status\x12*\n" +
 	"\x04jobs\x18\x02 \x03(\v2\x16.runnir.core.v1.RunJobR\x04jobs\"\xd0\x02\n" +

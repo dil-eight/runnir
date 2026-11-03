@@ -3142,6 +3142,9 @@ nonisolated struct Runnir_Core_V1_GetFlowResponse: Sendable {
 
   var skipped: [Runnir_Core_V1_SkippedWorkflow] = []
 
+  /// The base of the current branch's open pull request; empty without one.
+  var pullRequestBase: String = String()
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -8824,7 +8827,7 @@ nonisolated extension Runnir_Core_V1_SkippedWorkflow: SwiftProtobuf.Message, Swi
 
 nonisolated extension Runnir_Core_V1_GetFlowResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".GetFlowResponse"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}scenarios\0\u{1}scenario\0\u{1}changes\0\u{1}lanes\0\u{1}skipped\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}scenarios\0\u{1}scenario\0\u{1}changes\0\u{1}lanes\0\u{1}skipped\0\u{3}pull_request_base\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -8837,6 +8840,7 @@ nonisolated extension Runnir_Core_V1_GetFlowResponse: SwiftProtobuf.Message, Swi
       case 3: try { try decoder.decodeSingularMessageField(value: &self._changes) }()
       case 4: try { try decoder.decodeRepeatedMessageField(value: &self.lanes) }()
       case 5: try { try decoder.decodeRepeatedMessageField(value: &self.skipped) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.pullRequestBase) }()
       default: break
       }
     }
@@ -8862,6 +8866,9 @@ nonisolated extension Runnir_Core_V1_GetFlowResponse: SwiftProtobuf.Message, Swi
     if !self.skipped.isEmpty {
       try visitor.visitRepeatedMessageField(value: self.skipped, fieldNumber: 5)
     }
+    if !self.pullRequestBase.isEmpty {
+      try visitor.visitSingularStringField(value: self.pullRequestBase, fieldNumber: 6)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -8871,6 +8878,7 @@ nonisolated extension Runnir_Core_V1_GetFlowResponse: SwiftProtobuf.Message, Swi
     if lhs._changes != rhs._changes {return false}
     if lhs.lanes != rhs.lanes {return false}
     if lhs.skipped != rhs.skipped {return false}
+    if lhs.pullRequestBase != rhs.pullRequestBase {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

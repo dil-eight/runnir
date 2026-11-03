@@ -987,6 +987,8 @@ message GetFlowResponse {
   FlowChanges changes = 3;
   repeated FlowLane lanes = 4;
   repeated SkippedWorkflow skipped = 5;
+  // The base of the current branch's open pull request; empty without one.
+  string pull_request_base = 6;
 }
 
 message ListRunJobsResponse {
