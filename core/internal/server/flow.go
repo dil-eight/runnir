@@ -59,6 +59,10 @@ func (s *service) GetFlow(ctx context.Context, request *corev1.GetFlowRequest) (
 		chosen = scenarios[0]
 	}
 	changes := git.ChangesFor(ctx, chosen, repo)
+	pullRequest := flow.Scenario{Kind: flow.PullRequest, Target: repo.PullRequestBase}
+	if chosen.Kind == flow.Push && repo.PullRequestBase != "" {
+		repo.PullRequestChanges = git.ChangesFor(ctx, pullRequest, repo)
+	}
 	plan := flow.Plan(chosen, workflows, repo, changes)
 	match := laneRuns{scenario: chosen, repo: repo, headRepository: headRepository}
 	if chosen.Kind == flow.Tag {
@@ -88,7 +92,11 @@ func (s *service) GetFlow(ctx context.Context, request *corev1.GetFlowRequest) (
 			})
 		}
 		if id, ok := ids[lane.Path]; ok {
-			if run, ok := match.newest(lane.Kind, byPath[lane.Path].PushesTagsOnly(), id, saved.Runs); ok {
+			runs := match
+			if lane.PullRequest {
+				runs.scenario = pullRequest
+			}
+			if run, ok := runs.newest(lane.Kind, byPath[lane.Path].PushesTagsOnly(), id, saved.Runs); ok {
 				message.Run = runMessage(run)
 				if ownChange(chosen, lane.Kind) && head != "" && run.HeadSHA != "" && run.HeadSHA != head {
 					message.StatusesFrom = shortSHA(run.HeadSHA)
@@ -151,7 +159,8 @@ type laneRuns struct {
 
 // newest is the newest saved run of a lane's workflow that belongs to the
 // scenario: on the branch's pull request, a push to the branch or the target,
-// a tag, a manual start on the branch, the schedule; workflow_run for a chain.
+// a tag, a manual start on the branch, the schedule; workflow_run for a chain;
+// for a workflow run by hand, a manual start on the branch or the default one.
 // The runs are newest first.
 func (m laneRuns) newest(kind flow.LaneKind, tagsOnly bool, workflowID int64, runs []github.Run) (github.Run, bool) {
 	belongs := func(r github.Run) bool {
@@ -159,7 +168,8 @@ func (m laneRuns) newest(kind flow.LaneKind, tagsOnly bool, workflowID int64, ru
 		case flow.Chained:
 			return r.Event == "workflow_run"
 		case flow.ByHand:
-			return r.Event == "workflow_dispatch" && r.Branch == m.repo.CurrentBranch
+			// The pipeline's ▶ starts it on the default branch.
+			return r.Event == "workflow_dispatch" && (r.Branch == m.repo.CurrentBranch || r.Branch == m.repo.DefaultBranch)
 		}
 		switch m.scenario.Kind {
 		case flow.PullRequest:

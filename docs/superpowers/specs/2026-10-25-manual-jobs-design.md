@@ -1,6 +1,6 @@
 # Manual Jobs In The Overview Pipeline
 
-Status: design agreed on 2026-10-25 in conversation. Backlog: B08 (Overview pipeline); designs: `runnir.pen` "S03 / Repository overview / Pipeline with manual jobs" and component "C26 / Pipeline job · manual".
+Status: design agreed on 2026-10-25 in conversation; workflows started only by hand, required inputs and the hand icon added on 2026-11-02. Backlog: B08 (Overview pipeline); designs: `runnir.pen` "S03 / Repository overview / Pipeline with manual jobs" and component "C26 / Pipeline job · manual".
 
 ## Goal
 
@@ -14,21 +14,24 @@ GitHub has two ways to make a job wait for a person, and Runnir supports both:
 | --- | --- | --- |
 | Waiting for approval | The job has an `environment` with required reviewers; the run stops at the job with status `waiting` | Approves the run's pending deployments the signed-in user may approve (`POST /actions/runs/{id}/pending_deployments`, `state: approved`). The same run goes on |
 | Started by hand | The job's `if` requires `github.event_name == 'workflow_dispatch'` (compared ignoring case, as GitHub does) as one of its top-level `&&` terms, and the workflow has a `workflow_dispatch` trigger | Starts the workflow by hand on the repository's default branch, with the inputs the same `if` compares by `==` (`github.event.inputs.X` or `inputs.X` against a string or boolean). Other inputs keep their defaults. A new run starts |
+| A workflow started only by hand | `workflow_dispatch` is the workflow's only trigger and no job's `if` asks for it: the jobs that need no other job, since starting the workflow starts them | The same: a new run on the default branch, with the inputs their `if` fixes by `==` (`if: inputs.confirm == 'reseed'` sets `confirm: reseed`) |
 
 Required reviewers on environments need a public repository or GitHub Enterprise; on Free, Pro and Team they are not available for private repositories. The second kind works on every plan.
 
-Runnir does not guess which input means "this commit" (for example an `image_tag`): only inputs the condition fixes are set.
+Runnir does not guess which input means "this commit" (for example an `image_tag`): only inputs the condition fixes are set. A job whose start would leave a required input without a default unset is not manual: GitHub would refuse it, so it gets no ▶ and is started with Run Workflow.
 
 ## Behavior
 
 - **Started by hand:** ▶ asks "Run *workflow* on *default branch*?" naming the inputs, then the optional Touch ID confirmation of Settings › Runs, then prepares and sends the dispatch once through the Core and waits for the new run, as Run Workflow does; the ▶ shows progress meanwhile, so it is not pressed twice for one deployment. What happened is shown under that workflow's pipeline: "Started *workflow* on main …: run #N", that the run has not shown up yet, a refusal or an access problem. When Runnir cannot tell whether the dispatch reached GitHub (the confirmation expired or the Core did not answer), it says to check Runs before trying again.
 - **Waiting for approval:** the Core lists the run's pending deployments when the action is prepared. ▶ shows only when the latest run is `waiting` and the job is `waiting`; the confirmation names the environments; nothing the user may not approve is sent. The Runnir Desktop GitHub App needs the repository permission "Deployments: Read and write".
+- A hand on the card marks a job a person starts or approves (manual, or waiting for approval). A job that only deploys to an environment gets none, since GitHub runs it by itself unless the environment asks for reviewers; its hint names the environment.
+- The lane of a workflow started only by hand shows its newest manual run on the branch or on the default branch, where ▶ starts it.
 - The hover hint of a manual job says how it starts, with or without a ▶: "Runs only when started by hand with environment: production · ▶ starts it on main", or "Waiting for your approval to deploy · ▶ approves it".
 - A job started by hand shows ▶ whenever its workflow is on GitHub and the repository's default branch is known, whatever branch or state the latest run has: it always starts on the default branch, so a ▶ never deploys a pull request's branch. While a run of the workflow started by hand is going, it shows none.
 
 ## Core
 
-- The repository scan marks a job manual (`Job.manual`, `Job.manual_inputs`) from its `if`, parsed with actionlint's expression parser. Input names follow the declared `workflow_dispatch` inputs' spelling.
+- The repository scan marks a job manual (`Job.manual`, `Job.manual_inputs`) from its `if`, parsed with actionlint's expression parser, or as a first job of a workflow started only by hand, and not when a required input would stay unset. Input names follow the declared `workflow_dispatch` inputs' spelling.
 - `RunAction.RUN_ACTION_APPROVE_DEPLOYMENTS`: Prepare checks the run is `waiting` and reads its pending deployments; it is refused when there are none the user may approve. `PrepareRunActionResponse.environments` names them. Confirm approves those environment ids once.
 
 ## Tests

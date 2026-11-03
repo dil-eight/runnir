@@ -37,7 +37,7 @@ Example (this repository on a feature branch): "Pull request → main" shows CI,
 `internal/flow` lists the scenarios of the current branch from the workflow files:
 
 - **Pull request → base**: when any workflow has `pull_request` or `pull_request_target`. Bases: branches named exactly in their `branches` (filters with patterns add the pattern), plus the default branch.
-- **Push to the current branch**: when any workflow has `push`.
+- **Push to the current branch**: when any workflow has `push`. A push to a branch with an open pull request also updates the pull request (changed 2026-11-02, below).
 - **Merge into branch**: a `push` to that branch carrying this branch's changes. Targets as for pull requests, from the `push` rules.
 - **Tag**: when any workflow has `push.tags` or `release`; the target is a tag pattern or a typed name.
 - **Manual**: when any workflow has `workflow_dispatch`; the ref is the current branch.
@@ -54,7 +54,7 @@ Pure functions over parsed workflows (actionlint, already used by the scanner an
 From the `git` CLI in the working tree, bounded (at most 5000 paths, 5 seconds):
 
 - Pull request and merge: `git merge-base HEAD origin/<base>`, then `git diff --name-only <merge-base>` (includes uncommitted tracked changes) plus untracked files from `git ls-files --others --exclude-standard`.
-- Push to the current branch: the same against `@{upstream}`; without an upstream, against the merge base with the default branch.
+- Push to the current branch: the same against `@{upstream}`; without an upstream, against the merge base with the default branch. With an open pull request, its files against its base too, for the workflows the update of the pull request starts.
 - Tag, manual, schedule: no `paths` filters apply (GitHub ignores them for tags and these events).
 
 Without `git`, or when it fails, `paths` filters are "unknown" and the summary says why ("git not found", "origin/main unknown: fetch first").
@@ -68,6 +68,7 @@ For each workflow and the scenario's event:
 3. Path filters (`paths`, `paths-ignore`) against the changed files, same rules: the workflow runs if at least one file is included.
 4. Chains: a workflow with `workflow_run: {workflows: [...], types: [completed]}` naming a lane's workflow (by `name:`) becomes a chained lane after it, with its own `branches` filter against the source run's branch. `requested` or `in_progress` start it with the source rather than after it; it is a chained lane all the same, its reason naming the types. Its jobs' conditions see the source succeeded once it completed, and no conclusion yet for `requested` or `in_progress`. In a Tag scenario the `branches` filter is read against the tag, which is what a tagged run's `head_branch` holds. When the source is in the scenario and the filter is not met, the reason says so ("after CI: branch feature/x does not match main"); after a workflow started only by hand it reads "after Deploy, which is started by hand".
 5. Manual: workflows with only `workflow_dispatch` form the Manual section of every scenario; in the Manual scenario every `workflow_dispatch` workflow is a direct lane.
+6. A push to a branch with an open pull request updates it (added 2026-11-02): a workflow the push itself does not start but the update does (`pull_request` or `pull_request_target` into the pull request's base, without `types` or with `synchronize`) is a direct lane of the push, planned as the pull request's run with the pull request's files; its reason reads "pull_request · synchronize · branches main". A workflow neither starts keeps the pull request's reason when it reacts to pull requests.
 
 A skipped workflow keeps a reason: "schedule only", "branch main does not match release/**", "excluded by !release/old/**", "paths apps/**: no changed file matches", "types: closed".
 
@@ -88,10 +89,10 @@ A skipped workflow keeps a reason: "schedule only", "branch main does not match 
 The Core adds statuses to a flow from the workspace cache (B26/B27, B30 links):
 
 - **Pull request → base**: the open pull request of the current branch into that base; its runs on its latest head commit. The branch's pull request is the one whose head is the commit checked out or last pushed, from this repository or the user's fork; else the one from this repository. Another fork's pull request or run from a branch of the same name is not the branch's. No such pull request: no status ("not run yet").
-- **Push**: the latest `push` runs on the branch.
+- **Push**: the latest `push` runs on the branch; for a lane the update of the branch's pull request starts, the pull request's runs.
 - **Merge into X**: when the branch's pull request was merged into X, the runs after merge on the merge commit; otherwise the latest `push` runs on X, labelled "last merge into X, not yours".
 - **Tag**: the latest runs on a tag or of `release`. GitHub names a push run by its ref only, so a push run counts as a tag's when the tag is known in the local repository or the workflow pushes only tags; a tag not fetched yet has no status.
-- **Manual**: the latest `workflow_dispatch` run of each manual workflow on the ref.
+- **Manual**: the latest `workflow_dispatch` run of each manual workflow on the ref. In the Manual section of other scenarios, on the ref or on the default branch, where the pipeline's ▶ starts it.
 - **Schedule**: the latest `schedule` run of each workflow.
 
 Each lane takes the newest run of its workflow (matched by path) in that set. Jobs come from the run's jobs: those of completed runs once (cached), those of active runs on each pass, for the scenario's lanes only. Nodes match jobs by name; matrix jobs `test (ubuntu-latest)` fold into their node with the worst outcome. A gate waiting on GitHub (`waiting`) says so and offers "Review on GitHub".
@@ -103,7 +104,7 @@ A local scenario run (below) replaces the GitHub statuses while it runs and afte
 ## Overview (S03)
 
 - Header: the scenario picker (`Pull request → main ▾`, sections Pull request, Push, Merge into, Tag, Manual, Schedule; targets ordered as above), the branch, "12 files changed against main", **Run locally** and **Run Workflow…**.
-- Canvas, scrolling horizontally when wide. A lane: on the left its name, file, the latest run's status and why it runs (`pull_request · paths ✓`); then job columns with arrows. A node: status dot, name, duration, `×3` for a matrix, a hand icon and the environment for a gate, a dashed outline for "depends on a condition" (the condition in its help). Chained lanes sit under their source with an arrow from its last column and "after CI (success)". The Manual section lists manual lanes with **▷ Run** (GitHub's Run Workflow sheet, or locally in a local run).
+- Canvas. A lane: on the left its name, file, the latest run's status and why it runs (`pull_request · paths ✓`); then job columns with arrows. Jobs wider than the room are dragged sideways as on a canvas, never past their ends (a trackpad or Shift with the wheel move them too). A node: status dot, name, duration, `×3` for a matrix, a hand icon when a person starts the job or approves its deployment (a job that only deploys to an environment gets none; its help names the environment), a dashed outline for "depends on a condition" (the condition in its help). Chained lanes sit under their source with an arrow from its last column and "after CI (success)". The Manual section lists the workflows started only by hand; their first jobs carry the ▶ of manual jobs ([manual jobs](2026-10-25-manual-jobs-design.md)), which starts the workflow on the default branch. Changed on 2026-11-02 from **▷ Run** opening Run Workflow, and from a bar to scroll the jobs.
 - "Not in this scenario": a folded row listing skipped workflows with their reasons.
 - A job opens its log in a layer over the Overview, the same layer the Runs list shows over the run graph (the run's jobs and steps on the left, the log on the right), at its failed variant when it has one; a job the run does not have opens the run in Runs. During a local run it is to open the local output (not built). A lane's name opens its file in the Workspace editor.
 - Recent runs and Run manually stay below the canvas.

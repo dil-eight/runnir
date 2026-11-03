@@ -90,21 +90,35 @@ func literal(n actionlint.ExprNode) (string, bool) {
 }
 
 // markManualJobs marks the jobs started by hand, once the workflow's
-// triggers and dispatch inputs are known. Input names take the spelling the
-// workflow declares.
+// triggers and dispatch inputs are known: those whose if requires a
+// workflow_dispatch run, or, in a workflow that starts only by hand and has
+// none of those, the jobs that need no other, since starting the workflow
+// starts them. A job whose start would leave a required input without a
+// value is not marked. Input names take the spelling the workflow declares.
 func markManualJobs(workflow *repository.Workflow, conditions map[int]string) {
-	dispatchable := false
+	dispatchable, onlyDispatch := false, len(workflow.Triggers) > 0
 	for _, trigger := range workflow.Triggers {
 		dispatchable = dispatchable || trigger == "workflow_dispatch"
+		onlyDispatch = onlyDispatch && trigger == "workflow_dispatch"
 	}
 	if !dispatchable {
 		return
 	}
+	started := map[int]map[string]string{}
 	for index, condition := range conditions {
-		inputs, ok := manualTrigger(condition)
-		if !ok || index >= len(workflow.Jobs) {
-			continue
+		if inputs, ok := manualTrigger(condition); ok && index < len(workflow.Jobs) {
+			started[index] = inputs
 		}
+	}
+	if len(started) == 0 && onlyDispatch {
+		for index, job := range workflow.Jobs {
+			if len(job.Needs) == 0 {
+				// The == terms of its if still fix inputs; no if fixes none.
+				started[index], _ = manualTrigger(conditions[index])
+			}
+		}
+	}
+	for index, inputs := range started {
 		named := map[string]string{}
 		for name, value := range inputs {
 			for _, declared := range workflow.DispatchInputs {
@@ -115,7 +129,21 @@ func markManualJobs(workflow *repository.Workflow, conditions map[int]string) {
 			}
 			named[name] = value
 		}
+		if missesRequiredInput(workflow.DispatchInputs, named) {
+			continue
+		}
 		workflow.Jobs[index].Manual = true
 		workflow.Jobs[index].ManualInputs = named
 	}
+}
+
+// missesRequiredInput: a required input has no default and the start does not
+// set it, so GitHub would refuse the start.
+func missesRequiredInput(declared []repository.DispatchInput, inputs map[string]string) bool {
+	for _, input := range declared {
+		if input.Required && input.Default == "" && inputs[input.Name] == "" {
+			return true
+		}
+	}
+	return false
 }
