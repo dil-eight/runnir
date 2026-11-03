@@ -33,8 +33,7 @@ struct ScenarioFlowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Above the lanes, so the scenario list opens over them.
-            header.padding(.bottom, 14).zIndex(1)
+            header.padding(.bottom, 14)
             DesignDivider()
             content
         }
@@ -127,9 +126,8 @@ struct ScenarioFlowView: View {
 
     private func laneJobs(_ lane: CoreFlowLane) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Jobs wider than the room scroll sideways, with a visible bar.
-            ScrollView(.horizontal) { jobColumns(lane).padding(.bottom, stacked ? 10 : 0) }
-                .scrollIndicators(stacked ? .visible : .hidden)
+            // Jobs wider than the room are dragged sideways, as on a canvas.
+            HorizontalPan { jobColumns(lane) }
             if let message = manualMessages[lane.path] {
                 Label(message, systemImage: "play.circle")
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).textSelection(.enabled)
@@ -227,6 +225,7 @@ struct ScenarioFlowView: View {
         let outcome = job.skipped.isEmpty ? PipelineLayout.outcome(matched) : nil
         let workflow = remote(lane.path)
         let workflowRuns = workflow.map { remote in session?.runs.filter { $0.workflowID == remote.id } ?? [] } ?? []
+        let waiting = matched.contains { $0.status == "waiting" }
         let start = session?.githubAccess == .ok && job.skipped.isEmpty
             ? ManualJobStart.of(job.job, matched: matched, run: lane.run, workflowRuns: workflowRuns, workflow: workflow,
                                 defaultBranch: session?.githubDetails?.defaultBranch) : nil
@@ -240,9 +239,11 @@ struct ScenarioFlowView: View {
                 Image(systemName: "circle").font(.system(size: 12)).foregroundStyle(RunnirTheme.mutedForeground)
                     .accessibilityLabel("Not run")
             }
-            if !job.environment.isEmpty {
+            // A person starts the job or approves its deployment; a deployment
+            // GitHub runs by itself gets no hand.
+            if job.manual || waiting {
                 Image(systemName: "hand.raised").font(.system(size: 10)).foregroundStyle(RunnirTheme.secondaryForeground)
-                    .accessibilityLabel("Deploys to \(job.environment)")
+                    .accessibilityLabel(waiting ? "Waiting for approval to deploy to \(job.environment)" : "Started by hand")
             }
             Text(ScenarioFlowModel.title(job)).font(.system(size: 13)).lineLimit(1)
             Spacer(minLength: 10)
@@ -316,7 +317,6 @@ struct ScenarioFlowView: View {
         HStack(spacing: 10) {
             Text("RUN BY HAND").font(.system(size: 10.5, weight: .semibold)).tracking(0.6).foregroundStyle(RunnirTheme.secondaryForeground)
             Text("started manually, outside the scenario").font(.system(size: 12)).foregroundStyle(RunnirTheme.mutedForeground)
-            Rectangle().fill(RunnirTheme.border).frame(height: 1)
         }
     }
 
@@ -360,18 +360,13 @@ struct ScenarioFlowView: View {
     }
 }
 
-/// The scenario picker: the scenario's title with a chevron, and on a click a
-/// list of the scenarios by kind in Runnir's own panel, not the system menu.
-/// A choice, a click outside it, Escape or the title again closes it.
+/// The scenario picker: the scenario's title with a chevron, and on a click
+/// the scenarios by kind in Runnir's own dropdown.
 struct ScenarioPicker: View {
     let scenarios: [CoreScenario]
     let selected: CoreScenario?
     let choose: (CoreScenario) -> Void
     @State private var open = false
-    @State private var hovered: CoreScenario?
-    @State private var buttonFrame: CGRect = .zero
-    @State private var panelFrame: CGRect = .zero
-    @State private var monitor: Any?
 
     var body: some View {
         Button { open.toggle() } label: {
@@ -390,86 +385,58 @@ struct ScenarioPicker: View {
         .help("What happens to this branch's change: a pull request, a push, a merge, a tag, a manual start, the schedule")
         .accessibilityLabel("Scenario")
         .accessibilityValue(selected?.title ?? "")
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { buttonFrame = $0 }
-        .overlay(alignment: .topLeading) {
-            if open {
-                panel
-                    .offset(x: -8, y: 34)
-                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { panelFrame = $0 }
-            }
-        }
-        .onChange(of: open) { _, isOpen in
-            if isOpen { watchOutside() } else { stopWatching() }
-        }
-        .onDisappear { stopWatching() }
-    }
-
-    private var panel: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(ScenarioFlowModel.groups(scenarios).enumerated()), id: \.element.title) { index, group in
-                if index > 0 { DesignDivider().padding(.vertical, 4).padding(.horizontal, 8) }
-                Text(group.title.uppercased()).font(.system(size: 10.5, weight: .semibold)).tracking(0.5)
-                    .foregroundStyle(RunnirTheme.mutedForeground).padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 2)
-                ForEach(group.scenarios, id: \.self) { scenario in row(scenario) }
-            }
-        }
-        .padding(6)
-        .frame(minWidth: 260, alignment: .leading)
-        .fixedSize()
-        .background(RunnirTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(RunnirTheme.border))
-        .shadow(color: .black.opacity(0.35), radius: 20, y: 10)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Scenarios")
-    }
-
-    private func row(_ scenario: CoreScenario) -> some View {
-        let current = scenario == selected
-        return Button {
-            open = false
-            if !current { choose(scenario) }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(RunnirTheme.primary).opacity(current ? 1 : 0)
-                Text(scenario.title).font(.system(size: 13)).foregroundStyle(RunnirTheme.foreground).lineLimit(1)
-                Spacer(minLength: 12)
-            }
-            .padding(.horizontal, 10).frame(height: 30)
-            .background(hovered == scenario ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.hit)
-        .onHover { inside in
-            if inside { hovered = scenario } else if hovered == scenario { hovered = nil }
-        }
-        .accessibilityAddTraits(current ? .isSelected : [])
-    }
-
-    /// A click anywhere but the panel and its title, or Escape, closes it.
-    private func watchOutside() {
-        stopWatching()
-        monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { event in
-            // Local monitors run on the main thread; only the decision leaves it.
-            let swallow = MainActor.assumeIsolated { () -> Bool in
-                if event.type == .keyDown {
-                    guard event.keyCode == 53 else { return false }
-                    open = false
-                    return true
+        .dropdown(isPresented: $open) {
+            DropdownList(minWidth: 260) {
+                ForEach(Array(ScenarioFlowModel.groups(scenarios).enumerated()), id: \.element.title) { index, group in
+                    if index > 0 { DropdownDivider() }
+                    DropdownHeader(group.title)
+                    ForEach(group.scenarios, id: \.self) { scenario in
+                        DropdownItem(scenario.title, checked: scenario == selected) {
+                            if scenario != selected { choose(scenario) }
+                        }
+                    }
                 }
-                if let view = event.window?.contentView {
-                    let point = CGPoint(x: event.locationInWindow.x, y: view.bounds.height - event.locationInWindow.y)
-                    if !panelFrame.contains(point) && !buttonFrame.contains(point) { open = false }
-                }
-                return false
             }
-            return swallow ? nil : event
         }
     }
+}
 
-    private func stopWatching() {
-        if let monitor { NSEvent.removeMonitor(monitor) }
-        monitor = nil
+/// Content wider than its room, dragged sideways as on a canvas and never
+/// past its ends; a trackpad or Shift with the wheel moves it too.
+struct HorizontalPan<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+    @State private var position = ScrollPosition(edge: .leading)
+    @State private var offset: CGFloat = 0
+    /// How far the content reaches past the room; 0 when it fits.
+    @State private var overflow: CGFloat = 0
+    @State private var dragStart: CGFloat?
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            content()
+                .contentShape(Rectangle())
+                // Before the jobs' clicks, which a drag of a few points cancels.
+                .highPriorityGesture(drag)
+                .pointerStyle(overflow > 0 ? (dragStart == nil ? .grabIdle : .grabActive) : nil)
+        }
+        .scrollIndicators(.hidden)
+        .scrollPosition($position)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.x } action: { _, x in offset = x }
+        .onScrollGeometryChange(for: CGFloat.self) { max(0, $0.contentSize.width - $0.containerSize.width) } action: { _, room in overflow = room }
+    }
+
+    static func clamped(_ x: CGFloat, overflow: CGFloat) -> CGFloat { min(max(x, 0), overflow) }
+
+    private var drag: some Gesture {
+        // Global points: the content moves under the pointer while it is dragged.
+        DragGesture(minimumDistance: 3, coordinateSpace: .global)
+            .onChanged { value in
+                guard overflow > 0 else { return }
+                let start = dragStart ?? offset
+                dragStart = start
+                position.scrollTo(x: Self.clamped(start - value.translation.width, overflow: overflow))
+            }
+            .onEnded { _ in dragStart = nil }
     }
 }

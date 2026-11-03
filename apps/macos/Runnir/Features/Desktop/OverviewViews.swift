@@ -143,8 +143,6 @@ struct WorkspaceOverview: View {
                     } else if let flow {
                         ScenarioFlowView(model: flow, session: session, hub: hub, favorites: favorites, selectedPath: selectedPath,
                                          openRun: openRun, openJob: openJob, openFile: { openFile(LocalWorkflowFile(relativePath: $0)) })
-                            // Above the sections after it, which the scenario list may open over.
-                            .zIndex(1)
                     }
                     DesignDivider()
                     HStack(alignment: .top, spacing: 40) {
