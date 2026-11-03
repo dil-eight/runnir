@@ -76,6 +76,18 @@ struct ScenarioFlowView: View {
                 Label(text, systemImage: "info.circle")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(.top, 10).padding(.bottom, 2)
             }
+            if let nothing = ScenarioFlowModel.nothingRuns(flow) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "minus.circle").font(.system(size: 15)).foregroundStyle(RunnirTheme.mutedForeground)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(nothing.title).font(.system(size: 13, weight: .semibold))
+                        Text(nothing.detail).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).lineSpacing(3)
+                            .fixedSize(horizontal: false, vertical: true).frame(maxWidth: 560, alignment: .leading)
+                    }
+                }
+                .padding(.vertical, 18).padding(.horizontal, 8)
+                .accessibilityElement(children: .combine)
+            }
             let scenarioLanes = flow.lanes.filter { $0.kind != .byHand }
             let byHand = flow.lanes.filter { $0.kind == .byHand }
             ForEach(scenarioLanes) { lane in
@@ -90,7 +102,7 @@ struct ScenarioFlowView: View {
                 }
             }
             if !flow.skipped.isEmpty { skipped(flow.skipped) }
-            if flow.scenario != nil {
+            if flow.scenario != nil && !flow.lanes.isEmpty {
                 Label("Statuses are the newest saved run of each workflow in this scenario; columns follow the jobs' needs in the working tree file.",
                       systemImage: "info.circle")
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground).padding(.top, 12)
@@ -273,7 +285,7 @@ struct ScenarioFlowView: View {
             if let read, let target = RunGraph.jobToOpen(matched) { openJob(run, target, read) } else { openRun(run) }
         }
         // The full name, which the node may cut short, and what the job does here.
-        .hoverTip { JobTip(title: ScenarioFlowModel.title(job), detail: hint(job, matched: matched, read: read, start: start)) }
+        .hoverTip { TipCard(title: ScenarioFlowModel.title(job), detail: hint(job, matched: matched, read: read, start: start)) }
         .accessibilityLabel(ScenarioFlowModel.title(job))
         .accessibilityHint(hint(job, matched: matched, read: read, start: start))
     }
@@ -364,25 +376,6 @@ struct ScenarioFlowView: View {
             }
         }
         .padding(.top, 6)
-    }
-}
-
-/// A job's tip: its full name, then how it starts, its condition, its
-/// environment, its status and what it needs, a line each.
-struct JobTip: View {
-    let title: String
-    let detail: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(RunnirTheme.foreground)
-            ForEach(Array(detail.split(separator: "\n").enumerated()), id: \.offset) { _, line in
-                Text(line).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
-            }
-        }
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(width: 316, alignment: .leading)
-        .padding(.horizontal, 12).padding(.vertical, 10)
     }
 }
 

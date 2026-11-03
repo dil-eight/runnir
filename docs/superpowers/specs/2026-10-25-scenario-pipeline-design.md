@@ -108,7 +108,8 @@ A local scenario run (below) replaces the GitHub statuses while it runs and afte
 - "Not in this scenario": a folded row listing skipped workflows with their reasons.
 - A job opens its log in a layer over the Overview, the same layer the Runs list shows over the run graph (the run's jobs and steps on the left, the log on the right), at its failed variant when it has one; a job the run does not have opens the run in Runs. During a local run it is to open the local output (not built). A lane's name opens its file in the Workspace editor.
 - Under a pull request scenario the branch has no open pull request into, a line says so: "feature/retry has no open pull request into main: this is what opening one starts." (added 2026-11-02).
-- Recent runs and Run manually stay below the canvas.
+- A scenario that starts no workflow by itself (those run by hand are not its own) says so in place of the lanes: "Nothing runs on a push to feature/retry", then why ("No workflow reacts to a push to this branch, and the branch has no open pull request whose checks a push would run again.") and that each workflow's reason is under "Not in this scenario" (added 2026-11-03).
+- Recent runs and Run manually stay below the canvas. Recent runs lists every branch; a run of another branch than the one checked out carries an "other branch" tag, whose tip names its branch and says the pipeline above shows the checked-out one (added 2026-11-03).
 - States: no workflows; a file that does not parse (its lane shows the error); `git` missing (paths "unknown"); cached or offline ("saved" statuses); statuses from another commit; a local run in progress.
 
 The Workspace's "Pipeline preview" (S09), now "Preview unavailable", shows the open file's lane with the same canvas: jobs in columns with arrows, gates and conditions for the default scenario, no statuses; unsaved edits are planned from the editor's text.

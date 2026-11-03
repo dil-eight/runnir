@@ -144,6 +144,17 @@ enum RunPresentation {
         return lines.joined(separator: "\n")
     }
 
+    /// A run on another branch than the one checked out; never with no branch known.
+    static func isOtherBranch(_ run: CoreWorkflowRun, current: String) -> Bool {
+        !current.isEmpty && !run.branch.isEmpty && run.branch != current
+    }
+
+    /// The "other branch" tag's tip on the Overview, whose pipeline is the
+    /// checked-out branch's.
+    static func otherBranchTip(_ run: CoreWorkflowRun, current: String) -> (title: String, detail: String) {
+        ("On \(run.branch)", "Recent runs lists every branch; the pipeline above shows \(current).")
+    }
+
     /// The "outdated" label's help.
     static func outdatedHelp(_ run: CoreWorkflowRun, newer: CoreWorkflowRun?) -> String {
         let pull = run.link.pullRequest.map { " of #\($0)" } ?? ""
