@@ -8,6 +8,8 @@ import SwiftUI
 // - DropdownMenu: a button that opens DropdownItems.
 // - DropdownPicker: a choice among values, the chosen one on the button.
 // - .dropdown(isPresented:): any content in the panel, for panels of their own.
+// - .hoverTip(_:): a panel under a view while the pointer rests on it, which
+//   never takes a click.
 // - .dropdownHost(): at the root of every window and sheet; it draws the open
 //   panel above everything, so a list or a scroll view never clips it.
 
@@ -26,9 +28,15 @@ extension View {
                                  @ViewBuilder content: @escaping () -> Content) -> some View {
         let presented = isPresented.wrappedValue
         return anchorPreference(key: DropdownKey.self, value: .bounds) { anchor in
-            presented ? DropdownRequest(anchor: anchor, trailing: alignment == .trailing, content: AnyView(content()),
+            presented ? DropdownRequest(anchor: anchor, trailing: alignment == .trailing, passive: false, content: AnyView(content()),
                                         close: { isPresented.wrappedValue = false }) : nil
         }
+    }
+
+    /// Shows `tip` in the panel under this view once the pointer has rested
+    /// on it for a moment, until it leaves. Clicks go through to the view.
+    func hoverTip<Tip: View>(@ViewBuilder _ tip: @escaping () -> Tip) -> some View {
+        modifier(HoverTip(tip: tip))
     }
 
     /// Draws the open dropdown of a view inside this one. A click outside
@@ -40,6 +48,8 @@ extension View {
 private struct DropdownRequest {
     let anchor: Anchor<CGRect>
     let trailing: Bool
+    /// A tip: drawn only, without catching clicks or Escape.
+    let passive: Bool
     let content: AnyView
     let close: @MainActor () -> Void
 }
@@ -71,8 +81,10 @@ private struct DropdownHost: ViewModifier {
                     GeometryReader { proxy in
                         let button = proxy[request.anchor]
                         ZStack(alignment: .topLeading) {
-                            // No hand pointer: a click outside the panel closes it.
-                            Color.clear.contentShape(Rectangle()).onTapGesture(perform: request.close).accessibilityHidden(true)
+                            if !request.passive {
+                                // No hand pointer: a click outside the panel closes it.
+                                Color.clear.contentShape(Rectangle()).onTapGesture(perform: request.close).accessibilityHidden(true)
+                            }
                             request.content
                                 .environment(\.dismissDropdown, DropdownDismiss(action: request.close))
                                 .dropdownPanelStyle()
@@ -83,15 +95,45 @@ private struct DropdownHost: ViewModifier {
                                 .frame(width: request.trailing ? button.maxX : nil, alignment: .topTrailing)
                                 .offset(x: request.trailing ? 0 : button.minX,
                                         y: DropdownPlacement.top(button: button, panelHeight: panelHeight, space: proxy.size.height))
-                            Button("Close", action: request.close)
-                                .keyboardShortcut(.cancelAction).buttonStyle(.hit).opacity(0).frame(width: 0, height: 0)
-                                .accessibilityHidden(true)
+                                .allowsHitTesting(!request.passive)
+                            if !request.passive {
+                                Button("Close", action: request.close)
+                                    .keyboardShortcut(.cancelAction).buttonStyle(.hit).opacity(0).frame(width: 0, height: 0)
+                                    .accessibilityHidden(true)
+                            }
                         }
                     }
                 }
             }
             // An outer host does not draw this host's dropdown again.
             .transformPreference(DropdownKey.self) { $0 = nil }
+    }
+}
+
+/// Shows a tip after the pointer rests on the view, hides it when it leaves.
+private struct HoverTip<Tip: View>: ViewModifier {
+    let tip: () -> Tip
+    @State private var shown = false
+    @State private var wait: Task<Void, Never>?
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { inside in
+                wait?.cancel()
+                guard inside else {
+                    shown = false
+                    return
+                }
+                wait = Task {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    if !Task.isCancelled { shown = true }
+                }
+            }
+            .onDisappear { wait?.cancel() }
+            .anchorPreference(key: DropdownKey.self, value: .bounds) { anchor in
+                shown ? DropdownRequest(anchor: anchor, trailing: false, passive: true, content: AnyView(tip().accessibilityHidden(true)),
+                                        close: {}) : nil
+            }
     }
 }
 

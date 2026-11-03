@@ -201,6 +201,8 @@ struct CoreFlow: Equatable, Sendable {
     var scenarios: [CoreScenario] = []
     /// nil when the workflows react to nothing.
     var scenario: CoreScenario?
+    /// The base of the current branch's open pull request; empty without one.
+    var pullRequestBase = ""
     var changes = CoreFlowChanges()
     var lanes: [CoreFlowLane] = []
     var skipped: [CoreSkippedWorkflow] = []
