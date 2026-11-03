@@ -137,6 +137,25 @@ private struct HoverTip<Tip: View>: ViewModifier {
     }
 }
 
+/// What a tip says: a title, then lines of detail. A job's tip has its full
+/// name, how it starts, its condition, environment, status and needs.
+struct TipCard: View {
+    let title: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(RunnirTheme.foreground)
+            ForEach(Array(detail.split(separator: "\n").enumerated()), id: \.offset) { _, line in
+                Text(line).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: 316, alignment: .leading)
+        .padding(.horizontal, 12).padding(.vertical, 10)
+    }
+}
+
 /// Closes the dropdown a view is in; DropdownItem calls it after its action.
 struct DropdownDismiss {
     let action: @MainActor () -> Void

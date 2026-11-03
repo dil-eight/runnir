@@ -52,6 +52,9 @@ struct RunRow: View {
     var pullRequest: CoreChangePullRequest? = nil
     /// The run that superseded this one, for the outdated label's help.
     var newer: CoreWorkflowRun? = nil
+    /// The checked-out branch, where a run of another one is tagged so;
+    /// empty for no tag.
+    var currentBranch = ""
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -62,6 +65,13 @@ struct RunRow: View {
                 HStack(spacing: 6) {
                     Text(run.title).font(.system(size: 13, weight: .medium)).lineLimit(1)
                     RunSupersededTag(run: run, newer: newer)
+                    if RunPresentation.isOtherBranch(run, current: currentBranch) {
+                        let tip = RunPresentation.otherBranchTip(run, current: currentBranch)
+                        RunTag(text: "other branch", tint: RunnirTheme.secondaryForeground)
+                            // An empty help keeps the row's help from showing over the tip.
+                            .help("")
+                            .hoverTip { TipCard(title: tip.title, detail: tip.detail) }
+                    }
                     Spacer(minLength: 8)
                     RunAge(run: run)
                 }
@@ -160,7 +170,7 @@ struct RecentRunsList: View {
             let pullRequests = RunPresentation.pullRequests(session.changes)
             ForEach(RunPresentation.visible(session.runs, showingSuperseded: false).prefix(limit)) { run in
                 Button { open(run) } label: {
-                    RunRow(run: run, pullRequest: run.link.pullRequest.flatMap { pullRequests[$0] })
+                    RunRow(run: run, pullRequest: run.link.pullRequest.flatMap { pullRequests[$0] }, currentBranch: session.branch)
                 }.buttonStyle(.hit)
             }
         }

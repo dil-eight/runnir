@@ -96,6 +96,26 @@ final class ScenarioFlowModel {
         return "\(branch) has no open pull request into \(scenario.target): this is what opening one starts."
     }
 
+    /// In place of the lanes when the scenario starts no workflow by itself
+    /// (those run by hand are not its own): what does not happen and why.
+    static func nothingRuns(_ flow: CoreFlow) -> (title: String, detail: String)? {
+        guard let scenario = flow.scenario, !flow.lanes.contains(where: { $0.kind != .byHand }) else { return nil }
+        let target = scenario.target
+        let (title, detail): (String, String) = switch scenario.kind {
+        case .push where flow.pullRequestBase.isEmpty:
+            ("Nothing runs on a push to \(target)",
+             "No workflow reacts to a push to this branch, and the branch has no open pull request whose checks a push would run again.")
+        case .push:
+            ("Nothing runs on a push to \(target)",
+             "No workflow reacts to a push to this branch or to the update of its pull request into \(flow.pullRequestBase).")
+        case .pullRequest: ("Nothing runs on a pull request into \(target)", "No workflow reacts to a pull request into \(target).")
+        case .merge: ("Nothing runs on a merge into \(target)", "No workflow reacts to a push to \(target).")
+        case .tag: ("Nothing runs when a tag \(target) is pushed", "No workflow reacts to pushing this tag.")
+        case .manual, .schedule: ("Nothing runs in this scenario", "No workflow reacts to it.")
+        }
+        return (title, flow.skipped.isEmpty ? detail : detail + " Why each workflow stays out is under Not in this scenario.")
+    }
+
     /// The line beside the scenario: what the paths filters were read against.
     static func changesText(_ changes: CoreFlowChanges) -> String? {
         guard changes.applies else { return nil }

@@ -55,6 +55,26 @@ struct ScenarioFlowTests {
         #expect(ScenarioFlowModel.noPullRequestText(none, branch: "") == nil)
     }
 
+    @Test func aScenarioThatStartsNothingSaysSoInPlaceOfTheLanes() {
+        let push = CoreScenario(kind: .push, target: "feature/retry", title: "Push to feature/retry")
+        let skipped = [CoreSkippedWorkflow(path: ".github/workflows/ci.yml", name: "CI", reason: "branch feature/retry does not match main")]
+        let none = ScenarioFlowModel.nothingRuns(CoreFlow(scenario: push, skipped: skipped))
+        #expect(none?.title == "Nothing runs on a push to feature/retry")
+        #expect(none?.detail == "No workflow reacts to a push to this branch, and the branch has no open pull request whose checks a push would run again."
+                + " Why each workflow stays out is under Not in this scenario.")
+        let open = ScenarioFlowModel.nothingRuns(CoreFlow(scenario: push, pullRequestBase: "main"))
+        #expect(open?.detail == "No workflow reacts to a push to this branch or to the update of its pull request into main.")
+        // A workflow run by hand is not the scenario's own.
+        let lane = { (kind: CoreFlowLane.Kind) in
+            CoreFlowLane(path: ".github/workflows/x.yml", name: "X", kind: kind, after: "", afterPath: "", why: "", jobs: [], run: nil,
+                         statusesFrom: "", parseError: "")
+        }
+        #expect(ScenarioFlowModel.nothingRuns(CoreFlow(scenario: push, lanes: [lane(.byHand)])) != nil)
+        #expect(ScenarioFlowModel.nothingRuns(CoreFlow(scenario: push, lanes: [lane(.direct)])) == nil)
+        #expect(ScenarioFlowModel.nothingRuns(CoreFlow()) == nil, "no scenario has its own line")
+        #expect(ScenarioFlowModel.nothingRuns(CoreFlow(scenario: merge))?.title == "Nothing runs on a merge into main")
+    }
+
     @Test func thePickerGroupsScenariosByKind() {
         let groups = ScenarioFlowModel.groups([pullRequest, CoreScenario(kind: .pullRequest, target: "release", title: "Pull request → release"),
                                                merge, CoreScenario(kind: .schedule, target: "", title: "Schedule")])

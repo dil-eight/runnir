@@ -29,6 +29,16 @@ import Testing
         #expect(RunPresentation.rowHelp(run(1, link: .pullRequest(142)), pullRequest: pull) == "Pull request #142 Add retry to deploy\nCommit a1b2c3d Bump retry count")
     }
 
+    @Test func aRunOfAnotherBranchIsTaggedSo() {
+        #expect(RunPresentation.isOtherBranch(run(1, branch: "main"), current: "feature/retry"))
+        #expect(!RunPresentation.isOtherBranch(run(1, branch: "feature/retry"), current: "feature/retry"))
+        #expect(!RunPresentation.isOtherBranch(run(1, branch: "main"), current: ""), "a detached head tags nothing")
+        #expect(!RunPresentation.isOtherBranch(run(1, branch: ""), current: "feature/retry"))
+        let tip = RunPresentation.otherBranchTip(run(1, branch: "fix/login-timeout"), current: "feature/retry")
+        #expect(tip.title == "On fix/login-timeout")
+        #expect(tip.detail == "Recent runs lists every branch; the pipeline above shows feature/retry.")
+    }
+
     @Test func completedSupersededRunsAreHiddenUntilAskedFor() {
         let runs = [run(3), run(2, supersededBy: 3), run(1, supersededBy: 3, status: "in_progress")]
         #expect(RunPresentation.visible(runs, showingSuperseded: false).map(\.id) == [3, 1], "an outdated run stays")
