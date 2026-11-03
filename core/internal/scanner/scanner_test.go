@@ -543,3 +543,63 @@ jobs:
 		t.Fatalf("a workflow without workflow_dispatch has a manual job: %+v", other)
 	}
 }
+
+func TestScanMarksTheFirstJobsOfAWorkflowStartedOnlyByHand(t *testing.T) {
+	root := t.TempDir()
+	// The input guards the start; the job's if fixes it.
+	write(t, root, ".github/workflows/reseed.yml", `on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        required: true
+jobs:
+  reseed:
+    if: inputs.confirm == 'reseed'
+    runs-on: ubuntu-latest
+    steps: [{run: echo}]
+`)
+	write(t, root, ".github/workflows/release.yml", "on: workflow_dispatch\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps: [{run: echo}]\n  publish:\n    needs: build\n    runs-on: ubuntu-latest\n    steps: [{run: echo}]\n")
+	// A job whose if asks for the manual start is the one started by hand.
+	write(t, root, ".github/workflows/deploy.yml", "on: [workflow_dispatch]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps: [{run: echo}]\n  deploy:\n    needs: build\n    if: github.event_name == 'workflow_dispatch'\n    runs-on: ubuntu-latest\n    steps: [{run: echo}]\n")
+	// Nothing sets the required version, so neither job can be started from the pipeline.
+	write(t, root, ".github/workflows/tag.yml", `on:
+  workflow_dispatch:
+    inputs:
+      version:
+        required: true
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps: [{run: echo}]
+  announce:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps: [{run: echo}]
+`)
+	snapshot := scan(t, root)
+	manual := func(path string) map[string]map[string]string {
+		w := byID(snapshot, path)
+		if w == nil {
+			t.Fatalf("%s is missing", path)
+		}
+		out := map[string]map[string]string{}
+		for _, job := range w.Jobs {
+			if job.Manual {
+				out[job.ID] = job.ManualInputs
+			}
+		}
+		return out
+	}
+	if got := manual(".github/workflows/reseed.yml"); !reflect.DeepEqual(got, map[string]map[string]string{"reseed": {"confirm": "reseed"}}) {
+		t.Fatalf("reseed = %v", got)
+	}
+	if got := manual(".github/workflows/release.yml"); !reflect.DeepEqual(got, map[string]map[string]string{"build": {}}) {
+		t.Fatalf("release = %v", got)
+	}
+	if got := manual(".github/workflows/deploy.yml"); !reflect.DeepEqual(got, map[string]map[string]string{"deploy": {}}) {
+		t.Fatalf("deploy = %v", got)
+	}
+	if got := manual(".github/workflows/tag.yml"); len(got) != 0 {
+		t.Fatalf("tag = %v", got)
+	}
+}

@@ -411,6 +411,47 @@ func TestAPullRequestIntoMain(t *testing.T) {
 	}
 }
 
+func TestAPushToABranchWithAnOpenPullRequestUpdatesIt(t *testing.T) {
+	repo := Repo{CurrentBranch: "feature/retry", DefaultBranch: "main", PullRequestBase: "main",
+		PullRequestChanges: Changes{Known: true, Files: []string{"core/internal/x.go", "README.md"}}}
+	// The push itself changes only the README; the pull request's files decide its paths filters.
+	f := Plan(Scenario{Push, "feature/retry"}, workflows(), repo, Changes{Known: true, Files: []string{"README.md"}})
+	var lanes []string
+	for _, l := range f.Lanes {
+		lanes = append(lanes, l.Name+":"+l.Why)
+	}
+	want := []string{"CI:pull_request · synchronize · branches main", "Report:workflow_run", "Go Core:pull_request · synchronize · paths ✓", "Deploy:workflow_dispatch"}
+	if !reflect.DeepEqual(lanes, want) {
+		t.Fatalf("lanes = %v", lanes)
+	}
+	if !f.Lanes[0].PullRequest || f.Lanes[1].PullRequest || f.Lanes[3].PullRequest || f.Lanes[3].Kind != ByHand {
+		t.Fatalf("lanes = %+v", f.Lanes)
+	}
+	// Planned as the pull request's run: publish asks for a push.
+	for _, j := range f.Lanes[0].Jobs {
+		if j.ID == "publish" && j.Skipped != "if: github.event_name == 'push'" {
+			t.Fatalf("publish = %+v", j)
+		}
+	}
+	skipped := map[string]string{}
+	for _, s := range f.Skipped {
+		skipped[s.Name] = s.Reason
+	}
+	if skipped["App Build"] != "paths apps/**: no changed file matches" || skipped["Release"] != "runs on tag pushes" {
+		t.Fatalf("skipped = %v", skipped)
+	}
+	// Types without synchronize: opening the pull request starts it, a push to it does not.
+	opened := Parse(".github/workflows/label.yml", []byte("name: Label\non:\n  pull_request:\n    types: [opened]\njobs:\n  a: {runs-on: ubuntu-latest, steps: [{run: x}]}\n"))
+	if g := Plan(Scenario{Push, "feature/retry"}, []Workflow{opened}, repo, Changes{Known: true}); len(g.Lanes) != 0 || g.Skipped[0].Reason != "types: opened" {
+		t.Fatalf("label = %+v", g)
+	}
+	// Without an open pull request a push to the branch starts only what is run by hand.
+	repo.PullRequestBase = ""
+	if g := Plan(Scenario{Push, "feature/retry"}, workflows(), repo, Changes{Known: true}); len(g.Lanes) != 1 || g.Lanes[0].Name != "Deploy" {
+		t.Fatalf("no pull request = %+v", g.Lanes)
+	}
+}
+
 func TestPathsUnknownWithoutGitKeepTheLane(t *testing.T) {
 	repo := Repo{CurrentBranch: "feature/retry", DefaultBranch: "main"}
 	f := Plan(Scenario{PullRequest, "main"}, workflows(), repo, Changes{Note: "git not found"})

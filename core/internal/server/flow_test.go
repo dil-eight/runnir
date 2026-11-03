@@ -142,4 +142,12 @@ func TestALanesRunsAreItsScenarios(t *testing.T) {
 	if id := newest(laneRuns{scenario: tag, repo: repo}, true); id != 6 {
 		t.Fatalf("a workflow of tags only = %d", id)
 	}
+	// Run by hand: started on the branch, or on the default branch as the pipeline's ▶ starts it.
+	dispatched := []github.Run{
+		{ID: 9, WorkflowID: 1, Event: "workflow_dispatch", Branch: "release"},
+		{ID: 8, WorkflowID: 1, Event: "workflow_dispatch", Branch: "main"},
+	}
+	if r, _ := (laneRuns{scenario: flow.Scenario{Kind: flow.Push, Target: "feature"}, repo: repo}).newest(flow.ByHand, false, 1, dispatched); r.ID != 8 {
+		t.Fatalf("run by hand = %d", r.ID)
+	}
 }

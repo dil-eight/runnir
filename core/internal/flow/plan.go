@@ -52,6 +52,9 @@ type Repo struct {
 	// PullRequestBase is the base of the current branch's open pull request;
 	// empty without one.
 	PullRequestBase string
+	// PullRequestChanges are that pull request's files against its base,
+	// read for a push to the branch, which updates the pull request.
+	PullRequestChanges Changes
 }
 
 // Scenarios lists what can happen to the current branch's change, given the
@@ -219,6 +222,9 @@ type Lane struct {
 	Why        string
 	Jobs       []PlannedJob
 	ParseError string
+	// PullRequest: in a push, the update of the branch's open pull request
+	// starts it, so its runs are the pull request's.
+	PullRequest bool
 }
 
 // SkippedWorkflow is a workflow the scenario does not start, with the reason.
@@ -247,9 +253,9 @@ func Plan(s Scenario, workflows []Workflow, repo Repo, changes Changes) Flow {
 			f.Skipped = append(f.Skipped, SkippedWorkflow{w.Path, w.Name, "does not parse: " + w.ParseError})
 			continue
 		}
-		lane, reason := match(s, w, repo, changes)
+		lane, as, reason := matchUpdate(s, w, repo, changes)
 		if reason == "" {
-			lane.Jobs = plannedJobs(w, runContext(s, repo, lane.Why, nil))
+			lane.Jobs = plannedJobs(w, runContext(as, repo, lane.Why, nil))
 			direct = append(direct, lane)
 			in[w.Path] = true
 		}
@@ -311,7 +317,7 @@ func Plan(s Scenario, workflows []Workflow, repo Repo, changes Changes) Flow {
 		if in[w.Path] || (w.ParseError != "" && len(w.Events) == 0) {
 			continue
 		}
-		_, reason := match(s, w, repo, changes)
+		_, _, reason := matchUpdate(s, w, repo, changes)
 		if reason == "" {
 			// It matched but sits behind a chain: it is in.
 			continue
@@ -338,6 +344,36 @@ func unchained(e Event, lanes []Lane) string {
 		}
 	}
 	return "after " + strings.Join(e.Workflows, ", ") + ", which " + plural(len(e.Workflows), "is", "are") + " not in this scenario"
+}
+
+// matchUpdate is match, but a push to a branch with an open pull request also
+// updates the pull request (synchronize), which starts its workflows: those
+// lanes are planned as the pull request's, with its files, and the scenario
+// they are planned in is returned with them. A workflow the update does not
+// start either keeps the pull request's reason when it reacts to one.
+func matchUpdate(s Scenario, w Workflow, repo Repo, changes Changes) (Lane, Scenario, string) {
+	lane, reason := match(s, w, repo, changes)
+	if reason == "" || s.Kind != Push || repo.PullRequestBase == "" || s.Target != repo.CurrentBranch {
+		return lane, s, reason
+	}
+	pr := Scenario{PullRequest, repo.PullRequestBase}
+	update, why := match(pr, w, repo, repo.PullRequestChanges)
+	if why != "" {
+		if _, ok := w.Events["pull_request"]; ok {
+			return lane, s, why
+		}
+		if _, ok := w.Events["pull_request_target"]; ok {
+			return lane, s, why
+		}
+		return lane, s, reason
+	}
+	event := strings.SplitN(update.Why, " ", 2)[0]
+	if types := w.Events[event].Types; len(types) > 0 && !slices.Contains(types, "synchronize") {
+		return lane, s, "types: " + strings.Join(types, ", ")
+	}
+	update.Why = event + " · synchronize" + strings.TrimPrefix(update.Why, event)
+	update.PullRequest = true
+	return update, pr, ""
 }
 
 // match says whether the scenario's event starts the workflow, and why not.
