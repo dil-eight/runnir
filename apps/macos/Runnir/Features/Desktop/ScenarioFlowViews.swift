@@ -72,6 +72,10 @@ struct ScenarioFlowView: View {
             if flow.scenario == nil {
                 note("None of the workflows reacts to a pull request, a push, a tag, a manual start or the schedule.")
             }
+            if let text = ScenarioFlowModel.noPullRequestText(flow, branch: session?.branch) {
+                Label(text, systemImage: "info.circle")
+                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(.top, 10).padding(.bottom, 2)
+            }
             let scenarioLanes = flow.lanes.filter { $0.kind != .byHand }
             let byHand = flow.lanes.filter { $0.kind == .byHand }
             ForEach(scenarioLanes) { lane in
@@ -268,7 +272,10 @@ struct ScenarioFlowView: View {
             guard let run = lane.run else { return }
             if let read, let target = RunGraph.jobToOpen(matched) { openJob(run, target, read) } else { openRun(run) }
         }
-        .help(hint(job, matched: matched, read: read, start: start))
+        // The full name, which the node may cut short, and what the job does here.
+        .hoverTip { JobTip(title: ScenarioFlowModel.title(job), detail: hint(job, matched: matched, read: read, start: start)) }
+        .accessibilityLabel(ScenarioFlowModel.title(job))
+        .accessibilityHint(hint(job, matched: matched, read: read, start: start))
     }
 
     private func outline(_ job: CoreFlowJob, outcome: CoreRunOutcome?) -> Color {
@@ -357,6 +364,25 @@ struct ScenarioFlowView: View {
             }
         }
         .padding(.top, 6)
+    }
+}
+
+/// A job's tip: its full name, then how it starts, its condition, its
+/// environment, its status and what it needs, a line each.
+struct JobTip: View {
+    let title: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(RunnirTheme.foreground)
+            ForEach(Array(detail.split(separator: "\n").enumerated()), id: \.offset) { _, line in
+                Text(line).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: 316, alignment: .leading)
+        .padding(.horizontal, 12).padding(.vertical, 10)
     }
 }
 

@@ -88,6 +88,14 @@ final class ScenarioFlowModel {
         }
     }
 
+    /// Under a pull request scenario the branch has no pull request into:
+    /// the lanes are what opening one starts, so none has a status yet.
+    static func noPullRequestText(_ flow: CoreFlow, branch: String?) -> String? {
+        guard let scenario = flow.scenario, scenario.kind == .pullRequest, flow.pullRequestBase != scenario.target,
+              let branch, !branch.isEmpty else { return nil }
+        return "\(branch) has no open pull request into \(scenario.target): this is what opening one starts."
+    }
+
     /// The line beside the scenario: what the paths filters were read against.
     static func changesText(_ changes: CoreFlowChanges) -> String? {
         guard changes.applies else { return nil }

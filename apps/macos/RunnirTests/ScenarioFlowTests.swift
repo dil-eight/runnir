@@ -44,6 +44,17 @@ struct ScenarioFlowTests {
         #expect(ScenarioFlowModel.changesText(CoreFlowChanges(applies: false, known: true)) == nil, "a tag reads no paths")
     }
 
+    @Test func aBranchWithoutAPullRequestIntoTheBaseIsSaidSo() {
+        let none = CoreFlow(scenarios: [pullRequest, merge], scenario: pullRequest)
+        #expect(ScenarioFlowModel.noPullRequestText(none, branch: "feature/retry")
+                == "feature/retry has no open pull request into main: this is what opening one starts.")
+        // One into another base does not count for main.
+        #expect(ScenarioFlowModel.noPullRequestText(CoreFlow(scenario: pullRequest, pullRequestBase: "develop"), branch: "feature/retry") != nil)
+        #expect(ScenarioFlowModel.noPullRequestText(CoreFlow(scenario: pullRequest, pullRequestBase: "main"), branch: "feature/retry") == nil)
+        #expect(ScenarioFlowModel.noPullRequestText(CoreFlow(scenario: merge), branch: "feature/retry") == nil)
+        #expect(ScenarioFlowModel.noPullRequestText(none, branch: "") == nil)
+    }
+
     @Test func thePickerGroupsScenariosByKind() {
         let groups = ScenarioFlowModel.groups([pullRequest, CoreScenario(kind: .pullRequest, target: "release", title: "Pull request → release"),
                                                merge, CoreScenario(kind: .schedule, target: "", title: "Schedule")])

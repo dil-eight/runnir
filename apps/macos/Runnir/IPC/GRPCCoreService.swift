@@ -712,6 +712,7 @@ struct GRPCCoreService: CoreServicing {
         return CoreFlow(
             scenarios: response.scenarios.compactMap(Self.map),
             scenario: response.hasScenario ? Self.map(response.scenario) : nil,
+            pullRequestBase: response.pullRequestBase,
             changes: CoreFlowChanges(applies: response.changes.applies, known: response.changes.known, count: Int(response.changes.count),
                                      against: response.changes.against, note: response.changes.note),
             lanes: response.lanes.map { lane in
