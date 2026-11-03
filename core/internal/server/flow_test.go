@@ -64,6 +64,10 @@ func TestTheFlowOfAScenarioCarriesTheNewestRunOfEachLane(t *testing.T) {
 	if got.Scenario.GetTitle() != "Pull request → main" || len(got.Scenarios) != 4 {
 		t.Fatalf("scenarios = %v, chosen %v", got.Scenarios, got.Scenario)
 	}
+	// The fork's pull request is not this branch's: the branch has none.
+	if got.PullRequestBase != "" {
+		t.Fatalf("pull request base = %q", got.PullRequestBase)
+	}
 	if len(got.Lanes) != 1 || got.Lanes[0].WorkflowName != "CI" || got.Lanes[0].Run.GetId() != 10 ||
 		got.Lanes[0].Jobs[1].Column != 1 || got.Lanes[0].Kind != corev1.LaneKind_LANE_KIND_DIRECT {
 		t.Fatalf("lanes = %v", got.Lanes)

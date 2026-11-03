@@ -73,6 +73,7 @@ func (s *service) GetFlow(ctx context.Context, request *corev1.GetFlowRequest) (
 		byPath[w.Path] = w
 	}
 	out.Scenario = scenarioMessage(chosen)
+	out.PullRequestBase = repo.PullRequestBase
 	out.Changes = &corev1.FlowChanges{
 		Applies: plan.PathsApply, Known: changes.Known, Count: uint32(len(changes.Files)), Against: changes.Against, Note: changes.Note,
 	}
