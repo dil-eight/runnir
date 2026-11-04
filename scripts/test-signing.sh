@@ -17,16 +17,19 @@ two=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
 other=CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 dev=DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
 
-# The stand-in answers find-identity with $tmp/identities and prints
-# nothing for anything else, so no certificate has a known expiry date.
+# The stand-in answers find-identity with $tmp/identities, decodes a
+# "profile" (cms -D -i IN -o OUT) by copying it, as the test profiles are
+# plain property lists, and prints nothing for anything else, so no
+# certificate has a known expiry date.
 mkdir "$tmp/bin"
 cat > "$tmp/bin/security" <<EOF
 #!/bin/sh
 if [ "\$1" = find-identity ]; then cat "$tmp/identities"; fi
+if [ "\$1" = cms ]; then cp "\$4" "\$6"; fi
 EOF
 chmod +x "$tmp/bin/security"
 unset APPLE_TEAM_ID SIGNING_IDENTITY NOTARY_PROFILE NOTARY_KEY_FILE NOTARY_KEY_ID NOTARY_ISSUER_ID \
-    RUNNIR_BUILD RUNNIR_DEV_SIGNING_IDENTITY RUNNIR_DEV_SIGNING_FILE
+    RUNNIR_BUILD RUNNIR_DEV_SIGNING_IDENTITY RUNNIR_DEV_SIGNING_FILE RUNNIR_DEV_PROFILE RUNNIR_PROFILE
 PATH="$tmp/bin:$PATH"
 export PATH
 
@@ -148,6 +151,63 @@ check "dev build: identity not in the keychain" 0 "warning: the dev signing iden
 printf '%s\n' "$(printf '%s' "$dev" | tr '[:upper:]' '[:lower:]')" > "$tmp/dev-signing-identity"
 check "dev build: identity from the file, in lower case" 1 "$tmp is not an app bundle" \
     env RUNNIR_BUILD=dev RUNNIR_DEV_SIGNING_FILE="$tmp/dev-signing-identity" "$here/sign-dev-build.sh" "$tmp"
+
+# embed-profile.sh, with profiles the stand-in decodes. The certificate is
+# the bytes "hello", whose SHA-1 is $hello.
+hello=AAF4C61DDCC5E8A2DABEDE0F3B482CD9AEA9434D
+# profile FILE APPLICATION EXPIRES: a profile of $team for APPLICATION.
+profile() {
+    cat > "$1" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>DeveloperCertificates</key><array><data>aGVsbG8=</data></array>
+<key>ExpirationDate</key><date>$3</date>
+<key>TeamIdentifier</key><array><string>$team</string></array>
+<key>Entitlements</key><dict>
+<key>com.apple.application-identifier</key><string>$2</string>
+<key>com.apple.developer.team-identifier</key><string>$team</string>
+<key>keychain-access-groups</key><array><string>$team.*</string></array>
+</dict></dict></plist>
+EOF
+}
+mkdir -p "$tmp/Dev.app/Contents"
+cat > "$tmp/Dev.app/Contents/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>io.dil8.runnir.dev</string></dict></plist>
+EOF
+profile "$tmp/dev.provisionprofile" "$team.io.dil8.runnir.dev" 2999-01-01T00:00:00Z
+profile "$tmp/local.provisionprofile" "$team.io.dil8.runnir.local" 2999-01-01T00:00:00Z
+profile "$tmp/expired.provisionprofile" "$team.io.dil8.runnir.dev" 2020-01-01T00:00:00Z
+: > "$tmp/empty.provisionprofile"
+check "profile: missing" 1 "No provisioning profile at $tmp/missing.provisionprofile" \
+    "$here/embed-profile.sh" "$tmp/Dev.app" "$tmp/missing.provisionprofile" "$tmp/entitlements.plist"
+check "profile: not a profile" 1 "$tmp/empty.provisionprofile is not a provisioning profile" \
+    "$here/embed-profile.sh" "$tmp/Dev.app" "$tmp/empty.provisionprofile" "$tmp/entitlements.plist"
+check "profile: of another app" 1 "is for $team.io.dil8.runnir.local, not io.dil8.runnir.dev" \
+    "$here/embed-profile.sh" "$tmp/Dev.app" "$tmp/local.provisionprofile" "$tmp/entitlements.plist"
+check "profile: of another team" 1 "is of team $team, not OTHER00001" \
+    env APPLE_TEAM_ID=OTHER00001 "$here/embed-profile.sh" "$tmp/Dev.app" "$tmp/dev.provisionprofile" "$tmp/entitlements.plist"
+check "profile: expired" 1 "expired 2020-01-01T00:00:00Z" \
+    "$here/embed-profile.sh" "$tmp/Dev.app" "$tmp/expired.provisionprofile" "$tmp/entitlements.plist"
+check "profile: without the signing certificate" 1 "does not list the certificate $one" \
+    "$here/embed-profile.sh" "$tmp/Dev.app" "$tmp/dev.provisionprofile" "$tmp/entitlements.plist" "$one"
+check "profile: none embedded after a refusal" 1 "No such file" \
+    ls "$tmp/Dev.app/Contents/embedded.provisionprofile"
+check "profile: embedded" 0 "" \
+    env APPLE_TEAM_ID=$team "$here/embed-profile.sh" "$tmp/Dev.app" "$tmp/dev.provisionprofile" "$tmp/entitlements.plist" \
+    "$(printf '%s' "$hello" | tr '[:upper:]' '[:lower:]')"
+# The written entitlements: application identifier, team, access group.
+entitlements() {
+    for key in com.apple.application-identifier com.apple.developer.team-identifier keychain-access-groups:0; do
+        /usr/libexec/PlistBuddy -c "Print :$key" "$tmp/entitlements.plist"
+    done | paste -sd ' ' -
+}
+check "profile: the app's identifier, team and access group" 0 "$team.io.dil8.runnir.dev $team $team.io.dil8.runnir.dev" \
+    entitlements
+check "profile: copied into the app" 0 "" \
+    cmp "$tmp/dev.provisionprofile" "$tmp/Dev.app/Contents/embedded.provisionprofile"
 
 # Summary
 if [ "$failures" -ne 0 ]; then

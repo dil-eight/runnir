@@ -50,9 +50,10 @@ jobs:
           NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+          DEVELOPER_ID_PROFILE: ${{ secrets.DEVELOPER_ID_PROFILE }}
         run: |
           missing=""
-          for name in DEVELOPER_ID_P12 DEVELOPER_ID_P12_PASSWORD NOTARY_KEY_P8 NOTARY_KEY_ID NOTARY_ISSUER_ID APPLE_TEAM_ID; do
+          for name in DEVELOPER_ID_P12 DEVELOPER_ID_P12_PASSWORD NOTARY_KEY_P8 NOTARY_KEY_ID NOTARY_ISSUER_ID DEVELOPER_ID_PROFILE APPLE_TEAM_ID; do
             if [ -z "${!name}" ]; then missing="$missing $name"; fi
           done
           if [ -n "$missing" ]; then
@@ -63,11 +64,13 @@ jobs:
       - name: Set up the signing keychain
         # A temporary keychain holds the Developer ID certificate for codesign
         # only, with Apple's Developer ID G2 intermediate to complete its
-        # chain; the notarization key goes to the job's temporary folder.
+        # chain; the notarization key and the app's provisioning profile go
+        # to the job's temporary folder.
         env:
           DEVELOPER_ID_P12: ${{ secrets.DEVELOPER_ID_P12 }}
           DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
           NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          DEVELOPER_ID_PROFILE: ${{ secrets.DEVELOPER_ID_PROFILE }}
         run: |
           umask 077
           keychain="$RUNNER_TEMP/signing.keychain-db"
@@ -89,6 +92,8 @@ jobs:
           security list-keychains -d user -s "$@"
           printf '%s' "$NOTARY_KEY_P8" | base64 --decode > "$RUNNER_TEMP/notary-key.p8"
           echo "NOTARY_KEY_FILE=$RUNNER_TEMP/notary-key.p8" >> "$GITHUB_ENV"
+          printf '%s' "$DEVELOPER_ID_PROFILE" | base64 --decode > "$RUNNER_TEMP/runnir.provisionprofile"
+          echo "RUNNIR_PROFILE=$RUNNER_TEMP/runnir.provisionprofile" >> "$GITHUB_ENV"
           scripts/signing-identity.sh > /dev/null
 
       - name: Select newest Xcode
@@ -196,4 +201,4 @@ jobs:
             security list-keychains -d user -s "$@"
           fi
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
-          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/notary-key.p8"
+          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/notary-key.p8" "$RUNNER_TEMP/runnir.provisionprofile"

@@ -99,6 +99,14 @@ private final class Announcements: @unchecked Sendable {
         #expect(model.environment == nil && !model.isDirty)
     }
 
+    @Test func aBuildWithAnApplicationIdentifierUsesTheDataProtectionKeychain() {
+        let entitled = GenericPassword.base(service: "com.runnir.test", account: "secret:A", dataProtection: true)
+        #expect(entitled[kSecUseDataProtectionKeychain as String] as? Bool == true)
+        #expect(entitled[kSecAttrAccount as String] as? String == "secret:A")
+        let adHoc = GenericPassword.base(service: "com.runnir.test", account: nil, dataProtection: false)
+        #expect(adHoc[kSecUseDataProtectionKeychain as String] == nil && adHoc[kSecAttrAccount as String] == nil)
+    }
+
     @Test func keysSortByNameThenKind() {
         let keys = [LocalRunValueKey(kind: .variable, name: "B"), LocalRunValueKey(kind: .variable, name: "A"),
                     LocalRunValueKey(kind: .secret, name: "A")]
