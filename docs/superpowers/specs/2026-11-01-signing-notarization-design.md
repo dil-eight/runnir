@@ -103,9 +103,23 @@ A build signed on a Mac would otherwise be archived as a beta, and a signed beta
 
 `RunnirBuild` gets `case local` (palette `pink400`); `marksWindows`, `folderName` and `keychainPrefix` treat dev and local as apps of their own. The build settings gain `RUNNIR_BUNDLE_SUFFIX_local = .local`, `RUNNIR_DISPLAY_NAME_local = Runnir Local` and `RUNNIR_APPICON_local = AppIcon-Local`. Drawn in `runnir.pen`, journey F: `S19 / Menu bar icon / Build marks / Dark / 680x640` (a fifth app icon and the LOCAL capsule in the menu bar) and `S19 / Build marks / DEV and LOCAL in the windows / Dark / 560x640`.
 
+### A signed dev build (added 2026-11-03)
+
+Xcode's own builds keep the linker's ad hoc signature, which names a build by its hash. Keychain took each new build of Runnir Dev for another app and asked for the login password again after every build. On a Mac with a code signing identity, the Runnir scheme's build post-action, `scripts/sign-dev-build.sh`, signs a dev build with it, inside out: Swift's libraries in `Contents/Frameworks`, the helpers, a test bundle Xcode put into the app, then the app. Keychain then knows Runnir Dev by its identifier and certificate, and "Always Allow" holds across builds. The bundle identifier becomes the signing identifier, so macOS also lets the build post notifications.
+
+- The SHA-1 comes from `RUNNIR_DEV_SIGNING_IDENTITY` or the first line of `~/.config/runnir/dev-signing-identity`, never from the repository. Without either the build stays ad hoc, as in CI; with an identity that is not in the keychain search list it stays ad hoc with a warning.
+- No hardened runtime and no timestamp: the unit tests load into the app, the debugger attaches to it, and a build needs no network.
+- A post-action, not a build phase: Xcode copies Swift's compatibility libraries into `Contents/Frameworks` after the last build phase, which broke a signature made in one. A post-action's failure does not fail the build; the build is then left ad hoc or with a broken seal, and Keychain asks again.
+- Local and tagged builds skip it; `sign-app.sh` signs them.
+
+```bash
+security find-identity -v -p codesigning
+mkdir -p ~/.config/runnir && echo SHA-1 > ~/.config/runnir/dev-signing-identity
+```
+
 ## Not in this change
 
-- Apple Development signing of dev builds on a Mac, and the data-protection keychain.
+- The data-protection keychain, which needs a provisioning profile.
 - A DMG or an installer package.
 - Updates.
 
@@ -113,6 +127,8 @@ A build signed on a Mac would otherwise be archived as a beta, and a signed beta
 
 - `shellcheck` on the signing scripts and actionlint on `release.yml`.
 - `scripts/test-signing.sh`, in CI's build job, runs the scripts against a stand-in for `security`: `signing-identity.sh`, `sign-app.sh` and `sign-binary.sh` refuse without `APPLE_TEAM_ID`, without an identity of that team, and with several identities and no `SIGNING_IDENTITY`; `check-signature.sh` refuses unsigned and ad hoc code; `notarize.sh` refuses without credentials, naming the missing ones.
+- `test-signing.sh` also runs `sign-dev-build.sh`: it skips a build that is not dev, a Mac without an identity, and an identity missing from the keychain (with a warning), and reads the file's SHA-1 in any case.
+- On a Mac, a dev build signed with the Developer ID identity passes `codesign --verify --deep --strict`, also after the unit tests ran in it (2026-11-03).
 - `RunnirBuildTests` and the menu bar test cover the local build: its Info.plist value, mark, spoken name, folders, Keychain prefix, window mark and menu bar capsule.
 - On a Mac, the whole path on a Release archive of a local build (`RUNNIR_BUILD=local`): sign, verify, notarize, staple, `spctl` says `Notarized Developer ID`; the signed darwin Core binary is notarized; the app then opens, reads a chosen folder, keeps its sign-in in Keychain and starts its Core under the hardened runtime.
 - The CI path is checked by the first tag; until then the release workflow's signing is written but not verified.
