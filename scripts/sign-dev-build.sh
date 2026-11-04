@@ -16,7 +16,7 @@ set -eu
 # runtime and no timestamp: the unit tests load into the app, the debugger
 # attaches to it, and a build needs no network.
 #
-# With the Developer ID provisioning profile of com.runnir.dev in
+# With the Developer ID provisioning profile of com.runnir.app.dev in
 # RUNNIR_DEV_PROFILE or ~/.config/runnir/dev.provisionprofile, the build
 # embeds it and takes its application identifier (embed-profile.sh), so it
 # keeps its Keychain items in the data protection keychain and Keychain

@@ -1,6 +1,6 @@
 # Signing and Notarization (B48) Implementation Plan
 
-> On 2026-11-04 every name below moved from `io.dil8.runnir` to `com.runnir`, runnir.com's domain; the plan keeps the names it was written with.
+> On 2026-11-04 the names below moved from `io.dil8.runnir` to runnir.com's domain, the apps' to `com.runnir.app` and the others to `com.runnir`; the plan keeps the names it was written with.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

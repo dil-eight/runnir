@@ -175,17 +175,17 @@ mkdir -p "$tmp/Dev.app/Contents"
 cat > "$tmp/Dev.app/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.runnir.dev</string></dict></plist>
+<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.runnir.app.dev</string></dict></plist>
 EOF
-profile "$tmp/dev.provisionprofile" "$team.com.runnir.dev" 2999-01-01T00:00:00Z
-profile "$tmp/local.provisionprofile" "$team.com.runnir.local" 2999-01-01T00:00:00Z
-profile "$tmp/expired.provisionprofile" "$team.com.runnir.dev" 2020-01-01T00:00:00Z
+profile "$tmp/dev.provisionprofile" "$team.com.runnir.app.dev" 2999-01-01T00:00:00Z
+profile "$tmp/local.provisionprofile" "$team.com.runnir.app.local" 2999-01-01T00:00:00Z
+profile "$tmp/expired.provisionprofile" "$team.com.runnir.app.dev" 2020-01-01T00:00:00Z
 : > "$tmp/empty.provisionprofile"
 check "profile: missing" 1 "No provisioning profile at $tmp/missing.provisionprofile" \
     "$here/embed-profile.sh" "$tmp/Dev.app" "$tmp/missing.provisionprofile" "$tmp/entitlements.plist"
 check "profile: not a profile" 1 "$tmp/empty.provisionprofile is not a provisioning profile" \
     "$here/embed-profile.sh" "$tmp/Dev.app" "$tmp/empty.provisionprofile" "$tmp/entitlements.plist"
-check "profile: of another app" 1 "is for $team.com.runnir.local, not com.runnir.dev" \
+check "profile: of another app" 1 "is for $team.com.runnir.app.local, not com.runnir.app.dev" \
     "$here/embed-profile.sh" "$tmp/Dev.app" "$tmp/local.provisionprofile" "$tmp/entitlements.plist"
 check "profile: of another team" 1 "is of team $team, not OTHER00001" \
     env APPLE_TEAM_ID=OTHER00001 "$here/embed-profile.sh" "$tmp/Dev.app" "$tmp/dev.provisionprofile" "$tmp/entitlements.plist"
@@ -204,7 +204,7 @@ entitlements() {
         /usr/libexec/PlistBuddy -c "Print :$key" "$tmp/entitlements.plist"
     done | paste -sd ' ' -
 }
-check "profile: the app's identifier, team and access group" 0 "$team.com.runnir.dev $team $team.com.runnir.dev" \
+check "profile: the app's identifier, team and access group" 0 "$team.com.runnir.app.dev $team $team.com.runnir.app.dev" \
     entitlements
 check "profile: copied into the app" 0 "" \
     cmp "$tmp/dev.provisionprofile" "$tmp/Dev.app/Contents/embedded.provisionprofile"
@@ -231,7 +231,7 @@ check "dev build: with its profile" 0 "" \
 check "dev build: the profile's entitlements and get-task-allow" 0 "$tmp/Dev.app true" \
     tail -1 "$tmp/signed"
 check "dev build: a profile of another app is left out" 0 \
-    "warning: $tmp/local.provisionprofile is for $team.com.runnir.local, not com.runnir.dev; the build uses the file-based keychain" \
+    "warning: $tmp/local.provisionprofile is for $team.com.runnir.app.local, not com.runnir.app.dev; the build uses the file-based keychain" \
     env PATH="$tmp/codesign-bin:$PATH" RUNNIR_BUILD=dev RUNNIR_DEV_SIGNING_IDENTITY=$hello \
     RUNNIR_DEV_PROFILE="$tmp/local.provisionprofile" "$here/sign-dev-build.sh" "$tmp/Dev.app"
 check "dev build: then signed without entitlements" 0 "$tmp/Dev.app none" \

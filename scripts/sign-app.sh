@@ -9,7 +9,7 @@ set -eu
 # keychain. Every signature has the hardened runtime and a secure timestamp.
 #
 # The profile is RUNNIR_PROFILE, else ~/.config/runnir/release.provisionprofile
-# for com.runnir and local.provisionprofile for com.runnir.local.
+# for com.runnir.app and local.provisionprofile for com.runnir.app.local.
 # Usage: scripts/sign-app.sh path/to/Runnir.app
 if [ $# -ne 1 ]; then
     echo "usage: $0 APP" >&2
@@ -26,8 +26,8 @@ SIGNING_IDENTITY=$("$here/signing-identity.sh")
 export SIGNING_IDENTITY
 bundle=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")
 case $bundle in
-    com.runnir) name=release ;;
-    com.runnir.*) name=${bundle#com.runnir.} ;;
+    com.runnir.app) name=release ;;
+    com.runnir.app.*) name=${bundle#com.runnir.app.} ;;
     *) name=$bundle ;;
 esac
 profile=${RUNNIR_PROFILE:-$HOME/.config/runnir/$name.provisionprofile}
