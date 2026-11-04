@@ -128,7 +128,7 @@ jobs:
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
         run: |
           for goarch in arm64 amd64; do
-            scripts/sign-binary.sh "build/export/runnir-${GITHUB_REF_NAME}-darwin-${goarch}" io.dil8.runnir.cli
+            scripts/sign-binary.sh "build/export/runnir-${GITHUB_REF_NAME}-darwin-${goarch}" com.runnir.cli
           done
           zip -j "$RUNNER_TEMP/runnir-darwin.zip" build/export/runnir-"${GITHUB_REF_NAME}"-darwin-*
           scripts/notarize.sh "$RUNNER_TEMP/runnir-darwin.zip"
@@ -145,7 +145,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
       - name: Check the build
-        run: scripts/check-app-build.sh "$APP" io.dil8.runnir "$RUNNIR_BUILD" "$RUNNIR_ICON"
+        run: scripts/check-app-build.sh "$APP" com.runnir "$RUNNIR_BUILD" "$RUNNIR_ICON"
 
       - name: Sign the app
         run: scripts/sign-app.sh "$APP"
