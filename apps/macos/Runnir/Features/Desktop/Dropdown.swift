@@ -61,6 +61,8 @@ private struct DropdownKey: PreferenceKey {
 
 enum DropdownPlacement {
     static let gap: CGFloat = 4
+    /// The least room between a panel and the window's side.
+    static let margin: CGFloat = 8
 
     /// The panel's top: under the button, or above it when the panel fits
     /// there and not under it.
@@ -69,10 +71,18 @@ enum DropdownPlacement {
         let above = button.minY - gap - panelHeight
         return below + panelHeight > space && above >= 0 ? above : below
     }
+
+    /// How far the panel moves sideways from the button's edge it lines up
+    /// with, so that it stays inside the window: left from the right side,
+    /// right from the left one.
+    static func shift(button: CGRect, panelWidth: CGFloat, space: CGFloat, trailing: Bool) -> CGFloat {
+        let left = trailing ? button.maxX - panelWidth : button.minX
+        return max(margin, min(left, space - margin - panelWidth)) - left
+    }
 }
 
 private struct DropdownHost: ViewModifier {
-    @State private var panelHeight: CGFloat = 0
+    @State private var panelSize: CGSize = .zero
 
     func body(content: Content) -> some View {
         content
@@ -89,12 +99,14 @@ private struct DropdownHost: ViewModifier {
                                 .environment(\.dismissDropdown, DropdownDismiss(action: request.close))
                                 .dropdownPanelStyle()
                                 .fixedSize()
-                                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
+                                .onGeometryChange(for: CGSize.self) { $0.size } action: { panelSize = $0 }
                                 // A dropdown inside the panel opens over it.
                                 .modifier(DropdownHost())
                                 .frame(width: request.trailing ? button.maxX : nil, alignment: .topTrailing)
-                                .offset(x: request.trailing ? 0 : button.minX,
-                                        y: DropdownPlacement.top(button: button, panelHeight: panelHeight, space: proxy.size.height))
+                                .offset(x: (request.trailing ? 0 : button.minX)
+                                            + DropdownPlacement.shift(button: button, panelWidth: panelSize.width, space: proxy.size.width,
+                                                                      trailing: request.trailing),
+                                        y: DropdownPlacement.top(button: button, panelHeight: panelSize.height, space: proxy.size.height))
                                 .allowsHitTesting(!request.passive)
                             if !request.passive {
                                 Button("Close", action: request.close)
@@ -144,15 +156,34 @@ struct TipCard: View {
     let detail: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(RunnirTheme.foreground)
-            ForEach(Array(detail.split(separator: "\n").enumerated()), id: \.offset) { _, line in
-                Text(line).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+        UpToWidth(maxWidth: 316) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(RunnirTheme.foreground)
+                ForEach(Array(detail.split(separator: "\n").enumerated()), id: \.offset) { _, line in
+                    Text(line).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                }
             }
         }
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(width: 316, alignment: .leading)
         .padding(.horizontal, 12).padding(.vertical, 10)
+    }
+}
+
+/// Gives its content the width it wants, up to `maxWidth`: a short tip stays
+/// narrow and a long one wraps.
+private struct UpToWidth: Layout {
+    let maxWidth: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let content = subviews.first else { return .zero }
+        return content.sizeThatFits(width(of: content))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        if let content = subviews.first { content.place(at: bounds.origin, proposal: width(of: content)) }
+    }
+
+    private func width(of content: LayoutSubview) -> ProposedViewSize {
+        ProposedViewSize(width: min(content.sizeThatFits(.unspecified).width, maxWidth), height: nil)
     }
 }
 

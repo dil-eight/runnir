@@ -101,28 +101,52 @@ struct ProjectLink: View {
     }
 }
 
-/// A workspace's first letter on a color taken from its id, like an IDE's
-/// project badge; the same workspace keeps its color across launches.
+/// A workspace's first letter on a color taken from its name, like an IDE's
+/// project badge: a name keeps its color across launches and Macs. Every
+/// color has the same lightness and a muted chroma (OKLCH 0.55 and 0.09), so
+/// the white letter reads on each at 4.5:1 or more.
 struct WorkspaceBadge: View {
     let name: String
-    let id: UUID
     var size: CGFloat = 18
-
-    nonisolated static let palette: [Color] = [RunnirTheme.primary, RunnirTheme.info, RunnirTheme.success, RunnirTheme.destructive, RunnirTheme.syntaxKey]
 
     nonisolated static func initial(_ name: String) -> String {
         guard let first = name.first else { return "?" }
         return String(first).uppercased()
     }
 
-    /// An index into `palette` from the id's first byte.
-    nonisolated static func colorIndex(_ id: UUID) -> Int { Int(id.uuid.0) % palette.count }
+    /// A hue from the name's FNV-1a hash, which, unlike `hashValue`, is the
+    /// same on every launch. It skips 60° to 115°, the olive yellows, which
+    /// turn muddy at this lightness.
+    nonisolated static func hue(_ name: String) -> Double {
+        var hash: UInt32 = 2_166_136_261
+        for byte in name.utf8 { hash = (hash ^ UInt32(byte)) &* 16_777_619 }
+        let hue = hash % 305
+        return Double(hue < 60 ? hue : hue + 55)
+    }
+
+    /// The color of `hue` at the badges' lightness and chroma, in linear sRGB.
+    nonisolated static func components(hue: Double) -> (red: Double, green: Double, blue: Double) {
+        let lightness = 0.55, chroma = 0.09
+        let a = chroma * cos(hue * .pi / 180), b = chroma * sin(hue * .pi / 180)
+        // OKLab to linear sRGB (Björn Ottosson's matrices).
+        let l = pow(lightness + 0.3963377774 * a + 0.2158037573 * b, 3)
+        let m = pow(lightness - 0.1055613458 * a - 0.0638541728 * b, 3)
+        let s = pow(lightness - 0.0894841775 * a - 1.2914855480 * b, 3)
+        return (4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+                -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+                -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)
+    }
 
     var body: some View {
+        let color = Self.components(hue: Self.hue(name))
+        let capHeight = NSFont.systemFont(ofSize: size * 0.56, weight: .bold).capHeight
         Text(Self.initial(name))
             .font(.system(size: size * 0.56, weight: .bold)).foregroundStyle(.white)
+            // Centered on the capital's height, not on the line's, which keeps room under the baseline.
+            .alignmentGuide(VerticalAlignment.center) { $0[.firstTextBaseline] - capHeight / 2 }
             .frame(width: size, height: size)
-            .background(Self.palette[Self.colorIndex(id)], in: RoundedRectangle(cornerRadius: size * 0.24))
+            .background(Color(.sRGBLinear, red: color.red, green: color.green, blue: color.blue),
+                        in: RoundedRectangle(cornerRadius: size * 0.24))
             .accessibilityHidden(true)
     }
 }
@@ -1043,9 +1067,15 @@ struct DesktopWorkspaceView: View {
         }
     }
 
-    /// The strip above the islands, level with the window's buttons: the
-    /// workspace switcher next to them (centered on the buttons, y = 16), the
-    /// search in the middle, Runnir on GitHub and the bell on the right.
+    /// The title strip's height. The window's buttons, the workspace switcher,
+    /// the search and the bell all sit on its middle line, as drawn in Pen
+    /// (C28); `WindowButtonLine` moves the buttons there.
+    static let titleStripHeight: CGFloat = 40
+    private static let nameXHeight = NSFont.systemFont(ofSize: 13, weight: .semibold).xHeight
+
+    /// The strip above the islands: the workspace switcher next to the
+    /// window's buttons, the search in the middle, Runnir on GitHub and the
+    /// bell on the right.
     private var titleStrip: some View {
         HStack(spacing: 0) {
             Color.clear.frame(width: 64)
@@ -1057,10 +1087,8 @@ struct DesktopWorkspaceView: View {
             ProjectLink().buttonStyle(.hit).padding(.trailing, 6)
             NotificationBell(inbox: desktop.inbox, showing: $showingNotifications)
         }
-        .padding(.leading, 12).padding(.trailing, 14).padding(.top, 3).frame(height: 40, alignment: .top)
-        .overlay(alignment: .top) {
-            GlobalSearchField(open: openSearch).frame(width: 420).padding(.top, 3)
-        }
+        .padding(.leading, 12).padding(.trailing, 14).frame(height: Self.titleStripHeight)
+        .overlay { GlobalSearchField(open: openSearch).frame(width: 420) }
     }
 
     private func openSearch() {
@@ -1121,8 +1149,10 @@ struct DesktopWorkspaceView: View {
     private var workspaceSwitcherButton: some View {
         Button { state.showingSwitcher = true } label: {
             HStack(spacing: 6) {
-                WorkspaceBadge(name: workspace.name, id: workspace.id)
+                WorkspaceBadge(name: workspace.name)
                 Text(workspace.name).font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+                    // The middle of the lowercase letters, not of the line, on the badge's middle.
+                    .alignmentGuide(VerticalAlignment.center) { $0[.firstTextBaseline] - Self.nameXHeight / 2 }
                 Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(RunnirTheme.secondaryForeground)
             }
             .padding(.horizontal, 5).frame(height: 26)
@@ -1155,7 +1185,7 @@ struct DesktopWorkspaceView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .overlay(RoundedRectangle(cornerRadius: 10).stroke(RunnirTheme.border))
                     .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
-                    .padding(.leading, 82).padding(.top, 34)
+                    .padding(.leading, 82).padding(.top, 37)
             }
         }
     }

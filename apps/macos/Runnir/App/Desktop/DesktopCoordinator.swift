@@ -816,6 +816,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
     var grant: (any RepositoryGranting)?
     private let desktop: DesktopCoordinator
     private var state: AppState?
+    private var buttonLine: WindowButtonLine?
 
     init(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: (any RepositoryGranting)?, desktop: DesktopCoordinator) {
         self.record = record
@@ -843,6 +844,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
                                    y: min(max(frame.minY, screen.minY), screen.maxY - height), width: width, height: height), display: false)
         }
         installContent(workspace)
+        buttonLine = WindowButtonLine(window: window, middle: DesktopWorkspaceView.titleStripHeight / 2)
     }
 
     required init?(coder: NSCoder) { nil }
@@ -911,7 +913,51 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
     func windowShouldClose(_ sender: NSWindow) -> Bool { desktop.shouldClose(record.id) }
     func windowWillClose(_ notification: Notification) { desktop.didClose(record.id) }
     func windowDidMove(_ notification: Notification) { desktop.geometryChanged() }
-    func windowDidResize(_ notification: Notification) { desktop.geometryChanged() }
+    func windowDidResize(_ notification: Notification) {
+        buttonLine?.place()
+        desktop.geometryChanged()
+    }
+    func windowDidExitFullScreen(_ notification: Notification) { buttonLine?.place() }
+}
+
+/// Keeps a workspace window's buttons on the middle line of its title strip,
+/// level with the workspace switcher, as drawn in Pen (C28). AppKit puts them
+/// back on its own title bar's line whenever it lays that bar out, so a move
+/// of any of them moves them again.
+@MainActor
+final class WindowButtonLine: NSObject {
+    private weak var window: NSWindow?
+    /// The line, in points under the window's top.
+    private let middle: CGFloat
+    private static let kinds: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
+
+    init(window: NSWindow, middle: CGFloat) {
+        self.window = window
+        self.middle = middle
+        super.init()
+        for kind in Self.kinds {
+            guard let button = window.standardWindowButton(kind) else { continue }
+            button.postsFrameChangedNotifications = true
+            NotificationCenter.default.addObserver(self, selector: #selector(buttonMoved), name: NSView.frameDidChangeNotification, object: button)
+        }
+        place()
+    }
+
+    @objc private func buttonMoved(_ notification: Notification) { place() }
+
+    /// Moves each button whose middle is off the line. In full screen they
+    /// stay where AppKit shows them, over the menu bar.
+    func place() {
+        guard let window, !window.styleMask.contains(.fullScreen) else { return }
+        for kind in Self.kinds {
+            guard let button = window.standardWindowButton(kind), let bar = button.superview else { continue }
+            let line = bar.convert(NSPoint(x: 0, y: window.frame.height - middle), from: nil).y
+            let y = (line - button.frame.height / 2).rounded()
+            // Only inside the title bar, where the button still takes clicks.
+            guard abs(button.frame.minY - y) >= 0.5, y >= 0, y + button.frame.height <= bar.bounds.height else { continue }
+            button.setFrameOrigin(NSPoint(x: button.frame.minX, y: y))
+        }
+    }
 }
 
 @MainActor

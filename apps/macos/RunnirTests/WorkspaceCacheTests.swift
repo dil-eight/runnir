@@ -315,12 +315,23 @@ struct TestDefaults {
 
 @MainActor
 @Suite struct WorkspaceBadgeTests {
-    @Test func theBadgeShowsTheFirstLetterInAStableColor() {
-        let id = UUID(uuidString: "5CE88FF0-5C16-43B3-8F20-8E33E852B019")!
+    @Test func theBadgeShowsTheFirstLetterInAColorFromTheName() {
         #expect(WorkspaceBadge.initial("runnir") == "R")
         #expect(WorkspaceBadge.initial("") == "?")
-        #expect(WorkspaceBadge.colorIndex(id) == WorkspaceBadge.colorIndex(id))
-        #expect((0..<WorkspaceBadge.palette.count).contains(WorkspaceBadge.colorIndex(id)))
+        // FNV-1a, not hashValue: the same hue on every launch.
+        #expect(WorkspaceBadge.hue("memo-project") == 298)
+        #expect(WorkspaceBadge.hue("runnir") == 43)
+        #expect(WorkspaceBadge.hue("api") == 192, "past the skipped olive yellows")
+    }
+
+    @Test func theWhiteLetterReadsOnEveryHue() {
+        for hue in stride(from: 0.0, to: 360, by: 1) {
+            let color = WorkspaceBadge.components(hue: hue)
+            let channels = [color.red, color.green, color.blue]
+            #expect(channels.allSatisfy { (0...1).contains($0) }, "hue \(hue) is inside sRGB")
+            let luminance = 0.2126 * color.red + 0.7152 * color.green + 0.0722 * color.blue
+            #expect(1.05 / (luminance + 0.05) >= 4.5, "hue \(hue) keeps 4.5:1 against white")
+        }
     }
 }
 
