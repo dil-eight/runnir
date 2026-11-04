@@ -13,12 +13,12 @@ Every Runnir build looks the same: a build made in Xcode, a pre-release from a t
 | Which builds there are | Four: `release`, `alpha`, `beta` and `dev` |
 | What decides the build | The tag the release workflow builds: `v1.2.3` is release, `v1.2.3-alpha.N` is alpha, `v1.2.3-beta.N` is beta. Any other suffix (`-rc.1`) stops the release workflow with an error. Everything built without a tag is dev: Xcode on a Mac, Debug or Release, and the CI checks' archive |
 | Where the build is set | One build setting, `RUNNIR_BUILD`, `dev` unless the release workflow passes another value. Xcode derives the bundle ID, the display name and the app icon from it; the app reads it from Info.plist |
-| Release, alpha and beta | One app: bundle ID `io.dil8.runnir`, name Runnir, the same data, Keychain items and sign-in. An alpha is replaced in place by a beta and a beta by a release |
-| Dev | A separate app, Runnir Dev: bundle ID `io.dil8.runnir.dev`, its own data, logs, caches, Keychain items, preferences and notification permission. It runs beside an installed release with its own Core |
+| Release, alpha and beta | One app: bundle ID `com.runnir`, name Runnir, the same data, Keychain items and sign-in. An alpha is replaced in place by a beta and a beta by a release |
+| Dev | A separate app, Runnir Dev: bundle ID `com.runnir.dev`, its own data, logs, caches, Keychain items, preferences and notification permission. It runs beside an installed release with its own Core |
 | The app icon | Release: as today. Dev, alpha and beta: a pill inside the tile's lower edge with DEV, ALPHA or BETA, amber, violet and blue. The pill never leaves the tile: macOS puts an icon whose shape leaves the rounded tile on a plain backing tile |
 | The menu bar icon | Release: as today. Dev, alpha and beta: a capsule with the word to the right of the glyph, in the menu bar's text color with the word cut out of it. Color keeps meaning the CI state only; the dot stays on the glyph's corner |
 | The windows | Dev only: DEV in an amber capsule, as on its Dock icon, next to the workspace switcher in a workspace window's title strip, beside the logo in the Workspace Manager, before Refresh in the Pull Requests window and after the version on the splash. Alpha, beta and release windows look as today |
-| The domain of names | `io.dil8.runnir`, from dil8.io, the company's domain, for the bundle IDs and every reverse-DNS name: the Keychain services, the notification categories and actions, the in-app notification name and the Core's container label. No name of the earlier domains is kept |
+| The domain of names | `com.runnir`, from runnir.com, the product's domain, for the bundle IDs and every reverse-DNS name: the Keychain services, the notification categories and actions, the in-app notification name and the Core's container label. No name of the earlier domains is kept. (From 2026-11-01 to 2026-11-04 the names were under `io.dil8.runnir`, from the company's domain; no release used them, so they changed in place) |
 | Data of earlier builds | No migration (AGENTS.md). The data folder `Runnir` stays with release, alpha and beta; the sign-in, the local run values in Keychain and the preferences of earlier builds are not read again, so the first new build is signed in again. Runnir Dev starts empty |
 
 ## Build settings
@@ -26,12 +26,12 @@ Every Runnir build looks the same: a build made in Xcode, a pre-release from a t
 The `Runnir` target gets, in both configurations:
 
 - `RUNNIR_BUILD = dev`.
-- `RUNNIR_BUNDLE_SUFFIX_dev = .dev`, and `PRODUCT_BUNDLE_IDENTIFIER = io.dil8.runnir$(RUNNIR_BUNDLE_SUFFIX_$(RUNNIR_BUILD))`. The other builds have no suffix setting, so theirs is empty.
+- `RUNNIR_BUNDLE_SUFFIX_dev = .dev`, and `PRODUCT_BUNDLE_IDENTIFIER = com.runnir$(RUNNIR_BUNDLE_SUFFIX_$(RUNNIR_BUILD))`. The other builds have no suffix setting, so theirs is empty.
 - `RUNNIR_DISPLAY_NAME_dev = Runnir Dev`, `RUNNIR_DISPLAY_NAME_alpha`, `_beta` and `_release` = `Runnir`, and `INFOPLIST_KEY_CFBundleDisplayName = $(RUNNIR_DISPLAY_NAME_$(RUNNIR_BUILD))`.
 - `RUNNIR_APPICON_dev = AppIcon-Dev`, `_alpha = AppIcon-Alpha`, `_beta = AppIcon-Beta`, `_release = AppIcon`, and `ASSETCATALOG_COMPILER_APPICON_NAME = $(RUNNIR_APPICON_$(RUNNIR_BUILD))`. Only the chosen set is compiled into the app (`ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS` stays `NO`).
 - `INFOPLIST_FILE = Runnir/Info.plist`, a partial Info.plist merged with the generated one (`GENERATE_INFOPLIST_FILE` stays `YES`), holding one key: `RunnirBuild = $(RUNNIR_BUILD)`.
 
-`PRODUCT_NAME` stays `Runnir`: the bundle is `Runnir.app` and the module `Runnir` for every build, so the tests' host and `@testable import Runnir` do not change. The test targets' bundle IDs become `io.dil8.runnir.tests` and `io.dil8.runnir.uitests`.
+`PRODUCT_NAME` stays `Runnir`: the bundle is `Runnir.app` and the module `Runnir` for every build, so the tests' host and `@testable import Runnir` do not change. The test targets' bundle IDs become `com.runnir.tests` and `com.runnir.uitests`.
 
 ## The app
 
@@ -45,7 +45,7 @@ A new `enum RunnirBuild: String { case dev, alpha, beta, release }` in `App/Runn
 - `marksWindows: Bool`: true for dev only.
 - `spokenName: String`: `Runnir`, `Runnir Dev`, `Runnir Alpha` or `Runnir Beta`, for VoiceOver.
 - `folderName: String`: `Runnir Dev` for dev, `Runnir` for the others.
-- `keychainPrefix: String`: `io.dil8.runnir.dev` for dev, `io.dil8.runnir` for the others.
+- `keychainPrefix: String`: `com.runnir.dev` for dev, `com.runnir` for the others.
 
 ### What dev keeps apart
 
@@ -54,13 +54,13 @@ A new `enum RunnirBuild: String { case dev, alpha, beta, release }` in `App/Runn
 | Data (`RunnirSupportDirectory`), also the Core's `--data-dir` | `~/Library/Application Support/Runnir` | `~/Library/Application Support/Runnir Dev` |
 | Core log (`CoreProcessSupervisor.logURL`) | `~/Library/Logs/Runnir/core.log` | `~/Library/Logs/Runnir Dev/core.log` |
 | Core caches, passed as `--cache-dir` | `~/Library/Caches/Runnir` | `~/Library/Caches/Runnir Dev` |
-| github.com and Enterprise tokens (`KeychainCredentialStore.defaultService`) | `io.dil8.runnir.github` | `io.dil8.runnir.dev.github` |
-| Local run values (`KeychainLocalRunValueStore`) | `io.dil8.runnir.local-run` | `io.dil8.runnir.dev.local-run` |
+| github.com and Enterprise tokens (`KeychainCredentialStore.defaultService`) | `com.runnir.github` | `com.runnir.dev.github` |
+| Local run values (`KeychainLocalRunValueStore`) | `com.runnir.local-run` | `com.runnir.dev.local-run` |
 | Preferences, notification permission | by bundle ID | by bundle ID |
 
-Each place takes `RunnirBuild.current` through its existing seam (a default argument or a static), so tests pass a build instead of reading the bundle. The UI-testing paths and Keychain services (`--ui-testing`) still win over the build; their services become `io.dil8.runnir.github.ui-testing` and `io.dil8.runnir.local-run.ui-testing`. The Core socket is already per bundle path (`CoreProcessSupervisor.instanceTag`).
+Each place takes `RunnirBuild.current` through its existing seam (a default argument or a static), so tests pass a build instead of reading the bundle. The UI-testing paths and Keychain services (`--ui-testing`) still win over the build; their services become `com.runnir.github.ui-testing` and `com.runnir.local-run.ui-testing`. The Core socket is already per bundle path (`CoreProcessSupervisor.instanceTag`).
 
-The other reverse-DNS names move to the same domain, the same for every build: the notification categories and action `io.dil8.runnir.run`, `io.dil8.runnir.checks.failed` and `io.dil8.runnir.open-run` (`RunNotifications`), and `Notification.Name("io.dil8.runnir.localRunValuesChanged")`.
+The other reverse-DNS names move to the same domain, the same for every build: the notification categories and action `com.runnir.run`, `com.runnir.checks.failed` and `com.runnir.open-run` (`RunNotifications`), and `Notification.Name("com.runnir.localRunValuesChanged")`.
 
 ### The menu bar icon (S19)
 
@@ -83,15 +83,15 @@ The other reverse-DNS names move to the same domain, the same for every build: t
 
 ## The Core
 
-The label the Core puts on local run containers becomes `io.dil8.runnir.execution` (`localrun.Label`). Containers labelled by an earlier build are no longer found or removed by the Core.
+The label the Core puts on local run containers becomes `com.runnir.execution` (`localrun.Label`). Containers labelled by an earlier build are no longer found or removed by the Core.
 
 `runnir serve` gets `--cache-dir <dir>`; the Core keeps act's cache in `<dir>/act` (`server.Options.ActCache`). Without the flag the cache stays in the user cache folder's `Runnir/act`, as today, for the CLI. The app always passes the build's folder (`ProcessCoreLauncher.arguments`).
 
 ## Workflows
 
 - `release.yml` maps the tag to `RUNNIR_BUILD` (`release`, `alpha`, `beta`; any other suffix fails the job with the tag in the message) and passes it to `xcodebuild archive`. The draft release is marked as a pre-release for alpha and beta, as it is for any suffix today.
-- After the archive, `release.yml` checks the built app's Info.plist: `CFBundleIdentifier` is `io.dil8.runnir`, `RunnirBuild` is the expected build and `CFBundleIconName` is the expected icon set.
-- `app-build.yml` makes the same check on its archive for dev: `io.dil8.runnir.dev`, `dev`, `AppIcon-Dev`.
+- After the archive, `release.yml` checks the built app's Info.plist: `CFBundleIdentifier` is `com.runnir`, `RunnirBuild` is the expected build and `CFBundleIconName` is the expected icon set.
+- `app-build.yml` makes the same check on its archive for dev: `com.runnir.dev`, `dev`, `AppIcon-Dev`.
 
 ## States drawn
 
@@ -116,7 +116,7 @@ Swift (RunnirTests):
 - `MenuBarIcon.image`: release keeps the glyph's size and is a template with nothing to show; dev, alpha and beta are wider than the glyph by the gap and the capsule, and are not templates; the dot case is as wide as without the dot.
 - `MenuBarIcon.accessibilityLabel` begins with the build's name.
 
-Go: `serve --cache-dir` puts act's cache under the folder; without it the default is kept. The local run tests expect the `io.dil8.runnir.execution` label.
+Go: `serve --cache-dir` puts act's cache under the folder; without it the default is kept. The local run tests expect the `com.runnir.execution` label.
 
 Workflows: actionlint, and the Info.plist checks above run in CI on every app build.
 
@@ -124,4 +124,4 @@ By hand: a dev build from Xcode shows Runnir Dev with the DEV icon in the Dock a
 
 ## Delivery
 
-One branch and one pull request: the build settings and Info.plist, `RunnirBuild` and its uses, the move to `io.dil8.runnir`, the menu bar icon, the icon sets and script, the Core flag and label, the workflows, this spec, the B47 row of the checklist and the `runnir.pen` frame. Docs that name the current identifiers are updated with them: `README.md` (the ad-hoc signing command), `docs/architecture/github-enterprise.md`, `docs/architecture/workspace-persistence.md` and `docs/security/github-authentication.md`. Records of earlier checks and earlier plans keep the names they used.
+One branch and one pull request: the build settings and Info.plist, `RunnirBuild` and its uses, the move to `com.runnir`, the menu bar icon, the icon sets and script, the Core flag and label, the workflows, this spec, the B47 row of the checklist and the `runnir.pen` frame. Docs that name the current identifiers are updated with them: `README.md` (the ad-hoc signing command), `docs/architecture/github-enterprise.md`, `docs/architecture/workspace-persistence.md` and `docs/security/github-authentication.md`. Records of earlier checks and earlier plans keep the names they used.

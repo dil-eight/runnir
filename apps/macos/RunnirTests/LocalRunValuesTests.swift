@@ -41,8 +41,8 @@ private final class Announcements: @unchecked Sendable {
         #expect(KeychainLocalRunValueStore.key(fromAccount: "environment::secret:A") == nil)
         #expect(KeychainLocalRunValueStore.key(fromAccount: "environment:production:other:A") == nil)
         let workspace = UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF")!
-        #expect(KeychainLocalRunValueStore.service(prefix: "io.dil8.runnir.local-run", workspaceID: workspace)
-                == "io.dil8.runnir.local-run.6f9619ff-8b86-d011-b42d-00c04fc964ff")
+        #expect(KeychainLocalRunValueStore.service(prefix: "com.runnir.local-run", workspaceID: workspace)
+                == "com.runnir.local-run.6f9619ff-8b86-d011-b42d-00c04fc964ff")
     }
 
     @Test func changesAreAnnounced() async throws {
@@ -62,7 +62,7 @@ private final class Announcements: @unchecked Sendable {
     @Test func deletingAServiceDeletesEveryItem() throws {
         // The file-based keychain deletes one matching item per call.
         var left = 3, calls = 0
-        try GenericPassword.delete(service: "io.dil8.runnir.test", account: nil) { _ in
+        try GenericPassword.delete(service: "com.runnir.test", account: nil) { _ in
             calls += 1
             guard left > 0 else { return errSecItemNotFound }
             left -= 1
@@ -70,10 +70,10 @@ private final class Announcements: @unchecked Sendable {
         }
         #expect(left == 0 && calls == 4)
         calls = 0
-        try GenericPassword.delete(service: "io.dil8.runnir.test", account: "secret:A") { _ in calls += 1; return errSecSuccess }
+        try GenericPassword.delete(service: "com.runnir.test", account: "secret:A") { _ in calls += 1; return errSecSuccess }
         #expect(calls == 1)
         #expect(throws: KeychainError.self) {
-            try GenericPassword.delete(service: "io.dil8.runnir.test", account: nil) { _ in errSecAuthFailed }
+            try GenericPassword.delete(service: "com.runnir.test", account: nil) { _ in errSecAuthFailed }
         }
     }
 

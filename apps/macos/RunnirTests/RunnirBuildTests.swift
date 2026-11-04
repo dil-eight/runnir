@@ -17,7 +17,7 @@ import Testing
         #expect(RunnirBuild.allCases.map(\.mark) == ["DEV", "ALPHA", "BETA", nil])
         #expect(RunnirBuild.allCases.map(\.spokenName) == ["Runnir Dev", "Runnir Alpha", "Runnir Beta", "Runnir"])
         #expect(RunnirBuild.allCases.map(\.folderName) == ["Runnir Dev", "Runnir", "Runnir", "Runnir"])
-        #expect(RunnirBuild.allCases.map(\.keychainPrefix) == ["io.dil8.runnir.dev", "io.dil8.runnir", "io.dil8.runnir", "io.dil8.runnir"])
+        #expect(RunnirBuild.allCases.map(\.keychainPrefix) == ["com.runnir.dev", "com.runnir", "com.runnir", "com.runnir"])
         #expect(RunnirBuild.allCases.map(\.marksWindows) == [true, false, false, false], "only dev says so in its windows")
     }
 
@@ -25,7 +25,7 @@ import Testing
         // The tests run in an app built without a tag: Info.plist carries dev.
         #expect(Bundle.main.object(forInfoDictionaryKey: "RunnirBuild") as? String == "dev")
         #expect(RunnirBuild.current == .dev)
-        #expect(Bundle.main.bundleIdentifier == "io.dil8.runnir.dev")
+        #expect(Bundle.main.bundleIdentifier == "com.runnir.dev")
     }
 }
 
@@ -41,17 +41,17 @@ import Testing
     }
 
     @Test func devKeepsItsOwnKeychainItems() {
-        #expect(KeychainCredentialStore.service(for: .dev) == "io.dil8.runnir.dev.github")
-        #expect(KeychainCredentialStore.service(for: .release) == "io.dil8.runnir.github")
-        #expect(KeychainLocalRunValueStore.prefix(for: .dev) == "io.dil8.runnir.dev.local-run")
-        #expect(KeychainLocalRunValueStore.prefix(for: .beta) == "io.dil8.runnir.local-run")
+        #expect(KeychainCredentialStore.service(for: .dev) == "com.runnir.dev.github")
+        #expect(KeychainCredentialStore.service(for: .release) == "com.runnir.github")
+        #expect(KeychainLocalRunValueStore.prefix(for: .dev) == "com.runnir.dev.local-run")
+        #expect(KeychainLocalRunValueStore.prefix(for: .beta) == "com.runnir.local-run")
     }
 
     @MainActor
     @Test func notificationNamesAreUnderTheCompanyDomain() {
-        #expect(RunNotifier.categoryID == "io.dil8.runnir.run")
-        #expect(RunNotifier.failedChecksCategoryID == "io.dil8.runnir.checks.failed")
-        #expect(RunNotifier.openRunActionID == "io.dil8.runnir.open-run")
-        #expect(Notification.Name.localRunValuesChanged.rawValue == "io.dil8.runnir.localRunValuesChanged")
+        #expect(RunNotifier.categoryID == "com.runnir.run")
+        #expect(RunNotifier.failedChecksCategoryID == "com.runnir.checks.failed")
+        #expect(RunNotifier.openRunActionID == "com.runnir.open-run")
+        #expect(Notification.Name.localRunValuesChanged.rawValue == "com.runnir.localRunValuesChanged")
     }
 }

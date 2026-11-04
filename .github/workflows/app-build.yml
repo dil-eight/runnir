@@ -65,7 +65,7 @@ jobs:
 
       - name: Check the build
         # Built without a tag: Runnir Dev (B47).
-        run: scripts/check-app-build.sh build/Runnir.xcarchive/Products/Applications/Runnir.app io.dil8.runnir.dev dev AppIcon-Dev
+        run: scripts/check-app-build.sh build/Runnir.xcarchive/Products/Applications/Runnir.app com.runnir.dev dev AppIcon-Dev
 
       - name: Summary
         run: |
