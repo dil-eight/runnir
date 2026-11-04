@@ -115,11 +115,12 @@ import Testing
                 == "Read from ci.yml at a3f9c21; GitHub ran this file merged with the base, which may differ.")
     }
 
-    @Test func thePanelStaysUnderItsNodeAndInsideTheColumns() {
-        #expect(RunGraph.panelLeading(nodeMinX: 0, columnsWidth: 596, panelWidth: 360) == 0)
-        #expect(RunGraph.panelLeading(nodeMinX: 210, columnsWidth: 596, panelWidth: 360) == 210)
-        #expect(RunGraph.panelLeading(nodeMinX: 420, columnsWidth: 596, panelWidth: 360) == 236, "the last column's panel ends with it")
-        #expect(RunGraph.panelLeading(nodeMinX: 0, columnsWidth: 176, panelWidth: 360) == 0)
+    @Test func thePanelStaysUnderItsNodeAndInsideTheRoom() {
+        #expect(RunGraph.panelLeading(nodeMinX: 0, roomWidth: 596, panelWidth: 360) == 0)
+        #expect(RunGraph.panelLeading(nodeMinX: 210, roomWidth: 596, panelWidth: 360) == 210)
+        #expect(RunGraph.panelLeading(nodeMinX: 420, roomWidth: 596, panelWidth: 360) == 236, "a panel near the room's end ends with it")
+        #expect(RunGraph.panelLeading(nodeMinX: 0, roomWidth: 176, panelWidth: 360) == 0)
+        #expect(RunGraph.panelLeading(nodeMinX: -120, roomWidth: 596, panelWidth: 360) == 0, "a node scrolled out on the left")
     }
 
     @Test func oneWhyPanelIsOpenAtATime() async {

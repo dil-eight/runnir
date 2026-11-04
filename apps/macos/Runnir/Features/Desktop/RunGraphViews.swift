@@ -103,10 +103,10 @@ enum RunGraph {
         return note.isEmpty ? "Read from \(file) at \(commit), the file this run used." : "Read from \(file) at \(commit); \(note)"
     }
 
-    /// Where a node's panel starts: under the node, moved left so that it
-    /// ends with the columns when the node is near their end.
-    static func panelLeading(nodeMinX: CGFloat, columnsWidth: CGFloat, panelWidth: CGFloat) -> CGFloat {
-        max(0, min(nodeMinX, columnsWidth - panelWidth))
+    /// Where a node's panel starts: under the node as the columns are
+    /// scrolled, moved in so that it stays inside the room they are shown in.
+    static func panelLeading(nodeMinX: CGFloat, roomWidth: CGFloat, panelWidth: CGFloat) -> CGFloat {
+        max(0, min(nodeMinX, roomWidth - panelWidth))
     }
 
     /// Where a run stands, for the line under the graph: the first failed
@@ -204,11 +204,12 @@ struct RunGraphView: View {
     @Bindable var model: RunLayerModel
     let run: CoreWorkflowRun
     @State private var nodeMinX: [String: CGFloat] = [:]
-    @State private var columnsWidth: CGFloat = 0
+    /// The width the columns are shown in, whatever their own.
+    @State private var roomWidth: CGFloat = 0
     private static let columnsSpace = "runGraphColumns"
 
     var body: some View {
-        ScrollView([.horizontal, .vertical]) {
+        ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 content
@@ -273,24 +274,27 @@ struct RunGraphView: View {
 
     private func graph(_ layout: RunGraph.Layout) -> some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .center, spacing: 8) {
-                ForEach(Array(layout.columns.enumerated()), id: \.offset) { index, column in
-                    if index > 0 {
-                        Image(systemName: "arrow.right").font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground)
-                    }
-                    VStack(spacing: 8) {
-                        ForEach(column) { node in nodeButton(node) }
+            // Columns wider than the room are dragged sideways, as on the Overview.
+            HorizontalPan {
+                HStack(alignment: .center, spacing: 8) {
+                    ForEach(Array(layout.columns.enumerated()), id: \.offset) { index, column in
+                        if index > 0 {
+                            Image(systemName: "arrow.right").font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground)
+                        }
+                        VStack(spacing: 8) {
+                            ForEach(column) { node in nodeButton(node) }
+                        }
                     }
                 }
             }
-            .coordinateSpace(.named(Self.columnsSpace))
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { columnsWidth = $0 }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { roomWidth = $0 }
+            // Outside the pan, so that a drag selects its text.
             if let id = model.skipJobID, let workflow = model.workflow, let skip = workflow.skip(for: id),
                let node = layout.columns.joined().first(where: { $0.id == id }) {
                 SkippedJobPanel(title: RunGraph.panelTitle(job: node.name, skip), skip: skip,
                                 source: RunGraph.sourceLine(path: workflow.path, sha: run.headSHA, note: workflow.sourceNote),
                                 close: { model.skipJobID = nil })
-                    .padding(.leading, RunGraph.panelLeading(nodeMinX: nodeMinX[id] ?? 0, columnsWidth: columnsWidth,
+                    .padding(.leading, RunGraph.panelLeading(nodeMinX: nodeMinX[id] ?? 0, roomWidth: roomWidth,
                                                              panelWidth: SkippedJobPanel.width))
             }
             if !layout.others.isEmpty {
@@ -300,6 +304,8 @@ struct RunGraphView: View {
                 }
             }
         }
+        // The nodes' places as shown, scrolled or not, for the panel under one.
+        .coordinateSpace(.named(Self.columnsSpace))
     }
 
     /// The jobs as GitHub lists them, for a run whose workflow file could not
