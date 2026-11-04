@@ -24,13 +24,19 @@ set -eu
 # debugger working. Without one, or with one that does not fit, the build
 # uses the file-based keychain.
 #
-# The Runnir target's last build phase runs it on the built app.
+# The Runnir scheme's build post-action runs it on the built app.
 # Usage: RUNNIR_BUILD=dev scripts/sign-dev-build.sh [APP]
 app=${1:-${TARGET_BUILD_DIR:-}/${WRAPPER_NAME:-}}
 here=$(dirname "$0")
 # Local and tagged builds are signed by sign-app.sh.
 if [ "${RUNNIR_BUILD:-}" != dev ]; then
     exit 0
+fi
+# Xcode keeps the bundle between builds, so a profile and a seal an earlier
+# signed build left go first: a build that is not signed again keeps
+# neither.
+if [ -f "$app/Contents/Info.plist" ]; then
+    rm -rf "$app/Contents/embedded.provisionprofile" "$app/Contents/_CodeSignature"
 fi
 identity=${RUNNIR_DEV_SIGNING_IDENTITY:-}
 file=${RUNNIR_DEV_SIGNING_FILE:-$HOME/.config/runnir/dev-signing-identity}
@@ -50,49 +56,27 @@ if [ ! -f "$app/Contents/Info.plist" ]; then
     exit 1
 fi
 
-sign() {
-    codesign --force --timestamp=none --sign "$identity" "$@"
-}
-
 profile=${RUNNIR_DEV_PROFILE:-$HOME/.config/runnir/dev.provisionprofile}
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 entitlements=
-rm -f "$app/Contents/embedded.provisionprofile"
 if [ -f "$profile" ]; then
     if "$here/embed-profile.sh" "$app" "$profile" "$work/entitlements.plist" "$identity" 2>"$work/error"; then
         entitlements=$work/entitlements.plist
         # The profile's entitlements make macOS guard the process; this one,
         # as in Xcode's development signing, still lets the unit tests be
         # injected and the debugger attach. Never in a signed release.
+        /usr/libexec/PlistBuddy -c "Delete :com.apple.security.get-task-allow" "$entitlements" >/dev/null 2>&1 || true
         /usr/libexec/PlistBuddy -c "Add :com.apple.security.get-task-allow bool true" "$entitlements" >/dev/null
     else
         echo "warning: $(cat "$work/error"); the build uses the file-based keychain"
     fi
 fi
 
-# Inside out: libraries, the helpers, a test bundle Xcode put into the app,
-# then the app.
-if [ -d "$app/Contents/Frameworks" ]; then
-    find "$app/Contents/Frameworks" -depth \( -name '*.dylib' -o -name '*.framework' \) |
-        while IFS= read -r library; do
-            sign "$library"
-        done
-fi
-if [ -f "$app/Contents/Helpers/runnir-core" ]; then
-    sign --identifier com.runnir.core "$app/Contents/Helpers/runnir-core"
-fi
-if [ -f "$app/Contents/Helpers/act" ]; then
-    sign --identifier com.runnir.act "$app/Contents/Helpers/act"
-fi
-if [ -d "$app/Contents/PlugIns" ]; then
-    find "$app/Contents/PlugIns" -maxdepth 1 -name '*.xctest' |
-        while IFS= read -r bundle; do
-            sign "$bundle"
-        done
-fi
+# Inside out: what is in the app (sign-contents.sh), then the app.
+"$here/sign-contents.sh" "$app" --timestamp=none --sign "$identity"
 if [ -n "$entitlements" ]; then
-    sign --entitlements "$entitlements" "$app"
+    codesign --force --timestamp=none --sign "$identity" --entitlements "$entitlements" "$app"
 else
-    sign "$app"
+    codesign --force --timestamp=none --sign "$identity" "$app"
 fi

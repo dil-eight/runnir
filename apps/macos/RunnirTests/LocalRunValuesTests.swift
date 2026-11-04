@@ -41,8 +41,8 @@ private final class Announcements: @unchecked Sendable {
         #expect(KeychainLocalRunValueStore.key(fromAccount: "environment::secret:A") == nil)
         #expect(KeychainLocalRunValueStore.key(fromAccount: "environment:production:other:A") == nil)
         let workspace = UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF")!
-        #expect(KeychainLocalRunValueStore.service(prefix: "com.runnir.app.local-run", workspaceID: workspace)
-                == "com.runnir.app.local-run.6f9619ff-8b86-d011-b42d-00c04fc964ff")
+        #expect(KeychainLocalRunValueStore.service(prefix: "com.runnir.app.run-values", workspaceID: workspace)
+                == "com.runnir.app.run-values.6f9619ff-8b86-d011-b42d-00c04fc964ff")
     }
 
     @Test func changesAreAnnounced() async throws {

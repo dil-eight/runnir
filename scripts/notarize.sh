@@ -44,7 +44,10 @@ id=$(plutil -extract id raw -o - "$result" 2>/dev/null || true)
 status=$(plutil -extract status raw -o - "$result" 2>/dev/null || true)
 echo "Notarization of $file: ${status:-no answer} (submission ${id:-none})"
 if [ "$status" != Accepted ]; then
-    if [ -n "$id" ]; then
+    if [ "$status" = "In Progress" ]; then
+        # Apple goes on with it: wait for this submission instead of sending another.
+        echo "No verdict within 60 minutes: run xcrun notarytool wait $id with the same credentials, then staple" >&2
+    elif [ -n "$id" ]; then
         xcrun notarytool log "$id" "$@" >&2 || true
     fi
     exit 1

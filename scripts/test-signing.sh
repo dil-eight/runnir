@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 
-# Checks the signing scripts' refusals (B48) with a stand-in for
-# security(1). The signing itself needs a Developer ID identity and is
-# checked on a Mac and by the first tag.
+# Checks the signing scripts' refusals (B48) with stand-ins for security(1)
+# and, where a test signs, codesign(1). The signing itself needs a Developer
+# ID identity and is checked on a Mac and by the first tag.
 # Usage: scripts/test-signing.sh
 here=$(cd "$(dirname "$0")" && pwd)
 tmp=$(mktemp -d)
@@ -126,6 +126,27 @@ identities "$one:$team" "$two:$team"
 check "sign-app: several identities" 1 "set SIGNING_IDENTITY to one SHA-1" \
     env APPLE_TEAM_ID=$team "$here/sign-app.sh" "$tmp/Fake.app"
 
+# info_plist APP BUNDLE: an app bundle with that bundle identifier.
+info_plist() {
+    mkdir -p "$1/Contents"
+    cat > "$1/Contents/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>$2</string></dict></plist>
+EOF
+}
+
+# sign-app.sh looks for the profile by the app's bundle identifier.
+identities "$one:$team"
+for entry in Release:com.runnir.app:release Local:com.runnir.app.local:local Debug:com.runnir.app.dev:dev; do
+    bundle=${entry#*:}
+    info_plist "$tmp/${entry%%:*}.app" "${bundle%%:*}"
+    check "sign-app: the profile of ${bundle%%:*}" 1 "No provisioning profile at $tmp/home/.config/runnir/${bundle#*:}.provisionprofile" \
+        env HOME="$tmp/home" APPLE_TEAM_ID=$team "$here/sign-app.sh" "$tmp/${entry%%:*}.app"
+done
+check "sign-app: RUNNIR_PROFILE first" 1 "No provisioning profile at $tmp/chosen.provisionprofile" \
+    env HOME="$tmp/home" RUNNIR_PROFILE="$tmp/chosen.provisionprofile" APPLE_TEAM_ID=$team "$here/sign-app.sh" "$tmp/Release.app"
+
 # notarize.sh and staple-app.sh
 touch "$tmp/key.p8"
 check "notarize: no credentials" 1 "set NOTARY_PROFILE, or NOTARY_KEY_FILE, NOTARY_KEY_ID and NOTARY_ISSUER_ID" \
@@ -171,12 +192,7 @@ profile() {
 </dict></dict></plist>
 EOF
 }
-mkdir -p "$tmp/Dev.app/Contents"
-cat > "$tmp/Dev.app/Contents/Info.plist" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.runnir.app.dev</string></dict></plist>
-EOF
+info_plist "$tmp/Dev.app" com.runnir.app.dev
 profile "$tmp/dev.provisionprofile" "$team.com.runnir.app.dev" 2999-01-01T00:00:00Z
 profile "$tmp/local.provisionprofile" "$team.com.runnir.app.local" 2999-01-01T00:00:00Z
 profile "$tmp/expired.provisionprofile" "$team.com.runnir.app.dev" 2020-01-01T00:00:00Z
@@ -208,6 +224,10 @@ check "profile: the app's identifier, team and access group" 0 "$team.com.runnir
     entitlements
 check "profile: copied into the app" 0 "" \
     cmp "$tmp/dev.provisionprofile" "$tmp/Dev.app/Contents/embedded.provisionprofile"
+check "profile: check-profile prints the application identifier" 0 "$team.com.runnir.app.dev" \
+    env APPLE_TEAM_ID=$team "$here/check-profile.sh" "$tmp/dev.provisionprofile" com.runnir.app.dev "$hello"
+check "profile: check-profile refuses another certificate" 1 "does not list the certificate $one" \
+    "$here/check-profile.sh" "$tmp/dev.provisionprofile" com.runnir.app.dev "$one"
 
 # sign-dev-build.sh with a profile. A stand-in for codesign notes what it
 # signs and whether the entitlements give get-task-allow.
@@ -238,6 +258,20 @@ check "dev build: then signed without entitlements" 0 "$tmp/Dev.app none" \
     tail -1 "$tmp/signed"
 check "dev build: and without the profile it had" 1 "No such file" \
     ls "$tmp/Dev.app/Contents/embedded.provisionprofile"
+
+# What an earlier signed build left: kept by another build, gone from a dev
+# build that is not signed again.
+info_plist "$tmp/Stale.app" com.runnir.app.dev
+mkdir "$tmp/Stale.app/Contents/_CodeSignature"
+: > "$tmp/Stale.app/Contents/embedded.provisionprofile"
+check "dev build: another build keeps its profile" 0 "" \
+    env RUNNIR_BUILD=local "$here/sign-dev-build.sh" "$tmp/Stale.app"
+check "dev build: and its seal" 0 "" \
+    test -f "$tmp/Stale.app/Contents/embedded.provisionprofile" -a -d "$tmp/Stale.app/Contents/_CodeSignature"
+check "dev build: without an identity, an earlier profile goes" 0 "" \
+    env RUNNIR_BUILD=dev RUNNIR_DEV_SIGNING_FILE="$tmp/missing" "$here/sign-dev-build.sh" "$tmp/Stale.app"
+check "dev build: its seal goes too" 1 "No such file" \
+    ls "$tmp/Stale.app/Contents/embedded.provisionprofile" "$tmp/Stale.app/Contents/_CodeSignature"
 
 # Summary
 if [ "$failures" -ne 0 ]; then

@@ -56,13 +56,13 @@ actor KeychainLocalRunValueStore: LocalRunValueStoring {
     /// UI tests of a Debug build keep their own items.
     static var defaultPrefix: String {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return "com.runnir.app.local-run.ui-testing" }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return "com.runnir.app.run-values.ui-testing" }
         #endif
         return prefix(for: .current)
     }
 
     /// The build's prefix: Runnir Dev keeps its own values (B47).
-    static func prefix(for build: RunnirBuild) -> String { "\(build.keychainPrefix).local-run" }
+    static func prefix(for build: RunnirBuild) -> String { "\(build.keychainPrefix).run-values" }
 
     static func service(prefix: String, workspaceID: UUID) -> String {
         "\(prefix).\(workspaceID.uuidString.lowercased())"
