@@ -6,13 +6,21 @@ enum LocalRunValueKind: String, Sendable, CaseIterable {
     case secret, variable
 }
 
-/// A name, upper-cased, of one kind.
+/// A name, upper-cased, of one kind, in the Repository's values (no
+/// environment) or in a GitHub environment's, which a job deploying there
+/// takes first.
 struct LocalRunValueKey: Hashable, Sendable, Comparable {
     let kind: LocalRunValueKind
     let name: String
+    var environment: String?
+
+    /// The same name in another set of values; nil is the Repository's.
+    func `in`(_ environment: String?) -> LocalRunValueKey {
+        LocalRunValueKey(kind: kind, name: name, environment: environment)
+    }
 
     static func < (lhs: Self, rhs: Self) -> Bool {
-        (lhs.name, lhs.kind.rawValue) < (rhs.name, rhs.kind.rawValue)
+        (lhs.name, lhs.kind.rawValue, lhs.environment ?? "") < (rhs.name, rhs.kind.rawValue, rhs.environment ?? "")
     }
 }
 
@@ -60,12 +68,29 @@ actor KeychainLocalRunValueStore: LocalRunValueStoring {
         "\(prefix).\(workspaceID.uuidString.lowercased())"
     }
 
-    static func account(for key: LocalRunValueKey) -> String { "\(key.kind.rawValue):\(key.name)" }
+    /// "secret:NAME" for the Repository, "environment:production:secret:NAME"
+    /// for an environment.
+    static func account(for key: LocalRunValueKey) -> String {
+        let account = "\(key.kind.rawValue):\(key.name)"
+        return key.environment.map { "\(environmentPrefix)\($0):\(account)" } ?? account
+    }
+
+    private static let environmentPrefix = "environment:"
 
     static func key(fromAccount account: String) -> LocalRunValueKey? {
-        let parts = account.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+        var rest = Substring(account)
+        var environment: String?
+        if rest.hasPrefix(environmentPrefix) {
+            rest = rest.dropFirst(environmentPrefix.count)
+            // A name and a kind hold no colon; an environment's name may.
+            guard let nameColon = rest.lastIndex(of: ":"), let kindColon = rest[..<nameColon].lastIndex(of: ":"),
+                  kindColon > rest.startIndex else { return nil }
+            environment = String(rest[..<kindColon])
+            rest = rest[rest.index(after: kindColon)...]
+        }
+        let parts = rest.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
         guard parts.count == 2, let kind = LocalRunValueKind(rawValue: parts[0]), !parts[1].isEmpty else { return nil }
-        return LocalRunValueKey(kind: kind, name: parts[1])
+        return LocalRunValueKey(kind: kind, name: parts[1], environment: environment)
     }
 
     func keys(workspaceID: UUID) async throws -> Set<LocalRunValueKey> {
@@ -80,7 +105,7 @@ actor KeychainLocalRunValueStore: LocalRunValueStoring {
 
     func save(workspaceID: UUID, key: LocalRunValueKey, value: String) async throws {
         try GenericPassword.write(Data(value.utf8), service: service(workspaceID), account: Self.account(for: key),
-                                  label: "Runnir local run \(key.kind.rawValue) \(key.name)")
+                                  label: "Runnir local run \(key.kind.rawValue) \(key.name)" + (key.environment.map { " for \($0)" } ?? ""))
         announceChange(workspaceID)
     }
 

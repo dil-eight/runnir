@@ -344,7 +344,7 @@ func planMessage(approved localRunApproval) *corev1.LocalRunPlan {
 		TimeoutSeconds: uint32(plan.Limits.Timeout / time.Second),
 		MaxCpus:        uint32(max(plan.Ceiling.CPUs, 0)), MaxMemoryBytes: plan.Ceiling.MemoryBytes,
 		MaxTimeoutSeconds: uint32(plan.Ceiling.Timeout / time.Second),
-		OwnLimits:         plan.OwnLimits, LimitWarnings: plan.LimitWarnings, LimitNote: plan.LimitNote,
+		OwnLimits:         plan.OwnLimits, LimitWarnings: plan.LimitWarnings, LimitNote: plan.LimitNote, Environment: plan.Environment,
 		ActVersion: approved.ActVersion, InstalledAct: approved.Installed,
 		EngineName: approved.EngineName, EngineContext: approved.EngineContext,
 	}

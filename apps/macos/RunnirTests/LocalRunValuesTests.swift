@@ -34,6 +34,12 @@ private final class Announcements: @unchecked Sendable {
         #expect(KeychainLocalRunValueStore.key(fromAccount: "secret:A:B") == LocalRunValueKey(kind: .secret, name: "A:B"))
         #expect(KeychainLocalRunValueStore.key(fromAccount: "other:REGION") == nil)
         #expect(KeychainLocalRunValueStore.key(fromAccount: "secret:") == nil)
+        // An environment's value; its name may hold a colon, a variable's name never does.
+        let production = LocalRunValueKey(kind: .secret, name: "DEPLOY_KEY", environment: "eu:production")
+        #expect(KeychainLocalRunValueStore.account(for: production) == "environment:eu:production:secret:DEPLOY_KEY")
+        #expect(KeychainLocalRunValueStore.key(fromAccount: "environment:eu:production:secret:DEPLOY_KEY") == production)
+        #expect(KeychainLocalRunValueStore.key(fromAccount: "environment::secret:A") == nil)
+        #expect(KeychainLocalRunValueStore.key(fromAccount: "environment:production:other:A") == nil)
         let workspace = UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF")!
         #expect(KeychainLocalRunValueStore.service(prefix: "io.dil8.runnir.local-run", workspaceID: workspace)
                 == "io.dil8.runnir.local-run.6f9619ff-8b86-d011-b42d-00c04fc964ff")
@@ -106,6 +112,61 @@ private final class Announcements: @unchecked Sendable {
         // Variables show without asking; secrets stay hidden.
         #expect(model.text(for: region) == "eu")
         #expect(model.text(for: token) == "")
+    }
+
+    /// ci.yml builds; deploy.yml deploys to staging and production.
+    private func environmentWorkflows() -> [CoreWorkflow] {
+        [CoreWorkflow(id: ".github/workflows/ci.yml", name: "CI", triggers: ["push"],
+                      jobs: [CoreJob(id: "build", name: "build", needs: [], secrets: ["GHCR_TOKEN"], variables: ["API_URL"])],
+                      parseError: nil, secrets: ["GHCR_TOKEN"], variables: ["API_URL"]),
+         CoreWorkflow(id: ".github/workflows/deploy.yml", name: "Deploy", triggers: ["workflow_dispatch"],
+                      jobs: [CoreJob(id: "staging", name: "staging", needs: [], environment: "staging",
+                                     secrets: ["DEPLOY_KEY"], variables: ["API_URL"]),
+                             CoreJob(id: "production", name: "production", needs: [], environment: "production",
+                                     secrets: ["DEPLOY_KEY", "DEPLOY_USER", "SENTRY_TOKEN"], variables: ["API_URL"])],
+                      parseError: nil, secrets: ["DEPLOY_KEY", "DEPLOY_USER", "SENTRY_TOKEN"], variables: ["API_URL"])]
+    }
+
+    @Test func eachEnvironmentHasItsOwnValuesOverTheRepositorys() async throws {
+        let deployKey = LocalRunValueKey(kind: .secret, name: "DEPLOY_KEY")
+        let user = LocalRunValueKey(kind: .secret, name: "DEPLOY_USER")
+        let sentry = LocalRunValueKey(kind: .secret, name: "SENTRY_TOKEN")
+        let ghcr = LocalRunValueKey(kind: .secret, name: "GHCR_TOKEN")
+        let api = LocalRunValueKey(kind: .variable, name: "API_URL")
+        let stale = LocalRunValueKey(kind: .secret, name: "OLD", environment: "qa")
+        let store = InMemoryLocalRunValueStore(values: [workspace: [
+            ghcr: "g", user: "u", api: "https://dev", deployKey.in("staging"): "s", deployKey.in("production"): "p", stale: "x",
+        ]])
+        let model = WorkspaceValuesModel()
+        await model.load(workspaceID: workspace, workflows: environmentWorkflows(), store: store)
+        // Environments the workflows name, and one with saved values no workflow names any more.
+        #expect(model.environments == ["production", "qa", "staging"])
+        #expect(model.staleEnvironments == ["qa"])
+        // Production's job gets no SENTRY_TOKEN from either set; staging lacks nothing.
+        #expect(model.incomplete == [nil, "production"])
+
+        // The Repository: every name; DEPLOY_KEY is needed by no job, as both environments set their own.
+        #expect(model.secrets.map(\.key) == [deployKey, user, ghcr, sentry])
+        #expect(model.secrets[0].overriddenBy == ["production", "staging"] && !model.secrets[0].needed)
+        #expect(model.secrets[3].needed && !model.secrets[3].saved)
+
+        model.select("production")
+        #expect(model.secrets.map(\.key) == [deployKey.in("production"), user.in("production"), sentry.in("production")])
+        #expect(model.secrets.map(\.saved) == [true, false, false])
+        #expect(model.secrets.map(\.inherited) == [false, true, false])
+        #expect(model.variables.map(\.key) == [api.in("production")] && model.variables[0].inherited)
+        #expect(model.unused.isEmpty)
+
+        // Typed and imported values go to the environment shown.
+        model.setText("prod-user", for: user.in("production"))
+        model.apply(CoreEnvFile(entries: [CoreEnvEntry(name: "SENTRY_TOKEN", value: "t", encrypted: false, line: 1)], problems: []))
+        #expect(await model.save(workspaceID: workspace, store: store))
+        #expect(try await store.value(workspaceID: workspace, key: user.in("production")) == "prod-user")
+        #expect(try await store.value(workspaceID: workspace, key: sentry.in("production")) == "t")
+        #expect(try await store.value(workspaceID: workspace, key: user) == "u")
+
+        model.select("qa")
+        #expect(model.secrets.isEmpty && model.unused.map(\.key) == [stale])
     }
 
     @Test func editsArePendingUntilSave() async throws {

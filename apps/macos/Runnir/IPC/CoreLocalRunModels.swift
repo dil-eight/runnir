@@ -114,6 +114,9 @@ struct CoreLocalRunPlan: Equatable, Sendable {
     var limitWarnings: [String] = []
     /// A line about the engine worth reading without opening the limits.
     var limitNote = ""
+    /// The environment whose values the run takes before the Repository's;
+    /// empty for the Repository's alone (act gives every job the same values).
+    var environment = ""
 
     var limits: CoreLocalRunLimits { CoreLocalRunLimits(cpus: cpus, memoryBytes: memoryBytes, timeoutSeconds: timeoutSeconds) }
 }

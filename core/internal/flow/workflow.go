@@ -169,7 +169,7 @@ func jobExtras(node *yaml.Node) map[string]Job {
 					job.If = unwrap(value.Value)
 				}
 			case "environment":
-				job.Environment = environmentName(value)
+				job.Environment = scanner.EnvironmentName(value)
 			case "uses":
 				if value.Kind == yaml.ScalarNode {
 					job.Uses = value.Value
@@ -187,22 +187,6 @@ func jobExtras(node *yaml.Node) map[string]Job {
 		out[node.Content[i].Value] = job
 	}
 	return out
-}
-
-func environmentName(node *yaml.Node) string {
-	switch node.Kind {
-	case yaml.ScalarNode:
-		return node.Value
-	case yaml.MappingNode:
-		for i := 0; i+1 < len(node.Content); i += 2 {
-			if node.Content[i].Value == "name" {
-				if value := yamlnode.Resolve(node.Content[i+1]); value.Kind == yaml.ScalarNode {
-					return value.Value
-				}
-			}
-		}
-	}
-	return ""
 }
 
 // maxMatrix bounds the combinations worked out: GitHub allows 256 a run.

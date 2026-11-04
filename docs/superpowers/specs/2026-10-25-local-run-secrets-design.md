@@ -128,4 +128,4 @@ The Core masks secret values in the run's output lines before keeping them (`out
 
 ## Not In This Slice
 
-dotenvx decryption or `dotenvx run`; uploading secrets to GitHub; environment and organization secrets; `env:` values from a `.env` file; Touch ID before a run; a Runnir file format for environments.
+dotenvx decryption or `dotenvx run`; uploading secrets to GitHub; environment secrets (added on 2026-11-03: [Values Per Environment](2026-11-03-environment-values-design.md)); organization secrets; `env:` values from a `.env` file; Touch ID before a run; a Runnir file format for environments.

@@ -27,6 +27,8 @@ struct WorkspaceValuesView: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
+                    Text(scope).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        .fixedSize(horizontal: false, vertical: true)
                     if let error = model.error {
                         message(error, symbol: "exclamationmark.triangle", tint: RunnirTheme.destructive)
                     }
@@ -36,7 +38,8 @@ struct WorkspaceValuesView: View {
                     if model.secrets.isEmpty && model.variables.isEmpty && model.unused.isEmpty {
                         VStack(spacing: 6) {
                             Image(systemName: "key.slash").font(.system(size: 24)).foregroundStyle(RunnirTheme.mutedForeground)
-                            Text("No workflow in this workspace reads secrets or variables").font(.system(size: 14, weight: .semibold))
+                            Text(model.environment.map { "No job deploying to \($0) reads secrets or variables" }
+                                 ?? "No workflow in this workspace reads secrets or variables").font(.system(size: 14, weight: .semibold))
                             Text("Names appear here when a workflow uses secrets.NAME or vars.NAME.")
                                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                         }
@@ -65,7 +68,7 @@ struct WorkspaceValuesView: View {
 
     private var toolbar: some View {
         HStack(spacing: 10) {
-            Text("Values for local runs, kept in Keychain on this Mac").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+            if !model.environments.isEmpty { environmentPicker }
             Spacer()
             Button { importOpen.toggle() } label: {
                 HStack(spacing: 6) {
@@ -85,6 +88,49 @@ struct WorkspaceValuesView: View {
                 .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut("s").disabled(!model.isDirty)
         }
         .buttonStyle(DesignButtonStyle()).padding(.horizontal, 24).frame(height: 52)
+    }
+
+    /// What the set shown is for.
+    private var scope: String {
+        guard let environment = model.environment else {
+            return model.environments.isEmpty ? "Values for local runs, kept in Keychain on this Mac."
+                : "Every job gets these values, unless its environment sets its own. Kept in Keychain on this Mac."
+        }
+        if model.staleEnvironments.contains(environment) {
+            return "No workflow deploys to \(environment) any more. Its saved values stay until you forget them."
+        }
+        return "Jobs with environment: \(environment) get these values. A name left empty here gets the Repository's value, as on GitHub."
+    }
+
+    /// The Repository's values and each environment's, a dot on a set in
+    /// which some job would get an empty value.
+    private var environmentPicker: some View {
+        HStack(spacing: 2) {
+            segment(nil, title: "Repository")
+            ForEach(model.environments, id: \.self) { segment($0, title: $0) }
+        }
+        .padding(2)
+        .background(RunnirTheme.secondary, in: RoundedRectangle(cornerRadius: 7))
+    }
+
+    private func segment(_ environment: String?, title: String) -> some View {
+        let chosen = model.environment == environment
+        let stale = environment.map { model.staleEnvironments.contains($0) } ?? false
+        return Button { model.select(environment) } label: {
+            HStack(spacing: 6) {
+                Text(title).font(.system(size: 12, weight: chosen ? .medium : .regular))
+                    .foregroundStyle(chosen ? RunnirTheme.foreground : stale ? RunnirTheme.mutedForeground : RunnirTheme.secondaryForeground)
+                if model.incomplete.contains(environment) {
+                    Circle().fill(RunnirTheme.warning).frame(width: 6, height: 6)
+                }
+            }
+            .padding(.horizontal, 10).frame(height: 23)
+            .background(chosen ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 5))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.hit)
+        .accessibilityAddTraits(chosen ? .isSelected : [])
+        .accessibilityValue(model.incomplete.contains(environment) ? "Some values missing" : "")
     }
 
     @ViewBuilder private func table(_ title: String, rows: [WorkspaceValuesModel.Row], unused: Bool = false) -> some View {
@@ -175,7 +221,7 @@ private struct WorkspaceValueRow: View {
         let key = row.key
         let forgotten = model.removals.contains(key)
         let edited = model.edits[key] != nil
-        let missing = !row.saved && !edited
+        let missing = !row.saved && !edited && row.needed
         HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(key.name).font(.system(size: 13, design: .monospaced)).textSelection(.enabled)
@@ -208,8 +254,9 @@ private struct WorkspaceValueRow: View {
     @ViewBuilder private func field(key: LocalRunValueKey, missing: Bool, edited: Bool) -> some View {
         let binding = Binding(get: { model.text(for: key) }, set: { model.setText($0, for: key) })
         let concealed = key.kind == .secret && model.shown[key] == nil
+        let placeholder = concealed && row.saved ? "••••••••••••" : row.inherited && !row.saved ? "The Repository's value" : "Value"
         HStack(spacing: 6) {
-            ValueField(placeholder: concealed && row.saved ? "••••••••••••" : "Value", text: binding, secure: concealed,
+            ValueField(placeholder: placeholder, text: binding, secure: concealed,
                        border: missing ? RunnirTheme.warning : edited ? RunnirTheme.primary : nil)
             if key.kind == .secret && row.saved && !edited {
                 if model.shown[key] == nil {
@@ -229,7 +276,13 @@ private struct WorkspaceValueRow: View {
         if unused { return "not used by any workflow" }
         let readers = row.workflows.joined(separator: ", ")
         if edited { return "Edited · \(readers)" }
-        return missing ? "Missing · \(readers)" : readers
+        if missing { return "Missing · \(readers)" }
+        if row.inherited && !row.saved { return "From the Repository · \(readers)" }
+        if !row.overriddenBy.isEmpty {
+            let own = row.overriddenBy.count == 1 ? "sets its own" : "set their own"
+            return "\(readers) · \(ListFormatter.localizedString(byJoining: row.overriddenBy)) \(own)"
+        }
+        return readers
     }
 }
 

@@ -243,3 +243,40 @@ func TestPlanNotesSecretsReadAsAWhole(t *testing.T) {
 		t.Fatalf("notes = %v", p.Notes)
 	}
 }
+
+func TestPlanTakesTheEnvironmentOfItsJobs(t *testing.T) {
+	source := `on: [push, workflow_dispatch]
+jobs:
+  build: {runs-on: ubuntu-latest, steps: [{run: x}]}
+  staging:
+    environment: staging
+    runs-on: ubuntu-latest
+    steps: [{run: x}]
+  production:
+    needs: build
+    environment: {name: production}
+    runs-on: ubuntu-latest
+    steps: [{run: x}]
+`
+	sameValues := "act gives every job of this run the same values: production's, then the Repository's."
+	if p := plan(t, source, "production", "", readyReport(), nil); p.Environment != "production" || !slices.Contains(p.Notes, sameValues) {
+		t.Fatalf("production = %q, notes %v", p.Environment, p.Notes)
+	}
+	if p := plan(t, source, "staging", "", readyReport(), nil); p.Environment != "staging" || len(p.Notes) != 1 {
+		t.Fatalf("staging = %q, notes %v", p.Environment, p.Notes)
+	}
+	if p := plan(t, source, "build", "", readyReport(), nil); p.Environment != "" || len(p.Notes) != 1 {
+		t.Fatalf("build = %q, notes %v", p.Environment, p.Notes)
+	}
+	whole := plan(t, source, "", "", readyReport(), nil)
+	if whole.Environment != "" || !slices.Contains(whole.Notes, "Jobs of this run deploy to production and staging, and act gives every job the same values, "+
+		"so this run gets the Repository's. Run one job to get its environment's.") {
+		t.Fatalf("whole = %q, notes %v", whole.Environment, whole.Notes)
+	}
+
+	picked := strings.Replace(source, "environment: staging", "environment: ${{ inputs.target }}", 1)
+	if p := plan(t, picked, "staging", "", readyReport(), nil); p.Environment != "" ||
+		!slices.Contains(p.Notes, "Job staging picks its environment with an expression, so this run gets the Repository's values.") {
+		t.Fatalf("picked = %q, notes %v", p.Environment, p.Notes)
+	}
+}

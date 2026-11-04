@@ -361,7 +361,11 @@ struct GRPCCoreService: CoreServicing {
                 id: workflow.id,
                 name: workflow.name,
                 triggers: workflow.triggers,
-                jobs: workflow.jobs.map { CoreJob(id: $0.id, name: $0.name, needs: $0.needs, manual: $0.manual, manualInputs: $0.manualInputs) },
+                jobs: workflow.jobs.map {
+                    CoreJob(id: $0.id, name: $0.name, needs: $0.needs, manual: $0.manual, manualInputs: $0.manualInputs,
+                            environment: $0.environment, environmentExpression: $0.environmentExpression,
+                            secrets: $0.secrets, variables: $0.variables)
+                },
                 parseError: workflow.parseError.isEmpty ? nil : workflow.parseError,
                 dispatchInputs: workflow.dispatchInputs.map(Self.dispatchInput),
                 concurrency: workflow.concurrency,
@@ -1137,7 +1141,8 @@ struct GRPCCoreService: CoreServicing {
             cpus: Int(plan.cpus), memoryBytes: plan.memoryBytes, timeoutSeconds: Int(plan.timeoutSeconds),
             actVersion: plan.actVersion, installedAct: plan.installedAct, engineName: plan.engineName, engineContext: plan.engineContext,
             maxCPUs: Int(plan.maxCpus), maxMemoryBytes: plan.maxMemoryBytes, maxTimeoutSeconds: Int(plan.maxTimeoutSeconds),
-            ownLimits: plan.ownLimits, limitWarnings: plan.limitWarnings, limitNote: plan.limitNote
+            ownLimits: plan.ownLimits, limitWarnings: plan.limitWarnings, limitNote: plan.limitNote,
+            environment: plan.environment
         )
     }
 

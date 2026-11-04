@@ -491,6 +491,48 @@ func TestScanListsSecretsAndVariables(t *testing.T) {
 	}
 }
 
+func TestScanListsEachJobsEnvironmentAndNames(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, ".github/workflows/deploy.yml", `on: push
+env:
+  REGION: ${{ vars.REGION }}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps: [{run: "echo ${{ secrets.GHCR_TOKEN }}"}]
+  staging:
+    environment: staging
+    runs-on: ubuntu-latest
+    steps: [{run: "echo ${{ secrets.DEPLOY_KEY }}"}]
+  production:
+    environment: {name: production, url: "https://example.com"}
+    runs-on: ubuntu-latest
+    steps: [{run: "echo ${{ secrets.DEPLOY_KEY }}"}]
+  preview:
+    environment: ${{ inputs.target }}
+    runs-on: ubuntu-latest
+    steps: [{run: "echo"}]
+`)
+	w := byID(scan(t, root), ".github/workflows/deploy.yml")
+	if w == nil || len(w.Jobs) != 4 {
+		t.Fatalf("workflow = %+v", w)
+	}
+	build, staging, production, preview := w.Jobs[0], w.Jobs[1], w.Jobs[2], w.Jobs[3]
+	if build.Environment != "" || !slices.Equal(build.Secrets, []string{"GHCR_TOKEN"}) || !slices.Equal(build.Variables, []string{"REGION"}) {
+		t.Fatalf("build = %+v", build)
+	}
+	if staging.Environment != "staging" || !slices.Equal(staging.Secrets, []string{"DEPLOY_KEY"}) || !slices.Equal(staging.Variables, []string{"REGION"}) {
+		t.Fatalf("staging = %+v", staging)
+	}
+	if production.Environment != "production" {
+		t.Fatalf("production = %+v", production)
+	}
+	// An environment picked by an expression is known only when the job runs.
+	if preview.Environment != "" || !preview.EnvironmentExpression {
+		t.Fatalf("preview = %+v", preview)
+	}
+}
+
 func TestScanMarksJobsStartedByHand(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, ".github/workflows/api.yml", `name: API
