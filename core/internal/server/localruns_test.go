@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -397,11 +398,13 @@ func TestJobsSayTheirEnvironmentAndAPlanTakesIt(t *testing.T) {
 }
 
 func TestAJobAnExpressionPlacesChoosesAmongTheRepositorysEnvironments(t *testing.T) {
+	var asked atomic.Int32
 	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/repos/o/r/environments" {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+		asked.Add(1)
 		_, _ = w.Write([]byte(`{"total_count":2,"environments":[{"id":1,"name":"staging"},{"id":2,"name":"production"}]}`))
 	}))
 	defer fake.Close()
@@ -444,5 +447,12 @@ func TestAJobAnExpressionPlacesChoosesAmongTheRepositorysEnvironments(t *testing
 	if err != nil || prepared.Plan.Environment != "" || !slices.Equal(prepared.Plan.Environments, []string{"production", "staging"}) ||
 		prepared.Plan.EnvironmentChoice != "deploy picks its environment with an expression, known only when it runs." {
 		t.Fatalf("plan = %v, %v", prepared.GetPlan(), err)
+	}
+	// A review reuses what Secrets and Variables just read; the section asks again.
+	if _, err := client.PrepareLocalRun(ctx, prepare); err != nil || asked.Load() != 1 {
+		t.Fatalf("asked GitHub %d times, %v", asked.Load(), err)
+	}
+	if _, err := client.ListEnvironments(ctx, &corev1.ListEnvironmentsRequest{RepositoryId: id}); err != nil || asked.Load() != 2 {
+		t.Fatalf("asked GitHub %d times, %v", asked.Load(), err)
 	}
 }

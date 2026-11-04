@@ -308,7 +308,9 @@ struct DropdownNote: View {
 
 /// A question in the panel instead of a system alert: a title, a line of
 /// explanation, a name field when it asks for one, and Cancel beside the
-/// action. Return answers it; Escape, Cancel or a click outside leaves it.
+/// action. Return in the name field answers it; a question without one
+/// takes a click, so a removal never happens by a stray Return. Escape,
+/// Cancel or a click outside leaves it.
 struct DropdownPrompt: View {
     let title: String
     let message: String
