@@ -25,7 +25,8 @@ cat > "$tmp/bin/security" <<EOF
 if [ "\$1" = find-identity ]; then cat "$tmp/identities"; fi
 EOF
 chmod +x "$tmp/bin/security"
-unset APPLE_TEAM_ID SIGNING_IDENTITY NOTARY_PROFILE NOTARY_KEY_FILE NOTARY_KEY_ID NOTARY_ISSUER_ID
+unset APPLE_TEAM_ID SIGNING_IDENTITY NOTARY_PROFILE NOTARY_KEY_FILE NOTARY_KEY_ID NOTARY_ISSUER_ID \
+    RUNNIR_BUILD RUNNIR_DEV_SIGNING_IDENTITY RUNNIR_DEV_SIGNING_FILE
 PATH="$tmp/bin:$PATH"
 export PATH
 
@@ -134,6 +135,19 @@ check "notarize: missing file" 1 "$tmp/missing.zip does not exist" \
     env NOTARY_PROFILE=profile "$here/notarize.sh" "$tmp/missing.zip"
 check "staple: not an app" 1 "$tmp is not an app bundle" \
     "$here/staple-app.sh" "$tmp"
+
+# sign-dev-build.sh: it skips what it should not sign, and checks the
+# identity before signing.
+identities "$one:$team"
+check "dev build: not a dev build" 0 "" \
+    env RUNNIR_BUILD=local RUNNIR_DEV_SIGNING_IDENTITY=$one "$here/sign-dev-build.sh" "$tmp/Fake.app"
+check "dev build: no identity" 0 "" \
+    env RUNNIR_BUILD=dev RUNNIR_DEV_SIGNING_FILE="$tmp/missing" "$here/sign-dev-build.sh" "$tmp/Fake.app"
+check "dev build: identity not in the keychain" 0 "warning: the dev signing identity $other is not a valid code signing identity in the keychain search list; the build stays signed ad hoc" \
+    env RUNNIR_BUILD=dev RUNNIR_DEV_SIGNING_IDENTITY=$other "$here/sign-dev-build.sh" "$tmp/Fake.app"
+printf '%s\n' "$(printf '%s' "$dev" | tr '[:upper:]' '[:lower:]')" > "$tmp/dev-signing-identity"
+check "dev build: identity from the file, in lower case" 1 "$tmp is not an app bundle" \
+    env RUNNIR_BUILD=dev RUNNIR_DEV_SIGNING_FILE="$tmp/dev-signing-identity" "$here/sign-dev-build.sh" "$tmp"
 
 # Summary
 if [ "$failures" -ne 0 ]; then

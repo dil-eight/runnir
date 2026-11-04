@@ -99,7 +99,14 @@ Run unit tests:
 xcodebuild -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'platform=macOS' test -only-testing:RunnirTests
 ```
 
-A build made without a tag is Runnir Dev (`com.runnir.app.dev`, B47): its own app beside an installed release, with its own data, sign-in and Core. A Debug build is signed by the linker with the identifier `Runnir` rather than its bundle identifier, and macOS refuses notifications to it. To try notifications from a Debug build, sign it ad hoc with its bundle identifier first:
+A build made without a tag is Runnir Dev (`com.runnir.app.dev`, B47): its own app beside an installed release, with its own data, sign-in and Core. Xcode signs a Debug build only ad hoc, by the linker, with the identifier `Runnir`: Keychain asks for the login password again after every build, and macOS refuses notifications to it. With a code signing identity in your keychain, write its SHA-1 to `~/.config/runnir/dev-signing-identity` (never into the repository); the scheme's build post-action then signs each dev build with it (`scripts/sign-dev-build.sh`), and both go away:
+
+```bash
+security find-identity -v -p codesigning
+mkdir -p ~/.config/runnir && echo SHA-1 > ~/.config/runnir/dev-signing-identity
+```
+
+Without an identity, sign a Debug build ad hoc with its bundle identifier to try notifications:
 
 ```bash
 codesign --force --sign - --identifier com.runnir.app.dev path/to/Runnir.app
