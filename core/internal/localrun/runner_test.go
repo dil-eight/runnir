@@ -166,7 +166,7 @@ func TestSuccessfulRunRecordsOutputAndJobs(t *testing.T) {
 		"--workflows=" + filepath.Join(spec.RepositoryPath, ".github", "workflows", "ci.yml"),
 		"--directory=" + spec.RepositoryPath, "--json", "--rm", "--pull=false", "--network=bridge",
 		"--no-cache-server", "--container-daemon-socket=-", "--job=lint",
-		"--container-options=--label=io.dil8.runnir.execution=exec_test --cpus=2 --memory=1073741824",
+		"--container-options=--label=com.runnir.execution=exec_test --cpus=2 --memory=1073741824",
 		"--platform=ubuntu-latest=catthehacker/ubuntu:act-latest",
 	} {
 		if indexOf(call.Args, want) < 0 {
@@ -205,7 +205,7 @@ func TestSuccessfulRunRecordsOutputAndJobs(t *testing.T) {
 	}
 
 	docker := invocations(t, dir, "docker")
-	if len(docker) != 1 || strings.Join(docker[0].Args, " ") != "ps --all --quiet --filter label=io.dil8.runnir.execution=exec_test" {
+	if len(docker) != 1 || strings.Join(docker[0].Args, " ") != "ps --all --quiet --filter label=com.runnir.execution=exec_test" {
 		t.Fatalf("docker calls = %+v", docker)
 	}
 }

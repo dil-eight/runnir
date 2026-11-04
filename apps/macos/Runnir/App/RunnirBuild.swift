@@ -29,5 +29,5 @@ enum RunnirBuild: String, CaseIterable, Sendable {
     var folderName: String { self == .dev ? "Runnir Dev" : "Runnir" }
 
     /// What the app's Keychain services begin with.
-    var keychainPrefix: String { self == .dev ? "io.dil8.runnir.dev" : "io.dil8.runnir" }
+    var keychainPrefix: String { self == .dev ? "com.runnir.dev" : "com.runnir" }
 }

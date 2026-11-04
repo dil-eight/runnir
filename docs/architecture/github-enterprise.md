@@ -13,8 +13,8 @@ Runnir talks to github.com today. Teams on GitHub Enterprise Server, or on GitHu
 
 ## Accounts
 
-- github.com is an optional account, as today. Its Keychain item stays `io.dil8.runnir.github` / `oauth-token` (`io.dil8.runnir.dev.github` in Runnir Dev).
-- Each Enterprise server is `{id, name, webURL, apiURL, login}` in `github-servers.json` in the app's support directory, with its token in Keychain as `io.dil8.runnir.github` / `enterprise:<id>`. `id` is a random UUID, never derived from the URL.
+- github.com is an optional account, as today. Its Keychain item stays `com.runnir.github` / `oauth-token` (`com.runnir.dev.github` in Runnir Dev).
+- Each Enterprise server is `{id, name, webURL, apiURL, login}` in `github-servers.json` in the app's support directory, with its token in Keychain as `com.runnir.github` / `enterprise:<id>`. `id` is a random UUID, never derived from the URL.
 - Removing a server signs it out and deletes its Keychain item. Changing a server's URLs is not offered; remove and add it again, so a token is never sent to a URL it was not checked against.
 - Limits: at most 10 Enterprise servers; names up to 60 characters; the file up to 64 KiB.
 

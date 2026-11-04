@@ -19,7 +19,7 @@ import (
 )
 
 // Label marks every job container of a run so it can be removed afterwards.
-const Label = "io.dil8.runnir.execution"
+const Label = "com.runnir.execution"
 
 const (
 	// Stopping and cleaning up fit in the 20 seconds the Core waits for
