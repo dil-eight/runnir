@@ -25,4 +25,4 @@ Runnir is not planned for the Mac App Store, the only channel that requires the 
 
 ## Not Yet Verified
 
-A Developer ID signed, notarized build. Until then the claims above rest on unsigned and ad-hoc signed builds.
+A build signed by the release workflow from a tag. On 2026-11-04 a local build (Runnir Local) signed with Developer ID and its provisioning profile by the same scripts on a Mac, notarized and stapled (B48), passed `spctl` as Notarized Developer ID, opened from quarantine, kept its GitHub sign-in in the data protection keychain across a relaunch without a prompt, opened a chosen folder as a workspace and started its Core under the hardened runtime. Local runs with act were not tried in it.
