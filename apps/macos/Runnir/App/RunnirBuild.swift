@@ -28,6 +28,6 @@ enum RunnirBuild: String, CaseIterable, Sendable {
     /// The app's folder in Application Support, Logs and Caches.
     var folderName: String { self == .dev ? "Runnir Dev" : "Runnir" }
 
-    /// What the app's Keychain services begin with.
-    var keychainPrefix: String { self == .dev ? "com.runnir.dev" : "com.runnir" }
+    /// What the app's Keychain services begin with: its bundle ID.
+    var keychainPrefix: String { self == .dev ? "com.runnir.app.dev" : "com.runnir.app" }
 }
