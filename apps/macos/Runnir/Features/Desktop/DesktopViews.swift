@@ -1071,7 +1071,7 @@ struct DesktopWorkspaceView: View {
     /// the search and the bell all sit on its middle line, as drawn in Pen
     /// (C28); `WindowButtonLine` moves the buttons there.
     static let titleStripHeight: CGFloat = 40
-    private static let nameXHeight = NSFont.systemFont(ofSize: 13, weight: .semibold).xHeight
+    nonisolated private static let nameXHeight = NSFont.systemFont(ofSize: 13, weight: .semibold).xHeight
 
     /// The strip above the islands: the workspace switcher next to the
     /// window's buttons, the search in the middle, Runnir on GitHub and the
@@ -1477,8 +1477,10 @@ struct DesignButtonStyle: ButtonStyle {
     var primary = false
     /// 22 points high with 12-point text, for rows and section headers.
     var compact = false
+    /// The button's dropdown is open: an accent border.
+    var open = false
     func makeBody(configuration: Configuration) -> some View {
-        DesignButtonBody(configuration: configuration, primary: primary, compact: compact)
+        DesignButtonBody(configuration: configuration, primary: primary, compact: compact, open: open)
     }
 }
 
@@ -1488,6 +1490,7 @@ private struct DesignButtonBody: View {
     let configuration: ButtonStyleConfiguration
     let primary: Bool
     let compact: Bool
+    let open: Bool
     @Environment(\.isEnabled) private var isEnabled
     @State private var hovering = false
 
@@ -1497,7 +1500,7 @@ private struct DesignButtonBody: View {
             .padding(.horizontal, compact ? 10 : primary ? 16 : 14).frame(height: compact ? 22 : 30)
             .foregroundStyle(primary ? RunnirTheme.primaryButtonText : RunnirTheme.secondaryContent)
             .background(primary ? RunnirTheme.primary.opacity(hovering && isEnabled ? 0.32 : 0.2) : RunnirTheme.secondary, in: shape)
-            .overlay(shape.stroke(primary ? RunnirTheme.primary.opacity(0.45) : RunnirTheme.border))
+            .overlay(shape.stroke(open ? RunnirTheme.primary : primary ? RunnirTheme.primary.opacity(0.45) : RunnirTheme.border))
             .opacity(isEnabled ? (configuration.isPressed ? 0.75 : 1) : 0.4)
             .contentShape(shape)
             .pointerStyle(isEnabled ? .link : nil)

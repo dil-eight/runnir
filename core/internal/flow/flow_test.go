@@ -727,6 +727,34 @@ func TestGitListsTheFilesOfTheChange(t *testing.T) {
 	}
 }
 
+func TestGitSaysWhichFilesItIgnores(t *testing.T) {
+	git := FindGit(filepath.SplitList(os.Getenv("PATH")))
+	if git == "" {
+		t.Skip("git is not installed")
+	}
+	root := t.TempDir()
+	if out, err := exec.Command(git, "-C", root, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	for name, content := range map[string]string{".gitignore": ".env.local\n", ".env": "A=1\n", "apps/web/.env.local": "A=2\n"} {
+		path := filepath.Join(root, name)
+		_ = os.MkdirAll(filepath.Dir(path), 0o755)
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	g := Git{Path: git, Root: root}
+	if got := g.Ignored(context.Background(), []string{".env", "apps/web/.env.local"}); !reflect.DeepEqual(got, map[string]bool{"apps/web/.env.local": true}) {
+		t.Fatalf("ignored = %v", got)
+	}
+	if got := g.Ignored(context.Background(), []string{".env"}); got == nil || len(got) != 0 {
+		t.Fatalf("none ignored = %v", got)
+	}
+	if got := (Git{Root: root}).Ignored(context.Background(), []string{".env"}); got != nil {
+		t.Fatalf("without git = %v", got)
+	}
+}
+
 func TestRunJobsBelongToTheJobThatNamesThem(t *testing.T) {
 	w := Parse(".github/workflows/ci.yml", []byte(`on: push
 jobs:

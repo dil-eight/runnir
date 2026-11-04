@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"runnir/core/internal/dotenv"
+	"runnir/core/internal/flow"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 )
 
@@ -29,6 +30,25 @@ func (s *service) ParseEnvFile(_ context.Context, request *corev1.ParseEnvFileRe
 	}
 	for _, problem := range problems {
 		out.Problems = append(out.Problems, &corev1.EnvProblem{Line: uint32(problem.Line), Message: problem.Message})
+	}
+	return out, nil
+}
+
+// ListEnvFiles lists the .env files of a repository's working tree for the
+// Import .env menu, and which of them git ignores.
+func (s *service) ListEnvFiles(ctx context.Context, request *corev1.ListEnvFilesRequest) (*corev1.ListEnvFilesResponse, error) {
+	info, err := s.repositories.Get(request.GetRepositoryId())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	paths := dotenv.Find(info.Path)
+	out := &corev1.ListEnvFilesResponse{}
+	if len(paths) == 0 {
+		return out, nil
+	}
+	ignored := flow.Git{Path: s.git(), Root: info.Path}.Ignored(ctx, paths)
+	for _, path := range paths {
+		out.Files = append(out.Files, &corev1.RepositoryEnvFile{Path: path, Ignored: ignored[path]})
 	}
 	return out, nil
 }

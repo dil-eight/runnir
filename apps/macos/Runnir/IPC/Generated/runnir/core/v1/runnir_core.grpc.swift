@@ -728,6 +728,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "ListEnvFiles" metadata.
+        internal enum ListEnvFiles: Sendable {
+            /// Request type for "ListEnvFiles".
+            internal typealias Input = Runnir_Core_V1_ListEnvFilesRequest
+            /// Response type for "ListEnvFiles".
+            internal typealias Output = Runnir_Core_V1_ListEnvFilesResponse
+            /// Descriptor for "ListEnvFiles".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ListEnvFiles",
+                type: .unary
+            )
+        }
         /// Descriptors for all methods in the "runnir.core.v1.RunnirCore" service.
         internal static let descriptors: [GRPCCore.MethodDescriptor] = [
             HealthCheck.descriptor,
@@ -783,7 +796,8 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             ConfirmLocalRun.descriptor,
             GetLocalRunOutput.descriptor,
             CancelExecution.descriptor,
-            ParseEnvFile.descriptor
+            ParseEnvFile.descriptor,
+            ListEnvFiles.descriptor
         ]
     }
 }
@@ -1817,6 +1831,28 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ParseEnvFileRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ParseEnvFileResponse>
+
+        /// Handle the "ListEnvFiles" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The .env files of a repository's working tree, for the Import .env
+        /// > menu of Secrets and Variables: files named .env or .env.*, not
+        /// > templates (.example, .sample), outside .git, node_modules and
+        /// > repositories inside it, nearer the root first, at most 100. The app
+        /// > reads the one the user picks. NOT_FOUND for an unknown repository.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ListEnvFilesRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ListEnvFilesResponse` messages.
+        func listEnvFiles(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListEnvFilesRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListEnvFilesResponse>
     }
 
     /// Service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -2834,6 +2870,28 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.ServerRequest<Runnir_Core_V1_ParseEnvFileRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ParseEnvFileResponse>
+
+        /// Handle the "ListEnvFiles" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The .env files of a repository's working tree, for the Import .env
+        /// > menu of Secrets and Variables: files named .env or .env.*, not
+        /// > templates (.example, .sample), outside .git, node_modules and
+        /// > repositories inside it, nearer the root first, at most 100. The app
+        /// > reads the one the user picks. NOT_FOUND for an unknown repository.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListEnvFilesRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ListEnvFilesResponse` message.
+        func listEnvFiles(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ListEnvFilesRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListEnvFilesResponse>
     }
 
     /// Simple service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -3850,6 +3908,28 @@ extension Runnir_Core_V1_RunnirCore {
             request: Runnir_Core_V1_ParseEnvFileRequest,
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_ParseEnvFileResponse
+
+        /// Handle the "ListEnvFiles" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The .env files of a repository's working tree, for the Import .env
+        /// > menu of Secrets and Variables: files named .env or .env.*, not
+        /// > templates (.example, .sample), outside .git, node_modules and
+        /// > repositories inside it, nearer the root first, at most 100. The app
+        /// > reads the one the user picks. NOT_FOUND for an unknown repository.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ListEnvFilesRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ListEnvFilesResponse` to respond with.
+        func listEnvFiles(
+            request: Runnir_Core_V1_ListEnvFilesRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ListEnvFilesResponse
     }
 }
 
@@ -4451,6 +4531,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
                 )
             }
         )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ListEnvFiles.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListEnvFilesRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListEnvFilesResponse>(),
+            handler: { request, context in
+                try await self.listEnvFiles(
+                    request: request,
+                    context: context
+                )
+            }
+        )
     }
 }
 
@@ -5045,6 +5136,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ParseEnvFileResponse> {
         let response = try await self.parseEnvFile(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func listEnvFiles(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ListEnvFilesRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ListEnvFilesResponse> {
+        let response = try await self.listEnvFiles(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -5754,6 +5856,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ParseEnvFileResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_ParseEnvFileResponse>(
             message: try await self.parseEnvFile(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func listEnvFiles(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ListEnvFilesRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ListEnvFilesResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ListEnvFilesResponse>(
+            message: try await self.listEnvFiles(
                 request: request.message,
                 context: context
             ),
@@ -7047,6 +7162,33 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ParseEnvFileResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ParseEnvFileResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ListEnvFiles" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The .env files of a repository's working tree, for the Import .env
+        /// > menu of Secrets and Variables: files named .env or .env.*, not
+        /// > templates (.example, .sample), outside .git, node_modules and
+        /// > repositories inside it, nearer the root first, at most 100. The app
+        /// > reads the one the user picks. NOT_FOUND for an unknown repository.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListEnvFilesRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListEnvFilesRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListEnvFilesResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func listEnvFiles<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListEnvFilesRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListEnvFilesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListEnvFilesResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListEnvFilesResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
     }
 
@@ -8935,6 +9077,44 @@ extension Runnir_Core_V1_RunnirCore {
                 onResponse: handleResponse
             )
         }
+
+        /// Call the "ListEnvFiles" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The .env files of a repository's working tree, for the Import .env
+        /// > menu of Secrets and Variables: files named .env or .env.*, not
+        /// > templates (.example, .sample), outside .git, node_modules and
+        /// > repositories inside it, nearer the root first, at most 100. The app
+        /// > reads the one the user picks. NOT_FOUND for an unknown repository.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ListEnvFilesRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ListEnvFilesRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ListEnvFilesResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func listEnvFiles<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ListEnvFilesRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ListEnvFilesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ListEnvFilesResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListEnvFilesResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ListEnvFiles.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
     }
 }
 
@@ -10536,6 +10716,39 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ParseEnvFileRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ParseEnvFileResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListEnvFiles" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The .env files of a repository's working tree, for the Import .env
+    /// > menu of Secrets and Variables: files named .env or .env.*, not
+    /// > templates (.example, .sample), outside .git, node_modules and
+    /// > repositories inside it, nearer the root first, at most 100. The app
+    /// > reads the one the user picks. NOT_FOUND for an unknown repository.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ListEnvFilesRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listEnvFiles<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ListEnvFilesRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListEnvFilesResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.listEnvFiles(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListEnvFilesRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListEnvFilesResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -12355,6 +12568,43 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.parseEnvFile(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListEnvFiles" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The .env files of a repository's working tree, for the Import .env
+    /// > menu of Secrets and Variables: files named .env or .env.*, not
+    /// > templates (.example, .sample), outside .git, node_modules and
+    /// > repositories inside it, nearer the root first, at most 100. The app
+    /// > reads the one the user picks. NOT_FOUND for an unknown repository.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func listEnvFiles<Result>(
+        _ message: Runnir_Core_V1_ListEnvFilesRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ListEnvFilesResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ListEnvFilesRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.listEnvFiles(
             request: request,
             options: options,
             onResponse: handleResponse

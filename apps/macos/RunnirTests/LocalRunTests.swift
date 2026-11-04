@@ -205,6 +205,17 @@ struct LocalRunTests {
         #expect(fake.parsedContents.count == 2)
     }
 
+    @Test func theRepositorysEnvFilesComeFromTheCore() async throws {
+        let files = [CoreRepositoryEnvFile(path: ".env", ignored: false), CoreRepositoryEnvFile(path: "apps/web/.env.local", ignored: true)]
+        let (hub, workspace, fake) = await hub { $0.repositoryEnvFiles = files }
+        #expect(await hub.envFiles(workspaceID: workspace) == files)
+        #expect(fake.envFilesRepositories == [try #require(hub.session(for: workspace)?.coreID)])
+
+        fake.repositoryEnvFiles = nil
+        #expect(await hub.envFiles(workspaceID: workspace) == nil)
+        #expect(await hub.envFiles(workspaceID: UUID()) == nil)
+    }
+
     private func valuesPlan() -> CorePreparedLocalRun {
         var plan = plan()
         plan.secrets = ["NPM_TOKEN", "OTHER"]

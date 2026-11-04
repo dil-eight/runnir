@@ -986,6 +986,13 @@ final class CoreHub {
         }
     }
 
+    /// The .env files of the workspace's repository for the Import .env
+    /// menu; nil when the Core cannot answer.
+    func envFiles(workspaceID: UUID) async -> [CoreRepositoryEnvFile]? {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return nil }
+        return try? await service.envFiles(repositoryID: coreID)
+    }
+
     private enum EnvFileError: Error { case tooLarge, notAFile }
 
     nonisolated private static func readBounded(_ url: URL) throws -> Data {

@@ -209,7 +209,7 @@ struct RunGraphView: View {
     @State private var roomHeight: CGFloat = 0
     /// The columns' place sideways, which a drag anywhere on the page moves.
     @State private var pan = PanModel()
-    private static let columnsSpace = "runGraphColumns"
+    nonisolated private static let columnsSpace = "runGraphColumns"
 
     var body: some View {
         ScrollView(.vertical) {

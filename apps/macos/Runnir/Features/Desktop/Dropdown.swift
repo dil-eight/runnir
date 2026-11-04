@@ -223,10 +223,14 @@ struct DropdownList<Content: View>: View {
 }
 
 /// A row of a dropdown: highlighted under the pointer, red when it removes
-/// something, dimmed when disabled. With `checked` it has a check column.
+/// something, dimmed when disabled. With `checked` it has a check column;
+/// a `detail` sits dimmed at its trailing edge; a `monospaced` title is a
+/// path or a name from code.
 struct DropdownItem: View {
     let title: String
     var systemImage: String?
+    var detail: String?
+    var monospaced = false
     var checked: Bool?
     var destructive = false
     let action: () -> Void
@@ -234,10 +238,12 @@ struct DropdownItem: View {
     @Environment(\.isEnabled) private var isEnabled
     @State private var hovering = false
 
-    init(_ title: String, systemImage: String? = nil, checked: Bool? = nil, destructive: Bool = false,
-         action: @escaping () -> Void) {
+    init(_ title: String, systemImage: String? = nil, detail: String? = nil, monospaced: Bool = false, checked: Bool? = nil,
+         destructive: Bool = false, action: @escaping () -> Void) {
         self.title = title
         self.systemImage = systemImage
+        self.detail = detail
+        self.monospaced = monospaced
         self.checked = checked
         self.destructive = destructive
         self.action = action
@@ -256,8 +262,12 @@ struct DropdownItem: View {
                 if let systemImage {
                     Image(systemName: systemImage).font(.system(size: 12)).frame(width: 16)
                 }
-                Text(title).font(.system(size: 13)).lineLimit(1).truncationMode(.middle)
+                Text(title).font(monospaced ? .system(size: 12, design: .monospaced) : .system(size: 13))
+                    .lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 12)
+                if let detail {
+                    Text(detail).font(.system(size: 11)).foregroundStyle(RunnirTheme.mutedForeground).lineLimit(1).fixedSize()
+                }
             }
             .foregroundStyle(!isEnabled ? RunnirTheme.mutedForeground : destructive ? RunnirTheme.destructive : RunnirTheme.foreground)
             .padding(.horizontal, 10).frame(height: 30)

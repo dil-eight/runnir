@@ -276,6 +276,9 @@ protocol CoreServicing: Sendable {
     /// Parses the bytes of a .env file the user chose; values encrypted by
     /// dotenvx are flagged. The Core reads no path for this.
     func parseEnvFile(content: Data) async throws -> CoreEnvFile
+    /// The .env files of the repository's working tree (not templates,
+    /// node_modules or repositories inside it), nearer the root first.
+    func envFiles(repositoryID: String) async throws -> [CoreRepositoryEnvFile]
     /// A local run's state and the output lines after `after`.
     func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput
     func cancelExecution(executionID: String) async throws

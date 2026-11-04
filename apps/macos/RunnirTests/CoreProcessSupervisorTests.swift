@@ -91,6 +91,7 @@ private struct FakeService: CoreServicing {
                          useInstalledAct: Bool, limits: CoreLocalRunLimits?, resetLimits: Bool) async throws -> CorePreparedLocalRun { throw CoreServiceError.unavailable }
     func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String]) async throws -> CoreExecution { throw CoreServiceError.unavailable }
     func parseEnvFile(content: Data) async throws -> CoreEnvFile { throw CoreServiceError.unavailable }
+    func envFiles(repositoryID: String) async throws -> [CoreRepositoryEnvFile] { throw CoreServiceError.unavailable }
     func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput { throw CoreServiceError.unavailable }
     func cancelExecution(executionID: String) async throws { throw CoreServiceError.unavailable }
     func saveWorkflowFile(repositoryID: String, workflowID: String, content: String, baseSHA256: String,
