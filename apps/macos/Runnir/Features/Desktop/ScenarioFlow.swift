@@ -30,8 +30,9 @@ final class ScenarioFlowModel {
         chosen = scenario
     }
 
-    /// Plans the scenario again (the files, the runs or the pick changed) and
-    /// reads the jobs of runs that are new or changed.
+    /// Plans the scenario again (the files, the runs, the pick or the token
+    /// changed) and reads the jobs of runs that are new, changed or whose
+    /// jobs could not be read.
     func load() async {
         isLoading = true
         let result = await hub.flow(workspaceID: workspaceID, scenario: chosen)
@@ -59,8 +60,11 @@ final class ScenarioFlowModel {
             return out
         }
         for (run, result) in read {
-            jobs[run.id] = result
-            jobsRead[run.id] = Self.report(run)
+            // A read that failed (at launch the Core has no token until
+            // Keychain hands it over) is tried again at the next load, and
+            // jobs read before stay shown meanwhile.
+            if result.access == .ok { jobsRead[run.id] = Self.report(run) }
+            if result.access == .ok || jobs[run.id]?.access != .ok { jobs[run.id] = result }
         }
     }
 
