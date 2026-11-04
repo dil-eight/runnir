@@ -72,7 +72,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
       - name: Check the build
-        run: scripts/check-app-build.sh build/Runnir.xcarchive/Products/Applications/Runnir.app com.runnir "$RUNNIR_BUILD" "$RUNNIR_ICON"
+        run: scripts/check-app-build.sh build/Runnir.xcarchive/Products/Applications/Runnir.app com.runnir.app "$RUNNIR_BUILD" "$RUNNIR_ICON"
 
       - name: Package app
         run: |

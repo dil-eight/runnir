@@ -56,7 +56,7 @@ actor KeychainLocalRunValueStore: LocalRunValueStoring {
     /// UI tests of a Debug build keep their own items.
     static var defaultPrefix: String {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return "com.runnir.local-run.ui-testing" }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return "com.runnir.app.local-run.ui-testing" }
         #endif
         return prefix(for: .current)
     }

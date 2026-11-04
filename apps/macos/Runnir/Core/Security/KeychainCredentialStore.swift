@@ -17,7 +17,7 @@ actor KeychainCredentialStore: CredentialStoring {
     /// Sign Out never removes it.
     static var defaultService: String {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return "com.runnir.github.ui-testing" }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return "com.runnir.app.github.ui-testing" }
         #endif
         return service(for: .current)
     }

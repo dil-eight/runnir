@@ -17,7 +17,7 @@ import Testing
         #expect(RunnirBuild.allCases.map(\.mark) == ["DEV", "ALPHA", "BETA", nil])
         #expect(RunnirBuild.allCases.map(\.spokenName) == ["Runnir Dev", "Runnir Alpha", "Runnir Beta", "Runnir"])
         #expect(RunnirBuild.allCases.map(\.folderName) == ["Runnir Dev", "Runnir", "Runnir", "Runnir"])
-        #expect(RunnirBuild.allCases.map(\.keychainPrefix) == ["com.runnir.dev", "com.runnir", "com.runnir", "com.runnir"])
+        #expect(RunnirBuild.allCases.map(\.keychainPrefix) == ["com.runnir.app.dev", "com.runnir.app", "com.runnir.app", "com.runnir.app"])
         #expect(RunnirBuild.allCases.map(\.marksWindows) == [true, false, false, false], "only dev says so in its windows")
     }
 
@@ -25,7 +25,7 @@ import Testing
         // The tests run in an app built without a tag: Info.plist carries dev.
         #expect(Bundle.main.object(forInfoDictionaryKey: "RunnirBuild") as? String == "dev")
         #expect(RunnirBuild.current == .dev)
-        #expect(Bundle.main.bundleIdentifier == "com.runnir.dev")
+        #expect(Bundle.main.bundleIdentifier == "com.runnir.app.dev")
     }
 }
 
@@ -41,10 +41,10 @@ import Testing
     }
 
     @Test func devKeepsItsOwnKeychainItems() {
-        #expect(KeychainCredentialStore.service(for: .dev) == "com.runnir.dev.github")
-        #expect(KeychainCredentialStore.service(for: .release) == "com.runnir.github")
-        #expect(KeychainLocalRunValueStore.prefix(for: .dev) == "com.runnir.dev.local-run")
-        #expect(KeychainLocalRunValueStore.prefix(for: .beta) == "com.runnir.local-run")
+        #expect(KeychainCredentialStore.service(for: .dev) == "com.runnir.app.dev.github")
+        #expect(KeychainCredentialStore.service(for: .release) == "com.runnir.app.github")
+        #expect(KeychainLocalRunValueStore.prefix(for: .dev) == "com.runnir.app.dev.local-run")
+        #expect(KeychainLocalRunValueStore.prefix(for: .beta) == "com.runnir.app.local-run")
     }
 
     @MainActor
