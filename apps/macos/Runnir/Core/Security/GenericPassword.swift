@@ -3,7 +3,21 @@ import Security
 
 /// Generic-password Keychain items by service and account: the add-or-update,
 /// read and delete steps the credential and local-run value stores share.
+///
+/// A build signed with its provisioning profile has an application
+/// identifier and keeps its items in the data protection keychain, where
+/// the app's identifier and team decide access and macOS never asks for the
+/// password item by item (B48). A build without one (ad hoc, CI, a Mac
+/// without the profile) uses the file-based keychain, which lists the
+/// programs allowed on each item.
 enum GenericPassword {
+    /// The build's signature carries an application identifier, which only
+    /// a provisioning profile authorizes.
+    static let usesDataProtectionKeychain: Bool = {
+        guard let task = SecTaskCreateFromSelf(nil) else { return false }
+        return SecTaskCopyValueForEntitlement(task, "com.apple.application-identifier" as CFString, nil) != nil
+    }()
+
     static func read(service: String, account: String) throws -> Data? {
         var query = base(service: service, account: account)
         query[kSecReturnData as String] = true
@@ -46,7 +60,8 @@ enum GenericPassword {
 
     /// Deletes one item, or every item of the service when `account` is nil.
     /// The file-based keychain deletes one matching item per call, so a
-    /// whole service is deleted call by call until nothing matches.
+    /// whole service is deleted call by call until nothing matches; the data
+    /// protection keychain deletes them all in the first.
     static func delete(service: String, account: String?,
                        deleteItem: (CFDictionary) -> OSStatus = SecItemDelete) throws {
         let query = base(service: service, account: account) as CFDictionary
@@ -60,9 +75,10 @@ enum GenericPassword {
     /// More items than a service of Runnir's ever holds; bounds the deletes.
     static let maxItemsPerService = 10_000
 
-    private static func base(service: String, account: String?) -> [String: Any] {
+    static func base(service: String, account: String?, dataProtection: Bool = usesDataProtectionKeychain) -> [String: Any] {
         var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service]
         if let account { query[kSecAttrAccount as String] = account }
+        if dataProtection { query[kSecUseDataProtectionKeychain as String] = true }
         return query
     }
 }

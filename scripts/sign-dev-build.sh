@@ -16,9 +16,17 @@ set -eu
 # runtime and no timestamp: the unit tests load into the app, the debugger
 # attaches to it, and a build needs no network.
 #
+# With the Developer ID provisioning profile of io.dil8.runnir.dev in
+# RUNNIR_DEV_PROFILE or ~/.config/runnir/dev.provisionprofile, the build
+# embeds it and takes its application identifier (embed-profile.sh), so it
+# keeps its Keychain items in the data protection keychain and Keychain
+# never asks for the password. Without one, or with one that does not fit,
+# the build uses the file-based keychain.
+#
 # The Runnir target's last build phase runs it on the built app.
 # Usage: RUNNIR_BUILD=dev scripts/sign-dev-build.sh [APP]
 app=${1:-${TARGET_BUILD_DIR:-}/${WRAPPER_NAME:-}}
+here=$(dirname "$0")
 # Local and tagged builds are signed by sign-app.sh.
 if [ "${RUNNIR_BUILD:-}" != dev ]; then
     exit 0
@@ -45,6 +53,19 @@ sign() {
     codesign --force --timestamp=none --sign "$identity" "$@"
 }
 
+profile=${RUNNIR_DEV_PROFILE:-$HOME/.config/runnir/dev.provisionprofile}
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+entitlements=
+rm -f "$app/Contents/embedded.provisionprofile"
+if [ -f "$profile" ]; then
+    if "$here/embed-profile.sh" "$app" "$profile" "$work/entitlements.plist" "$identity" 2>"$work/error"; then
+        entitlements=$work/entitlements.plist
+    else
+        echo "warning: $(cat "$work/error"); the build uses the file-based keychain"
+    fi
+fi
+
 # Inside out: libraries, the helpers, a test bundle Xcode put into the app,
 # then the app.
 if [ -d "$app/Contents/Frameworks" ]; then
@@ -65,4 +86,8 @@ if [ -d "$app/Contents/PlugIns" ]; then
             sign "$bundle"
         done
 fi
-sign "$app"
+if [ -n "$entitlements" ]; then
+    sign --entitlements "$entitlements" "$app"
+else
+    sign "$app"
+fi
