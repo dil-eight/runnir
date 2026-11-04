@@ -206,6 +206,9 @@ struct RunGraphView: View {
     @State private var nodeMinX: [String: CGFloat] = [:]
     /// The width the columns are shown in, whatever their own.
     @State private var roomWidth: CGFloat = 0
+    @State private var roomHeight: CGFloat = 0
+    /// The columns' place sideways, which a drag anywhere on the page moves.
+    @State private var pan = PanModel()
     private static let columnsSpace = "runGraphColumns"
 
     var body: some View {
@@ -215,8 +218,12 @@ struct RunGraphView: View {
                 content
                 focusLine
             }
-            .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            // As tall as the room at least, so a drag on its empty part moves the columns too.
+            .frame(maxWidth: .infinity, minHeight: roomHeight, alignment: .topLeading)
+            .background { Color.clear.pans(pan) }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { roomHeight = $0 }
     }
 
     private var header: some View {
@@ -275,7 +282,7 @@ struct RunGraphView: View {
     private func graph(_ layout: RunGraph.Layout) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             // Columns wider than the room are dragged sideways, as on the Overview.
-            HorizontalPan {
+            HorizontalPan(model: pan) {
                 HStack(alignment: .center, spacing: 8) {
                     ForEach(Array(layout.columns.enumerated()), id: \.offset) { index, column in
                         if index > 0 {

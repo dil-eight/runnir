@@ -420,42 +420,68 @@ struct ScenarioPicker: View {
     }
 }
 
-/// Content wider than its room, dragged sideways as on a canvas and never
-/// past its ends; a trackpad or Shift with the wheel moves it too.
-struct HorizontalPan<Content: View>: View {
-    @ViewBuilder let content: () -> Content
-    @State private var position = ScrollPosition(edge: .leading)
-    @State private var offset: CGFloat = 0
+/// Where a HorizontalPan stands and how far its content reaches past the
+/// room. The view that holds one can let a drag on more than the pan move
+/// it (`.pans`).
+@MainActor
+@Observable
+final class PanModel {
+    var position = ScrollPosition(edge: .leading)
+    fileprivate var offset: CGFloat = 0
     /// How far the content reaches past the room; 0 when it fits.
-    @State private var overflow: CGFloat = 0
-    @State private var dragStart: CGFloat?
-
-    var body: some View {
-        ScrollView(.horizontal) {
-            content()
-                .contentShape(Rectangle())
-                // Before the jobs' clicks, which a drag of a few points cancels.
-                .highPriorityGesture(drag)
-                .pointerStyle(overflow > 0 ? (dragStart == nil ? .grabIdle : .grabActive) : nil)
-        }
-        .scrollIndicators(.hidden)
-        .scrollPosition($position)
-        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.x } action: { _, x in offset = x }
-        .onScrollGeometryChange(for: CGFloat.self) { max(0, $0.contentSize.width - $0.containerSize.width) } action: { _, room in overflow = room }
-    }
+    fileprivate(set) var overflow: CGFloat = 0
+    fileprivate var dragStart: CGFloat?
 
     static func clamped(_ x: CGFloat, overflow: CGFloat) -> CGFloat { min(max(x, 0), overflow) }
 
-    private var drag: some Gesture {
-        // Global points: the content moves under the pointer while it is dragged.
-        DragGesture(minimumDistance: 3, coordinateSpace: .global)
-            .onChanged { value in
-                guard overflow > 0 else { return }
-                let start = dragStart ?? offset
-                dragStart = start
-                position.scrollTo(x: Self.clamped(start - value.translation.width, overflow: overflow))
-            }
-            .onEnded { _ in dragStart = nil }
+    fileprivate func drag(by translation: CGFloat) {
+        guard overflow > 0 else { return }
+        let start = dragStart ?? offset
+        dragStart = start
+        position.scrollTo(x: Self.clamped(start - translation, overflow: overflow))
+    }
+
+    fileprivate func endDrag() { dragStart = nil }
+}
+
+/// Content wider than its room, dragged sideways as on a canvas and never
+/// past its ends; a trackpad or Shift with the wheel moves it too.
+struct HorizontalPan<Content: View>: View {
+    private let model: PanModel?
+    private let content: () -> Content
+    @State private var own = PanModel()
+
+    /// `model` when a drag outside the pan moves it too; else its own.
+    init(model: PanModel? = nil, @ViewBuilder content: @escaping () -> Content) {
+        self.model = model
+        self.content = content
+    }
+
+    var body: some View {
+        @Bindable var pan = model ?? own
+        ScrollView(.horizontal) {
+            content().pans(pan)
+        }
+        .scrollIndicators(.hidden)
+        .scrollPosition($pan.position)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.x } action: { _, x in pan.offset = x }
+        .onScrollGeometryChange(for: CGFloat.self) { max(0, $0.contentSize.width - $0.containerSize.width) } action: { _, room in pan.overflow = room }
+    }
+}
+
+extension View {
+    /// A drag on this view moves `pan` sideways, as one on the pan's content
+    /// does, with the grab pointer while there is more to see.
+    func pans(_ pan: PanModel) -> some View {
+        contentShape(Rectangle())
+            // Before the jobs' clicks, which a drag of a few points cancels.
+            .highPriorityGesture(
+                // Global points: the content moves under the pointer while it is dragged.
+                DragGesture(minimumDistance: 3, coordinateSpace: .global)
+                    .onChanged { pan.drag(by: $0.translation.width) }
+                    .onEnded { _ in pan.endDrag() }
+            )
+            .pointerStyle(pan.overflow > 0 ? (pan.dragStart == nil ? .grabIdle : .grabActive) : nil)
     }
 }
