@@ -77,6 +77,28 @@ private final class Announcements: @unchecked Sendable {
         }
     }
 
+    @MainActor @Test func theCoresEnvironmentsReplaceTheJobsOwnAndDropEditsOfVanishedOnes() async throws {
+        let key = LocalRunValueKey(kind: .secret, name: "DEPLOY_KEY")
+        let workflows = [CoreWorkflow(id: ".github/workflows/deploy.yml", name: "Deploy", triggers: ["push"],
+                                      jobs: [CoreJob(id: "a", name: "a", needs: [], environment: "Production", secrets: ["DEPLOY_KEY"]),
+                                             CoreJob(id: "b", name: "b", needs: [], environment: "production", secrets: ["DEPLOY_KEY"]),
+                                             CoreJob(id: "c", name: "c", needs: [], environmentExpression: true, secrets: ["DEPLOY_KEY"])],
+                                      parseError: nil, secrets: ["DEPLOY_KEY"], variables: [])]
+        let model = WorkspaceValuesModel()
+        await model.load(workspaceID: UUID(), workflows: workflows, store: InMemoryLocalRunValueStore())
+        // Until the Core answers, the jobs' own names stand in.
+        #expect(Set(model.environments) == ["Production", "production"])
+        // The Core keeps one spelling of a name and adds GitHub's.
+        model.update(environments: ["Production", "staging"])
+        #expect(model.environments == ["Production", "staging"])
+        model.select("staging")
+        model.setText("s", for: key.in("staging"))
+        #expect(model.isDirty)
+        // staging is gone from GitHub: its unsaved edit goes with it.
+        model.update(environments: ["Production"])
+        #expect(model.environment == nil && !model.isDirty)
+    }
+
     @Test func keysSortByNameThenKind() {
         let keys = [LocalRunValueKey(kind: .variable, name: "B"), LocalRunValueKey(kind: .variable, name: "A"),
                     LocalRunValueKey(kind: .secret, name: "A")]

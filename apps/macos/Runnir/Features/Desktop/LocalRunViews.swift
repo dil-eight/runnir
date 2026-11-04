@@ -519,7 +519,8 @@ struct LocalRunSheet: View {
         let options: [String?] = [nil] + (model.prepared?.plan.environments ?? [])
         return DropdownMenu(alignment: .trailing) {
             ForEach(options, id: \.self) { option in
-                let empty = model.emptyCount(with: option)
+                // Counted once the saved names are read.
+                let empty = model.isPreparing ? 0 : model.emptyCount(with: option)
                 DropdownItem(option ?? "Repository", detail: empty > 0 ? "\(empty) empty" : nil, checked: option == model.environment) {
                     Task { await model.choose(option) }
                 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -95,7 +96,7 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 		if err != nil {
 			return nil, rpcError(err)
 		}
-		if plan.Environments, err = s.environments(ctx, info.ID, workflows); err != nil {
+		if plan.Environments, err = s.environments(ctx, info.ID, workflows, false); err != nil {
 			return nil, err
 		}
 		if len(plan.Environments) == 0 {
@@ -304,7 +305,7 @@ func (s *service) ListEnvironments(ctx context.Context, request *corev1.ListEnvi
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	names, err := s.environments(ctx, request.GetRepositoryId(), workflows)
+	names, err := s.environments(ctx, request.GetRepositoryId(), workflows, true)
 	if err != nil {
 		return nil, err
 	}
@@ -312,20 +313,59 @@ func (s *service) ListEnvironments(ctx context.Context, request *corev1.ListEnvi
 }
 
 // environments are the workflows' environments and, when a job picks its
-// own with an expression, the repository's on GitHub. GitHub out of reach
-// leaves its own out; only a cancelled call is an error.
-func (s *service) environments(ctx context.Context, repositoryID string, workflows []repository.Workflow) ([]string, error) {
+// own with an expression, the repository's on GitHub: asked again when
+// fresh, else as read in the last few minutes. GitHub out of reach leaves
+// its own out; only a cancelled call is an error.
+func (s *service) environments(ctx context.Context, repositoryID string, workflows []repository.Workflow, fresh bool) ([]string, error) {
 	var callErr error
 	names := localrun.Environments(workflows, func() []string {
+		if cached, ok := s.gitHubEnvironments.get(repositoryID, time.Now()); ok && !fresh {
+			return cached
+		}
 		target, problem, err := s.githubTarget(repositoryID, "", "")
 		if err != nil || problem != nil {
 			return nil
 		}
 		onGitHub, fetchErr := target.account.Client.Environments(ctx, target.owner, target.name)
-		_, callErr = s.githubStatus(target.account, fetchErr)
+		if _, callErr = s.githubStatus(target.account, fetchErr); fetchErr == nil {
+			s.gitHubEnvironments.put(repositoryID, onGitHub, time.Now())
+		}
 		return onGitHub
 	})
 	return names, callErr
+}
+
+// environmentCache keeps the environments GitHub listed per repository.
+type environmentCache struct {
+	mu      sync.Mutex
+	entries map[string]cachedEnvironments
+}
+
+type cachedEnvironments struct {
+	names []string
+	read  time.Time
+}
+
+// environmentsKept is how long a review reuses GitHub's environments.
+const environmentsKept = 5 * time.Minute
+
+func (c *environmentCache) get(repositoryID string, now time.Time) ([]string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.entries[repositoryID]
+	if !ok || now.Sub(entry.read) > environmentsKept {
+		return nil, false
+	}
+	return entry.names, true
+}
+
+func (c *environmentCache) put(repositoryID string, names []string, now time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.entries == nil {
+		c.entries = map[string]cachedEnvironments{}
+	}
+	c.entries[repositoryID] = cachedEnvironments{names: names, read: now}
 }
 
 func (s *service) workflow(repositoryID, workflowID string) (repository.Workflow, error) {

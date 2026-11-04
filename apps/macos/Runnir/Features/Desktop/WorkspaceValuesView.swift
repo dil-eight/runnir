@@ -10,9 +10,18 @@ struct WorkspaceValuesView: View {
     let session: RepositorySession
     let hub: CoreHub
     let store: any LocalRunValueStoring
+    /// A sign-in brings GitHub's environments, so the list is asked again.
+    var github: GitHubSession?
     @Environment(\.controlActiveState) private var activeState
     @State private var importOpen = false
     @State private var envFiles = EnvFiles.looking
+
+    /// What the environments depend on: the workflows, and GitHub's for a
+    /// job an expression places.
+    private struct EnvironmentsQuestion: Equatable {
+        let workflows: [CoreWorkflow]
+        let connection: GitHubConnection?
+    }
 
     /// The repository's .env files in the Import .env menu, as last listed.
     private enum EnvFiles: Equatable {
@@ -54,9 +63,9 @@ struct WorkspaceValuesView: View {
                 .padding(24).frame(maxWidth: 960, alignment: .leading)
             }
         }
-        .task(id: session.workflows) {
-            await model.load(workspaceID: workspaceID, workflows: session.workflows, store: store)
-            // The Core may ask GitHub, so the rows come first.
+        .task(id: session.workflows) { await model.load(workspaceID: workspaceID, workflows: session.workflows, store: store) }
+        // Apart from the rows, as the Core may ask GitHub.
+        .task(id: EnvironmentsQuestion(workflows: session.workflows, connection: github?.connection)) {
             if let environments = await hub.environments(workspaceID: workspaceID) { model.update(environments: environments) }
         }
         // Values saved from Run Locally or another window of this workspace.

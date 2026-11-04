@@ -61,6 +61,9 @@ type service struct {
 	// gitPath is the git binary scenarios read changed files with, found on first use.
 	gitOnce sync.Once
 	gitPath string
+	// gitHubEnvironments keeps each repository's environments on GitHub
+	// for a while, so planning a local run again does not ask each time.
+	gitHubEnvironments environmentCache
 }
 
 func (s *service) HealthCheck(context.Context, *corev1.HealthCheckRequest) (*corev1.HealthCheckResponse, error) {

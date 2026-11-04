@@ -58,8 +58,10 @@ final class WorkspaceValuesModel {
     var isDirty: Bool { !edits.isEmpty || !removals.isEmpty }
 
     @ObservationIgnored private var workflows: [CoreWorkflow] = []
-    /// What ListEnvironments last answered.
-    @ObservationIgnored private var listed: [String] = []
+    /// What ListEnvironments last answered: the environments a local run
+    /// can take, as the Core merges them. Until it answers, the names the
+    /// jobs give stand in.
+    @ObservationIgnored private var listed: [String]?
     @ObservationIgnored private var savedKeys: Set<LocalRunValueKey> = []
 
     func load(workspaceID: UUID, workflows: [CoreWorkflow], store: any LocalRunValueStoring) async {
@@ -72,10 +74,7 @@ final class WorkspaceValuesModel {
         }
         self.workflows = workflows
         savedKeys = saved
-        let known = rebuild()
-        // Edits of names no row shows any more would be saved unseen.
-        edits = edits.filter { known.contains($0.key) }
-        removals = removals.intersection(known)
+        keepEdits(of: rebuild())
         error = nil
         // Every variable, and each secret on screen, is read again: another
         // window may have changed it.
@@ -100,7 +99,13 @@ final class WorkspaceValuesModel {
     /// GitHub and answer after the workflows load.
     func update(environments: [String]) {
         listed = environments
-        rebuild()
+        keepEdits(of: rebuild())
+    }
+
+    /// Edits of names no row shows any more would be saved unseen.
+    private func keepEdits(of known: Set<LocalRunValueKey>) {
+        edits = edits.filter { known.contains($0.key) }
+        removals = removals.intersection(known)
     }
 
     /// Shows another set of values; nil is the Repository's.
@@ -119,7 +124,7 @@ final class WorkspaceValuesModel {
         }
         namedByJobs = Set(jobs.map(\.job.environment).filter { !$0.isEmpty })
         pickedByExpression = jobs.contains { $0.job.environmentExpression }
-        let named = namedByJobs.union(listed)
+        let named = listed.map(Set.init) ?? namedByJobs
         let savedIn = Set(saved.compactMap(\.environment))
         environments = named.union(savedIn).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
         staleEnvironments = savedIn.subtracting(named)

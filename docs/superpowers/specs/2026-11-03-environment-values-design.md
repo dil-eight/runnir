@@ -25,13 +25,13 @@ On GitHub a job with `environment: production` gets production's secrets and var
 - `references.FindByJob` lists the names each job reads, adding those outside `jobs:` to every job.
 - The scanner's `Job` gains `Environment`, `EnvironmentExpression`, `Secrets` and `Variables`; `ListWorkflows` returns them. `scanner.EnvironmentName` reads `environment:` for both the scanner and the scenario flow.
 - `github.Client.Environments` reads the repository's environments (up to 300).
-- `localrun.Environments` merges the workflows' environments with GitHub's, asking GitHub only when a job picks its environment with an expression. `ListEnvironments` returns them; GitHub out of reach leaves its own out.
+- `localrun.Environments` merges the workflows' environments with GitHub's, asking GitHub only when a job picks its environment with an expression. `ListEnvironments` returns them and always asks GitHub; GitHub out of reach leaves its own out. `PrepareLocalRun` reuses GitHub's answer for five minutes, so a review planned again does not wait on GitHub each time.
 - `localrun.NewPlan` sets `Plan.Environment`, or `Plan.EnvironmentChoice`, and the note as above; `PrepareLocalRun` fills `Plan.Environments` for a choice.
 
 ## App
 
 - `LocalRunValueKey` gains `environment` (nil: the Repository's) and `in(_:)` for the same name in another set.
-- `WorkspaceValuesModel` keeps the workflows, the Core's environments (`update(environments:)`, after the rows, as the Core may ask GitHub) and the saved names it loaded, and builds the rows of the set shown (`select(_:)`), the environments, the stale ones and the sets with missing values.
+- `WorkspaceValuesModel` keeps the workflows, the Core's environments (`update(environments:)`, after the rows, as the Core may ask GitHub, and again after a GitHub sign-in; until the Core answers the jobs' own names stand in) and the saved names it loaded, and builds the rows of the set shown (`select(_:)`), the environments, the stale ones and the sets with missing values.
 - `LocalRunReviewModel` reads each plan name from the run environment's set, else the Repository's, and saves entered values to the environment's set. `choose(_:)` takes another environment's values when the plan leaves it to the user; `emptyCount(with:)` counts what each choice leaves empty.
 
 ## Not In This Change
