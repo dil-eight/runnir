@@ -8,6 +8,8 @@ import SwiftUI
 // - DropdownMenu: a button that opens DropdownItems.
 // - DropdownPicker: a choice among values, the chosen one on the button.
 // - .dropdown(isPresented:): any content in the panel, for panels of their own.
+// - DropdownPrompt: a question in the panel (a name to save, a removal to
+//   confirm) instead of a system alert or confirmation dialog.
 // - .hoverTip(_:): a panel under a view while the pointer rests on it, which
 //   never takes a click.
 // - .dropdownHost(): at the root of every window and sheet; it draws the open
@@ -301,6 +303,55 @@ struct DropdownNote: View {
     var body: some View {
         Text(text).font(.system(size: 12)).foregroundStyle(RunnirTheme.mutedForeground)
             .padding(.horizontal, 10).padding(.vertical, 6).fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// A question in the panel instead of a system alert: a title, a line of
+/// explanation, a name field when it asks for one, and Cancel beside the
+/// action. Return answers it; Escape, Cancel or a click outside leaves it.
+struct DropdownPrompt: View {
+    let title: String
+    let message: String
+    var name: Binding<String>?
+    let action: String
+    var destructive = false
+    let confirm: () -> Void
+    @Environment(\.dismissDropdown) private var dismiss
+    @FocusState private var focused: Bool
+
+    private var canConfirm: Bool { name.map { !$0.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? true }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(.system(size: 13, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
+            Text(message).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                .fixedSize(horizontal: false, vertical: true)
+            if let name {
+                TextField("Name", text: name).textFieldStyle(.plain).font(.system(size: 13))
+                    .padding(.horizontal, 10).frame(height: 32)
+                    .background(RunnirTheme.editor, in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(focused ? RunnirTheme.primary : RunnirTheme.border))
+                    .focused($focused)
+                    .onSubmit(answer)
+            }
+            HStack(spacing: 8) {
+                Spacer()
+                Button("Cancel") { dismiss() }.buttonStyle(DesignButtonStyle())
+                Button(action: answer) {
+                    Text(action).foregroundStyle(destructive ? RunnirTheme.destructive : RunnirTheme.primaryButtonText)
+                }
+                .buttonStyle(DesignButtonStyle(primary: !destructive))
+                .disabled(!canConfirm)
+            }
+        }
+        .padding(14).frame(width: 290, alignment: .leading)
+        .onAppear { focused = true }
+    }
+
+    private func answer() {
+        guard canConfirm else { return }
+        dismiss()
+        confirm()
     }
 }
 

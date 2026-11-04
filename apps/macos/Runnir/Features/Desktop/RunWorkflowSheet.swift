@@ -537,16 +537,18 @@ struct RunWorkflowSheet: View {
     var github: GitHubSession? = nil
     let showRun: (CoreWorkflowRun) -> Void
     @Environment(\.dismiss) private var dismiss
+    /// The question open in the panel under Preset.
     @State private var presetPrompt: PresetPrompt?
     @State private var presetName = ""
     @State private var comparing = false
     @State private var confirmingClear = false
-    @State private var confirmingDelete = false
 
-    private enum PresetPrompt: Identifiable {
-        case save, rename
-        var id: Self { self }
+    private enum PresetPrompt {
+        case save, rename, delete
     }
+
+    /// A question is open in a panel, so Return and Escape are its own.
+    private var prompting: Bool { presetPrompt != nil || confirmingClear }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -572,23 +574,6 @@ struct RunWorkflowSheet: View {
         .dropdownHost()
         .task { await model.load() }
         .githubAccessAlert(Binding(get: { model.accessHelp }, set: { model.accessHelp = $0 }), github: github)
-        .alert(presetPrompt == .rename ? "Rename Preset" : "Save Preset", isPresented: Binding(
-            get: { presetPrompt != nil }, set: { if !$0 { presetPrompt = nil } })) {
-            TextField("Name", text: $presetName)
-            Button(presetPrompt == .rename ? "Rename" : "Save") {
-                if presetPrompt == .rename { model.renameAppliedPreset(to: presetName) } else { model.saveAsPreset(named: presetName) }
-                presetPrompt = nil
-            }
-            .disabled(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            Button("Cancel", role: .cancel) { presetPrompt = nil }
-        } message: {
-            Text(presetPrompt == .rename ? "A new name for this preset." : "The branch and input values are saved on this Mac.")
-        }
-        .confirmationDialog("Delete the preset \(model.appliedPreset?.name ?? "")?", isPresented: $confirmingDelete) {
-            Button("Delete Preset", role: .destructive) { model.deleteAppliedPreset() }
-        } message: {
-            Text("Only the saved values are removed. Runs started with it are not affected.")
-        }
     }
 
     private var presetFootnote: String {
@@ -622,15 +607,16 @@ struct RunWorkflowSheet: View {
                             DropdownItem("Update \"\(applied.name)\"") { model.updateAppliedPreset() }
                                 .disabled(!model.canSavePreset || !model.presetIsModified)
                             DropdownItem("Rename \"\(applied.name)\"...") { presetName = applied.name; presetPrompt = .rename }
-                            DropdownItem("Delete \"\(applied.name)\"...", destructive: true) { confirmingDelete = true }
+                            DropdownItem("Delete \"\(applied.name)\"...", destructive: true) { presetPrompt = .delete }
                         }
                     }
                 } label: { _ in
                     Label(presetTitle, systemImage: "bookmark")
                 }
-                .buttonStyle(DesignButtonStyle())
+                .buttonStyle(DesignButtonStyle(open: presetPrompt != nil))
                 .fixedSize()
                 .disabled(!model.canChoosePreset)
+                .dropdown(isPresented: Binding(get: { presetPrompt != nil }, set: { if !$0 { presetPrompt = nil } })) { presetQuestion }
             }
             if let problem = presets.problem {
                 Label(problem, systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(RunnirTheme.warning)
@@ -638,6 +624,23 @@ struct RunWorkflowSheet: View {
             ForEach(model.presetNotes, id: \.self) { note in
                 Label(note, systemImage: "info.circle").font(.system(size: 12)).foregroundStyle(RunnirTheme.warning)
             }
+        }
+    }
+
+    @ViewBuilder private var presetQuestion: some View {
+        switch presetPrompt {
+        case .save:
+            DropdownPrompt(title: "Save Preset", message: "The branch and input values are saved on this Mac.", name: $presetName,
+                           action: "Save") { model.saveAsPreset(named: presetName) }
+        case .rename:
+            DropdownPrompt(title: "Rename Preset", message: "A new name for this preset.", name: $presetName,
+                           action: "Rename") { model.renameAppliedPreset(to: presetName) }
+        case .delete:
+            DropdownPrompt(title: "Delete the preset \u{201C}\(model.appliedPreset?.name ?? "")\u{201D}?",
+                           message: "Only the saved values are removed. Runs started with it are not affected.",
+                           action: "Delete Preset", destructive: true) { model.deleteAppliedPreset() }
+        case nil:
+            EmptyView()
         }
     }
 
@@ -658,16 +661,16 @@ struct RunWorkflowSheet: View {
                     } label: { _ in
                         Label(model.history.isEmpty ? "Nothing sent from Runnir yet" : "Earlier runs", systemImage: "clock.arrow.circlepath")
                     }
-                    .buttonStyle(DesignButtonStyle()).fixedSize().disabled(model.history.isEmpty)
+                    .buttonStyle(DesignButtonStyle(open: confirmingClear)).fixedSize().disabled(model.history.isEmpty)
+                    .dropdown(isPresented: $confirmingClear) {
+                        DropdownPrompt(title: "Clear the dispatch history?",
+                                       message: "Forgets what Runnir sent to this repository. Runs on GitHub are not affected.",
+                                       action: "Clear History", destructive: true) { Task { await model.clearHistory() } }
+                    }
                     Button("Compare...") { comparing = true }
                         .buttonStyle(.link).handPointer().disabled(model.history.count < 2)
                         .dropdown(isPresented: $comparing) { DispatchComparisonView(records: model.history) }
                 }
-            }
-            .confirmationDialog("Clear the dispatch history?", isPresented: $confirmingClear, titleVisibility: .visible) {
-                Button("Clear History", role: .destructive) { Task { await model.clearHistory() } }
-            } message: {
-                Text("Forgets what Runnir sent to this repository. Runs on GitHub are not affected.")
             }
             if let note = model.historyNote {
                 Label(note, systemImage: "clock").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
@@ -814,9 +817,9 @@ struct RunWorkflowSheet: View {
     @ViewBuilder private var footer: some View {
         switch model.step {
         case .editing, .preparing:
-            Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+            Button("Cancel") { dismiss() }.keyboardShortcut(prompting ? nil : .cancelAction)
             Button("Review...") { Task { await model.review() } }
-                .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
+                .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(prompting ? nil : .defaultAction)
                 .disabled(!model.canReview)
         case .review:
             Button("Back") { model.backToEditing() }
