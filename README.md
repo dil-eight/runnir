@@ -29,6 +29,7 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 - Settings › Tools shows the bundled and installed act, the Docker CLI and the container engine, with Recheck and a button to open a stopped engine. Runnir never installs tools, starts an engine or switches the Docker context.
 - Go CLI (`version`, `serve`) and a version-only JSON-RPC stdio endpoint (`rpc`).
 - Swift 6 with strict concurrency, unit tests for the app and Core, macOS CI for build, tests and static analysis, Go tests on three platforms, six cross-compilation targets, a check that generated code matches the contract, formatting, vet and vulnerability checks.
+- Tagged builds signed with Developer ID and notarized by the release workflow: Runnir.app with its helpers and its provisioning profile, and the macOS Core binaries (B48). Keychain items live in the data protection keychain, so a signed build never asks for the login password item by item. Checked on a Mac with a local build (Runnir Local) on 2026-11-04; not yet run from a tag.
 - MVP specification and future AI/MCP design documents (no AI runtime or MCP server).
 
 ## Planned
@@ -37,7 +38,7 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 - v0.1: local runs with the full runner images verified on Docker Desktop and OrbStack; workflow_dispatch inputs and secrets for local runs.
 - v0.1: lifecycle hardening, signed folder-grant verification, crash and power-loss checks of the workspace database, optional portable .runnir launches and environments.
 - Later: artifact inspection and reuse, optional AI/chat/MCP, cloud integrations and startup offers.
-- Distribution work: Developer ID signing, notarization, packaging and secure automatic updates; completion is not claimed.
+- Distribution work: the first signed build from a tag, packaging beyond a zip and secure automatic updates; completion is not claimed.
 
 ## Specifications
 
@@ -106,6 +107,8 @@ security find-identity -v -p codesigning
 mkdir -p ~/.config/runnir && echo SHA-1 > ~/.config/runnir/dev-signing-identity
 ```
 
+With a Developer ID identity and the Developer ID provisioning profile of `com.runnir.app.dev` saved as `~/.config/runnir/dev.provisionprofile`, the build also embeds the profile and keeps its Keychain items in the data protection keychain, so Keychain asks for no password at all.
+
 Without an identity, sign a Debug build ad hoc with its bundle identifier to try notifications:
 
 ```bash
@@ -141,4 +144,17 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The release workflow builds an unsigned draft app plus platform-specific Core binaries and attaches them to the draft release; after it uploads them it downloads them back and checks their SHA-256 against the built files. Release assets are the only build output CI keeps: pull request and `main` runs build and check the app and Core but upload no Actions artifacts, and no workflow saves Actions caches. Production distribution requires Developer ID signing (including the helper), Apple notarization, release notes, and packaging decisions before publishing. Automatic updates remain planned.
+The release workflow runs in the GitHub environment `release`, which only `v*` tags reach. It builds the app and the Core binaries, signs Runnir.app (with `runnir-core` and `act` inside, and the Developer ID provisioning profile of `com.runnir.app`) and the macOS Core binaries with Developer ID, the hardened runtime and a secure timestamp, has Apple notarize them, staples the app and attaches `Runnir-<tag>.zip` and the binaries to a draft release; after it uploads them it downloads them back and checks their SHA-256 against the built files. A tag fails, naming what is missing, when one of the secrets `DEVELOPER_ID_P12`, `DEVELOPER_ID_P12_PASSWORD`, `DEVELOPER_ID_PROFILE`, `NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID` or the variable `APPLE_TEAM_ID` is not set. The Linux and Windows binaries are not signed. Release assets are the only build output CI keeps: pull request and `main` runs build and check the app and Core but upload no Actions artifacts, and no workflow saves Actions caches. Release notes, packaging beyond a zip and automatic updates remain planned.
+
+The same scripts sign and notarize a local archive, with the Developer ID certificate in the login keychain, a `notarytool` keychain profile (`xcrun notarytool store-credentials`) and the app's Developer ID provisioning profile from developer.apple.com in `~/.config/runnir/` (`release.provisionprofile` for `com.runnir.app`, `local.provisionprofile` for `com.runnir.app.local`, `dev.provisionprofile` for `com.runnir.app.dev`; never in the repository). Archive it as a local build: Runnir Local (`com.runnir.app.local`) is an app of its own with a pink LOCAL mark and its own data and sign-in, so it is never taken for a tagged build and never touches an installed Runnir. The team ID comes from the environment and is never written into the repository:
+
+```bash
+xcodebuild archive -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'generic/platform=macOS' -archivePath "$PWD/build/Runnir.xcarchive" RUNNIR_BUILD=local CODE_SIGNING_ALLOWED=NO
+export APPLE_TEAM_ID=<team ID> NOTARY_PROFILE=<profile> APP=build/Runnir.xcarchive/Products/Applications/Runnir.app
+scripts/sign-app.sh "$APP"
+ditto -c -k --keepParent "$APP" build/Runnir-notarize.zip
+scripts/notarize.sh build/Runnir-notarize.zip
+scripts/staple-app.sh "$APP"
+```
+
+With several valid Developer ID identities of the team, set `SIGNING_IDENTITY` to the SHA-1 of the one to use. `scripts/test-signing.sh` checks the scripts' refusals.
