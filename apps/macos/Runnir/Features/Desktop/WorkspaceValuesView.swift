@@ -11,6 +11,15 @@ struct WorkspaceValuesView: View {
     let hub: CoreHub
     let store: any LocalRunValueStoring
     @Environment(\.controlActiveState) private var activeState
+    @State private var importOpen = false
+    @State private var envFiles = EnvFiles.looking
+
+    /// The repository's .env files in the Import .env menu, as last listed.
+    private enum EnvFiles: Equatable {
+        case looking
+        case listed([CoreRepositoryEnvFile])
+        case unavailable
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -58,8 +67,19 @@ struct WorkspaceValuesView: View {
         HStack(spacing: 10) {
             Text("Values for local runs, kept in Keychain on this Mac").font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
             Spacer()
-            Button("Import .env…", action: importFile)
-                .help("Fill values from a .env file you choose; nothing is saved until you press Save")
+            Button { importOpen.toggle() } label: {
+                HStack(spacing: 6) {
+                    Text("Import .env")
+                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(RunnirTheme.secondaryForeground)
+                        .rotationEffect(.degrees(importOpen ? 180 : 0))
+                }
+            }
+            .buttonStyle(DesignButtonStyle(open: importOpen))
+            .help("Fill values from a .env file of this repository or one you choose; nothing is saved until you press Save")
+            .dropdown(isPresented: $importOpen) { importMenu }
+            // Listed again at every opening: a file may have come or gone.
+            .task(id: importOpen) { if importOpen { await listEnvFiles() } }
             Button("Revert") { model.revert() }.disabled(!model.isDirty)
             Button("Save") { Task { _ = await model.save(workspaceID: workspaceID, store: store) } }
                 .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut("s").disabled(!model.isDirty)
@@ -90,7 +110,40 @@ struct WorkspaceValuesView: View {
             .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
     }
 
-    private func importFile() {
+    /// S16's Import .env menu: the repository's .env files, then any file.
+    private var importMenu: some View {
+        DropdownList(minWidth: 300) {
+            DropdownHeader("In this repository")
+            switch envFiles {
+            case .looking:
+                DropdownNote("Looking for .env files…")
+            case .unavailable:
+                DropdownNote("Runnir Core is not ready. Try again in a moment.")
+            case .listed(let files) where files.isEmpty:
+                DropdownNote("No .env files in this repository.")
+            case .listed(let files):
+                ForEach(files, id: \.path) { file in
+                    DropdownItem(file.path, systemImage: "doc.text", detail: file.ignored ? "ignored by Git" : nil, monospaced: true) {
+                        importFile(URL(fileURLWithPath: session.path).appending(path: file.path, directoryHint: .notDirectory))
+                    }
+                }
+            }
+            DropdownDivider()
+            DropdownItem("Choose File…", systemImage: "folder", action: chooseFile)
+            DropdownNote("Templates (.sample, .example) and node_modules are left out. Nothing is saved until you press Save.")
+        }
+        .frame(width: 300)
+    }
+
+    private func listEnvFiles() async {
+        if let files = await hub.envFiles(workspaceID: workspaceID) {
+            envFiles = .listed(files)
+        } else if envFiles == .looking {
+            envFiles = .unavailable
+        }
+    }
+
+    private func chooseFile() {
         let panel = NSOpenPanel()
         panel.message = "Choose a .env file to fill values from. Nothing is saved until you press Save."
         panel.canChooseDirectories = false
@@ -98,6 +151,10 @@ struct WorkspaceValuesView: View {
         panel.showsHiddenFiles = true
         panel.directoryURL = URL(fileURLWithPath: session.path)
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        importFile(url)
+    }
+
+    private func importFile(_ url: URL) {
         Task {
             switch await hub.readEnvFile(url: url) {
             case .read(let file): model.apply(file)

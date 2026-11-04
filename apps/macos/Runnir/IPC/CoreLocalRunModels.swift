@@ -145,6 +145,14 @@ struct CoreEnvFile: Equatable, Sendable {
     let problems: [CoreEnvProblem]
 }
 
+/// A .env file of a repository's working tree, as the Core found it.
+struct CoreRepositoryEnvFile: Equatable, Sendable {
+    /// A slash path from the repository's root.
+    let path: String
+    /// Git ignores it, as it does .env.local.
+    let ignored: Bool
+}
+
 struct CorePreparedLocalRun: Equatable, Sendable {
     let readiness: CoreToolReadiness
     let plan: CoreLocalRunPlan

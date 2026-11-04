@@ -3,6 +3,7 @@ package flow
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -54,6 +55,11 @@ func developerToolsInstalled() bool {
 }
 
 func (g Git) run(ctx context.Context, args ...string) ([]byte, error) {
+	return g.runWithInput(ctx, nil, args...)
+}
+
+// runWithInput runs git with input on its standard input.
+func (g Git) runWithInput(ctx context.Context, input []byte, args ...string) ([]byte, error) {
 	timeout := g.Timeout
 	if timeout <= 0 {
 		timeout = 5 * time.Second
@@ -63,6 +69,9 @@ func (g Git) run(ctx context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, g.Path, append([]string{"-C", g.Root}, args...)...)
 	// No prompts, no locks taken behind the user's back, stable output.
 	cmd.Env = []string{"GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0", "LC_ALL=C", "HOME=" + os.Getenv("HOME"), "PATH=/usr/bin:/bin"}
+	if input != nil {
+		cmd.Stdin = bytes.NewReader(input)
+	}
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.WaitDelay = time.Second
@@ -151,6 +160,27 @@ func (g Git) Branches(ctx context.Context) map[string]bool {
 		}
 	}
 	return branches
+}
+
+// Ignored says which of the paths, slash paths from the root, git ignores;
+// a tracked file is never ignored. Nil when git cannot say.
+func (g Git) Ignored(ctx context.Context, paths []string) map[string]bool {
+	if g.Path == "" {
+		return nil
+	}
+	out, err := g.runWithInput(ctx, []byte(strings.Join(paths, "\x00")), "check-ignore", "-z", "--stdin")
+	// Exit status 1: none of them is ignored.
+	var exit *exec.ExitError
+	if err != nil && !(errors.As(err, &exit) && exit.ExitCode() == 1) {
+		return nil
+	}
+	ignored := map[string]bool{}
+	for _, name := range bytes.Split(out, []byte{0}) {
+		if len(name) > 0 {
+			ignored[string(name)] = true
+		}
+	}
+	return ignored
 }
 
 // Changes lists the files changed since the change left `against`: the

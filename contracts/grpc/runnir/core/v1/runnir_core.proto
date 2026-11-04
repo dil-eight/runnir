@@ -203,6 +203,12 @@ service RunnirCore {
   // encrypted by dotenvx are flagged, not decrypted. INVALID_ARGUMENT for
   // content larger than 1 MiB or not UTF-8.
   rpc ParseEnvFile(ParseEnvFileRequest) returns (ParseEnvFileResponse);
+  // The .env files of a repository's working tree, for the Import .env
+  // menu of Secrets and Variables: files named .env or .env.*, not
+  // templates (.example, .sample), outside .git, node_modules and
+  // repositories inside it, nearer the root first, at most 100. The app
+  // reads the one the user picks. NOT_FOUND for an unknown repository.
+  rpc ListEnvFiles(ListEnvFilesRequest) returns (ListEnvFilesResponse);
 }
 
 message HealthCheckRequest {}
@@ -1963,4 +1969,19 @@ message ParseEnvFileResponse {
   // In file order; a later entry for a name replaced an earlier one.
   repeated EnvEntry entries = 1;
   repeated EnvProblem problems = 2;
+}
+
+message ListEnvFilesRequest {
+  string repository_id = 1;
+}
+
+message RepositoryEnvFile {
+  // A slash path from the repository's root.
+  string path = 1;
+  // Git ignores the file (as it does .env.local); false when git cannot say.
+  bool ignored = 2;
+}
+
+message ListEnvFilesResponse {
+  repeated RepositoryEnvFile files = 1;
 }
