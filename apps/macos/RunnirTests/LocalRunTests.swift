@@ -269,6 +269,35 @@ struct LocalRunTests {
         #expect(try await store.value(workspaceID: workspace, key: other) == nil)
     }
 
+    @Test func aRunWhoseEnvironmentAnExpressionPicksTakesTheChosenValues() async throws {
+        var plan = valuesPlan().plan
+        plan.environmentChoice = "deploy picks its environment with an expression, known only when it runs."
+        plan.environments = ["production", "staging"]
+        let prepared = CorePreparedLocalRun(readiness: FakeCore.readyTools, plan: plan, confirmationID: "local_1", expiresAt: Date())
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = prepared }
+        let token = LocalRunValueKey(kind: .secret, name: "NPM_TOKEN")
+        let region = LocalRunValueKey(kind: .variable, name: "REGION")
+        let other = LocalRunValueKey(kind: .secret, name: "OTHER")
+        let store = InMemoryLocalRunValueStore(values: [workspace: [token.in("production"): "production", region: "eu"]])
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        await review.prepare()
+        // The Repository's values until the user chooses.
+        #expect(review.choosesEnvironment && review.environment == nil)
+        #expect(review.saved == [region] && review.missing == [token, other])
+        #expect(review.emptyCount(with: nil) == 2 && review.emptyCount(with: "production") == 1 && review.emptyCount(with: "staging") == 2)
+
+        await review.choose("production")
+        #expect(review.environment == "production" && review.saveEnteredTitle == "Save entered values to production")
+        #expect(review.saved == [token, region] && review.fromEnvironment == [token])
+        review.entered[other] = "typed"
+        review.saveEntered = true
+        review.trusted = true
+        fake.localOutputs = [output(lines: nil, phase: .finished, state: .succeeded)]
+        _ = try #require(await review.run())
+        #expect(fake.confirmedValues.first?.secrets == ["NPM_TOKEN": "production", "OTHER": "typed"])
+        #expect(try await store.value(workspaceID: workspace, key: other.in("production")) == "typed")
+    }
+
     @Test func enteredValuesAreSavedWhenAsked() async throws {
         let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
         let store = InMemoryLocalRunValueStore()

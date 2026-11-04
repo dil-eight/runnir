@@ -115,8 +115,13 @@ struct CoreLocalRunPlan: Equatable, Sendable {
     /// A line about the engine worth reading without opening the limits.
     var limitNote = ""
     /// The environment whose values the run takes before the Repository's;
-    /// empty for the Repository's alone (act gives every job the same values).
+    /// empty for the Repository's alone or when the user chooses.
     var environment = ""
+    /// Why the user chooses whose values the run takes (act gives every job
+    /// of a run the same values); empty when the workflow settles it.
+    var environmentChoice = ""
+    /// The environments to choose from when `environmentChoice` is set.
+    var environments: [String] = []
 
     var limits: CoreLocalRunLimits { CoreLocalRunLimits(cpus: cpus, memoryBytes: memoryBytes, timeoutSeconds: timeoutSeconds) }
 }

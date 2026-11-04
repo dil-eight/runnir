@@ -209,6 +209,12 @@ service RunnirCore {
   // repositories inside it, nearer the root first, at most 100. The app
   // reads the one the user picks. NOT_FOUND for an unknown repository.
   rpc ListEnvFiles(ListEnvFilesRequest) returns (ListEnvFilesResponse);
+  // The environments whose values a local run can take: those the
+  // repository's workflows name and, when a job picks its environment with
+  // an expression, the repository's environments on GitHub, since such a
+  // job may run in any of them. GitHub out of reach leaves its own out.
+  // NOT_FOUND for an unknown repository.
+  rpc ListEnvironments(ListEnvironmentsRequest) returns (ListEnvironmentsResponse);
 }
 
 message HealthCheckRequest {}
@@ -1417,10 +1423,17 @@ message LocalRunPlan {
   // a default, or one that does not say what it has.
   string limit_note = 25;
   // The environment whose values the run takes before the Repository's;
-  // empty for the Repository's alone. act gives every job of a run the same
-  // values: a run of jobs in several environments, or in one an expression
-  // picks, takes the Repository's, and a note says so.
+  // empty for the Repository's alone or when the user chooses.
   string environment = 26;
+  // Why the user chooses whose values the run takes, when the workflow does
+  // not settle it: act gives every job of a run the same values, so a run
+  // of jobs in several environments, or in one an expression picks, could
+  // take any of them. Empty otherwise.
+  string environment_choice = 27;
+  // The environments to choose from (ListEnvironments), when
+  // environment_choice is set. With none known the run takes the
+  // Repository's values, a note says so and environment_choice is empty.
+  repeated string environments = 28;
 }
 
 message PrepareLocalRunRequest {
@@ -1997,4 +2010,14 @@ message RepositoryEnvFile {
 
 message ListEnvFilesResponse {
   repeated RepositoryEnvFile files = 1;
+}
+
+message ListEnvironmentsRequest {
+  string repository_id = 1;
+}
+
+message ListEnvironmentsResponse {
+  // Sorted ignoring case; names that differ only in case are one
+  // environment, spelled as the workflows spell it.
+  repeated string names = 1;
 }

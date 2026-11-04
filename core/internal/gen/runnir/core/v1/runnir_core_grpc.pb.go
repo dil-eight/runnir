@@ -80,6 +80,7 @@ const (
 	RunnirCore_CancelExecution_FullMethodName           = "/runnir.core.v1.RunnirCore/CancelExecution"
 	RunnirCore_ParseEnvFile_FullMethodName              = "/runnir.core.v1.RunnirCore/ParseEnvFile"
 	RunnirCore_ListEnvFiles_FullMethodName              = "/runnir.core.v1.RunnirCore/ListEnvFiles"
+	RunnirCore_ListEnvironments_FullMethodName          = "/runnir.core.v1.RunnirCore/ListEnvironments"
 )
 
 // RunnirCoreClient is the client API for RunnirCore service.
@@ -269,6 +270,12 @@ type RunnirCoreClient interface {
 	// repositories inside it, nearer the root first, at most 100. The app
 	// reads the one the user picks. NOT_FOUND for an unknown repository.
 	ListEnvFiles(ctx context.Context, in *ListEnvFilesRequest, opts ...grpc.CallOption) (*ListEnvFilesResponse, error)
+	// The environments whose values a local run can take: those the
+	// repository's workflows name and, when a job picks its environment with
+	// an expression, the repository's environments on GitHub, since such a
+	// job may run in any of them. GitHub out of reach leaves its own out.
+	// NOT_FOUND for an unknown repository.
+	ListEnvironments(ctx context.Context, in *ListEnvironmentsRequest, opts ...grpc.CallOption) (*ListEnvironmentsResponse, error)
 }
 
 type runnirCoreClient struct {
@@ -838,6 +845,16 @@ func (c *runnirCoreClient) ListEnvFiles(ctx context.Context, in *ListEnvFilesReq
 	return out, nil
 }
 
+func (c *runnirCoreClient) ListEnvironments(ctx context.Context, in *ListEnvironmentsRequest, opts ...grpc.CallOption) (*ListEnvironmentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListEnvironmentsResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ListEnvironments_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnirCoreServer is the server API for RunnirCore service.
 // All implementations must embed UnimplementedRunnirCoreServer
 // for forward compatibility.
@@ -1025,6 +1042,12 @@ type RunnirCoreServer interface {
 	// repositories inside it, nearer the root first, at most 100. The app
 	// reads the one the user picks. NOT_FOUND for an unknown repository.
 	ListEnvFiles(context.Context, *ListEnvFilesRequest) (*ListEnvFilesResponse, error)
+	// The environments whose values a local run can take: those the
+	// repository's workflows name and, when a job picks its environment with
+	// an expression, the repository's environments on GitHub, since such a
+	// job may run in any of them. GitHub out of reach leaves its own out.
+	// NOT_FOUND for an unknown repository.
+	ListEnvironments(context.Context, *ListEnvironmentsRequest) (*ListEnvironmentsResponse, error)
 	mustEmbedUnimplementedRunnirCoreServer()
 }
 
@@ -1199,6 +1222,9 @@ func (UnimplementedRunnirCoreServer) ParseEnvFile(context.Context, *ParseEnvFile
 }
 func (UnimplementedRunnirCoreServer) ListEnvFiles(context.Context, *ListEnvFilesRequest) (*ListEnvFilesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListEnvFiles not implemented")
+}
+func (UnimplementedRunnirCoreServer) ListEnvironments(context.Context, *ListEnvironmentsRequest) (*ListEnvironmentsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListEnvironments not implemented")
 }
 func (UnimplementedRunnirCoreServer) mustEmbedUnimplementedRunnirCoreServer() {}
 func (UnimplementedRunnirCoreServer) testEmbeddedByValue()                    {}
@@ -2204,6 +2230,24 @@ func _RunnirCore_ListEnvFiles_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_ListEnvironments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEnvironmentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ListEnvironments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ListEnvironments_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ListEnvironments(ctx, req.(*ListEnvironmentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnirCore_ServiceDesc is the grpc.ServiceDesc for RunnirCore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2426,6 +2470,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListEnvFiles",
 			Handler:    _RunnirCore_ListEnvFiles_Handler,
+		},
+		{
+			MethodName: "ListEnvironments",
+			Handler:    _RunnirCore_ListEnvironments_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

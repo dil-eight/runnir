@@ -5,8 +5,10 @@ import Foundation
 /// yet. A saved secret's value is read only to show it after Touch ID.
 ///
 /// Values come in sets: the Repository's, which every job gets, and one per
-/// GitHub environment the workflows name, which a job deploying there gets
-/// first, as on GitHub. The rows are those of the set shown.
+/// GitHub environment a local run can take (ListEnvironments), which a job
+/// deploying there gets first, as on GitHub. A job whose environment an
+/// expression picks may run in any of them. The rows are those of the set
+/// shown.
 @MainActor
 @Observable
 final class WorkspaceValuesModel {
@@ -28,10 +30,14 @@ final class WorkspaceValuesModel {
 
     /// The environment shown; nil is the Repository's values.
     private(set) var environment: String?
-    /// Environments the workflows name, and those with saved values.
+    /// Environments a local run can take, and those with saved values.
     private(set) var environments: [String] = []
-    /// Environments with saved values that no workflow names any more.
+    /// Environments with saved values that no run can take any more.
     private(set) var staleEnvironments: Set<String> = []
+    /// Environments some job names in `environment:`.
+    private(set) var namedByJobs: Set<String> = []
+    /// Some job picks its environment with an expression.
+    private(set) var pickedByExpression = false
     /// Sets in which some job would get an empty value; nil is the Repository.
     private(set) var incomplete: Set<String?> = []
     private(set) var secrets: [Row] = []
@@ -52,6 +58,8 @@ final class WorkspaceValuesModel {
     var isDirty: Bool { !edits.isEmpty || !removals.isEmpty }
 
     @ObservationIgnored private var workflows: [CoreWorkflow] = []
+    /// What ListEnvironments last answered.
+    @ObservationIgnored private var listed: [String] = []
     @ObservationIgnored private var savedKeys: Set<LocalRunValueKey> = []
 
     func load(workspaceID: UUID, workflows: [CoreWorkflow], store: any LocalRunValueStoring) async {
@@ -88,6 +96,13 @@ final class WorkspaceValuesModel {
         refused = refusedNow
     }
 
+    /// The environments a local run can take, from the Core, which may ask
+    /// GitHub and answer after the workflows load.
+    func update(environments: [String]) {
+        listed = environments
+        rebuild()
+    }
+
     /// Shows another set of values; nil is the Repository's.
     func select(_ environment: String?) {
         self.environment = environment
@@ -102,21 +117,28 @@ final class WorkspaceValuesModel {
         let jobs = workflows.flatMap { workflow in
             workflow.jobs.map { (file: (workflow.id as NSString).lastPathComponent, job: $0) }
         }
-        let named = Set(jobs.map(\.job.environment).filter { !$0.isEmpty })
+        namedByJobs = Set(jobs.map(\.job.environment).filter { !$0.isEmpty })
+        pickedByExpression = jobs.contains { $0.job.environmentExpression }
+        let named = namedByJobs.union(listed)
         let savedIn = Set(saved.compactMap(\.environment))
-        environments = named.union(savedIn).sorted()
+        environments = named.union(savedIn).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
         staleEnvironments = savedIn.subtracting(named)
         if let environment, !environments.contains(environment) { self.environment = nil }
+        // A job whose environment an expression picks may run in any of them.
+        let placed = jobs.flatMap { item -> [(file: String, job: CoreJob, environment: String)] in
+            guard item.job.environmentExpression, !named.isEmpty else { return [(item.file, item.job, item.job.environment)] }
+            return named.sorted().map { (item.file, item.job, $0) }
+        }
 
         // Who reads each name of a set: in the Repository every workflow
-        // that names it, in an environment the jobs deploying there.
+        // that names it, in an environment the jobs that may deploy there.
         func readers(_ set: String?) -> [LocalRunValueKey: [String]] {
             var out: [LocalRunValueKey: Set<String>] = [:]
             func add(_ names: [String], _ kind: LocalRunValueKind, _ file: String) {
                 for name in names { out[LocalRunValueKey(kind: kind, name: name, environment: set), default: []].insert(file) }
             }
             if let set {
-                for (file, job) in jobs where job.environment == set {
+                for (file, job, environment) in placed where environment == set {
                     add(job.secrets, .secret, file)
                     add(job.variables, .variable, file)
                 }
@@ -130,10 +152,11 @@ final class WorkspaceValuesModel {
             return out.mapValues { $0.sorted() }
         }
         // A Repository value is needed unless every job reading the name
-        // deploys to an environment that sets its own.
+        // deploys to an environment that sets its own; one an expression
+        // places, to each environment it may run in.
         func needed(_ key: LocalRunValueKey) -> Bool {
-            let reading = jobs.filter { (key.kind == .secret ? $0.job.secrets : $0.job.variables).contains(key.name) }
-            return reading.isEmpty || reading.contains { $0.job.environment.isEmpty || !saved.contains(key.in($0.job.environment)) }
+            let reading = placed.filter { (key.kind == .secret ? $0.job.secrets : $0.job.variables).contains(key.name) }
+            return reading.isEmpty || reading.contains { $0.environment.isEmpty || !saved.contains(key.in($0.environment)) }
         }
 
         let repository = readers(nil)

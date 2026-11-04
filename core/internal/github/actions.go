@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 )
 
 // CancelRun asks GitHub to cancel a run. GitHub accepts it (202) and cancels
@@ -29,6 +31,30 @@ func (c *Client) RerunRun(ctx context.Context, owner, name string, runID int64, 
 // start two attempts.
 func (c *Client) RerunJob(ctx context.Context, owner, name string, jobID int64) error {
 	return c.post(ctx, repoPath(owner, name, fmt.Sprintf("/actions/jobs/%d/rerun", jobID)), jobID)
+}
+
+// Environments lists the names of the repository's environments (up to 300).
+func (c *Client) Environments(ctx context.Context, owner, name string) ([]string, error) {
+	var out []string
+	for page := 1; page <= 3; page++ {
+		var body struct {
+			TotalCount   int `json:"total_count"`
+			Environments []struct {
+				Name string `json:"name"`
+			} `json:"environments"`
+		}
+		query := url.Values{"per_page": {"100"}, "page": {strconv.Itoa(page)}}
+		if err := c.get(ctx, repoPath(owner, name, "/environments"), query, &body); err != nil {
+			return nil, err
+		}
+		for _, environment := range body.Environments {
+			out = append(out, environment.Name)
+		}
+		if len(body.Environments) < 100 || len(out) >= body.TotalCount {
+			break
+		}
+	}
+	return out, nil
 }
 
 // PendingDeployment is an environment a run waits on for approval.

@@ -654,6 +654,14 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
             return repositoryEnvFiles
         }
     }
+    /// What ListEnvironments answers; nil throws `.unavailable`.
+    var repositoryEnvironments: [String]?
+    func environments(repositoryID: String) async throws -> [String] {
+        try lock.withLock {
+            guard let repositoryEnvironments else { throw CoreServiceError.unavailable }
+            return repositoryEnvironments
+        }
+    }
 
     func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error> {
         let (stream, continuation) = AsyncThrowingStream.makeStream(of: CoreEvent.self, throwing: (any Error).self)

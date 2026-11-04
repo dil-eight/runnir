@@ -287,6 +287,10 @@ protocol CoreServicing: Sendable {
     /// The .env files of the repository's working tree (not templates,
     /// node_modules or repositories inside it), nearer the root first.
     func envFiles(repositoryID: String) async throws -> [CoreRepositoryEnvFile]
+    /// The environments whose values a local run can take: those the
+    /// workflows name and, when a job picks its own with an expression, the
+    /// repository's on GitHub.
+    func environments(repositoryID: String) async throws -> [String]
     /// A local run's state and the output lines after `after`.
     func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput
     func cancelExecution(executionID: String) async throws

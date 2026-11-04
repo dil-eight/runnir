@@ -54,7 +54,11 @@ struct WorkspaceValuesView: View {
                 .padding(24).frame(maxWidth: 960, alignment: .leading)
             }
         }
-        .task(id: session.workflows) { await model.load(workspaceID: workspaceID, workflows: session.workflows, store: store) }
+        .task(id: session.workflows) {
+            await model.load(workspaceID: workspaceID, workflows: session.workflows, store: store)
+            // The Core may ask GitHub, so the rows come first.
+            if let environments = await hub.environments(workspaceID: workspaceID) { model.update(environments: environments) }
+        }
         // Values saved from Run Locally or another window of this workspace.
         .onReceive(NotificationCenter.default.publisher(for: .localRunValuesChanged).receive(on: RunLoop.main)) { note in
             guard note.userInfo?["workspaceID"] as? UUID == workspaceID else { return }
@@ -99,7 +103,16 @@ struct WorkspaceValuesView: View {
         if model.staleEnvironments.contains(environment) {
             return "No workflow deploys to \(environment) any more. Its saved values stay until you forget them."
         }
-        return "Jobs with environment: \(environment) get these values. A name left empty here gets the Repository's value, as on GitHub."
+        switch (model.namedByJobs.contains(environment), model.pickedByExpression) {
+        case (true, true):
+            return "Jobs with environment: \(environment) get these values, and so do jobs whose environment an expression picks "
+                + "when you run them with \(environment)'s. A name left empty here gets the Repository's value."
+        case (false, true):
+            return "Jobs whose environment an expression picks get these values when you run them with \(environment)'s. "
+                + "A name left empty here gets the Repository's value, as on GitHub."
+        default:
+            return "Jobs with environment: \(environment) get these values. A name left empty here gets the Repository's value, as on GitHub."
+        }
     }
 
     /// The Repository's values and each environment's, a dot on a set in
