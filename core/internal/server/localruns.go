@@ -90,6 +90,20 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 		return nil, status.Error(codes.Internal, "the run could not be planned")
 	}
 
+	if plan.EnvironmentChoice != "" {
+		workflows, err := s.repositories.Workflows(info.ID)
+		if err != nil {
+			return nil, rpcError(err)
+		}
+		if plan.Environments, err = s.environments(ctx, info.ID, workflows); err != nil {
+			return nil, err
+		}
+		if len(plan.Environments) == 0 {
+			plan.Notes = append(plan.Notes, plan.EnvironmentChoice+" Runnir knows no environment of this repository, so this run gets the Repository's values.")
+			plan.EnvironmentChoice = ""
+		}
+	}
+
 	plan.Ceiling, plan.OwnLimits = ceiling, own
 	plan.LimitWarnings = localrun.Warnings(limits, ceiling, own)
 	plan.LimitNote = localrun.Note(ceiling, report.Engine.Name, own)
@@ -284,6 +298,36 @@ func (s *service) CancelExecution(_ context.Context, request *corev1.CancelExecu
 	return &corev1.CancelExecutionResponse{}, nil
 }
 
+// ListEnvironments lists the environments whose values a local run can take.
+func (s *service) ListEnvironments(ctx context.Context, request *corev1.ListEnvironmentsRequest) (*corev1.ListEnvironmentsResponse, error) {
+	workflows, err := s.repositories.Workflows(request.GetRepositoryId())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	names, err := s.environments(ctx, request.GetRepositoryId(), workflows)
+	if err != nil {
+		return nil, err
+	}
+	return &corev1.ListEnvironmentsResponse{Names: names}, nil
+}
+
+// environments are the workflows' environments and, when a job picks its
+// own with an expression, the repository's on GitHub. GitHub out of reach
+// leaves its own out; only a cancelled call is an error.
+func (s *service) environments(ctx context.Context, repositoryID string, workflows []repository.Workflow) ([]string, error) {
+	var callErr error
+	names := localrun.Environments(workflows, func() []string {
+		target, problem, err := s.githubTarget(repositoryID, "", "")
+		if err != nil || problem != nil {
+			return nil
+		}
+		onGitHub, fetchErr := target.account.Client.Environments(ctx, target.owner, target.name)
+		_, callErr = s.githubStatus(target.account, fetchErr)
+		return onGitHub
+	})
+	return names, callErr
+}
+
 func (s *service) workflow(repositoryID, workflowID string) (repository.Workflow, error) {
 	workflows, err := s.repositories.Workflows(repositoryID)
 	if err != nil {
@@ -345,6 +389,7 @@ func planMessage(approved localRunApproval) *corev1.LocalRunPlan {
 		MaxCpus:        uint32(max(plan.Ceiling.CPUs, 0)), MaxMemoryBytes: plan.Ceiling.MemoryBytes,
 		MaxTimeoutSeconds: uint32(plan.Ceiling.Timeout / time.Second),
 		OwnLimits:         plan.OwnLimits, LimitWarnings: plan.LimitWarnings, LimitNote: plan.LimitNote, Environment: plan.Environment,
+		EnvironmentChoice: plan.EnvironmentChoice, Environments: plan.Environments,
 		ActVersion: approved.ActVersion, InstalledAct: approved.Installed,
 		EngineName: approved.EngineName, EngineContext: approved.EngineContext,
 	}

@@ -1043,6 +1043,12 @@ struct GRPCCoreService: CoreServicing {
         return response.files.map { CoreRepositoryEnvFile(path: $0.path, ignored: $0.ignored) }
     }
 
+    func environments(repositoryID: String) async throws -> [String] {
+        try await call {
+            try await client.listEnvironments(.with { $0.repositoryID = repositoryID }, options: Self.options(Self.callTimeout))
+        }.names
+    }
+
     func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput {
         var options = Self.options(Self.callTimeout)
         // 5,000 lines of up to 4 KiB each can exceed gRPC's 4 MiB default.
@@ -1142,7 +1148,7 @@ struct GRPCCoreService: CoreServicing {
             actVersion: plan.actVersion, installedAct: plan.installedAct, engineName: plan.engineName, engineContext: plan.engineContext,
             maxCPUs: Int(plan.maxCpus), maxMemoryBytes: plan.maxMemoryBytes, maxTimeoutSeconds: Int(plan.maxTimeoutSeconds),
             ownLimits: plan.ownLimits, limitWarnings: plan.limitWarnings, limitNote: plan.limitNote,
-            environment: plan.environment
+            environment: plan.environment, environmentChoice: plan.environmentChoice, environments: plan.environments
         )
     }
 

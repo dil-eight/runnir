@@ -4223,12 +4223,27 @@ nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
   }
 
   /// The environment whose values the run takes before the Repository's;
-  /// empty for the Repository's alone. act gives every job of a run the same
-  /// values: a run of jobs in several environments, or in one an expression
-  /// picks, takes the Repository's, and a note says so.
+  /// empty for the Repository's alone or when the user chooses.
   var environment: String {
     get {_storage._environment}
     set {_uniqueStorage()._environment = newValue}
+  }
+
+  /// Why the user chooses whose values the run takes, when the workflow does
+  /// not settle it: act gives every job of a run the same values, so a run
+  /// of jobs in several environments, or in one an expression picks, could
+  /// take any of them. Empty otherwise.
+  var environmentChoice: String {
+    get {_storage._environmentChoice}
+    set {_uniqueStorage()._environmentChoice = newValue}
+  }
+
+  /// The environments to choose from (ListEnvironments), when
+  /// environment_choice is set. With none known the run takes the
+  /// Repository's values, a note says so and environment_choice is empty.
+  var environments: [String] {
+    get {_storage._environments}
+    set {_uniqueStorage()._environments = newValue}
   }
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
@@ -5611,6 +5626,32 @@ nonisolated struct Runnir_Core_V1_ListEnvFilesResponse: Sendable {
   // methods supported on all messages.
 
   var files: [Runnir_Core_V1_RepositoryEnvFile] = []
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_ListEnvironmentsRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var repositoryID: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_ListEnvironmentsResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// Sorted ignoring case; names that differ only in case are one
+  /// environment, spelled as the workflows spell it.
+  var names: [String] = []
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -10673,7 +10714,7 @@ nonisolated extension Runnir_Core_V1_LocalRunImage: SwiftProtobuf.Message, Swift
 
 nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".LocalRunPlan"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}workflow_name\0\u{1}events\0\u{1}event\0\u{3}job_id\0\u{1}jobs\0\u{1}images\0\u{1}secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0\u{1}variables\0\u{3}unnamed_secrets\0\u{3}max_cpus\0\u{3}max_memory_bytes\0\u{3}max_timeout_seconds\0\u{3}own_limits\0\u{3}limit_warnings\0\u{3}limit_note\0\u{1}environment\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}workflow_name\0\u{1}events\0\u{1}event\0\u{3}job_id\0\u{1}jobs\0\u{1}images\0\u{1}secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0\u{1}variables\0\u{3}unnamed_secrets\0\u{3}max_cpus\0\u{3}max_memory_bytes\0\u{3}max_timeout_seconds\0\u{3}own_limits\0\u{3}limit_warnings\0\u{3}limit_note\0\u{1}environment\0\u{3}environment_choice\0\u{1}environments\0")
 
   fileprivate class _StorageClass {
     var _workflowID: String = String()
@@ -10702,6 +10743,8 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
     var _limitWarnings: [String] = []
     var _limitNote: String = String()
     var _environment: String = String()
+    var _environmentChoice: String = String()
+    var _environments: [String] = []
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -10738,6 +10781,8 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       _limitWarnings = source._limitWarnings
       _limitNote = source._limitNote
       _environment = source._environment
+      _environmentChoice = source._environmentChoice
+      _environments = source._environments
     }
   }
 
@@ -10782,6 +10827,8 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         case 24: try { try decoder.decodeRepeatedStringField(value: &_storage._limitWarnings) }()
         case 25: try { try decoder.decodeSingularStringField(value: &_storage._limitNote) }()
         case 26: try { try decoder.decodeSingularStringField(value: &_storage._environment) }()
+        case 27: try { try decoder.decodeSingularStringField(value: &_storage._environmentChoice) }()
+        case 28: try { try decoder.decodeRepeatedStringField(value: &_storage._environments) }()
         default: break
         }
       }
@@ -10868,6 +10915,12 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       if !_storage._environment.isEmpty {
         try visitor.visitSingularStringField(value: _storage._environment, fieldNumber: 26)
       }
+      if !_storage._environmentChoice.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._environmentChoice, fieldNumber: 27)
+      }
+      if !_storage._environments.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._environments, fieldNumber: 28)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -10903,6 +10956,8 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         if _storage._limitWarnings != rhs_storage._limitWarnings {return false}
         if _storage._limitNote != rhs_storage._limitNote {return false}
         if _storage._environment != rhs_storage._environment {return false}
+        if _storage._environmentChoice != rhs_storage._environmentChoice {return false}
+        if _storage._environments != rhs_storage._environments {return false}
         return true
       }
       if !storagesAreEqual {return false}
@@ -13566,6 +13621,66 @@ nonisolated extension Runnir_Core_V1_ListEnvFilesResponse: SwiftProtobuf.Message
 
   static func ==(lhs: Runnir_Core_V1_ListEnvFilesResponse, rhs: Runnir_Core_V1_ListEnvFilesResponse) -> Bool {
     if lhs.files != rhs.files {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ListEnvironmentsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ListEnvironmentsRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.repositoryID) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.repositoryID.isEmpty {
+      try visitor.visitSingularStringField(value: self.repositoryID, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ListEnvironmentsRequest, rhs: Runnir_Core_V1_ListEnvironmentsRequest) -> Bool {
+    if lhs.repositoryID != rhs.repositoryID {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ListEnvironmentsResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ListEnvironmentsResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}names\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeRepeatedStringField(value: &self.names) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.names.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.names, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ListEnvironmentsResponse, rhs: Runnir_Core_V1_ListEnvironmentsResponse) -> Bool {
+    if lhs.names != rhs.names {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

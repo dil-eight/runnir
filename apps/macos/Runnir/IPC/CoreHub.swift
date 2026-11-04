@@ -993,6 +993,13 @@ final class CoreHub {
         return try? await service.envFiles(repositoryID: coreID)
     }
 
+    /// The environments whose values a local run of the workspace can take,
+    /// for Secrets and Variables; nil when the Core cannot answer.
+    func environments(workspaceID: UUID) async -> [String]? {
+        guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return nil }
+        return try? await service.environments(repositoryID: coreID)
+    }
+
     private enum EnvFileError: Error { case tooLarge, notAFile }
 
     nonisolated private static func readBounded(_ url: URL) throws -> Data {

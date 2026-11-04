@@ -169,6 +169,38 @@ private final class Announcements: @unchecked Sendable {
         #expect(model.secrets.isEmpty && model.unused.map(\.key) == [stale])
     }
 
+    @Test func aJobAnExpressionPlacesReadsItsNamesInEveryEnvironment() async throws {
+        let deployKey = LocalRunValueKey(kind: .secret, name: "DEPLOY_KEY")
+        let ghcr = LocalRunValueKey(kind: .secret, name: "GHCR_TOKEN")
+        let workflows = [CoreWorkflow(id: ".github/workflows/ci.yml", name: "CI", triggers: ["workflow_dispatch"],
+                                      jobs: [CoreJob(id: "build", name: "build", needs: [], secrets: ["GHCR_TOKEN"]),
+                                             CoreJob(id: "deploy", name: "deploy", needs: [], environmentExpression: true, secrets: ["DEPLOY_KEY"])],
+                                      parseError: nil, secrets: ["DEPLOY_KEY", "GHCR_TOKEN"], variables: [])]
+        let store = InMemoryLocalRunValueStore(values: [workspace: [ghcr: "g", deployKey.in("production"): "p"]])
+        let model = WorkspaceValuesModel()
+        await model.load(workspaceID: workspace, workflows: workflows, store: store)
+        // Without the Core's environments the job reads the Repository's values.
+        #expect(model.environments == ["production"] && model.staleEnvironments == ["production"])
+        #expect(model.pickedByExpression && model.namedByJobs.isEmpty)
+
+        // The environments on GitHub: the job may run in either, and staging has no DEPLOY_KEY.
+        model.update(environments: ["staging", "production"])
+        #expect(model.environments == ["production", "staging"] && model.staleEnvironments.isEmpty)
+        #expect(model.incomplete == [nil, "staging"])
+        #expect(model.secrets.first { $0.key == deployKey }?.overriddenBy == ["production"])
+        model.select("production")
+        #expect(model.secrets.map(\.key) == [deployKey.in("production")] && model.secrets[0].saved)
+        model.select("staging")
+        #expect(model.secrets.map(\.key) == [deployKey.in("staging")] && !model.secrets[0].saved && model.secrets[0].needed)
+
+        // Saved for staging too, the Repository's DEPLOY_KEY is needed by no job.
+        model.setText("s", for: deployKey.in("staging"))
+        #expect(await model.save(workspaceID: workspace, store: store))
+        #expect(model.incomplete.isEmpty)
+        model.select(nil)
+        #expect(model.secrets.first { $0.key == deployKey }.map { !$0.needed && $0.overriddenBy == ["production", "staging"] } == true)
+    }
+
     @Test func editsArePendingUntilSave() async throws {
         let store = InMemoryLocalRunValueStore()
         let model = WorkspaceValuesModel()

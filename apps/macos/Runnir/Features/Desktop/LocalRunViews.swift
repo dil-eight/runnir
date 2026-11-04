@@ -475,13 +475,21 @@ struct LocalRunSheet: View {
     @ViewBuilder private var values: some View {
         if !model.runKeys.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
+                HStack(spacing: 8) {
                     SectionLabel(title: "SECRETS AND VARIABLES", large: true)
                     Spacer()
-                    if let environment = model.environment {
+                    if model.choosesEnvironment {
+                        Text("Run with").font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        valuesMenu
+                    } else if let environment = model.environment {
                         Text("\(environment)'s values first, then the Repository's").font(.system(size: 11))
                             .foregroundStyle(RunnirTheme.secondaryForeground)
                     }
+                }
+                if model.choosesEnvironment, let choice = model.prepared?.plan.environmentChoice {
+                    Text("\(choice) Choose whose values this run gets: an environment's first, then the Repository's.")
+                        .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 VStack(spacing: 0) {
                     ForEach(model.runKeys, id: \.self) { key in
@@ -502,6 +510,36 @@ struct LocalRunSheet: View {
                 }
             }
         }
+    }
+
+    /// Whose values a run takes when the plan leaves it to the user: the
+    /// Repository's or an environment's, each with how many names it leaves
+    /// empty.
+    private var valuesMenu: some View {
+        let options: [String?] = [nil] + (model.prepared?.plan.environments ?? [])
+        return DropdownMenu(alignment: .trailing) {
+            ForEach(options, id: \.self) { option in
+                let empty = model.emptyCount(with: option)
+                DropdownItem(option ?? "Repository", detail: empty > 0 ? "\(empty) empty" : nil, checked: option == model.environment) {
+                    Task { await model.choose(option) }
+                }
+            }
+            DropdownNote("Environments named in workflows or set up on GitHub. Runnir asks again on every run.")
+        } label: { open in
+            HStack(spacing: 6) {
+                Text(model.environment.map { "\($0)'s values" } ?? "the Repository's values").lineLimit(1)
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(RunnirTheme.secondaryForeground)
+                    .rotationEffect(.degrees(open ? 180 : 0))
+            }
+            .font(.system(size: 12, weight: .medium))
+            .padding(.horizontal, 10).frame(height: 26)
+            .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(open ? RunnirTheme.primary : RunnirTheme.border))
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.hit).fixedSize()
+        .accessibilityLabel("Whose values this run takes")
     }
 
     private func valueRow(_ key: LocalRunValueKey) -> some View {

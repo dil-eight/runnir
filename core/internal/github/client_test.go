@@ -109,6 +109,27 @@ func TestWorkflowsArePaged(t *testing.T) {
 	}
 }
 
+func TestEnvironmentsArePaged(t *testing.T) {
+	client, _ := fakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/o/r/environments" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("page") == "1" {
+			var items []string
+			for i := 0; i < 100; i++ {
+				items = append(items, fmt.Sprintf(`{"id":%d,"name":"env-%d"}`, i, i))
+			}
+			_, _ = w.Write([]byte(`{"total_count":101,"environments":[` + strings.Join(items, ",") + `]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"total_count":101,"environments":[{"id":200,"name":"production"}]}`))
+	})
+	names, err := client.Environments(context.Background(), "o", "r")
+	if err != nil || len(names) != 101 || names[0] != "env-0" || names[100] != "production" {
+		t.Fatalf("names = %v, err = %v", names, err)
+	}
+}
+
 func TestStatusesMapToActionableErrors(t *testing.T) {
 	cases := []struct {
 		status  int

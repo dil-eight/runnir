@@ -269,14 +269,22 @@ jobs:
 		t.Fatalf("build = %q, notes %v", p.Environment, p.Notes)
 	}
 	whole := plan(t, source, "", "", readyReport(), nil)
-	if whole.Environment != "" || !slices.Contains(whole.Notes, "Jobs of this run deploy to production and staging, and act gives every job the same values, "+
-		"so this run gets the Repository's. Run one job to get its environment's.") {
-		t.Fatalf("whole = %q, notes %v", whole.Environment, whole.Notes)
+	if whole.Environment != "" || whole.EnvironmentChoice != "Jobs of this run deploy to production and staging, and act gives every job the same values." {
+		t.Fatalf("whole = %q, choice %q", whole.Environment, whole.EnvironmentChoice)
 	}
 
 	picked := strings.Replace(source, "environment: staging", "environment: ${{ inputs.target }}", 1)
 	if p := plan(t, picked, "staging", "", readyReport(), nil); p.Environment != "" ||
-		!slices.Contains(p.Notes, "Job staging picks its environment with an expression, so this run gets the Repository's values.") {
-		t.Fatalf("picked = %q, notes %v", p.Environment, p.Notes)
+		p.EnvironmentChoice != "staging picks its environment with an expression, known only when it runs." {
+		t.Fatalf("picked = %q, choice %q", p.Environment, p.EnvironmentChoice)
+	}
+	// An expression leaves the choice to the user even beside a named environment.
+	if p := plan(t, picked, "", "", readyReport(), nil); p.Environment != "" ||
+		p.EnvironmentChoice != "staging picks its environment with an expression, known only when it runs." {
+		t.Fatalf("picked whole = %q, choice %q", p.Environment, p.EnvironmentChoice)
+	}
+	both := strings.Replace(picked, "environment: {name: production}", "environment: {name: '${{ inputs.target }}'}", 1)
+	if p := plan(t, both, "", "", readyReport(), nil); p.EnvironmentChoice != "production and staging pick their environment with an expression, known only when they run." {
+		t.Fatalf("both = %q", p.EnvironmentChoice)
 	}
 }

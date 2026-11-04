@@ -217,6 +217,9 @@ final class LocalRunReviewModel {
     var entered: [LocalRunValueKey: String] = [:]
     /// Save the typed values to the workspace when the run starts.
     var saveEntered = false
+    /// Whose values the run takes when the plan leaves it to the user; nil
+    /// is the Repository's. Not kept after the review.
+    private(set) var chosenEnvironment: String?
     /// The plan's names with a saved value.
     private(set) var saved: Set<LocalRunValueKey> = []
     /// The plan's names whose saved value is the plan environment's, not
@@ -224,6 +227,8 @@ final class LocalRunReviewModel {
     private(set) var fromEnvironment: Set<LocalRunValueKey> = []
     /// Saved names whose value Keychain would not give.
     private(set) var refused: Set<LocalRunValueKey> = []
+    /// Every name the workspace has a saved value for, in any set.
+    private(set) var stored: Set<LocalRunValueKey> = []
     private(set) var prepared: CorePreparedLocalRun?
     /// Limits asked for in this review; nil keeps the workspace's (or the defaults).
     private(set) var askedLimits: CoreLocalRunLimits?
@@ -255,10 +260,29 @@ final class LocalRunReviewModel {
         self.useInstalledAct = useInstalledAct
     }
 
-    /// The environment whose values the run takes before the Repository's.
+    /// The environment whose values the run takes before the Repository's:
+    /// the plan's, or the one chosen when the plan leaves it to the user.
     var environment: String? {
-        guard let environment = prepared?.plan.environment, !environment.isEmpty else { return nil }
-        return environment
+        guard let plan = prepared?.plan else { return nil }
+        if !plan.environment.isEmpty { return plan.environment }
+        return chosenEnvironment.flatMap { plan.environments.contains($0) ? $0 : nil }
+    }
+
+    /// The plan leaves to the user whose values the run takes.
+    var choosesEnvironment: Bool { !(prepared?.plan.environments.isEmpty ?? true) }
+
+    /// Takes another environment's values, or the Repository's for nil.
+    func choose(_ environment: String?) async {
+        chosenEnvironment = environment
+        await loadSaved(for: runKeys, generation: generation)
+    }
+
+    /// How many of the run's names would get no value with these values:
+    /// nothing typed and nothing saved there or in the Repository.
+    func emptyCount(with environment: String?) -> Int {
+        runKeys.filter { key in
+            typed(key) == nil && !stored.contains(key) && !(environment.map { stored.contains(key.in($0)) } ?? false)
+        }.count
     }
 
     var saveEnteredTitle: String {
@@ -288,11 +312,11 @@ final class LocalRunReviewModel {
         entered[key].flatMap { $0.isEmpty ? nil : $0 }
     }
 
-    /// Which of the plan's names have a saved value, the plan environment's
+    /// Which of the plan's names have a saved value, the run environment's
     /// before the Repository's. Each value is read once per review and kept
     /// for the run, so a refused read shows before it; a refused one is
     /// tried again when the plan is prepared again. An answer for an older
-    /// plan is dropped.
+    /// plan or another environment is dropped.
     private func loadSaved(for keys: [LocalRunValueKey], generation current: Int) async {
         let stored = (try? await values.keys(workspaceID: workspaceID)) ?? []
         let environment = self.environment
@@ -309,7 +333,8 @@ final class LocalRunReviewModel {
                 refusedNow.insert(key)
             }
         }
-        guard current == generation else { return }
+        guard current == generation, environment == self.environment else { return }
+        self.stored = stored
         sources = found
         saved = Set(found.keys)
         fromEnvironment = Set(found.filter { $0.value.environment != nil }.keys)

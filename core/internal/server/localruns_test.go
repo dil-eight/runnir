@@ -4,6 +4,8 @@ package server
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -390,6 +392,57 @@ func TestJobsSayTheirEnvironmentAndAPlanTakesIt(t *testing.T) {
 	prepared, err := client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: opened.Repository.Id,
 		WorkflowId: ".github/workflows/deploy.yml", JobId: "production"})
 	if err != nil || prepared.Plan.Environment != "production" {
+		t.Fatalf("plan = %v, %v", prepared.GetPlan(), err)
+	}
+}
+
+func TestAJobAnExpressionPlacesChoosesAmongTheRepositorysEnvironments(t *testing.T) {
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/o/r/environments" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = w.Write([]byte(`{"total_count":2,"environments":[{"id":1,"name":"staging"},{"id":2,"name":"production"}]}`))
+	}))
+	defer fake.Close()
+	client, ctx := servedWith(t, Options{GitHubBaseURL: fake.URL})
+	root := linkedRepository(t, "https://github.com/o/r.git")
+	deploy := "on: workflow_dispatch\njobs:\n  deploy:\n    environment: ${{ inputs.target }}\n    runs-on: ubuntu-latest\n" +
+		"    steps: [{run: \"echo ${{ secrets.DEPLOY_KEY }}\"}]\n"
+	if err := os.MkdirAll(filepath.Join(root, ".github", "workflows"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".github", "workflows", "deploy.yml"), []byte(deploy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := opened.Repository.Id
+	prepare := &corev1.PrepareLocalRunRequest{RepositoryId: id, WorkflowId: ".github/workflows/deploy.yml", JobId: "deploy"}
+
+	// Signed out, Runnir knows no environment, and the run gets the Repository's values.
+	listed, err := client.ListEnvironments(ctx, &corev1.ListEnvironmentsRequest{RepositoryId: id})
+	if err != nil || len(listed.Names) != 0 {
+		t.Fatalf("signed out = %v, %v", listed, err)
+	}
+	prepared, err := client.PrepareLocalRun(ctx, prepare)
+	if err != nil || prepared.Plan.EnvironmentChoice != "" || len(prepared.Plan.Environments) != 0 ||
+		!slices.ContainsFunc(prepared.Plan.Notes, func(note string) bool { return strings.Contains(note, "knows no environment") }) {
+		t.Fatalf("signed out plan = %v, %v", prepared.GetPlan(), err)
+	}
+
+	if _, err := client.SetGitHubCredential(ctx, &corev1.SetGitHubCredentialRequest{Token: "ghu_test"}); err != nil {
+		t.Fatal(err)
+	}
+	listed, err = client.ListEnvironments(ctx, &corev1.ListEnvironmentsRequest{RepositoryId: id})
+	if err != nil || !slices.Equal(listed.Names, []string{"production", "staging"}) {
+		t.Fatalf("environments = %v, %v", listed, err)
+	}
+	prepared, err = client.PrepareLocalRun(ctx, prepare)
+	if err != nil || prepared.Plan.Environment != "" || !slices.Equal(prepared.Plan.Environments, []string{"production", "staging"}) ||
+		prepared.Plan.EnvironmentChoice != "deploy picks its environment with an expression, known only when it runs." {
 		t.Fatalf("plan = %v, %v", prepared.GetPlan(), err)
 	}
 }
