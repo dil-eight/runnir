@@ -14,6 +14,15 @@ import Testing
         #expect(DropdownPlacement.top(button: middle, panelHeight: 500, space: 600) == 180, "under when it fits neither way")
     }
 
+    @Test func thePanelStaysInsideTheWindowSideways() {
+        let right = CGRect(x: 1100, y: 100, width: 140, height: 26)
+        #expect(DropdownPlacement.shift(button: right, panelWidth: 100, space: 1280, trailing: false) == 0, "it fits as lined up")
+        #expect(DropdownPlacement.shift(button: right, panelWidth: 340, space: 1280, trailing: false) == -168, "8 points from the right side")
+        let left = CGRect(x: 20, y: 100, width: 26, height: 26)
+        #expect(DropdownPlacement.shift(button: left, panelWidth: 200, space: 1280, trailing: true) == 162, "8 points from the left side")
+        #expect(DropdownPlacement.shift(button: left, panelWidth: 0, space: 1280, trailing: true) == 0, "a panel not measured yet stays put")
+    }
+
     @Test func theAppUsesItsOwnDropdowns() throws {
         let sources = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("Runnir")

@@ -247,7 +247,7 @@ struct WorkspaceSwitcherView: View {
 
     private func row(_ item: WorkspaceSwitcherItem, selected: Bool) -> some View {
         HStack(spacing: 10) {
-            WorkspaceBadge(name: item.workspace.name, id: item.workspace.id, size: 18)
+            WorkspaceBadge(name: item.workspace.name, size: 18)
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 8) {
                     Text(item.workspace.name).font(.system(size: 13, weight: item.isCurrent ? .semibold : .regular)).lineLimit(1)
