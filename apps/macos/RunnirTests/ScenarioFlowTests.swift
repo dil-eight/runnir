@@ -102,4 +102,25 @@ struct ScenarioFlowTests {
         await model.load()
         #expect(provider.core.flowScenarios.last == merge)
     }
+
+    @Test func jobsReadBeforeTheTokenArrivedAreReadAgain() async {
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        let workspace = UUID()
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/linked")
+        _ = await eventually { hub.session(for: workspace)?.coreID != nil }
+        let lane = CoreFlowLane(path: ".github/workflows/ci.yml", name: "CI", kind: .direct, after: "", afterPath: "", why: "pull_request",
+                                jobs: [job("lint")], run: run(10), statusesFrom: "", parseError: "")
+        provider.core.flowResult = CoreFlow(scenarios: [pullRequest], scenario: pullRequest, lanes: [lane])
+        // At launch the Core has no token until Keychain hands it over.
+        provider.core.setJobs(CoreGitHubResult(access: .signedOut, items: []))
+        let model = ScenarioFlowModel(hub: hub, workspaceID: workspace)
+        await model.load()
+        #expect(model.jobs[10]?.access == .signedOut)
+        provider.core.setJobs(CoreGitHubResult(access: .ok, items: []))
+        await model.load()
+        #expect(model.jobs[10]?.access == .ok, "the same run, unchanged, is read again once its jobs could not be")
+    }
 }

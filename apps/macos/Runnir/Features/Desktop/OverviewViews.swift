@@ -122,8 +122,9 @@ struct WorkspaceOverview: View {
     private var flowKey: String {
         let workflows = (session?.workflows ?? []).map { "\($0.id):\($0.jobs.count):\($0.parseError ?? "")" }.joined(separator: ",")
         let newest = session?.runs.first.map { "\($0.id)-\($0.status)-\($0.updatedAt?.timeIntervalSince1970 ?? 0)" } ?? ""
+        // The token reaching the Core after Keychain answered reads the jobs again.
         return [flow?.chosen?.title ?? "", session?.branch ?? "", workflows, newest, "\(session?.cachedRuns ?? 0)",
-                "\(session?.phase == .ready)"].joined(separator: "|")
+                "\(session?.phase == .ready)", "\(hub?.credentialGeneration ?? 0)"].joined(separator: "|")
     }
 
     var body: some View {
