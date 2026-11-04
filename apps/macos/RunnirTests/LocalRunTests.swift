@@ -243,6 +243,32 @@ struct LocalRunTests {
         #expect(try await store.value(workspaceID: workspace, key: region) == "eu")
     }
 
+    @Test func aJobInAnEnvironmentTakesItsValuesBeforeTheRepositorys() async throws {
+        var plan = valuesPlan().plan
+        plan.environment = "production"
+        let prepared = CorePreparedLocalRun(readiness: FakeCore.readyTools, plan: plan, confirmationID: "local_1", expiresAt: Date())
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = prepared }
+        let token = LocalRunValueKey(kind: .secret, name: "NPM_TOKEN")
+        let region = LocalRunValueKey(kind: .variable, name: "REGION")
+        let other = LocalRunValueKey(kind: .secret, name: "OTHER")
+        let store = InMemoryLocalRunValueStore(values: [workspace: [token: "repository", token.in("production"): "production",
+                                                                     region: "eu", region.in("staging"): "staging"]])
+        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        await review.prepare()
+        #expect(review.saved == [token, region])
+        #expect(review.fromEnvironment == [token])
+        review.entered[other] = "typed"
+        review.saveEntered = true
+        review.trusted = true
+        fake.localOutputs = [output(lines: nil, phase: .finished, state: .succeeded)]
+        _ = try #require(await review.run())
+        #expect(fake.confirmedValues.first?.secrets == ["NPM_TOKEN": "production", "OTHER": "typed"])
+        #expect(fake.confirmedValues.first?.variables == ["REGION": "eu"])
+        // Entered values are saved for the job's environment.
+        #expect(try await store.value(workspaceID: workspace, key: other.in("production")) == "typed")
+        #expect(try await store.value(workspaceID: workspace, key: other) == nil)
+    }
+
     @Test func enteredValuesAreSavedWhenAsked() async throws {
         let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
         let store = InMemoryLocalRunValueStore()

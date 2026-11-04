@@ -26,7 +26,7 @@ type Names struct {
 }
 
 func Find(source []byte) Names {
-	c := collector{found: map[string]map[string]bool{"secrets": {}, "vars": {}}}
+	c := newCollector()
 	var document yaml.Node
 	if err := yaml.NewDecoder(bytes.NewReader(source)).Decode(&document); err != nil {
 		c.text(string(source))
@@ -34,6 +34,49 @@ func Find(source []byte) Names {
 		c.node(&document, "")
 	}
 	return Names{Secrets: sorted(c.found["secrets"]), Variables: sorted(c.found["vars"]), UnnamedSecrets: c.unnamed}
+}
+
+// FindByJob lists what each job reads, by its id in lower case: its own
+// names and those outside jobs:, such as the workflow's env, which every
+// job reads. Empty for a file that is not YAML.
+func FindByJob(source []byte) map[string]Names {
+	out := map[string]Names{}
+	var document yaml.Node
+	if err := yaml.NewDecoder(bytes.NewReader(source)).Decode(&document); err != nil || len(document.Content) != 1 {
+		return out
+	}
+	top := document.Content[0]
+	if top.Kind != yaml.MappingNode {
+		return out
+	}
+	shared := newCollector()
+	var jobs *yaml.Node
+	for i := 0; i+1 < len(top.Content); i += 2 {
+		if top.Content[i].Value == "jobs" && top.Content[i+1].Kind == yaml.MappingNode {
+			jobs = top.Content[i+1]
+			continue
+		}
+		shared.node(top.Content[i+1], top.Content[i].Value)
+	}
+	if jobs == nil {
+		return out
+	}
+	for i := 0; i+1 < len(jobs.Content); i += 2 {
+		c := newCollector()
+		c.node(jobs.Content[i+1], "")
+		for kind, names := range shared.found {
+			for name := range names {
+				c.found[kind][name] = true
+			}
+		}
+		out[strings.ToLower(jobs.Content[i].Value)] = Names{Secrets: sorted(c.found["secrets"]), Variables: sorted(c.found["vars"]),
+			UnnamedSecrets: c.unnamed || shared.unnamed}
+	}
+	return out
+}
+
+func newCollector() *collector {
+	return &collector{found: map[string]map[string]bool{"secrets": {}, "vars": {}}}
 }
 
 type collector struct {

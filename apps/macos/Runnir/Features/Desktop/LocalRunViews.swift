@@ -356,6 +356,10 @@ struct LocalRunSheet: View {
                 } label: { _ in Text("event: \(model.event ?? model.prepared?.plan.event ?? "—")") }
                     .buttonStyle(.hit).fixedSize()
                     .disabled((model.prepared?.plan.events.count ?? 0) < 2)
+                if let environment = model.environment {
+                    Image(systemName: "chevron.right").font(.system(size: 9)).foregroundStyle(RunnirTheme.mutedForeground)
+                    Text("environment: \(environment)").foregroundStyle(RunnirTheme.foreground)
+                }
                 if model.isPreparing { ProgressView().controlSize(.small) }
             }
             .font(.system(size: 12, design: .monospaced)).foregroundStyle(RunnirTheme.secondaryForeground)
@@ -471,7 +475,14 @@ struct LocalRunSheet: View {
     @ViewBuilder private var values: some View {
         if !model.runKeys.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(title: "SECRETS AND VARIABLES", large: true)
+                HStack {
+                    SectionLabel(title: "SECRETS AND VARIABLES", large: true)
+                    Spacer()
+                    if let environment = model.environment {
+                        Text("\(environment)'s values first, then the Repository's").font(.system(size: 11))
+                            .foregroundStyle(RunnirTheme.secondaryForeground)
+                    }
+                }
                 VStack(spacing: 0) {
                     ForEach(model.runKeys, id: \.self) { key in
                         valueRow(key)
@@ -481,7 +492,7 @@ struct LocalRunSheet: View {
                 .background(RunnirTheme.surface, in: RoundedRectangle(cornerRadius: 6))
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(RunnirTheme.border))
                 HStack {
-                    Toggle("Save entered values to this workspace", isOn: $model.saveEntered)
+                    Toggle(model.saveEnteredTitle, isOn: $model.saveEntered)
                         .toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12))
                     Spacer()
                     Button("Manage in Secrets and Variables") {
@@ -498,7 +509,8 @@ struct LocalRunSheet: View {
         let entered = !(model.entered[key] ?? "").isEmpty
         let caption = model.refused.contains(key) ? "Keychain refused access · empty in this run"
             : entered ? "Entered for this run" : missing ? "Missing · empty in this run"
-            : key.kind == .secret ? "Saved secret" : "Saved variable"
+            : model.environment.map { model.fromEnvironment.contains(key) ? "Saved for \($0)" : "Saved for the Repository" }
+            ?? (key.kind == .secret ? "Saved secret" : "Saved variable")
         let binding = Binding(get: { model.entered[key] ?? "" }, set: { model.entered[key] = $0 })
         let placeholder = model.saved.contains(key) && !model.refused.contains(key)
             ? (key.kind == .secret ? "••••••••••••" : "Saved value") : "Value for this run"

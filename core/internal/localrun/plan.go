@@ -101,9 +101,14 @@ type Plan struct {
 	Variables []string
 	// UnnamedSecrets: the workflow also reads secrets it does not name.
 	UnnamedSecrets bool
-	Notes          []string
-	Blockers       []string
-	Limits         Limits
+	// Environment is the environment whose values the run takes before the
+	// Repository's; empty for the Repository's alone. act gives every job
+	// of a run the same values, so a run of jobs in several environments,
+	// or in one an expression picks, takes the Repository's.
+	Environment string
+	Notes       []string
+	Blockers    []string
+	Limits      Limits
 	// Ceiling is the most the engine allows; OwnLimits: the limits are the
 	// workspace's, not the defaults. LimitWarnings say what they risk and
 	// LimitNote what is worth reading about the engine; neither blocks a run.
@@ -225,7 +230,50 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 	names := references.Find(request.Source)
 	plan.Secrets, plan.Variables, plan.UnnamedSecrets = names.Secrets, names.Variables, names.UnnamedSecrets
 	plan.Notes = notes(plan, report, containerJobs, services, request.Source)
+	var environmentNote string
+	plan.Environment, environmentNote = runEnvironment(workflow, ids)
+	if environmentNote != "" {
+		plan.Notes = append(plan.Notes, environmentNote)
+	}
 	return plan, nil
+}
+
+// runEnvironment is the environment whose values a run of these jobs takes,
+// and a note when the run's jobs do not all get what GitHub would give them.
+func runEnvironment(workflow *actionlint.Workflow, ids []string) (string, string) {
+	names := map[string]bool{}
+	without := false
+	for _, id := range ids {
+		job := workflow.Jobs[id]
+		if job.Environment == nil || job.Environment.Name == nil || job.Environment.Name.Value == "" {
+			without = true
+			continue
+		}
+		if job.Environment.Name.ContainsExpression() {
+			return "", fmt.Sprintf("Job %s picks its environment with an expression, so this run gets the Repository's values.", planJob(id, job).ID)
+		}
+		names[job.Environment.Name.Value] = true
+	}
+	switch len(names) {
+	case 0:
+		return "", ""
+	case 1:
+		var name string
+		for name = range names {
+		}
+		if without {
+			return name, fmt.Sprintf("act gives every job of this run the same values: %s's, then the Repository's.", name)
+		}
+		return name, ""
+	default:
+		list := make([]string, 0, len(names))
+		for name := range names {
+			list = append(list, name)
+		}
+		sort.Strings(list)
+		return "", fmt.Sprintf("Jobs of this run deploy to %s and %s, and act gives every job the same values, so this run gets the Repository's. "+
+			"Run one job to get its environment's.", strings.Join(list[:len(list)-1], ", "), list[len(list)-1])
+	}
 }
 
 func (p *Plan) job(id string) *JobPlan {

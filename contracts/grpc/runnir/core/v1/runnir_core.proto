@@ -300,6 +300,14 @@ message Job {
   bool manual = 4;
   // The dispatch inputs that if fixes, by their declared names.
   map<string, string> manual_inputs = 5;
+  // The environment the job deploys to; empty without one or when an
+  // expression picks it (environment_expression).
+  string environment = 6;
+  bool environment_expression = 7;
+  // Names of the secrets.X and vars.X the job reads, the workflow's own env
+  // included, upper-cased.
+  repeated string secrets = 8;
+  repeated string variables = 9;
 }
 
 message ListLaunchPresetsRequest {
@@ -1408,6 +1416,11 @@ message LocalRunPlan {
   // A line worth reading without opening the limits: an engine smaller than
   // a default, or one that does not say what it has.
   string limit_note = 25;
+  // The environment whose values the run takes before the Repository's;
+  // empty for the Repository's alone. act gives every job of a run the same
+  // values: a run of jobs in several environments, or in one an expression
+  // picks, takes the Repository's, and a note says so.
+  string environment = 26;
 }
 
 message PrepareLocalRunRequest {

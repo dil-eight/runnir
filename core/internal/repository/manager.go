@@ -81,6 +81,14 @@ type Job struct {
 	// started by hand; ManualInputs are the inputs that if fixes.
 	Manual       bool
 	ManualInputs map[string]string
+	// Environment is the environment the job deploys to, empty without one
+	// or when an expression picks it (EnvironmentExpression).
+	Environment           string
+	EnvironmentExpression bool
+	// Secrets and Variables the job reads, the workflow's own env included,
+	// upper-cased and sorted.
+	Secrets   []string
+	Variables []string
 }
 
 // LaunchPreset is one file of .runnir/launches: a Run Workflow preset the

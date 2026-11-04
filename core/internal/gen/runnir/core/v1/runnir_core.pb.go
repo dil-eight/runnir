@@ -2251,7 +2251,15 @@ type Job struct {
 	// The job's if requires a workflow_dispatch run: it is started by hand.
 	Manual bool `protobuf:"varint,4,opt,name=manual,proto3" json:"manual,omitempty"`
 	// The dispatch inputs that if fixes, by their declared names.
-	ManualInputs  map[string]string `protobuf:"bytes,5,rep,name=manual_inputs,json=manualInputs,proto3" json:"manual_inputs,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ManualInputs map[string]string `protobuf:"bytes,5,rep,name=manual_inputs,json=manualInputs,proto3" json:"manual_inputs,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// The environment the job deploys to; empty without one or when an
+	// expression picks it (environment_expression).
+	Environment           string `protobuf:"bytes,6,opt,name=environment,proto3" json:"environment,omitempty"`
+	EnvironmentExpression bool   `protobuf:"varint,7,opt,name=environment_expression,json=environmentExpression,proto3" json:"environment_expression,omitempty"`
+	// Names of the secrets.X and vars.X the job reads, the workflow's own env
+	// included, upper-cased.
+	Secrets       []string `protobuf:"bytes,8,rep,name=secrets,proto3" json:"secrets,omitempty"`
+	Variables     []string `protobuf:"bytes,9,rep,name=variables,proto3" json:"variables,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2317,6 +2325,34 @@ func (x *Job) GetManual() bool {
 func (x *Job) GetManualInputs() map[string]string {
 	if x != nil {
 		return x.ManualInputs
+	}
+	return nil
+}
+
+func (x *Job) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *Job) GetEnvironmentExpression() bool {
+	if x != nil {
+		return x.EnvironmentExpression
+	}
+	return false
+}
+
+func (x *Job) GetSecrets() []string {
+	if x != nil {
+		return x.Secrets
+	}
+	return nil
+}
+
+func (x *Job) GetVariables() []string {
+	if x != nil {
+		return x.Variables
 	}
 	return nil
 }
@@ -8857,7 +8893,12 @@ type LocalRunPlan struct {
 	LimitWarnings []string `protobuf:"bytes,24,rep,name=limit_warnings,json=limitWarnings,proto3" json:"limit_warnings,omitempty"`
 	// A line worth reading without opening the limits: an engine smaller than
 	// a default, or one that does not say what it has.
-	LimitNote     string `protobuf:"bytes,25,opt,name=limit_note,json=limitNote,proto3" json:"limit_note,omitempty"`
+	LimitNote string `protobuf:"bytes,25,opt,name=limit_note,json=limitNote,proto3" json:"limit_note,omitempty"`
+	// The environment whose values the run takes before the Repository's;
+	// empty for the Repository's alone. act gives every job of a run the same
+	// values: a run of jobs in several environments, or in one an expression
+	// picks, takes the Repository's, and a note says so.
+	Environment   string `protobuf:"bytes,26,opt,name=environment,proto3" json:"environment,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9063,6 +9104,13 @@ func (x *LocalRunPlan) GetLimitWarnings() []string {
 func (x *LocalRunPlan) GetLimitNote() string {
 	if x != nil {
 		return x.LimitNote
+	}
+	return ""
+}
+
+func (x *LocalRunPlan) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
 	}
 	return ""
 }
@@ -13016,13 +13064,17 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x0fdispatch_inputs\x18\x06 \x03(\v2\x1d.runnir.core.v1.DispatchInputR\x0edispatchInputs\x12 \n" +
 	"\vconcurrency\x18\a \x01(\bR\vconcurrency\x12\x18\n" +
 	"\asecrets\x18\b \x03(\tR\asecrets\x12\x1c\n" +
-	"\tvariables\x18\t \x03(\tR\tvariables\"\xe4\x01\n" +
+	"\tvariables\x18\t \x03(\tR\tvariables\"\xf5\x02\n" +
 	"\x03Job\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
 	"\x05needs\x18\x03 \x03(\tR\x05needs\x12\x16\n" +
 	"\x06manual\x18\x04 \x01(\bR\x06manual\x12J\n" +
-	"\rmanual_inputs\x18\x05 \x03(\v2%.runnir.core.v1.Job.ManualInputsEntryR\fmanualInputs\x1a?\n" +
+	"\rmanual_inputs\x18\x05 \x03(\v2%.runnir.core.v1.Job.ManualInputsEntryR\fmanualInputs\x12 \n" +
+	"\venvironment\x18\x06 \x01(\tR\venvironment\x125\n" +
+	"\x16environment_expression\x18\a \x01(\bR\x15environmentExpression\x12\x18\n" +
+	"\asecrets\x18\b \x03(\tR\asecrets\x12\x1c\n" +
+	"\tvariables\x18\t \x03(\tR\tvariables\x1a?\n" +
 	"\x11ManualInputsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"?\n" +
@@ -13561,7 +13613,7 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x06reason\x18\x06 \x01(\tR\x06reason\"G\n" +
 	"\rLocalRunImage\x12\x1c\n" +
 	"\treference\x18\x01 \x01(\tR\treference\x12\x18\n" +
-	"\apresent\x18\x02 \x01(\bR\apresent\"\xdc\x06\n" +
+	"\apresent\x18\x02 \x01(\bR\apresent\"\xfe\x06\n" +
 	"\fLocalRunPlan\x12\x1f\n" +
 	"\vworkflow_id\x18\x01 \x01(\tR\n" +
 	"workflowId\x12#\n" +
@@ -13593,7 +13645,8 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"own_limits\x18\x17 \x01(\bR\townLimits\x12%\n" +
 	"\x0elimit_warnings\x18\x18 \x03(\tR\rlimitWarnings\x12\x1d\n" +
 	"\n" +
-	"limit_note\x18\x19 \x01(\tR\tlimitNote\"\x92\x02\n" +
+	"limit_note\x18\x19 \x01(\tR\tlimitNote\x12 \n" +
+	"\venvironment\x18\x1a \x01(\tR\venvironment\"\x92\x02\n" +
 	"\x16PrepareLocalRunRequest\x12#\n" +
 	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\x12\x1f\n" +
 	"\vworkflow_id\x18\x02 \x01(\tR\n" +

@@ -59,3 +59,35 @@ func TestFindNothing(t *testing.T) {
 		t.Fatalf("names = %+v", names)
 	}
 }
+
+func TestFindByJobAddsTheWorkflowsOwnNamesToEveryJob(t *testing.T) {
+	source := []byte(`
+on: push
+env:
+  REGION: ${{ vars.REGION }}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ${{ secrets.GHCR_TOKEN }}
+  Deploy:
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ${{ secrets.DEPLOY_KEY }} ${{ vars.api_url }}
+`)
+	jobs := FindByJob(source)
+	if len(jobs) != 2 {
+		t.Fatalf("jobs = %v", jobs)
+	}
+	if build := jobs["build"]; !slices.Equal(build.Secrets, []string{"GHCR_TOKEN"}) || !slices.Equal(build.Variables, []string{"REGION"}) {
+		t.Fatalf("build = %+v", build)
+	}
+	// Job ids compare without case, as GitHub's do.
+	if deploy := jobs["deploy"]; !slices.Equal(deploy.Secrets, []string{"DEPLOY_KEY"}) || !slices.Equal(deploy.Variables, []string{"API_URL", "REGION"}) {
+		t.Fatalf("deploy = %+v", deploy)
+	}
+	if none := FindByJob([]byte("on: [push\n")); len(none) != 0 {
+		t.Fatalf("a file that is not YAML = %v", none)
+	}
+}

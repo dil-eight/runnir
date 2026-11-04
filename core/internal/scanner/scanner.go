@@ -484,6 +484,11 @@ func parse(id string, data []byte) repository.Workflow {
 	}
 	workflow.DispatchInputs = dispatchOf(top).Inputs
 	markManualJobs(&workflow, conditions)
+	byJob := references.FindByJob(data)
+	for i := range workflow.Jobs {
+		read := byJob[strings.ToLower(workflow.Jobs[i].ID)]
+		workflow.Jobs[i].Secrets, workflow.Jobs[i].Variables = read.Secrets, read.Variables
+	}
 	return workflow
 }
 
@@ -521,6 +526,11 @@ func jobs(node *yaml.Node, workflow *repository.Workflow, conditions map[int]str
 					}
 				case "needs":
 					job.Needs = yamlnode.Scalars(value)
+				case "environment":
+					job.Environment = EnvironmentName(value)
+					if strings.Contains(job.Environment, "${{") {
+						job.Environment, job.EnvironmentExpression = "", true
+					}
 				case "if":
 					if value.Kind == yaml.ScalarNode {
 						conditions[len(out)] = value.Value
@@ -533,6 +543,22 @@ func jobs(node *yaml.Node, workflow *repository.Workflow, conditions map[int]str
 		out = append(out, job)
 	}
 	return out
+}
+
+// EnvironmentName reads a job's `environment: name` or
+// `environment: {name: name}`.
+func EnvironmentName(node *yaml.Node) string {
+	switch node.Kind {
+	case yaml.ScalarNode:
+		return strings.TrimSpace(node.Value)
+	case yaml.MappingNode:
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			if value := yamlnode.Resolve(node.Content[i+1]); node.Content[i].Value == "name" && value.Kind == yaml.ScalarNode {
+				return strings.TrimSpace(value.Value)
+			}
+		}
+	}
+	return ""
 }
 
 // truncate bounds a message without splitting a character: gRPC refuses to

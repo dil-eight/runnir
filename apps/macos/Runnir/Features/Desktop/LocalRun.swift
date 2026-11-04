@@ -219,6 +219,9 @@ final class LocalRunReviewModel {
     var saveEntered = false
     /// The plan's names with a saved value.
     private(set) var saved: Set<LocalRunValueKey> = []
+    /// The plan's names whose saved value is the plan environment's, not
+    /// the Repository's.
+    private(set) var fromEnvironment: Set<LocalRunValueKey> = []
     /// Saved names whose value Keychain would not give.
     private(set) var refused: Set<LocalRunValueKey> = []
     private(set) var prepared: CorePreparedLocalRun?
@@ -232,8 +235,12 @@ final class LocalRunReviewModel {
     @ObservationIgnored private let hub: CoreHub
     @ObservationIgnored private let useInstalledAct: () -> Bool
     @ObservationIgnored private let values: any LocalRunValueStoring
-    /// Saved values read for this review, each once; dropped with the sheet.
+    /// Saved values read for this review, each once, by where they are
+    /// kept; dropped with the sheet.
     @ObservationIgnored private var savedValues: [LocalRunValueKey: String] = [:]
+    /// Where each plan name's saved value is kept: the environment's, else
+    /// the Repository's.
+    @ObservationIgnored private var sources: [LocalRunValueKey: LocalRunValueKey] = [:]
     @ObservationIgnored private var generation = 0
 
     init(workspaceID: UUID, workflowID: String, jobs: [CoreJob], jobID: String? = nil, hub: CoreHub,
@@ -246,6 +253,16 @@ final class LocalRunReviewModel {
         self.hub = hub
         self.values = values
         self.useInstalledAct = useInstalledAct
+    }
+
+    /// The environment whose values the run takes before the Repository's.
+    var environment: String? {
+        guard let environment = prepared?.plan.environment, !environment.isEmpty else { return nil }
+        return environment
+    }
+
+    var saveEnteredTitle: String {
+        environment.map { "Save entered values to \($0)" } ?? "Save entered values to this workspace"
     }
 
     /// The plan's names: secrets, then variables.
@@ -271,22 +288,31 @@ final class LocalRunReviewModel {
         entered[key].flatMap { $0.isEmpty ? nil : $0 }
     }
 
-    /// Which of the plan's names have a saved value. Each value is read once
-    /// per review and kept for the run, so a refused read shows before it;
-    /// a refused one is tried again when the plan is prepared again. An
-    /// answer for an older plan is dropped.
+    /// Which of the plan's names have a saved value, the plan environment's
+    /// before the Repository's. Each value is read once per review and kept
+    /// for the run, so a refused read shows before it; a refused one is
+    /// tried again when the plan is prepared again. An answer for an older
+    /// plan is dropped.
     private func loadSaved(for keys: [LocalRunValueKey], generation current: Int) async {
         let stored = (try? await values.keys(workspaceID: workspaceID)) ?? []
+        let environment = self.environment
+        var found: [LocalRunValueKey: LocalRunValueKey] = [:]
         var refusedNow: Set<LocalRunValueKey> = []
-        for key in keys where stored.contains(key) && savedValues[key] == nil {
-            if let value = try? await values.value(workspaceID: workspaceID, key: key) {
-                savedValues[key] = value
+        for key in keys {
+            let own = environment.map { key.in($0) }
+            guard let source = own.flatMap({ stored.contains($0) ? $0 : nil }) ?? (stored.contains(key) ? key : nil) else { continue }
+            found[key] = source
+            guard savedValues[source] == nil else { continue }
+            if let value = try? await values.value(workspaceID: workspaceID, key: source) {
+                savedValues[source] = value
             } else {
                 refusedNow.insert(key)
             }
         }
         guard current == generation else { return }
-        saved = Set(keys.filter { stored.contains($0) })
+        sources = found
+        saved = Set(found.keys)
+        fromEnvironment = Set(found.filter { $0.value.environment != nil }.keys)
         refused = refusedNow
     }
 
@@ -343,17 +369,17 @@ final class LocalRunReviewModel {
         defer { isStarting = false }
         var secrets: [String: String] = [:], variables: [String: String] = [:]
         for key in runKeys {
-            guard let value = typed(key) ?? savedValues[key] else { continue }
+            guard let value = typed(key) ?? sources[key].flatMap({ savedValues[$0] }) else { continue }
             if key.kind == .secret { secrets[key.name] = value } else { variables[key.name] = value }
         }
         if saveEntered {
             do {
                 for key in runKeys {
-                    if let text = typed(key) { try await values.save(workspaceID: workspaceID, key: key, value: text) }
+                    if let text = typed(key) { try await values.save(workspaceID: workspaceID, key: key.in(environment), value: text) }
                 }
             } catch {
                 self.error = "Keychain did not save the entered values, so the run did not start. \(error.localizedDescription) "
-                    + "Turn off \u{201C}Save entered values to this workspace\u{201D} to run without saving them."
+                    + "Turn off \u{201C}\(saveEnteredTitle)\u{201D} to run without saving them."
                 return nil
             }
         }

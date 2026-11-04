@@ -1652,6 +1652,18 @@ nonisolated struct Runnir_Core_V1_Job: Sendable {
   /// The dispatch inputs that if fixes, by their declared names.
   var manualInputs: Dictionary<String,String> = [:]
 
+  /// The environment the job deploys to; empty without one or when an
+  /// expression picks it (environment_expression).
+  var environment: String = String()
+
+  var environmentExpression: Bool = false
+
+  /// Names of the secrets.X and vars.X the job reads, the workflow's own env
+  /// included, upper-cased.
+  var secrets: [String] = []
+
+  var variables: [String] = []
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -4210,6 +4222,15 @@ nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
     set {_uniqueStorage()._limitNote = newValue}
   }
 
+  /// The environment whose values the run takes before the Repository's;
+  /// empty for the Repository's alone. act gives every job of a run the same
+  /// values: a run of jobs in several environments, or in one an expression
+  /// picks, takes the Repository's, and a note says so.
+  var environment: String {
+    get {_storage._environment}
+    set {_uniqueStorage()._environment = newValue}
+  }
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -6127,7 +6148,7 @@ nonisolated extension Runnir_Core_V1_Workflow: SwiftProtobuf.Message, SwiftProto
 
 nonisolated extension Runnir_Core_V1_Job: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".Job"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}needs\0\u{1}manual\0\u{3}manual_inputs\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}needs\0\u{1}manual\0\u{3}manual_inputs\0\u{1}environment\0\u{3}environment_expression\0\u{1}secrets\0\u{1}variables\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -6140,6 +6161,10 @@ nonisolated extension Runnir_Core_V1_Job: SwiftProtobuf.Message, SwiftProtobuf._
       case 3: try { try decoder.decodeRepeatedStringField(value: &self.needs) }()
       case 4: try { try decoder.decodeSingularBoolField(value: &self.manual) }()
       case 5: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.manualInputs) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.environment) }()
+      case 7: try { try decoder.decodeSingularBoolField(value: &self.environmentExpression) }()
+      case 8: try { try decoder.decodeRepeatedStringField(value: &self.secrets) }()
+      case 9: try { try decoder.decodeRepeatedStringField(value: &self.variables) }()
       default: break
       }
     }
@@ -6161,6 +6186,18 @@ nonisolated extension Runnir_Core_V1_Job: SwiftProtobuf.Message, SwiftProtobuf._
     if !self.manualInputs.isEmpty {
       try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.manualInputs, fieldNumber: 5)
     }
+    if !self.environment.isEmpty {
+      try visitor.visitSingularStringField(value: self.environment, fieldNumber: 6)
+    }
+    if self.environmentExpression != false {
+      try visitor.visitSingularBoolField(value: self.environmentExpression, fieldNumber: 7)
+    }
+    if !self.secrets.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.secrets, fieldNumber: 8)
+    }
+    if !self.variables.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.variables, fieldNumber: 9)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -6170,6 +6207,10 @@ nonisolated extension Runnir_Core_V1_Job: SwiftProtobuf.Message, SwiftProtobuf._
     if lhs.needs != rhs.needs {return false}
     if lhs.manual != rhs.manual {return false}
     if lhs.manualInputs != rhs.manualInputs {return false}
+    if lhs.environment != rhs.environment {return false}
+    if lhs.environmentExpression != rhs.environmentExpression {return false}
+    if lhs.secrets != rhs.secrets {return false}
+    if lhs.variables != rhs.variables {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -10632,7 +10673,7 @@ nonisolated extension Runnir_Core_V1_LocalRunImage: SwiftProtobuf.Message, Swift
 
 nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".LocalRunPlan"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}workflow_name\0\u{1}events\0\u{1}event\0\u{3}job_id\0\u{1}jobs\0\u{1}images\0\u{1}secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0\u{1}variables\0\u{3}unnamed_secrets\0\u{3}max_cpus\0\u{3}max_memory_bytes\0\u{3}max_timeout_seconds\0\u{3}own_limits\0\u{3}limit_warnings\0\u{3}limit_note\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}workflow_name\0\u{1}events\0\u{1}event\0\u{3}job_id\0\u{1}jobs\0\u{1}images\0\u{1}secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0\u{1}variables\0\u{3}unnamed_secrets\0\u{3}max_cpus\0\u{3}max_memory_bytes\0\u{3}max_timeout_seconds\0\u{3}own_limits\0\u{3}limit_warnings\0\u{3}limit_note\0\u{1}environment\0")
 
   fileprivate class _StorageClass {
     var _workflowID: String = String()
@@ -10660,6 +10701,7 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
     var _ownLimits: Bool = false
     var _limitWarnings: [String] = []
     var _limitNote: String = String()
+    var _environment: String = String()
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -10695,6 +10737,7 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       _ownLimits = source._ownLimits
       _limitWarnings = source._limitWarnings
       _limitNote = source._limitNote
+      _environment = source._environment
     }
   }
 
@@ -10738,6 +10781,7 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         case 23: try { try decoder.decodeSingularBoolField(value: &_storage._ownLimits) }()
         case 24: try { try decoder.decodeRepeatedStringField(value: &_storage._limitWarnings) }()
         case 25: try { try decoder.decodeSingularStringField(value: &_storage._limitNote) }()
+        case 26: try { try decoder.decodeSingularStringField(value: &_storage._environment) }()
         default: break
         }
       }
@@ -10821,6 +10865,9 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       if !_storage._limitNote.isEmpty {
         try visitor.visitSingularStringField(value: _storage._limitNote, fieldNumber: 25)
       }
+      if !_storage._environment.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._environment, fieldNumber: 26)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -10855,6 +10902,7 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         if _storage._ownLimits != rhs_storage._ownLimits {return false}
         if _storage._limitWarnings != rhs_storage._limitWarnings {return false}
         if _storage._limitNote != rhs_storage._limitNote {return false}
+        if _storage._environment != rhs_storage._environment {return false}
         return true
       }
       if !storagesAreEqual {return false}

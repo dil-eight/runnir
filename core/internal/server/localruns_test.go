@@ -370,3 +370,26 @@ func TestLocalRunLimitsAreAskedCappedAndKeptForTheWorkspace(t *testing.T) {
 		t.Fatalf("after reset = %v", after)
 	}
 }
+
+func TestJobsSayTheirEnvironmentAndAPlanTakesIt(t *testing.T) {
+	client, ctx := served(t)
+	deploy := "on: workflow_dispatch\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps: [{run: \"echo ${{ secrets.GHCR_TOKEN }}\"}]\n" +
+		"  production:\n    environment: production\n    runs-on: ubuntu-latest\n    steps: [{run: \"echo ${{ secrets.DEPLOY_KEY }} ${{ vars.API_URL }}\"}]\n"
+	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: repoWithWorkflows(t, map[string]string{"deploy.yml": deploy})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed, err := client.ListWorkflows(ctx, &corev1.ListWorkflowsRequest{RepositoryId: opened.Repository.Id})
+	if err != nil || len(listed.Workflows) != 1 || len(listed.Workflows[0].Jobs) != 2 {
+		t.Fatalf("workflows = %v, %v", listed, err)
+	}
+	production := listed.Workflows[0].Jobs[1]
+	if production.Environment != "production" || !slices.Equal(production.Secrets, []string{"DEPLOY_KEY"}) || !slices.Equal(production.Variables, []string{"API_URL"}) {
+		t.Fatalf("production = %v", production)
+	}
+	prepared, err := client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: opened.Repository.Id,
+		WorkflowId: ".github/workflows/deploy.yml", JobId: "production"})
+	if err != nil || prepared.Plan.Environment != "production" {
+		t.Fatalf("plan = %v, %v", prepared.GetPlan(), err)
+	}
+}

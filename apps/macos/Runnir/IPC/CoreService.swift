@@ -34,6 +34,14 @@ struct CoreJob: Equatable, Sendable {
     /// with the inputs that if fixes.
     var manual = false
     var manualInputs: [String: String] = [:]
+    /// The environment the job deploys to; empty without one or when an
+    /// expression picks it (`environmentExpression`).
+    var environment = ""
+    var environmentExpression = false
+    /// The secrets.X and vars.X names the job reads, the workflow's own env
+    /// included, upper-cased.
+    var secrets: [String] = []
+    var variables: [String] = []
 }
 
 struct CoreWorkflow: Equatable, Identifiable, Sendable {
