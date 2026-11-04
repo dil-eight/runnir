@@ -9,7 +9,7 @@ set -eu
 # keychain. Every signature has the hardened runtime and a secure timestamp.
 #
 # The profile is RUNNIR_PROFILE, else ~/.config/runnir/release.provisionprofile
-# for io.dil8.runnir and local.provisionprofile for io.dil8.runnir.local.
+# for com.runnir and local.provisionprofile for com.runnir.local.
 # Usage: scripts/sign-app.sh path/to/Runnir.app
 if [ $# -ne 1 ]; then
     echo "usage: $0 APP" >&2
@@ -26,8 +26,8 @@ SIGNING_IDENTITY=$("$here/signing-identity.sh")
 export SIGNING_IDENTITY
 bundle=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")
 case $bundle in
-    io.dil8.runnir) name=release ;;
-    io.dil8.runnir.*) name=${bundle#io.dil8.runnir.} ;;
+    com.runnir) name=release ;;
+    com.runnir.*) name=${bundle#com.runnir.} ;;
     *) name=$bundle ;;
 esac
 profile=${RUNNIR_PROFILE:-$HOME/.config/runnir/$name.provisionprofile}
@@ -41,8 +41,8 @@ if [ -d "$app/Contents/Frameworks" ]; then
             codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$library"
         done
 fi
-"$here/sign-binary.sh" "$app/Contents/Helpers/runnir-core" io.dil8.runnir.core
-"$here/sign-binary.sh" "$app/Contents/Helpers/act" io.dil8.runnir.act
+"$here/sign-binary.sh" "$app/Contents/Helpers/runnir-core" com.runnir.core
+"$here/sign-binary.sh" "$app/Contents/Helpers/act" com.runnir.act
 codesign --force --options runtime --timestamp \
     --entitlements "$work/entitlements.plist" \
     --sign "$SIGNING_IDENTITY" "$app"

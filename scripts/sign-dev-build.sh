@@ -16,12 +16,13 @@ set -eu
 # runtime and no timestamp: the unit tests load into the app, the debugger
 # attaches to it, and a build needs no network.
 #
-# With the Developer ID provisioning profile of io.dil8.runnir.dev in
+# With the Developer ID provisioning profile of com.runnir.dev in
 # RUNNIR_DEV_PROFILE or ~/.config/runnir/dev.provisionprofile, the build
 # embeds it and takes its application identifier (embed-profile.sh), so it
 # keeps its Keychain items in the data protection keychain and Keychain
-# never asks for the password. Without one, or with one that does not fit,
-# the build uses the file-based keychain.
+# never asks for the password; get-task-allow keeps the unit tests and the
+# debugger working. Without one, or with one that does not fit, the build
+# uses the file-based keychain.
 #
 # The Runnir target's last build phase runs it on the built app.
 # Usage: RUNNIR_BUILD=dev scripts/sign-dev-build.sh [APP]
@@ -61,6 +62,10 @@ rm -f "$app/Contents/embedded.provisionprofile"
 if [ -f "$profile" ]; then
     if "$here/embed-profile.sh" "$app" "$profile" "$work/entitlements.plist" "$identity" 2>"$work/error"; then
         entitlements=$work/entitlements.plist
+        # The profile's entitlements make macOS guard the process; this one,
+        # as in Xcode's development signing, still lets the unit tests be
+        # injected and the debugger attach. Never in a signed release.
+        /usr/libexec/PlistBuddy -c "Add :com.apple.security.get-task-allow bool true" "$entitlements" >/dev/null
     else
         echo "warning: $(cat "$work/error"); the build uses the file-based keychain"
     fi
@@ -75,10 +80,10 @@ if [ -d "$app/Contents/Frameworks" ]; then
         done
 fi
 if [ -f "$app/Contents/Helpers/runnir-core" ]; then
-    sign --identifier io.dil8.runnir.core "$app/Contents/Helpers/runnir-core"
+    sign --identifier com.runnir.core "$app/Contents/Helpers/runnir-core"
 fi
 if [ -f "$app/Contents/Helpers/act" ]; then
-    sign --identifier io.dil8.runnir.act "$app/Contents/Helpers/act"
+    sign --identifier com.runnir.act "$app/Contents/Helpers/act"
 fi
 if [ -d "$app/Contents/PlugIns" ]; then
     find "$app/Contents/PlugIns" -maxdepth 1 -name '*.xctest' |
