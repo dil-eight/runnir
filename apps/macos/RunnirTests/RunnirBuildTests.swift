@@ -47,8 +47,17 @@ import Testing
         #expect(KeychainCredentialStore.service(for: .dev) == "com.runnir.app.dev.github")
         #expect(KeychainCredentialStore.service(for: .local) == "com.runnir.app.local.github")
         #expect(KeychainCredentialStore.service(for: .release) == "com.runnir.app.github")
-        #expect(KeychainLocalRunValueStore.prefix(for: .dev) == "com.runnir.app.dev.local-run")
-        #expect(KeychainLocalRunValueStore.prefix(for: .beta) == "com.runnir.app.local-run")
+        #expect(KeychainLocalRunValueStore.prefix(for: .dev) == "com.runnir.app.dev.run-values")
+        #expect(KeychainLocalRunValueStore.prefix(for: .beta) == "com.runnir.app.run-values")
+        #expect(KeychainLocalRunValueStore.prefix(for: .local) == "com.runnir.app.local.run-values")
+    }
+
+    @Test func noReleaseServiceBeginsWithTheNameOfAnotherApp() {
+        // A search for Runnir Local's items must not find the release's.
+        let release = [KeychainCredentialStore.service(for: .release), KeychainLocalRunValueStore.prefix(for: .release)]
+        for build in [RunnirBuild.dev, .local] {
+            #expect(release.allSatisfy { !$0.hasPrefix(build.keychainPrefix) }, "\(build)")
+        }
     }
 
     @MainActor

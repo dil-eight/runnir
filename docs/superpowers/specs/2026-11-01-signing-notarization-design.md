@@ -38,11 +38,11 @@ The user sets them; they are never written to the repository, the logs or a file
 
 ## Scripts
 
-`scripts/signing-identity.sh` prints the identity's SHA-1 by the rule below, and `scripts/check-signature.sh CODE...` checks each signature's team, hardened runtime and timestamp; `sign-app.sh` and `sign-binary.sh` both use them.
+`scripts/signing-identity.sh` prints the identity's SHA-1 by the rule below, and `scripts/check-signature.sh CODE...` checks each signature's team, hardened runtime and timestamp; `sign-app.sh` and `sign-binary.sh` both use them. `scripts/sign-contents.sh APP CODESIGN_ARG...` signs what is inside an app, inside out (steps 1 and 2 below, and a test bundle Xcode put into `Contents/PlugIns`), with the identity and options it is given; `sign-app.sh` and `sign-dev-build.sh` both use it, so every build signs the same code. `scripts/check-profile.sh PROFILE BUNDLE [IDENTITY]` checks that a profile fits an app and prints its application identifier; `embed-profile.sh` and the release workflow use it.
 
 ### `scripts/sign-app.sh APP`
 
-Signs a built `Runnir.app` with the Developer ID Application identity of `$APPLE_TEAM_ID`, inside out:
+Signs a built `Runnir.app` with the Developer ID Application identity of `$APPLE_TEAM_ID`, inside out (`sign-contents.sh` for steps 1 and 2):
 
 1. Every `.dylib` and `.framework` in `Contents/Frameworks`.
 2. `Contents/Helpers/runnir-core` with the identifier `com.runnir.core`, and `Contents/Helpers/act` with `com.runnir.act`.
@@ -52,7 +52,7 @@ Every signature uses `--options runtime` (the hardened runtime) and `--timestamp
 
 ### `scripts/embed-profile.sh APP PROFILE ENTITLEMENTS_OUT [IDENTITY]`
 
-Decodes the profile (`security cms -D`) and refuses one that is not for the app's bundle identifier, is of another team than `$APPLE_TEAM_ID` when that is set, has expired, or does not list the certificate of `IDENTITY`. It then copies the profile into the app and writes the entitlements: `Runnir.entitlements` with `com.apple.application-identifier` and `com.apple.developer.team-identifier` from the profile, and `keychain-access-groups` narrowed from the profile's `TEAM.*` to the app's own identifier. The team comes from the profile, never from the repository.
+Refuses a profile (`check-profile.sh`, which decodes it with `security cms -D`) that is not for the app's bundle identifier, is of another team than `$APPLE_TEAM_ID` when that is set, has expired, or does not list the certificate of `IDENTITY`. It then copies the profile into the app and writes the entitlements, replacing any of these keys `Runnir.entitlements` already has: `Runnir.entitlements` with `com.apple.application-identifier` and `com.apple.developer.team-identifier` from the profile, and `keychain-access-groups` narrowed from the profile's `TEAM.*` to the app's own identifier. The team comes from the profile, never from the repository.
 
 The identity (`signing-identity.sh`) is `SIGNING_IDENTITY` (a certificate's SHA-1) when set; otherwise the one valid `Developer ID Application: … ($APPLE_TEAM_ID)` that `security find-identity -v -p codesigning` lists. When several are valid (a renewed certificate beside the old one), the script stops and lists their SHA-1s and expiry dates, so the caller sets `SIGNING_IDENTITY` or removes the old one. It is passed to `codesign` by its SHA-1, so two certificates with one name never mix. In CI the temporary keychain holds one certificate.
 
@@ -70,15 +70,15 @@ Staples the ticket to the app, then checks `xcrun stapler validate` and `spctl -
 
 ## The release workflow
 
-`release.yml`'s job runs in the `release` environment, with a 90-minute limit. It picks the build (B47) first, so a bad tag fails before any work, then:
+`release.yml`'s job runs in the `release` environment, with a 120-minute limit. It picks the build (B47) first, so a bad tag fails before any work, then:
 
-1. **Check credentials**: each secret and the variable is present, else fail naming the missing ones.
-2. **Keychain**: a temporary keychain with a random password, the `.p12` imported into it for `codesign` only (`security set-key-partition-list`), added to the search list. Apple's Developer ID G2 intermediate (from apple.com) is imported into it too, so the chain does not depend on the runner image, and the step checks that exactly one identity of the team is there. The `.p8` and the provisioning profile (`RUNNIR_PROFILE`) are written to the job's temporary folder.
-3. **Core binaries**: built as today; the two darwin binaries are signed with `sign-binary.sh`, zipped together and notarized.
-4. **Archive**: as today, unsigned, then checked against the build (B47).
-5. **App**: `sign-app.sh`, a zip, `notarize.sh`, `staple-app.sh`, and the final zip of the stapled app, `Runnir-<tag>.zip`.
+1. **Check credentials**: each secret and the variable is present, else fail naming the missing ones. The `.p12` is imported into a keychain of its own, which is deleted at once, to read its one Developer ID Application certificate, and `check-profile.sh` checks that the profile is for `com.runnir.app` and lists that certificate. A tag whose secrets do not fit fails in its first minute.
+2. **Build**: the Core binaries and the archive as today, unsigned, and the archive checked against the build (B47). No credential is on the runner yet, so no build step can sign with the key.
+3. **Keychain**: a temporary keychain with a random password, the `.p12` imported into it for `codesign` only (`security set-key-partition-list`), added to the search list. Apple's Developer ID G2 intermediate (from apple.com, checked against its SHA-256) is imported into it too, so the chain does not depend on the runner image, and the step checks that exactly one identity of the team is there. The `.p8` and the provisioning profile (`RUNNIR_PROFILE`) are written to the job's temporary folder.
+4. **Sign**: the two darwin Core binaries with `sign-binary.sh`, the app with `sign-app.sh`.
+5. **Notarize**: the app and the two binaries in one zip, one submission, so the job waits for Apple once; then `staple-app.sh` and the final zip of the stapled app, `Runnir-<tag>.zip`. A verdict that takes longer than `notarize.sh`'s 60 minutes fails the tag with the submission's ID to wait for.
 6. **Publish**: the draft release as today, its notes saying the app and the macOS binaries are signed with Developer ID and notarized by Apple.
-7. **Clean up**, whatever happened before: the temporary keychain is deleted and the search list restored, the `.p8` and the profile removed.
+7. **Clean up**, whatever happened before: the temporary keychains are deleted and the search list restored, the `.p12`, the `.p8` and the profile removed.
 
 `app-build.yml` does not change: pull requests build unsigned, and pull requests from forks never see the secrets. `ci.yml` runs `scripts/test-signing.sh`.
 
@@ -102,7 +102,7 @@ A build signed on a Mac would otherwise be archived as a beta, and a signed beta
 | --- | --- |
 | The app | Runnir Local, `com.runnir.app.local`: an app of its own, as Runnir Dev is, that runs beside an installed Runnir and Runnir Dev |
 | Data, logs, caches | `~/Library/Application Support/Runnir Local`, `~/Library/Logs/Runnir Local`, `~/Library/Caches/Runnir Local` |
-| Keychain services | `com.runnir.app.local.github`, `com.runnir.app.local.local-run` |
+| Keychain services | `com.runnir.app.local.github`, `com.runnir.app.local.run-values` |
 | The app icon | `AppIcon-Local`: the pill of B47 with LOCAL in pink, `#F472B6`; amber, violet, blue, green and red already mean dev, alpha, beta, success and failure |
 | The menu bar | The LOCAL capsule after the glyph, as for dev, alpha and beta |
 | The windows | LOCAL in a pink capsule where a dev build shows DEV (`BuildBadge`, formerly `DevBuildBadge`); its tooltip says it is signed on this Mac, with its own data and sign-in |
@@ -111,7 +111,7 @@ A build signed on a Mac would otherwise be archived as a beta, and a signed beta
 
 ### A signed dev build (added 2026-11-03)
 
-Xcode's own builds keep the linker's ad hoc signature, which names a build by its hash. Keychain took each new build of Runnir Dev for another app and asked for the login password again after every build. On a Mac with a code signing identity, the Runnir scheme's build post-action, `scripts/sign-dev-build.sh`, signs a dev build with it, inside out: Swift's libraries in `Contents/Frameworks`, the helpers, a test bundle Xcode put into the app, then the app. Keychain then knows Runnir Dev by its identifier and certificate, and "Always Allow" holds across builds. The bundle identifier becomes the signing identifier, so macOS also lets the build post notifications.
+Xcode's own builds keep the linker's ad hoc signature, which names a build by its hash. Keychain took each new build of Runnir Dev for another app and asked for the login password again after every build. On a Mac with a code signing identity, the Runnir scheme's build post-action, `scripts/sign-dev-build.sh`, signs a dev build with it, inside out (`sign-contents.sh`): Swift's libraries in `Contents/Frameworks`, the helpers, a test bundle Xcode put into the app, then the app. A profile and a seal an earlier signed build left in the bundle are removed first, so a build that is not signed again keeps neither. Keychain then knows Runnir Dev by its identifier and certificate, and "Always Allow" holds across builds. The bundle identifier becomes the signing identifier, so macOS also lets the build post notifications.
 
 - The SHA-1 comes from `RUNNIR_DEV_SIGNING_IDENTITY` or the first line of `~/.config/runnir/dev-signing-identity`, never from the repository. Without either the build stays ad hoc, as in CI; with an identity that is not in the keychain search list it stays ad hoc with a warning.
 - No hardened runtime and no timestamp: the unit tests load into the app, the debugger attaches to it, and a build needs no network.
@@ -145,8 +145,9 @@ A signature alone did not stop the prompts. The file-based keychain keeps a list
 - `scripts/test-signing.sh`, in CI's build job, runs the scripts against a stand-in for `security`: `signing-identity.sh`, `sign-app.sh` and `sign-binary.sh` refuse without `APPLE_TEAM_ID`, without an identity of that team, and with several identities and no `SIGNING_IDENTITY`; `check-signature.sh` refuses unsigned and ad hoc code; `notarize.sh` refuses without credentials, naming the missing ones.
 - `test-signing.sh` also runs `sign-dev-build.sh`: it skips a build that is not dev, a Mac without an identity, and an identity missing from the keychain (with a warning), and reads the file's SHA-1 in any case.
 - `test-signing.sh` runs `sign-dev-build.sh` with a profile against a stand-in for `codesign`: the app takes the profile's entitlements and `get-task-allow`; a profile of another app is left out with a warning, the app signed without entitlements and without the profile.
-- `test-signing.sh` runs `embed-profile.sh` on stand-in profiles: it refuses a missing file, one that is not a profile, a profile of another app or team, an expired one and one without the signing certificate, embeds nothing then, and otherwise copies the profile and writes the app's identifier, team and access group.
-- `LocalRunValuesTests` checks that the Keychain queries ask for the data protection keychain only when the build is entitled.
+- `test-signing.sh` runs `embed-profile.sh` on stand-in profiles: it refuses a missing file, one that is not a profile, a profile of another app or team, an expired one and one without the signing certificate, embeds nothing then, and otherwise copies the profile and writes the app's identifier, team and access group. `check-profile.sh` alone prints the application identifier and refuses another certificate.
+- `test-signing.sh` runs `sign-app.sh` up to its profile: it looks for `release.provisionprofile` for `com.runnir.app` and the suffix's for `com.runnir.app.local` and `com.runnir.app.dev`, and `RUNNIR_PROFILE` comes first. It also checks that `sign-dev-build.sh` removes an earlier profile and seal from a dev build without an identity and leaves another build's alone.
+- `LocalRunValuesTests` checks that the Keychain queries ask for the data protection keychain only when the build is entitled. `RunnirBuildTests` checks that no Keychain service of the release begins with Runnir Dev's or Runnir Local's name, so a search for one app's items never finds another's.
 - On a Mac, a dev build with its profile keeps Runnir Dev's sign-in and values in the data protection keychain without a prompt (2026-11-04: Developer ID profiles of the three apps made; the dev build with its profile opened, its 493 unit tests ran in it, and a GitHub sign-in and values entered in it asked for no password, also after the app was quit and opened again; nothing went into the file-based keychain). A rebuilt dev build kept the sign-in without a prompt too.
 - On a Mac, a dev build signed with the Developer ID identity passes `codesign --verify --deep --strict`, also after the unit tests ran in it (2026-11-03).
 - `RunnirBuildTests` and the menu bar test cover the local build: its Info.plist value, mark, spoken name, folders, Keychain prefix, window mark and menu bar capsule.
