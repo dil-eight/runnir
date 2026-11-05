@@ -40,6 +40,9 @@ const (
 	RunnirCore_ClearWorkspaceCache_FullMethodName       = "/runnir.core.v1.RunnirCore/ClearWorkspaceCache"
 	RunnirCore_DeleteWorkspaceData_FullMethodName       = "/runnir.core.v1.RunnirCore/DeleteWorkspaceData"
 	RunnirCore_SetStoragePreferences_FullMethodName     = "/runnir.core.v1.RunnirCore/SetStoragePreferences"
+	RunnirCore_GetAnalytics_FullMethodName              = "/runnir.core.v1.RunnirCore/GetAnalytics"
+	RunnirCore_SetAnalyticsLevel_FullMethodName         = "/runnir.core.v1.RunnirCore/SetAnalyticsLevel"
+	RunnirCore_RecordUsage_FullMethodName               = "/runnir.core.v1.RunnirCore/RecordUsage"
 	RunnirCore_ListWorkflows_FullMethodName             = "/runnir.core.v1.RunnirCore/ListWorkflows"
 	RunnirCore_ListLaunchPresets_FullMethodName         = "/runnir.core.v1.RunnirCore/ListLaunchPresets"
 	RunnirCore_ValidateWorkflows_FullMethodName         = "/runnir.core.v1.RunnirCore/ValidateWorkflows"
@@ -131,6 +134,14 @@ type RunnirCoreClient interface {
 	DeleteWorkspaceData(ctx context.Context, in *DeleteWorkspaceDataRequest, opts ...grpc.CallOption) (*DeleteWorkspaceDataResponse, error)
 	// Whether completed jobs' logs are kept on this Mac. Off in every new Core.
 	SetStoragePreferences(ctx context.Context, in *SetStoragePreferencesRequest, opts ...grpc.CallOption) (*SetStoragePreferencesResponse, error)
+	// The analytics level, whether the consent question was answered and the
+	// counts waiting to be sent (docs/product/analytics-and-crash-reporting.md).
+	GetAnalytics(ctx context.Context, in *GetAnalyticsRequest, opts ...grpc.CallOption) (*Analytics, error)
+	// Changes the level: a new analytics id for FULL; the id and section and
+	// action counts dropped when leaving FULL; everything unsent dropped for OFF.
+	SetAnalyticsLevel(ctx context.Context, in *SetAnalyticsLevelRequest, opts ...grpc.CallOption) (*Analytics, error)
+	// One more of a section or action; counted only at FULL.
+	RecordUsage(ctx context.Context, in *RecordUsageRequest, opts ...grpc.CallOption) (*RecordUsageResponse, error)
 	ListWorkflows(ctx context.Context, in *ListWorkflowsRequest, opts ...grpc.CallOption) (*ListWorkflowsResponse, error)
 	// Run Workflow presets the repository shares in .runnir/launches, read in
 	// the same scan as its workflows. Runnir never writes these files.
@@ -430,6 +441,36 @@ func (c *runnirCoreClient) SetStoragePreferences(ctx context.Context, in *SetSto
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SetStoragePreferencesResponse)
 	err := c.cc.Invoke(ctx, RunnirCore_SetStoragePreferences_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) GetAnalytics(ctx context.Context, in *GetAnalyticsRequest, opts ...grpc.CallOption) (*Analytics, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Analytics)
+	err := c.cc.Invoke(ctx, RunnirCore_GetAnalytics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) SetAnalyticsLevel(ctx context.Context, in *SetAnalyticsLevelRequest, opts ...grpc.CallOption) (*Analytics, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Analytics)
+	err := c.cc.Invoke(ctx, RunnirCore_SetAnalyticsLevel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) RecordUsage(ctx context.Context, in *RecordUsageRequest, opts ...grpc.CallOption) (*RecordUsageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordUsageResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_RecordUsage_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -903,6 +944,14 @@ type RunnirCoreServer interface {
 	DeleteWorkspaceData(context.Context, *DeleteWorkspaceDataRequest) (*DeleteWorkspaceDataResponse, error)
 	// Whether completed jobs' logs are kept on this Mac. Off in every new Core.
 	SetStoragePreferences(context.Context, *SetStoragePreferencesRequest) (*SetStoragePreferencesResponse, error)
+	// The analytics level, whether the consent question was answered and the
+	// counts waiting to be sent (docs/product/analytics-and-crash-reporting.md).
+	GetAnalytics(context.Context, *GetAnalyticsRequest) (*Analytics, error)
+	// Changes the level: a new analytics id for FULL; the id and section and
+	// action counts dropped when leaving FULL; everything unsent dropped for OFF.
+	SetAnalyticsLevel(context.Context, *SetAnalyticsLevelRequest) (*Analytics, error)
+	// One more of a section or action; counted only at FULL.
+	RecordUsage(context.Context, *RecordUsageRequest) (*RecordUsageResponse, error)
 	ListWorkflows(context.Context, *ListWorkflowsRequest) (*ListWorkflowsResponse, error)
 	// Run Workflow presets the repository shares in .runnir/launches, read in
 	// the same scan as its workflows. Runnir never writes these files.
@@ -1102,6 +1151,15 @@ func (UnimplementedRunnirCoreServer) DeleteWorkspaceData(context.Context, *Delet
 }
 func (UnimplementedRunnirCoreServer) SetStoragePreferences(context.Context, *SetStoragePreferencesRequest) (*SetStoragePreferencesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetStoragePreferences not implemented")
+}
+func (UnimplementedRunnirCoreServer) GetAnalytics(context.Context, *GetAnalyticsRequest) (*Analytics, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAnalytics not implemented")
+}
+func (UnimplementedRunnirCoreServer) SetAnalyticsLevel(context.Context, *SetAnalyticsLevelRequest) (*Analytics, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetAnalyticsLevel not implemented")
+}
+func (UnimplementedRunnirCoreServer) RecordUsage(context.Context, *RecordUsageRequest) (*RecordUsageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordUsage not implemented")
 }
 func (UnimplementedRunnirCoreServer) ListWorkflows(context.Context, *ListWorkflowsRequest) (*ListWorkflowsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListWorkflows not implemented")
@@ -1513,6 +1571,60 @@ func _RunnirCore_SetStoragePreferences_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnirCoreServer).SetStoragePreferences(ctx, req.(*SetStoragePreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_GetAnalytics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAnalyticsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).GetAnalytics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_GetAnalytics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).GetAnalytics(ctx, req.(*GetAnalyticsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_SetAnalyticsLevel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetAnalyticsLevelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).SetAnalyticsLevel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_SetAnalyticsLevel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).SetAnalyticsLevel(ctx, req.(*SetAnalyticsLevelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_RecordUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordUsageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).RecordUsage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_RecordUsage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).RecordUsage(ctx, req.(*RecordUsageRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2314,6 +2426,18 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetStoragePreferences",
 			Handler:    _RunnirCore_SetStoragePreferences_Handler,
+		},
+		{
+			MethodName: "GetAnalytics",
+			Handler:    _RunnirCore_GetAnalytics_Handler,
+		},
+		{
+			MethodName: "SetAnalyticsLevel",
+			Handler:    _RunnirCore_SetAnalyticsLevel_Handler,
+		},
+		{
+			MethodName: "RecordUsage",
+			Handler:    _RunnirCore_RecordUsage_Handler,
 		},
 		{
 			MethodName: "ListWorkflows",

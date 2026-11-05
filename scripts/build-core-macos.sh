@@ -38,13 +38,26 @@ licenses="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/Licenses"
 mkdir -p "$destination" "$licenses" "${DERIVED_FILE_DIR}/core"
 cd "${SRCROOT}/../../core"
 
+# Analytics are sent only by the builds of a tag, which the release workflow
+# gives the PostHog project (RUNNIR_POSTHOG_PROJECT_TOKEN and
+# RUNNIR_POSTHOG_HOST); Runnir Dev and Runnir Local count but never send.
+posthog_token=""
+posthog_host=""
+case "${RUNNIR_BUILD:-}" in
+    alpha | beta | release)
+        posthog_token="${RUNNIR_POSTHOG_PROJECT_TOKEN:-}"
+        posthog_host="${RUNNIR_POSTHOG_HOST:-}"
+        ;;
+esac
+buildinfo=runnir/core/internal/buildinfo
+
 for arch in $ARCHS; do
     case "$arch" in
         arm64) export GOARCH=arm64 ;;
         x86_64) export GOARCH=amd64 ;;
         *) echo "Unsupported macOS architecture" >&2; exit 1 ;;
     esac
-    go build -trimpath -ldflags "-X runnir/core/internal/buildinfo.Version=${MARKETING_VERSION}" \
+    go build -trimpath -ldflags "-X ${buildinfo}.Version=${MARKETING_VERSION} -X ${buildinfo}.PostHogProjectToken=${posthog_token} -X ${buildinfo}.PostHogHost=${posthog_host}" \
         -o "${DERIVED_FILE_DIR}/core/runnir-${arch}" ./cmd/runnir
 done
 
