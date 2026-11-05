@@ -252,6 +252,9 @@ func (s *service) ConfirmRunAction(ctx context.Context, request *corev1.ConfirmR
 	if sendErr == nil {
 		out.AcceptedAt = timestamppb.New(acceptedAt)
 		s.recordRerun(ctx, prepared, acceptedAt)
+		if prepared.Action == corev1.RunAction_RUN_ACTION_CANCEL {
+			s.countSupersededCancel(ctx, prepared.RepositoryID, prepared.RunID, acceptedAt)
+		}
 	}
 	return out, nil
 }

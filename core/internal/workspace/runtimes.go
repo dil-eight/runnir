@@ -125,7 +125,7 @@ func (m *Runtimes) Attach(workspaceID, repositoryID string, resolve Resolver) (*
 			return nil, err
 		}
 		rt := newRuntime(id, repositoryID, resolve, config{store: st, publish: m.opts.Publish, now: m.now,
-			intervals: m.opts.Intervals, keepLogs: m.keepLogs.Load})
+			intervals: m.opts.Intervals, keepLogs: m.keepLogs.Load, analytics: m.opts.Analytics})
 		m.byWorkspace[id] = rt
 		m.byRepository[repositoryID] = id
 		m.mu.Unlock()

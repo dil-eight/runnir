@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -44,6 +45,9 @@ func (s *service) SaveWorkflowFile(ctx context.Context, request *corev1.SaveWork
 	if !result.Conflict {
 		// A failed rescan keeps the last snapshot; the save itself stands.
 		_, _ = s.repositories.Refresh(ctx, info.ID)
+		if !workflow.Concurrency && scanner.HasSuggestedConcurrency(request.GetContent()) {
+			s.noteConcurrencySaved(ctx, info.ID, workflow.ID, time.Now())
+		}
 	}
 	return &corev1.SaveWorkflowFileResponse{Sha256: result.SHA256, Conflict: result.Conflict}, nil
 }
