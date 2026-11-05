@@ -80,4 +80,4 @@ Maintainers review scope, behavior, test evidence, privacy and dependency impact
 
 ## Licensing
 
-The checked-in [LICENSE](LICENSE) contains GPLv3. Apache-2.0 is a proposal in a product brief, not an adopted license change. Do not relabel/relicense the project in a contribution. Check dependency compatibility and retain required upstream notices; do not introduce third-party material without a usable license/source record.
+Runnir is licensed under the [Apache License 2.0](LICENSE) ([ADR 0008](docs/decisions/0008-apache-2-license.md)); a contribution is accepted under the same license, as its section 5 says. Do not relabel/relicense the project in a contribution. Check dependency compatibility and retain required upstream notices; do not introduce third-party material without a usable license/source record.

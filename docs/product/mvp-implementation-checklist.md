@@ -74,7 +74,7 @@ Not started: B18–B24 and B29 beyond the existing window and session foundation
 | B14 | P1 / FR-06 | Docker/OrbStack/act readiness and explicit setup | B01; approved tool/version policy | Missing CLI, stopped daemon, selected local versus remote context, unsupported architecture, user declines setup; no silent context change |
 | B15 | P1 / FR-06 | Compatible local job inventory and execution plan | B02/B03/B14; structured job inspection | Linux fixture supported; macOS/iOS/unsupported services/secrets reported; mounts/network/images and credential policy visible |
 | B16 | P1 / FR-06 | Start/stream/cancel/clean up local act execution | B15; execution lifecycle/approval/resource policy | Real simple fixture without commit/push; bounded live output, exit codes, cancellation/process+container cleanup, app shutdown; no automatic GitHub token injection |
-| B17 | Release gate | Usable complete macOS v0.1 | B04/B06/B08/B10/B12/B13/B16 | End-to-end acceptance checklist below; licensing decision; distribution claims match actual verification |
+| B17 | Release gate | Usable complete macOS v0.1 | B04/B06/B08/B10/B12/B13/B16 | End-to-end acceptance checklist below; third-party license notices in the app and the Core binaries; distribution claims match actual verification |
 
 First proposed slice: desktop window/registry/session foundations below; B01-B03 follow in the shared workspace context. Auth client registration can proceed independently. Add SQLite in F3 for the explicit offline requirement, not in the first window-only slice. No speculative plugin framework/event bus or permanent background daemon.
 
@@ -149,7 +149,7 @@ Open decisions for these: the GitHub status check in B36 is off by default, swit
 - actionlint/act versions, license notices, artifact verification and bundled versus user-installed distribution.
 - Repository execution trust model, image/network/download consent, cleanup and resource bounds.
 - Session durability/native restoration ordering, pure-Go SQLite driver and single-writer lifetime, config field merging, history/blob budgets; see ADR 0003. Account-wide browsing is a GitHub tab in the Workspace Manager (decided 2026-10-20).
-- LICENSE remains GPLv3; proposed Apache-2.0 requires a separate explicit decision.
+- LICENSE is Apache-2.0 (decided 2026-11-04, [ADR 0008](../decisions/0008-apache-2-license.md)); the third-party notices still have to ship with releases.
 
 These decisions gate the features they affect, not documentation work or all independent slices.
 

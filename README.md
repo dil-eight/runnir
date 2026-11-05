@@ -59,6 +59,7 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 - [Developer ID without the App Sandbox](docs/decisions/0005-developer-id-without-app-sandbox.md)
 - [Bundled act for local runs](docs/decisions/0006-bundled-act-for-local-runs.md)
 - [Workspace database in the Go Core](docs/decisions/0007-workspace-sqlite.md)
+- [Apache License 2.0](docs/decisions/0008-apache-2-license.md)
 - [Desktop lifecycle and restoration](docs/architecture/desktop-lifecycle.md)
 - [Portable config, offline DB and shared sync](docs/architecture/workspace-persistence.md)
 - [IPC v1](docs/architecture/ipc.md)
@@ -135,7 +136,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, scoped tasks, native/Core chec
 
 ## Releases
 
-The checked-in LICENSE contains GPLv3. The app bundles act (MIT); its license ships in `Contents/Resources/Licenses`, and the notices of act's own dependencies still need to be collected before a release. Apache-2.0 in the proposed MVP brief is an unresolved licensing proposal; LICENSE has not been changed.
+Runnir is licensed under the [Apache License 2.0](LICENSE) ([ADR 0008](docs/decisions/0008-apache-2-license.md)). The app bundles act (MIT); its license ships in `Contents/Resources/Licenses`, and the notices of act's own dependencies, the Core's Go modules and the app's Swift packages still need to be collected before a release.
 
 Releases are tag-based:
 

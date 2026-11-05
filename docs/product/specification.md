@@ -18,7 +18,7 @@ Keep Swift 6, SwiftUI, Observation, Foundation, Security/Keychain and the separa
 
 Use versioned local IPC with one app-managed Core child process (gRPC over a Unix socket, [ADR 0004](../decisions/0004-single-core-process-grpc.md); JSON-RPC over stdio only for the version handshake); no permanent daemon. Keep transport separate from domain logic. Preserve existing Swift GitHub services until tested feature-level migrations are practical. New portable domain behavior belongs in Go; no competing implementations.
 
-The checked-in LICENSE contains GPLv3. Apache-2.0 is proposed in the supplied brief but is not adopted by this update. A separate explicit licensing decision is needed before representing the project as Apache-2.0; this specification does not change LICENSE.
+Runnir is licensed under the Apache License 2.0 ([LICENSE](../../LICENSE), [ADR 0008](../decisions/0008-apache-2-license.md), decided 2026-11-04).
 
 ## FR-01 GitHub Authentication
 
