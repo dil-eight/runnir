@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
+	"runnir/core/internal/analytics"
 	"runnir/core/internal/changes"
 	"runnir/core/internal/events"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
@@ -83,6 +84,8 @@ type config struct {
 	now       func() time.Time
 	intervals Intervals
 	keepLogs  func() bool
+	// analytics adds counts to the ledger; nil drops them.
+	analytics func(time.Time, analytics.Counts)
 }
 
 // Runtime is one workspace's shared service: one sync loop and one store,
@@ -269,6 +272,9 @@ func (r *Runtime) pass() {
 			if p.PullRequests != nil && !p.PullRequests.Refused {
 				r.lookUp(*target)
 			}
+		}
+		if p.OK {
+			r.countConcurrencyCancels()
 		}
 	}
 	active := false

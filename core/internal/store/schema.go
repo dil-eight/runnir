@@ -226,4 +226,16 @@ CREATE TABLE savings (
 	count INTEGER NOT NULL,
 	since INTEGER NOT NULL
 );
+-- local: workflow files this Mac saved with Runnir's suggested concurrency
+-- block (the first save), for the analytics of runs that block cancels.
+CREATE TABLE concurrency_saves (
+	workflow_path TEXT PRIMARY KEY,
+	saved_at INTEGER NOT NULL
+);
+-- local: runs already counted as cancelled by that block; the newest
+-- 10,000 ids are kept. Clear Cache keeps them, so a sync after it does not
+-- count the same runs again.
+CREATE TABLE counted_cancels (
+	run_id INTEGER PRIMARY KEY
+);
 `

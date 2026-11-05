@@ -94,3 +94,33 @@ func analyticsCounters(counts analytics.Counts) []*corev1.AnalyticsCounter {
 	}
 	return out
 }
+
+// countSupersededCancel counts a cancel GitHub accepted for a superseded
+// run, with the minutes it saved by the workflow's median run.
+func (s *service) countSupersededCancel(ctx context.Context, repositoryID string, runID int64, at time.Time) {
+	if s.analytics == nil || s.workspaces == nil {
+		return
+	}
+	rt, ok := s.workspaces.ForRepository(repositoryID)
+	if !ok {
+		return
+	}
+	superseded, minutes, err := rt.CancelEstimate(ctx, runID, at)
+	if err != nil || !superseded {
+		return
+	}
+	_ = s.analytics.Add(at, analytics.Counts{analytics.SupersededCancels: 1, analytics.SupersededCancelMinutesEst: minutes})
+}
+
+// noteConcurrencySaved counts a save that added Runnir's suggested
+// concurrency block to a workflow file that had none.
+func (s *service) noteConcurrencySaved(ctx context.Context, repositoryID, workflowPath string, at time.Time) {
+	if s.analytics == nil || s.workspaces == nil {
+		return
+	}
+	rt, ok := s.workspaces.ForRepository(repositoryID)
+	if !ok || rt.NoteConcurrencySaved(ctx, workflowPath, at) != nil {
+		return
+	}
+	_ = s.analytics.Add(at, analytics.Counts{analytics.ConcurrencyInserted: 1})
+}

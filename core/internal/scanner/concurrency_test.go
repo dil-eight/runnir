@@ -72,3 +72,17 @@ func TestConcurrencyRefusals(t *testing.T) {
 		}
 	}
 }
+
+func TestTheSuggestedBlockIsRecognizedInSavedText(t *testing.T) {
+	edit := InsertConcurrency("on: push\njobs:\n  a:\n    runs-on: ubuntu-latest\n")
+	if edit.Refusal != ConcurrencyInserted || !HasSuggestedConcurrency(edit.Content) {
+		t.Fatalf("inserted block not recognized: %+v", edit)
+	}
+	crlf := InsertConcurrency("on: push\r\njobs:\r\n  a:\r\n    runs-on: ubuntu-latest\r\n")
+	if !HasSuggestedConcurrency(crlf.Content) {
+		t.Fatal("CRLF text not recognized")
+	}
+	if HasSuggestedConcurrency("concurrency:\n  group: ci\njobs: {}\n") {
+		t.Fatal("a hand-written block counted as the suggestion")
+	}
+}

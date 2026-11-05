@@ -8,14 +8,21 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+// concurrencyGroup is the block's group line; no hand-written block has it.
+const concurrencyGroup = "  group: ${{ github.workflow }}-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref != format('refs/heads/{0}', github.event.repository.default_branch) && github.ref) || github.run_id }}"
+
 // concurrencyBlock is what InsertConcurrency adds. Pull requests group by
 // number and pushes to other branches than the default by ref, so a newer
 // commit cancels the older run in progress; everything else gets a group
 // of its own (run_id) and is never cancelled or queued.
 const concurrencyBlock = "# Newer commits on a pull request or branch cancel its older runs; runs on the default branch, scheduled and manual runs are never cancelled.\n" +
 	"concurrency:\n" +
-	"  group: ${{ github.workflow }}-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref != format('refs/heads/{0}', github.event.repository.default_branch) && github.ref) || github.run_id }}\n" +
+	concurrencyGroup + "\n" +
 	"  cancel-in-progress: true"
+
+// HasSuggestedConcurrency reports text holding the block InsertConcurrency
+// adds, whatever its line endings.
+func HasSuggestedConcurrency(content string) bool { return strings.Contains(content, concurrencyGroup) }
 
 // ConcurrencyRefusal says why InsertConcurrency changed nothing.
 type ConcurrencyRefusal int
