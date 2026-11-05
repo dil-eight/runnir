@@ -58,6 +58,14 @@ service RunnirCore {
   rpc DeleteWorkspaceData(DeleteWorkspaceDataRequest) returns (DeleteWorkspaceDataResponse);
   // Whether completed jobs' logs are kept on this Mac. Off in every new Core.
   rpc SetStoragePreferences(SetStoragePreferencesRequest) returns (SetStoragePreferencesResponse);
+  // The analytics level, whether the consent question was answered and the
+  // counts waiting to be sent (docs/product/analytics-and-crash-reporting.md).
+  rpc GetAnalytics(GetAnalyticsRequest) returns (Analytics);
+  // Changes the level: a new analytics id for FULL; the id and section and
+  // action counts dropped when leaving FULL; everything unsent dropped for OFF.
+  rpc SetAnalyticsLevel(SetAnalyticsLevelRequest) returns (Analytics);
+  // One more of a section or action; counted only at FULL.
+  rpc RecordUsage(RecordUsageRequest) returns (RecordUsageResponse);
 
   rpc ListWorkflows(ListWorkflowsRequest) returns (ListWorkflowsResponse);
   // Run Workflow presets the repository shares in .runnir/launches, read in
@@ -2021,3 +2029,88 @@ message ListEnvironmentsResponse {
   // environment, spelled as the workflows spell it.
   repeated string names = 1;
 }
+
+enum AnalyticsLevel {
+  ANALYTICS_LEVEL_UNSPECIFIED = 0;
+  // Nothing is counted or sent.
+  ANALYTICS_LEVEL_OFF = 1;
+  // first_launch and saved-minute counts, without an id. The default.
+  ANALYTICS_LEVEL_BASIC = 2;
+  // BASIC plus section and action counts, with a random analytics id.
+  ANALYTICS_LEVEL_FULL = 3;
+}
+
+message AnalyticsCounter {
+  string name = 1;
+  uint64 value = 2;
+}
+
+message Analytics {
+  AnalyticsLevel level = 1;
+  bool prompt_answered = 2;
+  // A Release build with the ledger on disk: batches are sent.
+  bool sending_available = 3;
+  // Set only at FULL.
+  string analytics_id = 4;
+  // Counts sealed and waiting to be sent, summed by name; an unsent
+  // first_launch is "first_launch": 1. Sorted by name.
+  repeated AnalyticsCounter sealed = 5;
+  // Today's counts, sealed tomorrow. Sorted by name.
+  repeated AnalyticsCounter today = 6;
+  // The ledger is kept on disk. False without a data folder or when another
+  // copy of Runnir holds it; the app then asks nothing and offers no level.
+  bool persistent = 7;
+}
+
+message GetAnalyticsRequest {}
+
+message SetAnalyticsLevelRequest {
+  AnalyticsLevel level = 1;
+  // The consent question's answer: it is not asked again.
+  bool from_prompt = 2;
+}
+
+// Sections and actions counted at FULL. The counter is the lowercase name
+// without the prefix, for example "screen_overview".
+enum UsageEvent {
+  USAGE_EVENT_UNSPECIFIED = 0;
+  USAGE_EVENT_SCREEN_OVERVIEW = 1;
+  USAGE_EVENT_SCREEN_WORKFLOWS = 2;
+  USAGE_EVENT_SCREEN_RUNS = 3;
+  USAGE_EVENT_SCREEN_SECRETS = 4;
+  USAGE_EVENT_SCREEN_WORKSPACE = 5;
+  USAGE_EVENT_SCREEN_WORKSPACE_EDITOR = 6;
+  USAGE_EVENT_SCREEN_WORKSPACE_LOCAL_RUN = 7;
+  USAGE_EVENT_SCREEN_MANAGER_WORKSPACES = 8;
+  USAGE_EVENT_SCREEN_MANAGER_GITHUB = 9;
+  USAGE_EVENT_SCREEN_SETTINGS_ACCOUNT = 10;
+  USAGE_EVENT_SCREEN_SETTINGS_RUNS = 11;
+  USAGE_EVENT_SCREEN_SETTINGS_NOTIFICATIONS = 12;
+  USAGE_EVENT_SCREEN_SETTINGS_PULL_REQUESTS = 13;
+  USAGE_EVENT_SCREEN_SETTINGS_TOOLS = 14;
+  USAGE_EVENT_SCREEN_SETTINGS_STORAGE = 15;
+  USAGE_EVENT_SCREEN_SETTINGS_PRIVACY = 16;
+  USAGE_EVENT_SCREEN_MENU_BAR = 17;
+  USAGE_EVENT_ACTION_RUN_LOCAL = 18;
+  USAGE_EVENT_ACTION_DISPATCH = 19;
+  USAGE_EVENT_ACTION_CANCEL_RUN = 20;
+  USAGE_EVENT_ACTION_RERUN = 21;
+  USAGE_EVENT_ACTION_SAVE_WORKFLOW = 22;
+  USAGE_EVENT_ACTION_CREATE_WORKFLOW = 23;
+  USAGE_EVENT_ACTION_RENAME_WORKFLOW = 24;
+  USAGE_EVENT_ACTION_VALIDATE = 25;
+  USAGE_EVENT_ACTION_OPEN_LOG = 26;
+  USAGE_EVENT_ACTION_SAVE_LOG = 27;
+  USAGE_EVENT_ACTION_SAVE_PRESET = 28;
+  USAGE_EVENT_ACTION_APPLY_PRESET = 29;
+  USAGE_EVENT_ACTION_INSERT_CONCURRENCY = 30;
+  USAGE_EVENT_ACTION_FAVORITE = 31;
+  USAGE_EVENT_ACTION_OPEN_ON_GITHUB = 32;
+  USAGE_EVENT_ACTION_REPORT_BUG = 33;
+}
+
+message RecordUsageRequest {
+  UsageEvent event = 1;
+}
+
+message RecordUsageResponse {}

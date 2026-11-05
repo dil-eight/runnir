@@ -1427,6 +1427,218 @@ nonisolated enum Runnir_Core_V1_StorageState: SwiftProtobuf.Enum, Swift.CaseIter
 
 }
 
+nonisolated enum Runnir_Core_V1_AnalyticsLevel: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+
+  /// Nothing is counted or sent.
+  case off // = 1
+
+  /// first_launch and saved-minute counts, without an id. The default.
+  case basic // = 2
+
+  /// BASIC plus section and action counts, with a random analytics id.
+  case full // = 3
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .off
+    case 2: self = .basic
+    case 3: self = .full
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .off: return 1
+    case .basic: return 2
+    case .full: return 3
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_AnalyticsLevel] = [
+    .unspecified,
+    .off,
+    .basic,
+    .full,
+  ]
+
+}
+
+/// Sections and actions counted at FULL. The counter is the lowercase name
+/// without the prefix, for example "screen_overview".
+nonisolated enum Runnir_Core_V1_UsageEvent: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+  case screenOverview // = 1
+  case screenWorkflows // = 2
+  case screenRuns // = 3
+  case screenSecrets // = 4
+  case screenWorkspace // = 5
+  case screenWorkspaceEditor // = 6
+  case screenWorkspaceLocalRun // = 7
+  case screenManagerWorkspaces // = 8
+  case screenManagerGithub // = 9
+  case screenSettingsAccount // = 10
+  case screenSettingsRuns // = 11
+  case screenSettingsNotifications // = 12
+  case screenSettingsPullRequests // = 13
+  case screenSettingsTools // = 14
+  case screenSettingsStorage // = 15
+  case screenSettingsPrivacy // = 16
+  case screenMenuBar // = 17
+  case actionRunLocal // = 18
+  case actionDispatch // = 19
+  case actionCancelRun // = 20
+  case actionRerun // = 21
+  case actionSaveWorkflow // = 22
+  case actionCreateWorkflow // = 23
+  case actionRenameWorkflow // = 24
+  case actionValidate // = 25
+  case actionOpenLog // = 26
+  case actionSaveLog // = 27
+  case actionSavePreset // = 28
+  case actionApplyPreset // = 29
+  case actionInsertConcurrency // = 30
+  case actionFavorite // = 31
+  case actionOpenOnGithub // = 32
+  case actionReportBug // = 33
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .screenOverview
+    case 2: self = .screenWorkflows
+    case 3: self = .screenRuns
+    case 4: self = .screenSecrets
+    case 5: self = .screenWorkspace
+    case 6: self = .screenWorkspaceEditor
+    case 7: self = .screenWorkspaceLocalRun
+    case 8: self = .screenManagerWorkspaces
+    case 9: self = .screenManagerGithub
+    case 10: self = .screenSettingsAccount
+    case 11: self = .screenSettingsRuns
+    case 12: self = .screenSettingsNotifications
+    case 13: self = .screenSettingsPullRequests
+    case 14: self = .screenSettingsTools
+    case 15: self = .screenSettingsStorage
+    case 16: self = .screenSettingsPrivacy
+    case 17: self = .screenMenuBar
+    case 18: self = .actionRunLocal
+    case 19: self = .actionDispatch
+    case 20: self = .actionCancelRun
+    case 21: self = .actionRerun
+    case 22: self = .actionSaveWorkflow
+    case 23: self = .actionCreateWorkflow
+    case 24: self = .actionRenameWorkflow
+    case 25: self = .actionValidate
+    case 26: self = .actionOpenLog
+    case 27: self = .actionSaveLog
+    case 28: self = .actionSavePreset
+    case 29: self = .actionApplyPreset
+    case 30: self = .actionInsertConcurrency
+    case 31: self = .actionFavorite
+    case 32: self = .actionOpenOnGithub
+    case 33: self = .actionReportBug
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .screenOverview: return 1
+    case .screenWorkflows: return 2
+    case .screenRuns: return 3
+    case .screenSecrets: return 4
+    case .screenWorkspace: return 5
+    case .screenWorkspaceEditor: return 6
+    case .screenWorkspaceLocalRun: return 7
+    case .screenManagerWorkspaces: return 8
+    case .screenManagerGithub: return 9
+    case .screenSettingsAccount: return 10
+    case .screenSettingsRuns: return 11
+    case .screenSettingsNotifications: return 12
+    case .screenSettingsPullRequests: return 13
+    case .screenSettingsTools: return 14
+    case .screenSettingsStorage: return 15
+    case .screenSettingsPrivacy: return 16
+    case .screenMenuBar: return 17
+    case .actionRunLocal: return 18
+    case .actionDispatch: return 19
+    case .actionCancelRun: return 20
+    case .actionRerun: return 21
+    case .actionSaveWorkflow: return 22
+    case .actionCreateWorkflow: return 23
+    case .actionRenameWorkflow: return 24
+    case .actionValidate: return 25
+    case .actionOpenLog: return 26
+    case .actionSaveLog: return 27
+    case .actionSavePreset: return 28
+    case .actionApplyPreset: return 29
+    case .actionInsertConcurrency: return 30
+    case .actionFavorite: return 31
+    case .actionOpenOnGithub: return 32
+    case .actionReportBug: return 33
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_UsageEvent] = [
+    .unspecified,
+    .screenOverview,
+    .screenWorkflows,
+    .screenRuns,
+    .screenSecrets,
+    .screenWorkspace,
+    .screenWorkspaceEditor,
+    .screenWorkspaceLocalRun,
+    .screenManagerWorkspaces,
+    .screenManagerGithub,
+    .screenSettingsAccount,
+    .screenSettingsRuns,
+    .screenSettingsNotifications,
+    .screenSettingsPullRequests,
+    .screenSettingsTools,
+    .screenSettingsStorage,
+    .screenSettingsPrivacy,
+    .screenMenuBar,
+    .actionRunLocal,
+    .actionDispatch,
+    .actionCancelRun,
+    .actionRerun,
+    .actionSaveWorkflow,
+    .actionCreateWorkflow,
+    .actionRenameWorkflow,
+    .actionValidate,
+    .actionOpenLog,
+    .actionSaveLog,
+    .actionSavePreset,
+    .actionApplyPreset,
+    .actionInsertConcurrency,
+    .actionFavorite,
+    .actionOpenOnGithub,
+    .actionReportBug,
+  ]
+
+}
+
 nonisolated struct Runnir_Core_V1_HealthCheckRequest: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -5658,6 +5870,98 @@ nonisolated struct Runnir_Core_V1_ListEnvironmentsResponse: Sendable {
   init() {}
 }
 
+nonisolated struct Runnir_Core_V1_AnalyticsCounter: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var name: String = String()
+
+  var value: UInt64 = 0
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_Analytics: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var level: Runnir_Core_V1_AnalyticsLevel = .unspecified
+
+  var promptAnswered: Bool = false
+
+  /// A Release build with the ledger on disk: batches are sent.
+  var sendingAvailable: Bool = false
+
+  /// Set only at FULL.
+  var analyticsID: String = String()
+
+  /// Counts sealed and waiting to be sent, summed by name; an unsent
+  /// first_launch is "first_launch": 1. Sorted by name.
+  var sealed: [Runnir_Core_V1_AnalyticsCounter] = []
+
+  /// Today's counts, sealed tomorrow. Sorted by name.
+  var today: [Runnir_Core_V1_AnalyticsCounter] = []
+
+  /// The ledger is kept on disk. False without a data folder or when another
+  /// copy of Runnir holds it; the app then asks nothing and offers no level.
+  var persistent: Bool = false
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_GetAnalyticsRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_SetAnalyticsLevelRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var level: Runnir_Core_V1_AnalyticsLevel = .unspecified
+
+  /// The consent question's answer: it is not asked again.
+  var fromPrompt: Bool = false
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_RecordUsageRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var event: Runnir_Core_V1_UsageEvent = .unspecified
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_RecordUsageResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
 fileprivate nonisolated let _protobuf_package = "runnir.core.v1"
@@ -5764,6 +6068,14 @@ nonisolated extension Runnir_Core_V1_ConcurrencyRefusal: SwiftProtobuf._ProtoNam
 
 nonisolated extension Runnir_Core_V1_StorageState: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0STORAGE_STATE_UNSPECIFIED\0\u{1}STORAGE_STATE_PERSISTENT\0\u{1}STORAGE_STATE_MEMORY_ONLY\0\u{1}STORAGE_STATE_ABSENT\0")
+}
+
+nonisolated extension Runnir_Core_V1_AnalyticsLevel: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0ANALYTICS_LEVEL_UNSPECIFIED\0\u{1}ANALYTICS_LEVEL_OFF\0\u{1}ANALYTICS_LEVEL_BASIC\0\u{1}ANALYTICS_LEVEL_FULL\0")
+}
+
+nonisolated extension Runnir_Core_V1_UsageEvent: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0USAGE_EVENT_UNSPECIFIED\0\u{1}USAGE_EVENT_SCREEN_OVERVIEW\0\u{1}USAGE_EVENT_SCREEN_WORKFLOWS\0\u{1}USAGE_EVENT_SCREEN_RUNS\0\u{1}USAGE_EVENT_SCREEN_SECRETS\0\u{1}USAGE_EVENT_SCREEN_WORKSPACE\0\u{1}USAGE_EVENT_SCREEN_WORKSPACE_EDITOR\0\u{1}USAGE_EVENT_SCREEN_WORKSPACE_LOCAL_RUN\0\u{1}USAGE_EVENT_SCREEN_MANAGER_WORKSPACES\0\u{1}USAGE_EVENT_SCREEN_MANAGER_GITHUB\0\u{1}USAGE_EVENT_SCREEN_SETTINGS_ACCOUNT\0\u{1}USAGE_EVENT_SCREEN_SETTINGS_RUNS\0\u{1}USAGE_EVENT_SCREEN_SETTINGS_NOTIFICATIONS\0\u{1}USAGE_EVENT_SCREEN_SETTINGS_PULL_REQUESTS\0\u{1}USAGE_EVENT_SCREEN_SETTINGS_TOOLS\0\u{1}USAGE_EVENT_SCREEN_SETTINGS_STORAGE\0\u{1}USAGE_EVENT_SCREEN_SETTINGS_PRIVACY\0\u{1}USAGE_EVENT_SCREEN_MENU_BAR\0\u{1}USAGE_EVENT_ACTION_RUN_LOCAL\0\u{1}USAGE_EVENT_ACTION_DISPATCH\0\u{1}USAGE_EVENT_ACTION_CANCEL_RUN\0\u{1}USAGE_EVENT_ACTION_RERUN\0\u{1}USAGE_EVENT_ACTION_SAVE_WORKFLOW\0\u{1}USAGE_EVENT_ACTION_CREATE_WORKFLOW\0\u{1}USAGE_EVENT_ACTION_RENAME_WORKFLOW\0\u{1}USAGE_EVENT_ACTION_VALIDATE\0\u{1}USAGE_EVENT_ACTION_OPEN_LOG\0\u{1}USAGE_EVENT_ACTION_SAVE_LOG\0\u{1}USAGE_EVENT_ACTION_SAVE_PRESET\0\u{1}USAGE_EVENT_ACTION_APPLY_PRESET\0\u{1}USAGE_EVENT_ACTION_INSERT_CONCURRENCY\0\u{1}USAGE_EVENT_ACTION_FAVORITE\0\u{1}USAGE_EVENT_ACTION_OPEN_ON_GITHUB\0\u{1}USAGE_EVENT_ACTION_REPORT_BUG\0")
 }
 
 nonisolated extension Runnir_Core_V1_HealthCheckRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
@@ -13681,6 +13993,204 @@ nonisolated extension Runnir_Core_V1_ListEnvironmentsResponse: SwiftProtobuf.Mes
 
   static func ==(lhs: Runnir_Core_V1_ListEnvironmentsResponse, rhs: Runnir_Core_V1_ListEnvironmentsResponse) -> Bool {
     if lhs.names != rhs.names {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_AnalyticsCounter: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".AnalyticsCounter"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}name\0\u{1}value\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 2: try { try decoder.decodeSingularUInt64Field(value: &self.value) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.name.isEmpty {
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 1)
+    }
+    if self.value != 0 {
+      try visitor.visitSingularUInt64Field(value: self.value, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_AnalyticsCounter, rhs: Runnir_Core_V1_AnalyticsCounter) -> Bool {
+    if lhs.name != rhs.name {return false}
+    if lhs.value != rhs.value {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_Analytics: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".Analytics"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}level\0\u{3}prompt_answered\0\u{3}sending_available\0\u{3}analytics_id\0\u{1}sealed\0\u{1}today\0\u{1}persistent\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.level) }()
+      case 2: try { try decoder.decodeSingularBoolField(value: &self.promptAnswered) }()
+      case 3: try { try decoder.decodeSingularBoolField(value: &self.sendingAvailable) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.analyticsID) }()
+      case 5: try { try decoder.decodeRepeatedMessageField(value: &self.sealed) }()
+      case 6: try { try decoder.decodeRepeatedMessageField(value: &self.today) }()
+      case 7: try { try decoder.decodeSingularBoolField(value: &self.persistent) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.level != .unspecified {
+      try visitor.visitSingularEnumField(value: self.level, fieldNumber: 1)
+    }
+    if self.promptAnswered != false {
+      try visitor.visitSingularBoolField(value: self.promptAnswered, fieldNumber: 2)
+    }
+    if self.sendingAvailable != false {
+      try visitor.visitSingularBoolField(value: self.sendingAvailable, fieldNumber: 3)
+    }
+    if !self.analyticsID.isEmpty {
+      try visitor.visitSingularStringField(value: self.analyticsID, fieldNumber: 4)
+    }
+    if !self.sealed.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.sealed, fieldNumber: 5)
+    }
+    if !self.today.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.today, fieldNumber: 6)
+    }
+    if self.persistent != false {
+      try visitor.visitSingularBoolField(value: self.persistent, fieldNumber: 7)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_Analytics, rhs: Runnir_Core_V1_Analytics) -> Bool {
+    if lhs.level != rhs.level {return false}
+    if lhs.promptAnswered != rhs.promptAnswered {return false}
+    if lhs.sendingAvailable != rhs.sendingAvailable {return false}
+    if lhs.analyticsID != rhs.analyticsID {return false}
+    if lhs.sealed != rhs.sealed {return false}
+    if lhs.today != rhs.today {return false}
+    if lhs.persistent != rhs.persistent {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_GetAnalyticsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".GetAnalyticsRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    // Load everything into unknown fields
+    while try decoder.nextFieldNumber() != nil {}
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_GetAnalyticsRequest, rhs: Runnir_Core_V1_GetAnalyticsRequest) -> Bool {
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_SetAnalyticsLevelRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".SetAnalyticsLevelRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}level\0\u{3}from_prompt\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.level) }()
+      case 2: try { try decoder.decodeSingularBoolField(value: &self.fromPrompt) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.level != .unspecified {
+      try visitor.visitSingularEnumField(value: self.level, fieldNumber: 1)
+    }
+    if self.fromPrompt != false {
+      try visitor.visitSingularBoolField(value: self.fromPrompt, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_SetAnalyticsLevelRequest, rhs: Runnir_Core_V1_SetAnalyticsLevelRequest) -> Bool {
+    if lhs.level != rhs.level {return false}
+    if lhs.fromPrompt != rhs.fromPrompt {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_RecordUsageRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".RecordUsageRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}event\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.event) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.event != .unspecified {
+      try visitor.visitSingularEnumField(value: self.event, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_RecordUsageRequest, rhs: Runnir_Core_V1_RecordUsageRequest) -> Bool {
+    if lhs.event != rhs.event {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_RecordUsageResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".RecordUsageResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    // Load everything into unknown fields
+    while try decoder.nextFieldNumber() != nil {}
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_RecordUsageResponse, rhs: Runnir_Core_V1_RecordUsageResponse) -> Bool {
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

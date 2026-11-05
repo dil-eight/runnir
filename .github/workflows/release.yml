@@ -105,6 +105,11 @@ jobs:
           done
 
       - name: Build archive
+        env:
+          # The PostHog project (B21): only the app of a tag sends analytics.
+          # The Core binaries above get no token and never send.
+          RUNNIR_POSTHOG_PROJECT_TOKEN: ${{ vars.RUNNIR_POSTHOG_PROJECT_TOKEN }}
+          RUNNIR_POSTHOG_HOST: ${{ vars.RUNNIR_POSTHOG_HOST }}
         run: |
           xcodebuild archive \
             -project apps/macos/Runnir.xcodeproj \

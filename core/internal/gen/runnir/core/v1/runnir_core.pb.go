@@ -1587,6 +1587,205 @@ func (StorageState) EnumDescriptor() ([]byte, []int) {
 	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{25}
 }
 
+type AnalyticsLevel int32
+
+const (
+	AnalyticsLevel_ANALYTICS_LEVEL_UNSPECIFIED AnalyticsLevel = 0
+	// Nothing is counted or sent.
+	AnalyticsLevel_ANALYTICS_LEVEL_OFF AnalyticsLevel = 1
+	// first_launch and saved-minute counts, without an id. The default.
+	AnalyticsLevel_ANALYTICS_LEVEL_BASIC AnalyticsLevel = 2
+	// BASIC plus section and action counts, with a random analytics id.
+	AnalyticsLevel_ANALYTICS_LEVEL_FULL AnalyticsLevel = 3
+)
+
+// Enum value maps for AnalyticsLevel.
+var (
+	AnalyticsLevel_name = map[int32]string{
+		0: "ANALYTICS_LEVEL_UNSPECIFIED",
+		1: "ANALYTICS_LEVEL_OFF",
+		2: "ANALYTICS_LEVEL_BASIC",
+		3: "ANALYTICS_LEVEL_FULL",
+	}
+	AnalyticsLevel_value = map[string]int32{
+		"ANALYTICS_LEVEL_UNSPECIFIED": 0,
+		"ANALYTICS_LEVEL_OFF":         1,
+		"ANALYTICS_LEVEL_BASIC":       2,
+		"ANALYTICS_LEVEL_FULL":        3,
+	}
+)
+
+func (x AnalyticsLevel) Enum() *AnalyticsLevel {
+	p := new(AnalyticsLevel)
+	*p = x
+	return p
+}
+
+func (x AnalyticsLevel) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AnalyticsLevel) Descriptor() protoreflect.EnumDescriptor {
+	return file_runnir_core_v1_runnir_core_proto_enumTypes[26].Descriptor()
+}
+
+func (AnalyticsLevel) Type() protoreflect.EnumType {
+	return &file_runnir_core_v1_runnir_core_proto_enumTypes[26]
+}
+
+func (x AnalyticsLevel) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AnalyticsLevel.Descriptor instead.
+func (AnalyticsLevel) EnumDescriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{26}
+}
+
+// Sections and actions counted at FULL. The counter is the lowercase name
+// without the prefix, for example "screen_overview".
+type UsageEvent int32
+
+const (
+	UsageEvent_USAGE_EVENT_UNSPECIFIED                   UsageEvent = 0
+	UsageEvent_USAGE_EVENT_SCREEN_OVERVIEW               UsageEvent = 1
+	UsageEvent_USAGE_EVENT_SCREEN_WORKFLOWS              UsageEvent = 2
+	UsageEvent_USAGE_EVENT_SCREEN_RUNS                   UsageEvent = 3
+	UsageEvent_USAGE_EVENT_SCREEN_SECRETS                UsageEvent = 4
+	UsageEvent_USAGE_EVENT_SCREEN_WORKSPACE              UsageEvent = 5
+	UsageEvent_USAGE_EVENT_SCREEN_WORKSPACE_EDITOR       UsageEvent = 6
+	UsageEvent_USAGE_EVENT_SCREEN_WORKSPACE_LOCAL_RUN    UsageEvent = 7
+	UsageEvent_USAGE_EVENT_SCREEN_MANAGER_WORKSPACES     UsageEvent = 8
+	UsageEvent_USAGE_EVENT_SCREEN_MANAGER_GITHUB         UsageEvent = 9
+	UsageEvent_USAGE_EVENT_SCREEN_SETTINGS_ACCOUNT       UsageEvent = 10
+	UsageEvent_USAGE_EVENT_SCREEN_SETTINGS_RUNS          UsageEvent = 11
+	UsageEvent_USAGE_EVENT_SCREEN_SETTINGS_NOTIFICATIONS UsageEvent = 12
+	UsageEvent_USAGE_EVENT_SCREEN_SETTINGS_PULL_REQUESTS UsageEvent = 13
+	UsageEvent_USAGE_EVENT_SCREEN_SETTINGS_TOOLS         UsageEvent = 14
+	UsageEvent_USAGE_EVENT_SCREEN_SETTINGS_STORAGE       UsageEvent = 15
+	UsageEvent_USAGE_EVENT_SCREEN_SETTINGS_PRIVACY       UsageEvent = 16
+	UsageEvent_USAGE_EVENT_SCREEN_MENU_BAR               UsageEvent = 17
+	UsageEvent_USAGE_EVENT_ACTION_RUN_LOCAL              UsageEvent = 18
+	UsageEvent_USAGE_EVENT_ACTION_DISPATCH               UsageEvent = 19
+	UsageEvent_USAGE_EVENT_ACTION_CANCEL_RUN             UsageEvent = 20
+	UsageEvent_USAGE_EVENT_ACTION_RERUN                  UsageEvent = 21
+	UsageEvent_USAGE_EVENT_ACTION_SAVE_WORKFLOW          UsageEvent = 22
+	UsageEvent_USAGE_EVENT_ACTION_CREATE_WORKFLOW        UsageEvent = 23
+	UsageEvent_USAGE_EVENT_ACTION_RENAME_WORKFLOW        UsageEvent = 24
+	UsageEvent_USAGE_EVENT_ACTION_VALIDATE               UsageEvent = 25
+	UsageEvent_USAGE_EVENT_ACTION_OPEN_LOG               UsageEvent = 26
+	UsageEvent_USAGE_EVENT_ACTION_SAVE_LOG               UsageEvent = 27
+	UsageEvent_USAGE_EVENT_ACTION_SAVE_PRESET            UsageEvent = 28
+	UsageEvent_USAGE_EVENT_ACTION_APPLY_PRESET           UsageEvent = 29
+	UsageEvent_USAGE_EVENT_ACTION_INSERT_CONCURRENCY     UsageEvent = 30
+	UsageEvent_USAGE_EVENT_ACTION_FAVORITE               UsageEvent = 31
+	UsageEvent_USAGE_EVENT_ACTION_OPEN_ON_GITHUB         UsageEvent = 32
+	UsageEvent_USAGE_EVENT_ACTION_REPORT_BUG             UsageEvent = 33
+)
+
+// Enum value maps for UsageEvent.
+var (
+	UsageEvent_name = map[int32]string{
+		0:  "USAGE_EVENT_UNSPECIFIED",
+		1:  "USAGE_EVENT_SCREEN_OVERVIEW",
+		2:  "USAGE_EVENT_SCREEN_WORKFLOWS",
+		3:  "USAGE_EVENT_SCREEN_RUNS",
+		4:  "USAGE_EVENT_SCREEN_SECRETS",
+		5:  "USAGE_EVENT_SCREEN_WORKSPACE",
+		6:  "USAGE_EVENT_SCREEN_WORKSPACE_EDITOR",
+		7:  "USAGE_EVENT_SCREEN_WORKSPACE_LOCAL_RUN",
+		8:  "USAGE_EVENT_SCREEN_MANAGER_WORKSPACES",
+		9:  "USAGE_EVENT_SCREEN_MANAGER_GITHUB",
+		10: "USAGE_EVENT_SCREEN_SETTINGS_ACCOUNT",
+		11: "USAGE_EVENT_SCREEN_SETTINGS_RUNS",
+		12: "USAGE_EVENT_SCREEN_SETTINGS_NOTIFICATIONS",
+		13: "USAGE_EVENT_SCREEN_SETTINGS_PULL_REQUESTS",
+		14: "USAGE_EVENT_SCREEN_SETTINGS_TOOLS",
+		15: "USAGE_EVENT_SCREEN_SETTINGS_STORAGE",
+		16: "USAGE_EVENT_SCREEN_SETTINGS_PRIVACY",
+		17: "USAGE_EVENT_SCREEN_MENU_BAR",
+		18: "USAGE_EVENT_ACTION_RUN_LOCAL",
+		19: "USAGE_EVENT_ACTION_DISPATCH",
+		20: "USAGE_EVENT_ACTION_CANCEL_RUN",
+		21: "USAGE_EVENT_ACTION_RERUN",
+		22: "USAGE_EVENT_ACTION_SAVE_WORKFLOW",
+		23: "USAGE_EVENT_ACTION_CREATE_WORKFLOW",
+		24: "USAGE_EVENT_ACTION_RENAME_WORKFLOW",
+		25: "USAGE_EVENT_ACTION_VALIDATE",
+		26: "USAGE_EVENT_ACTION_OPEN_LOG",
+		27: "USAGE_EVENT_ACTION_SAVE_LOG",
+		28: "USAGE_EVENT_ACTION_SAVE_PRESET",
+		29: "USAGE_EVENT_ACTION_APPLY_PRESET",
+		30: "USAGE_EVENT_ACTION_INSERT_CONCURRENCY",
+		31: "USAGE_EVENT_ACTION_FAVORITE",
+		32: "USAGE_EVENT_ACTION_OPEN_ON_GITHUB",
+		33: "USAGE_EVENT_ACTION_REPORT_BUG",
+	}
+	UsageEvent_value = map[string]int32{
+		"USAGE_EVENT_UNSPECIFIED":                   0,
+		"USAGE_EVENT_SCREEN_OVERVIEW":               1,
+		"USAGE_EVENT_SCREEN_WORKFLOWS":              2,
+		"USAGE_EVENT_SCREEN_RUNS":                   3,
+		"USAGE_EVENT_SCREEN_SECRETS":                4,
+		"USAGE_EVENT_SCREEN_WORKSPACE":              5,
+		"USAGE_EVENT_SCREEN_WORKSPACE_EDITOR":       6,
+		"USAGE_EVENT_SCREEN_WORKSPACE_LOCAL_RUN":    7,
+		"USAGE_EVENT_SCREEN_MANAGER_WORKSPACES":     8,
+		"USAGE_EVENT_SCREEN_MANAGER_GITHUB":         9,
+		"USAGE_EVENT_SCREEN_SETTINGS_ACCOUNT":       10,
+		"USAGE_EVENT_SCREEN_SETTINGS_RUNS":          11,
+		"USAGE_EVENT_SCREEN_SETTINGS_NOTIFICATIONS": 12,
+		"USAGE_EVENT_SCREEN_SETTINGS_PULL_REQUESTS": 13,
+		"USAGE_EVENT_SCREEN_SETTINGS_TOOLS":         14,
+		"USAGE_EVENT_SCREEN_SETTINGS_STORAGE":       15,
+		"USAGE_EVENT_SCREEN_SETTINGS_PRIVACY":       16,
+		"USAGE_EVENT_SCREEN_MENU_BAR":               17,
+		"USAGE_EVENT_ACTION_RUN_LOCAL":              18,
+		"USAGE_EVENT_ACTION_DISPATCH":               19,
+		"USAGE_EVENT_ACTION_CANCEL_RUN":             20,
+		"USAGE_EVENT_ACTION_RERUN":                  21,
+		"USAGE_EVENT_ACTION_SAVE_WORKFLOW":          22,
+		"USAGE_EVENT_ACTION_CREATE_WORKFLOW":        23,
+		"USAGE_EVENT_ACTION_RENAME_WORKFLOW":        24,
+		"USAGE_EVENT_ACTION_VALIDATE":               25,
+		"USAGE_EVENT_ACTION_OPEN_LOG":               26,
+		"USAGE_EVENT_ACTION_SAVE_LOG":               27,
+		"USAGE_EVENT_ACTION_SAVE_PRESET":            28,
+		"USAGE_EVENT_ACTION_APPLY_PRESET":           29,
+		"USAGE_EVENT_ACTION_INSERT_CONCURRENCY":     30,
+		"USAGE_EVENT_ACTION_FAVORITE":               31,
+		"USAGE_EVENT_ACTION_OPEN_ON_GITHUB":         32,
+		"USAGE_EVENT_ACTION_REPORT_BUG":             33,
+	}
+)
+
+func (x UsageEvent) Enum() *UsageEvent {
+	p := new(UsageEvent)
+	*p = x
+	return p
+}
+
+func (x UsageEvent) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (UsageEvent) Descriptor() protoreflect.EnumDescriptor {
+	return file_runnir_core_v1_runnir_core_proto_enumTypes[27].Descriptor()
+}
+
+func (UsageEvent) Type() protoreflect.EnumType {
+	return &file_runnir_core_v1_runnir_core_proto_enumTypes[27]
+}
+
+func (x UsageEvent) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use UsageEvent.Descriptor instead.
+func (UsageEvent) EnumDescriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{27}
+}
+
 type HealthCheckRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -13124,6 +13323,326 @@ func (x *ListEnvironmentsResponse) GetNames() []string {
 	return nil
 }
 
+type AnalyticsCounter struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Value         uint64                 `protobuf:"varint,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AnalyticsCounter) Reset() {
+	*x = AnalyticsCounter{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[164]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AnalyticsCounter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AnalyticsCounter) ProtoMessage() {}
+
+func (x *AnalyticsCounter) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[164]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AnalyticsCounter.ProtoReflect.Descriptor instead.
+func (*AnalyticsCounter) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{164}
+}
+
+func (x *AnalyticsCounter) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AnalyticsCounter) GetValue() uint64 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+type Analytics struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Level          AnalyticsLevel         `protobuf:"varint,1,opt,name=level,proto3,enum=runnir.core.v1.AnalyticsLevel" json:"level,omitempty"`
+	PromptAnswered bool                   `protobuf:"varint,2,opt,name=prompt_answered,json=promptAnswered,proto3" json:"prompt_answered,omitempty"`
+	// A Release build with the ledger on disk: batches are sent.
+	SendingAvailable bool `protobuf:"varint,3,opt,name=sending_available,json=sendingAvailable,proto3" json:"sending_available,omitempty"`
+	// Set only at FULL.
+	AnalyticsId string `protobuf:"bytes,4,opt,name=analytics_id,json=analyticsId,proto3" json:"analytics_id,omitempty"`
+	// Counts sealed and waiting to be sent, summed by name; an unsent
+	// first_launch is "first_launch": 1. Sorted by name.
+	Sealed []*AnalyticsCounter `protobuf:"bytes,5,rep,name=sealed,proto3" json:"sealed,omitempty"`
+	// Today's counts, sealed tomorrow. Sorted by name.
+	Today []*AnalyticsCounter `protobuf:"bytes,6,rep,name=today,proto3" json:"today,omitempty"`
+	// The ledger is kept on disk. False without a data folder or when another
+	// copy of Runnir holds it; the app then asks nothing and offers no level.
+	Persistent    bool `protobuf:"varint,7,opt,name=persistent,proto3" json:"persistent,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Analytics) Reset() {
+	*x = Analytics{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[165]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Analytics) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Analytics) ProtoMessage() {}
+
+func (x *Analytics) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[165]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Analytics.ProtoReflect.Descriptor instead.
+func (*Analytics) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{165}
+}
+
+func (x *Analytics) GetLevel() AnalyticsLevel {
+	if x != nil {
+		return x.Level
+	}
+	return AnalyticsLevel_ANALYTICS_LEVEL_UNSPECIFIED
+}
+
+func (x *Analytics) GetPromptAnswered() bool {
+	if x != nil {
+		return x.PromptAnswered
+	}
+	return false
+}
+
+func (x *Analytics) GetSendingAvailable() bool {
+	if x != nil {
+		return x.SendingAvailable
+	}
+	return false
+}
+
+func (x *Analytics) GetAnalyticsId() string {
+	if x != nil {
+		return x.AnalyticsId
+	}
+	return ""
+}
+
+func (x *Analytics) GetSealed() []*AnalyticsCounter {
+	if x != nil {
+		return x.Sealed
+	}
+	return nil
+}
+
+func (x *Analytics) GetToday() []*AnalyticsCounter {
+	if x != nil {
+		return x.Today
+	}
+	return nil
+}
+
+func (x *Analytics) GetPersistent() bool {
+	if x != nil {
+		return x.Persistent
+	}
+	return false
+}
+
+type GetAnalyticsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAnalyticsRequest) Reset() {
+	*x = GetAnalyticsRequest{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[166]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAnalyticsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAnalyticsRequest) ProtoMessage() {}
+
+func (x *GetAnalyticsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[166]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAnalyticsRequest.ProtoReflect.Descriptor instead.
+func (*GetAnalyticsRequest) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{166}
+}
+
+type SetAnalyticsLevelRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Level AnalyticsLevel         `protobuf:"varint,1,opt,name=level,proto3,enum=runnir.core.v1.AnalyticsLevel" json:"level,omitempty"`
+	// The consent question's answer: it is not asked again.
+	FromPrompt    bool `protobuf:"varint,2,opt,name=from_prompt,json=fromPrompt,proto3" json:"from_prompt,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetAnalyticsLevelRequest) Reset() {
+	*x = SetAnalyticsLevelRequest{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[167]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetAnalyticsLevelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetAnalyticsLevelRequest) ProtoMessage() {}
+
+func (x *SetAnalyticsLevelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[167]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetAnalyticsLevelRequest.ProtoReflect.Descriptor instead.
+func (*SetAnalyticsLevelRequest) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{167}
+}
+
+func (x *SetAnalyticsLevelRequest) GetLevel() AnalyticsLevel {
+	if x != nil {
+		return x.Level
+	}
+	return AnalyticsLevel_ANALYTICS_LEVEL_UNSPECIFIED
+}
+
+func (x *SetAnalyticsLevelRequest) GetFromPrompt() bool {
+	if x != nil {
+		return x.FromPrompt
+	}
+	return false
+}
+
+type RecordUsageRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Event         UsageEvent             `protobuf:"varint,1,opt,name=event,proto3,enum=runnir.core.v1.UsageEvent" json:"event,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordUsageRequest) Reset() {
+	*x = RecordUsageRequest{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[168]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordUsageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordUsageRequest) ProtoMessage() {}
+
+func (x *RecordUsageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[168]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordUsageRequest.ProtoReflect.Descriptor instead.
+func (*RecordUsageRequest) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{168}
+}
+
+func (x *RecordUsageRequest) GetEvent() UsageEvent {
+	if x != nil {
+		return x.Event
+	}
+	return UsageEvent_USAGE_EVENT_UNSPECIFIED
+}
+
+type RecordUsageResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordUsageResponse) Reset() {
+	*x = RecordUsageResponse{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[169]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordUsageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordUsageResponse) ProtoMessage() {}
+
+func (x *RecordUsageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[169]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordUsageResponse.ProtoReflect.Descriptor instead.
+func (*RecordUsageResponse) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{169}
+}
+
 var File_runnir_core_v1_runnir_core_proto protoreflect.FileDescriptor
 
 const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
@@ -14078,7 +14597,28 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x17ListEnvironmentsRequest\x12#\n" +
 	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\"0\n" +
 	"\x18ListEnvironmentsResponse\x12\x14\n" +
-	"\x05names\x18\x01 \x03(\tR\x05names*\xc4\x01\n" +
+	"\x05names\x18\x01 \x03(\tR\x05names\"<\n" +
+	"\x10AnalyticsCounter\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x04R\x05value\"\xcc\x02\n" +
+	"\tAnalytics\x124\n" +
+	"\x05level\x18\x01 \x01(\x0e2\x1e.runnir.core.v1.AnalyticsLevelR\x05level\x12'\n" +
+	"\x0fprompt_answered\x18\x02 \x01(\bR\x0epromptAnswered\x12+\n" +
+	"\x11sending_available\x18\x03 \x01(\bR\x10sendingAvailable\x12!\n" +
+	"\fanalytics_id\x18\x04 \x01(\tR\vanalyticsId\x128\n" +
+	"\x06sealed\x18\x05 \x03(\v2 .runnir.core.v1.AnalyticsCounterR\x06sealed\x126\n" +
+	"\x05today\x18\x06 \x03(\v2 .runnir.core.v1.AnalyticsCounterR\x05today\x12\x1e\n" +
+	"\n" +
+	"persistent\x18\a \x01(\bR\n" +
+	"persistent\"\x15\n" +
+	"\x13GetAnalyticsRequest\"q\n" +
+	"\x18SetAnalyticsLevelRequest\x124\n" +
+	"\x05level\x18\x01 \x01(\x0e2\x1e.runnir.core.v1.AnalyticsLevelR\x05level\x12\x1f\n" +
+	"\vfrom_prompt\x18\x02 \x01(\bR\n" +
+	"fromPrompt\"F\n" +
+	"\x12RecordUsageRequest\x120\n" +
+	"\x05event\x18\x01 \x01(\x0e2\x1a.runnir.core.v1.UsageEventR\x05event\"\x15\n" +
+	"\x13RecordUsageResponse*\xc4\x01\n" +
 	"\x0eExecutionState\x12\x1f\n" +
 	"\x1bEXECUTION_STATE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16EXECUTION_STATE_QUEUED\x10\x01\x12\x1b\n" +
@@ -14259,7 +14799,49 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x19STORAGE_STATE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18STORAGE_STATE_PERSISTENT\x10\x01\x12\x1d\n" +
 	"\x19STORAGE_STATE_MEMORY_ONLY\x10\x02\x12\x18\n" +
-	"\x14STORAGE_STATE_ABSENT\x10\x032\x99-\n" +
+	"\x14STORAGE_STATE_ABSENT\x10\x03*\x7f\n" +
+	"\x0eAnalyticsLevel\x12\x1f\n" +
+	"\x1bANALYTICS_LEVEL_UNSPECIFIED\x10\x00\x12\x17\n" +
+	"\x13ANALYTICS_LEVEL_OFF\x10\x01\x12\x19\n" +
+	"\x15ANALYTICS_LEVEL_BASIC\x10\x02\x12\x18\n" +
+	"\x14ANALYTICS_LEVEL_FULL\x10\x03*\xf5\t\n" +
+	"\n" +
+	"UsageEvent\x12\x1b\n" +
+	"\x17USAGE_EVENT_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bUSAGE_EVENT_SCREEN_OVERVIEW\x10\x01\x12 \n" +
+	"\x1cUSAGE_EVENT_SCREEN_WORKFLOWS\x10\x02\x12\x1b\n" +
+	"\x17USAGE_EVENT_SCREEN_RUNS\x10\x03\x12\x1e\n" +
+	"\x1aUSAGE_EVENT_SCREEN_SECRETS\x10\x04\x12 \n" +
+	"\x1cUSAGE_EVENT_SCREEN_WORKSPACE\x10\x05\x12'\n" +
+	"#USAGE_EVENT_SCREEN_WORKSPACE_EDITOR\x10\x06\x12*\n" +
+	"&USAGE_EVENT_SCREEN_WORKSPACE_LOCAL_RUN\x10\a\x12)\n" +
+	"%USAGE_EVENT_SCREEN_MANAGER_WORKSPACES\x10\b\x12%\n" +
+	"!USAGE_EVENT_SCREEN_MANAGER_GITHUB\x10\t\x12'\n" +
+	"#USAGE_EVENT_SCREEN_SETTINGS_ACCOUNT\x10\n" +
+	"\x12$\n" +
+	" USAGE_EVENT_SCREEN_SETTINGS_RUNS\x10\v\x12-\n" +
+	")USAGE_EVENT_SCREEN_SETTINGS_NOTIFICATIONS\x10\f\x12-\n" +
+	")USAGE_EVENT_SCREEN_SETTINGS_PULL_REQUESTS\x10\r\x12%\n" +
+	"!USAGE_EVENT_SCREEN_SETTINGS_TOOLS\x10\x0e\x12'\n" +
+	"#USAGE_EVENT_SCREEN_SETTINGS_STORAGE\x10\x0f\x12'\n" +
+	"#USAGE_EVENT_SCREEN_SETTINGS_PRIVACY\x10\x10\x12\x1f\n" +
+	"\x1bUSAGE_EVENT_SCREEN_MENU_BAR\x10\x11\x12 \n" +
+	"\x1cUSAGE_EVENT_ACTION_RUN_LOCAL\x10\x12\x12\x1f\n" +
+	"\x1bUSAGE_EVENT_ACTION_DISPATCH\x10\x13\x12!\n" +
+	"\x1dUSAGE_EVENT_ACTION_CANCEL_RUN\x10\x14\x12\x1c\n" +
+	"\x18USAGE_EVENT_ACTION_RERUN\x10\x15\x12$\n" +
+	" USAGE_EVENT_ACTION_SAVE_WORKFLOW\x10\x16\x12&\n" +
+	"\"USAGE_EVENT_ACTION_CREATE_WORKFLOW\x10\x17\x12&\n" +
+	"\"USAGE_EVENT_ACTION_RENAME_WORKFLOW\x10\x18\x12\x1f\n" +
+	"\x1bUSAGE_EVENT_ACTION_VALIDATE\x10\x19\x12\x1f\n" +
+	"\x1bUSAGE_EVENT_ACTION_OPEN_LOG\x10\x1a\x12\x1f\n" +
+	"\x1bUSAGE_EVENT_ACTION_SAVE_LOG\x10\x1b\x12\"\n" +
+	"\x1eUSAGE_EVENT_ACTION_SAVE_PRESET\x10\x1c\x12#\n" +
+	"\x1fUSAGE_EVENT_ACTION_APPLY_PRESET\x10\x1d\x12)\n" +
+	"%USAGE_EVENT_ACTION_INSERT_CONCURRENCY\x10\x1e\x12\x1f\n" +
+	"\x1bUSAGE_EVENT_ACTION_FAVORITE\x10\x1f\x12%\n" +
+	"!USAGE_EVENT_ACTION_OPEN_ON_GITHUB\x10 \x12!\n" +
+	"\x1dUSAGE_EVENT_ACTION_REPORT_BUG\x10!2\x9b/\n" +
 	"\n" +
 	"RunnirCore\x12V\n" +
 	"\vHealthCheck\x12\".runnir.core.v1.HealthCheckRequest\x1a#.runnir.core.v1.HealthCheckResponse\x12[\n" +
@@ -14277,7 +14859,10 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x0fGetStorageUsage\x12&.runnir.core.v1.GetStorageUsageRequest\x1a'.runnir.core.v1.GetStorageUsageResponse\x12n\n" +
 	"\x13ClearWorkspaceCache\x12*.runnir.core.v1.ClearWorkspaceCacheRequest\x1a+.runnir.core.v1.ClearWorkspaceCacheResponse\x12n\n" +
 	"\x13DeleteWorkspaceData\x12*.runnir.core.v1.DeleteWorkspaceDataRequest\x1a+.runnir.core.v1.DeleteWorkspaceDataResponse\x12t\n" +
-	"\x15SetStoragePreferences\x12,.runnir.core.v1.SetStoragePreferencesRequest\x1a-.runnir.core.v1.SetStoragePreferencesResponse\x12\\\n" +
+	"\x15SetStoragePreferences\x12,.runnir.core.v1.SetStoragePreferencesRequest\x1a-.runnir.core.v1.SetStoragePreferencesResponse\x12N\n" +
+	"\fGetAnalytics\x12#.runnir.core.v1.GetAnalyticsRequest\x1a\x19.runnir.core.v1.Analytics\x12X\n" +
+	"\x11SetAnalyticsLevel\x12(.runnir.core.v1.SetAnalyticsLevelRequest\x1a\x19.runnir.core.v1.Analytics\x12V\n" +
+	"\vRecordUsage\x12\".runnir.core.v1.RecordUsageRequest\x1a#.runnir.core.v1.RecordUsageResponse\x12\\\n" +
 	"\rListWorkflows\x12$.runnir.core.v1.ListWorkflowsRequest\x1a%.runnir.core.v1.ListWorkflowsResponse\x12h\n" +
 	"\x11ListLaunchPresets\x12(.runnir.core.v1.ListLaunchPresetsRequest\x1a).runnir.core.v1.ListLaunchPresetsResponse\x12h\n" +
 	"\x11ValidateWorkflows\x12(.runnir.core.v1.ValidateWorkflowsRequest\x1a).runnir.core.v1.ValidateWorkflowsResponse\x12e\n" +
@@ -14333,8 +14918,8 @@ func file_runnir_core_v1_runnir_core_proto_rawDescGZIP() []byte {
 	return file_runnir_core_v1_runnir_core_proto_rawDescData
 }
 
-var file_runnir_core_v1_runnir_core_proto_enumTypes = make([]protoimpl.EnumInfo, 26)
-var file_runnir_core_v1_runnir_core_proto_msgTypes = make([]protoimpl.MessageInfo, 171)
+var file_runnir_core_v1_runnir_core_proto_enumTypes = make([]protoimpl.EnumInfo, 28)
+var file_runnir_core_v1_runnir_core_proto_msgTypes = make([]protoimpl.MessageInfo, 177)
 var file_runnir_core_v1_runnir_core_proto_goTypes = []any{
 	(ExecutionState)(0),                       // 0: runnir.core.v1.ExecutionState
 	(CoreEventType)(0),                        // 1: runnir.core.v1.CoreEventType
@@ -14362,478 +14947,497 @@ var file_runnir_core_v1_runnir_core_proto_goTypes = []any{
 	(SearchStop)(0),                           // 23: runnir.core.v1.SearchStop
 	(ConcurrencyRefusal)(0),                   // 24: runnir.core.v1.ConcurrencyRefusal
 	(StorageState)(0),                         // 25: runnir.core.v1.StorageState
-	(*HealthCheckRequest)(nil),                // 26: runnir.core.v1.HealthCheckRequest
-	(*HealthCheckResponse)(nil),               // 27: runnir.core.v1.HealthCheckResponse
-	(*OpenRepositoryRequest)(nil),             // 28: runnir.core.v1.OpenRepositoryRequest
-	(*CloseRepositoryRequest)(nil),            // 29: runnir.core.v1.CloseRepositoryRequest
-	(*CloseRepositoryResponse)(nil),           // 30: runnir.core.v1.CloseRepositoryResponse
-	(*RefreshRepositoryRequest)(nil),          // 31: runnir.core.v1.RefreshRepositoryRequest
-	(*RepositoryResponse)(nil),                // 32: runnir.core.v1.RepositoryResponse
-	(*Repository)(nil),                        // 33: runnir.core.v1.Repository
-	(*ListWorkflowsRequest)(nil),              // 34: runnir.core.v1.ListWorkflowsRequest
-	(*ListWorkflowsResponse)(nil),             // 35: runnir.core.v1.ListWorkflowsResponse
-	(*Workflow)(nil),                          // 36: runnir.core.v1.Workflow
-	(*Job)(nil),                               // 37: runnir.core.v1.Job
-	(*ListLaunchPresetsRequest)(nil),          // 38: runnir.core.v1.ListLaunchPresetsRequest
-	(*ListLaunchPresetsResponse)(nil),         // 39: runnir.core.v1.ListLaunchPresetsResponse
-	(*LaunchPreset)(nil),                      // 40: runnir.core.v1.LaunchPreset
-	(*StartWorkflowRequest)(nil),              // 41: runnir.core.v1.StartWorkflowRequest
-	(*ExecutionResponse)(nil),                 // 42: runnir.core.v1.ExecutionResponse
-	(*SubscribeEventsRequest)(nil),            // 43: runnir.core.v1.SubscribeEventsRequest
-	(*CoreEvent)(nil),                         // 44: runnir.core.v1.CoreEvent
-	(*SetGitHubCredentialRequest)(nil),        // 45: runnir.core.v1.SetGitHubCredentialRequest
-	(*GithubServer)(nil),                      // 46: runnir.core.v1.GithubServer
-	(*SetGitHubCredentialResponse)(nil),       // 47: runnir.core.v1.SetGitHubCredentialResponse
-	(*CheckGitHubTokenRequest)(nil),           // 48: runnir.core.v1.CheckGitHubTokenRequest
-	(*CheckGitHubTokenResponse)(nil),          // 49: runnir.core.v1.CheckGitHubTokenResponse
-	(*GitHubTokenCheck)(nil),                  // 50: runnir.core.v1.GitHubTokenCheck
-	(*ClearGitHubCredentialRequest)(nil),      // 51: runnir.core.v1.ClearGitHubCredentialRequest
-	(*ClearGitHubCredentialResponse)(nil),     // 52: runnir.core.v1.ClearGitHubCredentialResponse
-	(*GitHubStatus)(nil),                      // 53: runnir.core.v1.GitHubStatus
-	(*ValidateWorkflowsRequest)(nil),          // 54: runnir.core.v1.ValidateWorkflowsRequest
-	(*WorkflowDiagnostic)(nil),                // 55: runnir.core.v1.WorkflowDiagnostic
-	(*WorkflowValidation)(nil),                // 56: runnir.core.v1.WorkflowValidation
-	(*ValidateWorkflowsResponse)(nil),         // 57: runnir.core.v1.ValidateWorkflowsResponse
-	(*GetGitHubRepositoryRequest)(nil),        // 58: runnir.core.v1.GetGitHubRepositoryRequest
-	(*GetGitHubRepositoryResponse)(nil),       // 59: runnir.core.v1.GetGitHubRepositoryResponse
-	(*ListGitHubWorkflowsRequest)(nil),        // 60: runnir.core.v1.ListGitHubWorkflowsRequest
-	(*ListPullRequestsRequest)(nil),           // 61: runnir.core.v1.ListPullRequestsRequest
-	(*ListPullRequestsResponse)(nil),          // 62: runnir.core.v1.ListPullRequestsResponse
-	(*PullRequest)(nil),                       // 63: runnir.core.v1.PullRequest
-	(*ListWatchedRunsRequest)(nil),            // 64: runnir.core.v1.ListWatchedRunsRequest
-	(*WatchedRepository)(nil),                 // 65: runnir.core.v1.WatchedRepository
-	(*ListWatchedRunsResponse)(nil),           // 66: runnir.core.v1.ListWatchedRunsResponse
-	(*WatchedRuns)(nil),                       // 67: runnir.core.v1.WatchedRuns
-	(*ServerPause)(nil),                       // 68: runnir.core.v1.ServerPause
-	(*GetGitHubOriginsRequest)(nil),           // 69: runnir.core.v1.GetGitHubOriginsRequest
-	(*GetGitHubOriginsResponse)(nil),          // 70: runnir.core.v1.GetGitHubOriginsResponse
-	(*GitHubOrigin)(nil),                      // 71: runnir.core.v1.GitHubOrigin
-	(*ListGitHubRepositoriesRequest)(nil),     // 72: runnir.core.v1.ListGitHubRepositoriesRequest
-	(*ListGitHubRepositoriesResponse)(nil),    // 73: runnir.core.v1.ListGitHubRepositoriesResponse
-	(*GitHubInstallation)(nil),                // 74: runnir.core.v1.GitHubInstallation
-	(*GitHubAccountRepository)(nil),           // 75: runnir.core.v1.GitHubAccountRepository
-	(*ListGitHubWorkflowsResponse)(nil),       // 76: runnir.core.v1.ListGitHubWorkflowsResponse
-	(*GitHubWorkflow)(nil),                    // 77: runnir.core.v1.GitHubWorkflow
-	(*ListWorkflowRunsRequest)(nil),           // 78: runnir.core.v1.ListWorkflowRunsRequest
-	(*ListWorkflowRunsResponse)(nil),          // 79: runnir.core.v1.ListWorkflowRunsResponse
-	(*WorkflowRun)(nil),                       // 80: runnir.core.v1.WorkflowRun
-	(*RunnirStart)(nil),                       // 81: runnir.core.v1.RunnirStart
-	(*ListRunJobsRequest)(nil),                // 82: runnir.core.v1.ListRunJobsRequest
-	(*GetRunWorkflowRequest)(nil),             // 83: runnir.core.v1.GetRunWorkflowRequest
-	(*GetRunWorkflowResponse)(nil),            // 84: runnir.core.v1.GetRunWorkflowResponse
-	(*ConditionValue)(nil),                    // 85: runnir.core.v1.ConditionValue
-	(*JobSkip)(nil),                           // 86: runnir.core.v1.JobSkip
-	(*GetFlowRequest)(nil),                    // 87: runnir.core.v1.GetFlowRequest
-	(*Scenario)(nil),                          // 88: runnir.core.v1.Scenario
-	(*FlowChanges)(nil),                       // 89: runnir.core.v1.FlowChanges
-	(*FlowJob)(nil),                           // 90: runnir.core.v1.FlowJob
-	(*FlowLane)(nil),                          // 91: runnir.core.v1.FlowLane
-	(*SkippedWorkflow)(nil),                   // 92: runnir.core.v1.SkippedWorkflow
-	(*GetFlowResponse)(nil),                   // 93: runnir.core.v1.GetFlowResponse
-	(*ListRunJobsResponse)(nil),               // 94: runnir.core.v1.ListRunJobsResponse
-	(*RunJob)(nil),                            // 95: runnir.core.v1.RunJob
-	(*RunStep)(nil),                           // 96: runnir.core.v1.RunStep
-	(*ListGitHubRefsRequest)(nil),             // 97: runnir.core.v1.ListGitHubRefsRequest
-	(*ListGitHubRefsResponse)(nil),            // 98: runnir.core.v1.ListGitHubRefsResponse
-	(*DispatchInput)(nil),                     // 99: runnir.core.v1.DispatchInput
-	(*DescribeWorkflowDispatchRequest)(nil),   // 100: runnir.core.v1.DescribeWorkflowDispatchRequest
-	(*DescribeWorkflowDispatchResponse)(nil),  // 101: runnir.core.v1.DescribeWorkflowDispatchResponse
-	(*PrepareWorkflowDispatchRequest)(nil),    // 102: runnir.core.v1.PrepareWorkflowDispatchRequest
-	(*PrepareWorkflowDispatchResponse)(nil),   // 103: runnir.core.v1.PrepareWorkflowDispatchResponse
-	(*ConfirmWorkflowDispatchRequest)(nil),    // 104: runnir.core.v1.ConfirmWorkflowDispatchRequest
-	(*ConfirmWorkflowDispatchResponse)(nil),   // 105: runnir.core.v1.ConfirmWorkflowDispatchResponse
-	(*DispatchRecord)(nil),                    // 106: runnir.core.v1.DispatchRecord
-	(*ListDispatchHistoryRequest)(nil),        // 107: runnir.core.v1.ListDispatchHistoryRequest
-	(*ListDispatchHistoryResponse)(nil),       // 108: runnir.core.v1.ListDispatchHistoryResponse
-	(*ClearDispatchHistoryRequest)(nil),       // 109: runnir.core.v1.ClearDispatchHistoryRequest
-	(*ClearDispatchHistoryResponse)(nil),      // 110: runnir.core.v1.ClearDispatchHistoryResponse
-	(*LinkDispatchRunRequest)(nil),            // 111: runnir.core.v1.LinkDispatchRunRequest
-	(*LinkDispatchRunResponse)(nil),           // 112: runnir.core.v1.LinkDispatchRunResponse
-	(*GetJobLogRequest)(nil),                  // 113: runnir.core.v1.GetJobLogRequest
-	(*LogLine)(nil),                           // 114: runnir.core.v1.LogLine
-	(*GetJobLogResponse)(nil),                 // 115: runnir.core.v1.GetJobLogResponse
-	(*SaveJobLogRequest)(nil),                 // 116: runnir.core.v1.SaveJobLogRequest
-	(*SaveJobLogResponse)(nil),                // 117: runnir.core.v1.SaveJobLogResponse
-	(*PrepareRunActionRequest)(nil),           // 118: runnir.core.v1.PrepareRunActionRequest
-	(*PrepareRunActionResponse)(nil),          // 119: runnir.core.v1.PrepareRunActionResponse
-	(*ConfirmRunActionRequest)(nil),           // 120: runnir.core.v1.ConfirmRunActionRequest
-	(*ConfirmRunActionResponse)(nil),          // 121: runnir.core.v1.ConfirmRunActionResponse
-	(*ToolStatus)(nil),                        // 122: runnir.core.v1.ToolStatus
-	(*ContainerEngine)(nil),                   // 123: runnir.core.v1.ContainerEngine
-	(*ToolReadiness)(nil),                     // 124: runnir.core.v1.ToolReadiness
-	(*GetToolReadinessRequest)(nil),           // 125: runnir.core.v1.GetToolReadinessRequest
-	(*GetToolReadinessResponse)(nil),          // 126: runnir.core.v1.GetToolReadinessResponse
-	(*LocalRunJob)(nil),                       // 127: runnir.core.v1.LocalRunJob
-	(*LocalRunImage)(nil),                     // 128: runnir.core.v1.LocalRunImage
-	(*LocalRunPlan)(nil),                      // 129: runnir.core.v1.LocalRunPlan
-	(*PrepareLocalRunRequest)(nil),            // 130: runnir.core.v1.PrepareLocalRunRequest
-	(*LocalRunLimits)(nil),                    // 131: runnir.core.v1.LocalRunLimits
-	(*PrepareLocalRunResponse)(nil),           // 132: runnir.core.v1.PrepareLocalRunResponse
-	(*ConfirmLocalRunRequest)(nil),            // 133: runnir.core.v1.ConfirmLocalRunRequest
-	(*ConfirmLocalRunResponse)(nil),           // 134: runnir.core.v1.ConfirmLocalRunResponse
-	(*LocalRunJobStatus)(nil),                 // 135: runnir.core.v1.LocalRunJobStatus
-	(*LocalRunLine)(nil),                      // 136: runnir.core.v1.LocalRunLine
-	(*GetLocalRunOutputRequest)(nil),          // 137: runnir.core.v1.GetLocalRunOutputRequest
-	(*GetLocalRunOutputResponse)(nil),         // 138: runnir.core.v1.GetLocalRunOutputResponse
-	(*CancelExecutionRequest)(nil),            // 139: runnir.core.v1.CancelExecutionRequest
-	(*CancelExecutionResponse)(nil),           // 140: runnir.core.v1.CancelExecutionResponse
-	(*SaveWorkflowFileRequest)(nil),           // 141: runnir.core.v1.SaveWorkflowFileRequest
-	(*SaveWorkflowFileResponse)(nil),          // 142: runnir.core.v1.SaveWorkflowFileResponse
-	(*CreateWorkflowFileRequest)(nil),         // 143: runnir.core.v1.CreateWorkflowFileRequest
-	(*CreateWorkflowFileResponse)(nil),        // 144: runnir.core.v1.CreateWorkflowFileResponse
-	(*RenameWorkflowFileRequest)(nil),         // 145: runnir.core.v1.RenameWorkflowFileRequest
-	(*RenameWorkflowFileResponse)(nil),        // 146: runnir.core.v1.RenameWorkflowFileResponse
-	(*GetWorkspaceActivityRequest)(nil),       // 147: runnir.core.v1.GetWorkspaceActivityRequest
-	(*RefreshWorkspaceActivityRequest)(nil),   // 148: runnir.core.v1.RefreshWorkspaceActivityRequest
-	(*WorkspaceActivity)(nil),                 // 149: runnir.core.v1.WorkspaceActivity
-	(*Saving)(nil),                            // 150: runnir.core.v1.Saving
-	(*ActivityFreshness)(nil),                 // 151: runnir.core.v1.ActivityFreshness
-	(*RunLink)(nil),                           // 152: runnir.core.v1.RunLink
-	(*RunChange)(nil),                         // 153: runnir.core.v1.RunChange
-	(*ChangePullRequest)(nil),                 // 154: runnir.core.v1.ChangePullRequest
-	(*RunChangeSection)(nil),                  // 155: runnir.core.v1.RunChangeSection
-	(*ConcurrencyHint)(nil),                   // 156: runnir.core.v1.ConcurrencyHint
-	(*LoadOlderRunsRequest)(nil),              // 157: runnir.core.v1.LoadOlderRunsRequest
-	(*LoadOlderRunsResponse)(nil),             // 158: runnir.core.v1.LoadOlderRunsResponse
-	(*SearchRunsRequest)(nil),                 // 159: runnir.core.v1.SearchRunsRequest
-	(*SearchRunsResponse)(nil),                // 160: runnir.core.v1.SearchRunsResponse
-	(*SearchRunsOnGitHubRequest)(nil),         // 161: runnir.core.v1.SearchRunsOnGitHubRequest
-	(*SearchRunsOnGitHubResponse)(nil),        // 162: runnir.core.v1.SearchRunsOnGitHubResponse
-	(*SearchWorkspacesRequest)(nil),           // 163: runnir.core.v1.SearchWorkspacesRequest
-	(*SearchWorkspacesResponse)(nil),          // 164: runnir.core.v1.SearchWorkspacesResponse
-	(*WorkspaceSearchHits)(nil),               // 165: runnir.core.v1.WorkspaceSearchHits
-	(*SearchedPullRequest)(nil),               // 166: runnir.core.v1.SearchedPullRequest
-	(*SearchedLocalRun)(nil),                  // 167: runnir.core.v1.SearchedLocalRun
-	(*ClearRunIndexRequest)(nil),              // 168: runnir.core.v1.ClearRunIndexRequest
-	(*ClearRunIndexResponse)(nil),             // 169: runnir.core.v1.ClearRunIndexResponse
-	(*InsertWorkflowConcurrencyRequest)(nil),  // 170: runnir.core.v1.InsertWorkflowConcurrencyRequest
-	(*InsertWorkflowConcurrencyResponse)(nil), // 171: runnir.core.v1.InsertWorkflowConcurrencyResponse
-	(*WorkspaceStorage)(nil),                  // 172: runnir.core.v1.WorkspaceStorage
-	(*GetStorageUsageRequest)(nil),            // 173: runnir.core.v1.GetStorageUsageRequest
-	(*GetStorageUsageResponse)(nil),           // 174: runnir.core.v1.GetStorageUsageResponse
-	(*ClearWorkspaceCacheRequest)(nil),        // 175: runnir.core.v1.ClearWorkspaceCacheRequest
-	(*ClearWorkspaceCacheResponse)(nil),       // 176: runnir.core.v1.ClearWorkspaceCacheResponse
-	(*DeleteWorkspaceDataRequest)(nil),        // 177: runnir.core.v1.DeleteWorkspaceDataRequest
-	(*DeleteWorkspaceDataResponse)(nil),       // 178: runnir.core.v1.DeleteWorkspaceDataResponse
-	(*SetStoragePreferencesRequest)(nil),      // 179: runnir.core.v1.SetStoragePreferencesRequest
-	(*SetStoragePreferencesResponse)(nil),     // 180: runnir.core.v1.SetStoragePreferencesResponse
-	(*ParseEnvFileRequest)(nil),               // 181: runnir.core.v1.ParseEnvFileRequest
-	(*EnvEntry)(nil),                          // 182: runnir.core.v1.EnvEntry
-	(*EnvProblem)(nil),                        // 183: runnir.core.v1.EnvProblem
-	(*ParseEnvFileResponse)(nil),              // 184: runnir.core.v1.ParseEnvFileResponse
-	(*ListEnvFilesRequest)(nil),               // 185: runnir.core.v1.ListEnvFilesRequest
-	(*RepositoryEnvFile)(nil),                 // 186: runnir.core.v1.RepositoryEnvFile
-	(*ListEnvFilesResponse)(nil),              // 187: runnir.core.v1.ListEnvFilesResponse
-	(*ListEnvironmentsRequest)(nil),           // 188: runnir.core.v1.ListEnvironmentsRequest
-	(*ListEnvironmentsResponse)(nil),          // 189: runnir.core.v1.ListEnvironmentsResponse
-	nil,                                       // 190: runnir.core.v1.Job.ManualInputsEntry
-	nil,                                       // 191: runnir.core.v1.LaunchPreset.InputsEntry
-	nil,                                       // 192: runnir.core.v1.FlowJob.ManualInputsEntry
-	nil,                                       // 193: runnir.core.v1.PrepareWorkflowDispatchRequest.InputsEntry
-	nil,                                       // 194: runnir.core.v1.DispatchRecord.InputsEntry
-	nil,                                       // 195: runnir.core.v1.ConfirmLocalRunRequest.SecretsEntry
-	nil,                                       // 196: runnir.core.v1.ConfirmLocalRunRequest.VariablesEntry
-	(*timestamppb.Timestamp)(nil),             // 197: google.protobuf.Timestamp
+	(AnalyticsLevel)(0),                       // 26: runnir.core.v1.AnalyticsLevel
+	(UsageEvent)(0),                           // 27: runnir.core.v1.UsageEvent
+	(*HealthCheckRequest)(nil),                // 28: runnir.core.v1.HealthCheckRequest
+	(*HealthCheckResponse)(nil),               // 29: runnir.core.v1.HealthCheckResponse
+	(*OpenRepositoryRequest)(nil),             // 30: runnir.core.v1.OpenRepositoryRequest
+	(*CloseRepositoryRequest)(nil),            // 31: runnir.core.v1.CloseRepositoryRequest
+	(*CloseRepositoryResponse)(nil),           // 32: runnir.core.v1.CloseRepositoryResponse
+	(*RefreshRepositoryRequest)(nil),          // 33: runnir.core.v1.RefreshRepositoryRequest
+	(*RepositoryResponse)(nil),                // 34: runnir.core.v1.RepositoryResponse
+	(*Repository)(nil),                        // 35: runnir.core.v1.Repository
+	(*ListWorkflowsRequest)(nil),              // 36: runnir.core.v1.ListWorkflowsRequest
+	(*ListWorkflowsResponse)(nil),             // 37: runnir.core.v1.ListWorkflowsResponse
+	(*Workflow)(nil),                          // 38: runnir.core.v1.Workflow
+	(*Job)(nil),                               // 39: runnir.core.v1.Job
+	(*ListLaunchPresetsRequest)(nil),          // 40: runnir.core.v1.ListLaunchPresetsRequest
+	(*ListLaunchPresetsResponse)(nil),         // 41: runnir.core.v1.ListLaunchPresetsResponse
+	(*LaunchPreset)(nil),                      // 42: runnir.core.v1.LaunchPreset
+	(*StartWorkflowRequest)(nil),              // 43: runnir.core.v1.StartWorkflowRequest
+	(*ExecutionResponse)(nil),                 // 44: runnir.core.v1.ExecutionResponse
+	(*SubscribeEventsRequest)(nil),            // 45: runnir.core.v1.SubscribeEventsRequest
+	(*CoreEvent)(nil),                         // 46: runnir.core.v1.CoreEvent
+	(*SetGitHubCredentialRequest)(nil),        // 47: runnir.core.v1.SetGitHubCredentialRequest
+	(*GithubServer)(nil),                      // 48: runnir.core.v1.GithubServer
+	(*SetGitHubCredentialResponse)(nil),       // 49: runnir.core.v1.SetGitHubCredentialResponse
+	(*CheckGitHubTokenRequest)(nil),           // 50: runnir.core.v1.CheckGitHubTokenRequest
+	(*CheckGitHubTokenResponse)(nil),          // 51: runnir.core.v1.CheckGitHubTokenResponse
+	(*GitHubTokenCheck)(nil),                  // 52: runnir.core.v1.GitHubTokenCheck
+	(*ClearGitHubCredentialRequest)(nil),      // 53: runnir.core.v1.ClearGitHubCredentialRequest
+	(*ClearGitHubCredentialResponse)(nil),     // 54: runnir.core.v1.ClearGitHubCredentialResponse
+	(*GitHubStatus)(nil),                      // 55: runnir.core.v1.GitHubStatus
+	(*ValidateWorkflowsRequest)(nil),          // 56: runnir.core.v1.ValidateWorkflowsRequest
+	(*WorkflowDiagnostic)(nil),                // 57: runnir.core.v1.WorkflowDiagnostic
+	(*WorkflowValidation)(nil),                // 58: runnir.core.v1.WorkflowValidation
+	(*ValidateWorkflowsResponse)(nil),         // 59: runnir.core.v1.ValidateWorkflowsResponse
+	(*GetGitHubRepositoryRequest)(nil),        // 60: runnir.core.v1.GetGitHubRepositoryRequest
+	(*GetGitHubRepositoryResponse)(nil),       // 61: runnir.core.v1.GetGitHubRepositoryResponse
+	(*ListGitHubWorkflowsRequest)(nil),        // 62: runnir.core.v1.ListGitHubWorkflowsRequest
+	(*ListPullRequestsRequest)(nil),           // 63: runnir.core.v1.ListPullRequestsRequest
+	(*ListPullRequestsResponse)(nil),          // 64: runnir.core.v1.ListPullRequestsResponse
+	(*PullRequest)(nil),                       // 65: runnir.core.v1.PullRequest
+	(*ListWatchedRunsRequest)(nil),            // 66: runnir.core.v1.ListWatchedRunsRequest
+	(*WatchedRepository)(nil),                 // 67: runnir.core.v1.WatchedRepository
+	(*ListWatchedRunsResponse)(nil),           // 68: runnir.core.v1.ListWatchedRunsResponse
+	(*WatchedRuns)(nil),                       // 69: runnir.core.v1.WatchedRuns
+	(*ServerPause)(nil),                       // 70: runnir.core.v1.ServerPause
+	(*GetGitHubOriginsRequest)(nil),           // 71: runnir.core.v1.GetGitHubOriginsRequest
+	(*GetGitHubOriginsResponse)(nil),          // 72: runnir.core.v1.GetGitHubOriginsResponse
+	(*GitHubOrigin)(nil),                      // 73: runnir.core.v1.GitHubOrigin
+	(*ListGitHubRepositoriesRequest)(nil),     // 74: runnir.core.v1.ListGitHubRepositoriesRequest
+	(*ListGitHubRepositoriesResponse)(nil),    // 75: runnir.core.v1.ListGitHubRepositoriesResponse
+	(*GitHubInstallation)(nil),                // 76: runnir.core.v1.GitHubInstallation
+	(*GitHubAccountRepository)(nil),           // 77: runnir.core.v1.GitHubAccountRepository
+	(*ListGitHubWorkflowsResponse)(nil),       // 78: runnir.core.v1.ListGitHubWorkflowsResponse
+	(*GitHubWorkflow)(nil),                    // 79: runnir.core.v1.GitHubWorkflow
+	(*ListWorkflowRunsRequest)(nil),           // 80: runnir.core.v1.ListWorkflowRunsRequest
+	(*ListWorkflowRunsResponse)(nil),          // 81: runnir.core.v1.ListWorkflowRunsResponse
+	(*WorkflowRun)(nil),                       // 82: runnir.core.v1.WorkflowRun
+	(*RunnirStart)(nil),                       // 83: runnir.core.v1.RunnirStart
+	(*ListRunJobsRequest)(nil),                // 84: runnir.core.v1.ListRunJobsRequest
+	(*GetRunWorkflowRequest)(nil),             // 85: runnir.core.v1.GetRunWorkflowRequest
+	(*GetRunWorkflowResponse)(nil),            // 86: runnir.core.v1.GetRunWorkflowResponse
+	(*ConditionValue)(nil),                    // 87: runnir.core.v1.ConditionValue
+	(*JobSkip)(nil),                           // 88: runnir.core.v1.JobSkip
+	(*GetFlowRequest)(nil),                    // 89: runnir.core.v1.GetFlowRequest
+	(*Scenario)(nil),                          // 90: runnir.core.v1.Scenario
+	(*FlowChanges)(nil),                       // 91: runnir.core.v1.FlowChanges
+	(*FlowJob)(nil),                           // 92: runnir.core.v1.FlowJob
+	(*FlowLane)(nil),                          // 93: runnir.core.v1.FlowLane
+	(*SkippedWorkflow)(nil),                   // 94: runnir.core.v1.SkippedWorkflow
+	(*GetFlowResponse)(nil),                   // 95: runnir.core.v1.GetFlowResponse
+	(*ListRunJobsResponse)(nil),               // 96: runnir.core.v1.ListRunJobsResponse
+	(*RunJob)(nil),                            // 97: runnir.core.v1.RunJob
+	(*RunStep)(nil),                           // 98: runnir.core.v1.RunStep
+	(*ListGitHubRefsRequest)(nil),             // 99: runnir.core.v1.ListGitHubRefsRequest
+	(*ListGitHubRefsResponse)(nil),            // 100: runnir.core.v1.ListGitHubRefsResponse
+	(*DispatchInput)(nil),                     // 101: runnir.core.v1.DispatchInput
+	(*DescribeWorkflowDispatchRequest)(nil),   // 102: runnir.core.v1.DescribeWorkflowDispatchRequest
+	(*DescribeWorkflowDispatchResponse)(nil),  // 103: runnir.core.v1.DescribeWorkflowDispatchResponse
+	(*PrepareWorkflowDispatchRequest)(nil),    // 104: runnir.core.v1.PrepareWorkflowDispatchRequest
+	(*PrepareWorkflowDispatchResponse)(nil),   // 105: runnir.core.v1.PrepareWorkflowDispatchResponse
+	(*ConfirmWorkflowDispatchRequest)(nil),    // 106: runnir.core.v1.ConfirmWorkflowDispatchRequest
+	(*ConfirmWorkflowDispatchResponse)(nil),   // 107: runnir.core.v1.ConfirmWorkflowDispatchResponse
+	(*DispatchRecord)(nil),                    // 108: runnir.core.v1.DispatchRecord
+	(*ListDispatchHistoryRequest)(nil),        // 109: runnir.core.v1.ListDispatchHistoryRequest
+	(*ListDispatchHistoryResponse)(nil),       // 110: runnir.core.v1.ListDispatchHistoryResponse
+	(*ClearDispatchHistoryRequest)(nil),       // 111: runnir.core.v1.ClearDispatchHistoryRequest
+	(*ClearDispatchHistoryResponse)(nil),      // 112: runnir.core.v1.ClearDispatchHistoryResponse
+	(*LinkDispatchRunRequest)(nil),            // 113: runnir.core.v1.LinkDispatchRunRequest
+	(*LinkDispatchRunResponse)(nil),           // 114: runnir.core.v1.LinkDispatchRunResponse
+	(*GetJobLogRequest)(nil),                  // 115: runnir.core.v1.GetJobLogRequest
+	(*LogLine)(nil),                           // 116: runnir.core.v1.LogLine
+	(*GetJobLogResponse)(nil),                 // 117: runnir.core.v1.GetJobLogResponse
+	(*SaveJobLogRequest)(nil),                 // 118: runnir.core.v1.SaveJobLogRequest
+	(*SaveJobLogResponse)(nil),                // 119: runnir.core.v1.SaveJobLogResponse
+	(*PrepareRunActionRequest)(nil),           // 120: runnir.core.v1.PrepareRunActionRequest
+	(*PrepareRunActionResponse)(nil),          // 121: runnir.core.v1.PrepareRunActionResponse
+	(*ConfirmRunActionRequest)(nil),           // 122: runnir.core.v1.ConfirmRunActionRequest
+	(*ConfirmRunActionResponse)(nil),          // 123: runnir.core.v1.ConfirmRunActionResponse
+	(*ToolStatus)(nil),                        // 124: runnir.core.v1.ToolStatus
+	(*ContainerEngine)(nil),                   // 125: runnir.core.v1.ContainerEngine
+	(*ToolReadiness)(nil),                     // 126: runnir.core.v1.ToolReadiness
+	(*GetToolReadinessRequest)(nil),           // 127: runnir.core.v1.GetToolReadinessRequest
+	(*GetToolReadinessResponse)(nil),          // 128: runnir.core.v1.GetToolReadinessResponse
+	(*LocalRunJob)(nil),                       // 129: runnir.core.v1.LocalRunJob
+	(*LocalRunImage)(nil),                     // 130: runnir.core.v1.LocalRunImage
+	(*LocalRunPlan)(nil),                      // 131: runnir.core.v1.LocalRunPlan
+	(*PrepareLocalRunRequest)(nil),            // 132: runnir.core.v1.PrepareLocalRunRequest
+	(*LocalRunLimits)(nil),                    // 133: runnir.core.v1.LocalRunLimits
+	(*PrepareLocalRunResponse)(nil),           // 134: runnir.core.v1.PrepareLocalRunResponse
+	(*ConfirmLocalRunRequest)(nil),            // 135: runnir.core.v1.ConfirmLocalRunRequest
+	(*ConfirmLocalRunResponse)(nil),           // 136: runnir.core.v1.ConfirmLocalRunResponse
+	(*LocalRunJobStatus)(nil),                 // 137: runnir.core.v1.LocalRunJobStatus
+	(*LocalRunLine)(nil),                      // 138: runnir.core.v1.LocalRunLine
+	(*GetLocalRunOutputRequest)(nil),          // 139: runnir.core.v1.GetLocalRunOutputRequest
+	(*GetLocalRunOutputResponse)(nil),         // 140: runnir.core.v1.GetLocalRunOutputResponse
+	(*CancelExecutionRequest)(nil),            // 141: runnir.core.v1.CancelExecutionRequest
+	(*CancelExecutionResponse)(nil),           // 142: runnir.core.v1.CancelExecutionResponse
+	(*SaveWorkflowFileRequest)(nil),           // 143: runnir.core.v1.SaveWorkflowFileRequest
+	(*SaveWorkflowFileResponse)(nil),          // 144: runnir.core.v1.SaveWorkflowFileResponse
+	(*CreateWorkflowFileRequest)(nil),         // 145: runnir.core.v1.CreateWorkflowFileRequest
+	(*CreateWorkflowFileResponse)(nil),        // 146: runnir.core.v1.CreateWorkflowFileResponse
+	(*RenameWorkflowFileRequest)(nil),         // 147: runnir.core.v1.RenameWorkflowFileRequest
+	(*RenameWorkflowFileResponse)(nil),        // 148: runnir.core.v1.RenameWorkflowFileResponse
+	(*GetWorkspaceActivityRequest)(nil),       // 149: runnir.core.v1.GetWorkspaceActivityRequest
+	(*RefreshWorkspaceActivityRequest)(nil),   // 150: runnir.core.v1.RefreshWorkspaceActivityRequest
+	(*WorkspaceActivity)(nil),                 // 151: runnir.core.v1.WorkspaceActivity
+	(*Saving)(nil),                            // 152: runnir.core.v1.Saving
+	(*ActivityFreshness)(nil),                 // 153: runnir.core.v1.ActivityFreshness
+	(*RunLink)(nil),                           // 154: runnir.core.v1.RunLink
+	(*RunChange)(nil),                         // 155: runnir.core.v1.RunChange
+	(*ChangePullRequest)(nil),                 // 156: runnir.core.v1.ChangePullRequest
+	(*RunChangeSection)(nil),                  // 157: runnir.core.v1.RunChangeSection
+	(*ConcurrencyHint)(nil),                   // 158: runnir.core.v1.ConcurrencyHint
+	(*LoadOlderRunsRequest)(nil),              // 159: runnir.core.v1.LoadOlderRunsRequest
+	(*LoadOlderRunsResponse)(nil),             // 160: runnir.core.v1.LoadOlderRunsResponse
+	(*SearchRunsRequest)(nil),                 // 161: runnir.core.v1.SearchRunsRequest
+	(*SearchRunsResponse)(nil),                // 162: runnir.core.v1.SearchRunsResponse
+	(*SearchRunsOnGitHubRequest)(nil),         // 163: runnir.core.v1.SearchRunsOnGitHubRequest
+	(*SearchRunsOnGitHubResponse)(nil),        // 164: runnir.core.v1.SearchRunsOnGitHubResponse
+	(*SearchWorkspacesRequest)(nil),           // 165: runnir.core.v1.SearchWorkspacesRequest
+	(*SearchWorkspacesResponse)(nil),          // 166: runnir.core.v1.SearchWorkspacesResponse
+	(*WorkspaceSearchHits)(nil),               // 167: runnir.core.v1.WorkspaceSearchHits
+	(*SearchedPullRequest)(nil),               // 168: runnir.core.v1.SearchedPullRequest
+	(*SearchedLocalRun)(nil),                  // 169: runnir.core.v1.SearchedLocalRun
+	(*ClearRunIndexRequest)(nil),              // 170: runnir.core.v1.ClearRunIndexRequest
+	(*ClearRunIndexResponse)(nil),             // 171: runnir.core.v1.ClearRunIndexResponse
+	(*InsertWorkflowConcurrencyRequest)(nil),  // 172: runnir.core.v1.InsertWorkflowConcurrencyRequest
+	(*InsertWorkflowConcurrencyResponse)(nil), // 173: runnir.core.v1.InsertWorkflowConcurrencyResponse
+	(*WorkspaceStorage)(nil),                  // 174: runnir.core.v1.WorkspaceStorage
+	(*GetStorageUsageRequest)(nil),            // 175: runnir.core.v1.GetStorageUsageRequest
+	(*GetStorageUsageResponse)(nil),           // 176: runnir.core.v1.GetStorageUsageResponse
+	(*ClearWorkspaceCacheRequest)(nil),        // 177: runnir.core.v1.ClearWorkspaceCacheRequest
+	(*ClearWorkspaceCacheResponse)(nil),       // 178: runnir.core.v1.ClearWorkspaceCacheResponse
+	(*DeleteWorkspaceDataRequest)(nil),        // 179: runnir.core.v1.DeleteWorkspaceDataRequest
+	(*DeleteWorkspaceDataResponse)(nil),       // 180: runnir.core.v1.DeleteWorkspaceDataResponse
+	(*SetStoragePreferencesRequest)(nil),      // 181: runnir.core.v1.SetStoragePreferencesRequest
+	(*SetStoragePreferencesResponse)(nil),     // 182: runnir.core.v1.SetStoragePreferencesResponse
+	(*ParseEnvFileRequest)(nil),               // 183: runnir.core.v1.ParseEnvFileRequest
+	(*EnvEntry)(nil),                          // 184: runnir.core.v1.EnvEntry
+	(*EnvProblem)(nil),                        // 185: runnir.core.v1.EnvProblem
+	(*ParseEnvFileResponse)(nil),              // 186: runnir.core.v1.ParseEnvFileResponse
+	(*ListEnvFilesRequest)(nil),               // 187: runnir.core.v1.ListEnvFilesRequest
+	(*RepositoryEnvFile)(nil),                 // 188: runnir.core.v1.RepositoryEnvFile
+	(*ListEnvFilesResponse)(nil),              // 189: runnir.core.v1.ListEnvFilesResponse
+	(*ListEnvironmentsRequest)(nil),           // 190: runnir.core.v1.ListEnvironmentsRequest
+	(*ListEnvironmentsResponse)(nil),          // 191: runnir.core.v1.ListEnvironmentsResponse
+	(*AnalyticsCounter)(nil),                  // 192: runnir.core.v1.AnalyticsCounter
+	(*Analytics)(nil),                         // 193: runnir.core.v1.Analytics
+	(*GetAnalyticsRequest)(nil),               // 194: runnir.core.v1.GetAnalyticsRequest
+	(*SetAnalyticsLevelRequest)(nil),          // 195: runnir.core.v1.SetAnalyticsLevelRequest
+	(*RecordUsageRequest)(nil),                // 196: runnir.core.v1.RecordUsageRequest
+	(*RecordUsageResponse)(nil),               // 197: runnir.core.v1.RecordUsageResponse
+	nil,                                       // 198: runnir.core.v1.Job.ManualInputsEntry
+	nil,                                       // 199: runnir.core.v1.LaunchPreset.InputsEntry
+	nil,                                       // 200: runnir.core.v1.FlowJob.ManualInputsEntry
+	nil,                                       // 201: runnir.core.v1.PrepareWorkflowDispatchRequest.InputsEntry
+	nil,                                       // 202: runnir.core.v1.DispatchRecord.InputsEntry
+	nil,                                       // 203: runnir.core.v1.ConfirmLocalRunRequest.SecretsEntry
+	nil,                                       // 204: runnir.core.v1.ConfirmLocalRunRequest.VariablesEntry
+	(*timestamppb.Timestamp)(nil),             // 205: google.protobuf.Timestamp
 }
 var file_runnir_core_v1_runnir_core_proto_depIdxs = []int32{
-	33,  // 0: runnir.core.v1.RepositoryResponse.repository:type_name -> runnir.core.v1.Repository
-	197, // 1: runnir.core.v1.Repository.last_refresh:type_name -> google.protobuf.Timestamp
-	36,  // 2: runnir.core.v1.ListWorkflowsResponse.workflows:type_name -> runnir.core.v1.Workflow
-	37,  // 3: runnir.core.v1.Workflow.jobs:type_name -> runnir.core.v1.Job
-	99,  // 4: runnir.core.v1.Workflow.dispatch_inputs:type_name -> runnir.core.v1.DispatchInput
-	190, // 5: runnir.core.v1.Job.manual_inputs:type_name -> runnir.core.v1.Job.ManualInputsEntry
-	40,  // 6: runnir.core.v1.ListLaunchPresetsResponse.presets:type_name -> runnir.core.v1.LaunchPreset
-	191, // 7: runnir.core.v1.LaunchPreset.inputs:type_name -> runnir.core.v1.LaunchPreset.InputsEntry
+	35,  // 0: runnir.core.v1.RepositoryResponse.repository:type_name -> runnir.core.v1.Repository
+	205, // 1: runnir.core.v1.Repository.last_refresh:type_name -> google.protobuf.Timestamp
+	38,  // 2: runnir.core.v1.ListWorkflowsResponse.workflows:type_name -> runnir.core.v1.Workflow
+	39,  // 3: runnir.core.v1.Workflow.jobs:type_name -> runnir.core.v1.Job
+	101, // 4: runnir.core.v1.Workflow.dispatch_inputs:type_name -> runnir.core.v1.DispatchInput
+	198, // 5: runnir.core.v1.Job.manual_inputs:type_name -> runnir.core.v1.Job.ManualInputsEntry
+	42,  // 6: runnir.core.v1.ListLaunchPresetsResponse.presets:type_name -> runnir.core.v1.LaunchPreset
+	199, // 7: runnir.core.v1.LaunchPreset.inputs:type_name -> runnir.core.v1.LaunchPreset.InputsEntry
 	0,   // 8: runnir.core.v1.ExecutionResponse.state:type_name -> runnir.core.v1.ExecutionState
 	1,   // 9: runnir.core.v1.CoreEvent.type:type_name -> runnir.core.v1.CoreEventType
 	0,   // 10: runnir.core.v1.CoreEvent.execution_state:type_name -> runnir.core.v1.ExecutionState
-	197, // 11: runnir.core.v1.CoreEvent.occurred_at:type_name -> google.protobuf.Timestamp
-	46,  // 12: runnir.core.v1.SetGitHubCredentialRequest.server:type_name -> runnir.core.v1.GithubServer
+	205, // 11: runnir.core.v1.CoreEvent.occurred_at:type_name -> google.protobuf.Timestamp
+	48,  // 12: runnir.core.v1.SetGitHubCredentialRequest.server:type_name -> runnir.core.v1.GithubServer
 	2,   // 13: runnir.core.v1.SetGitHubCredentialResponse.kind:type_name -> runnir.core.v1.GithubCredentialKind
-	46,  // 14: runnir.core.v1.CheckGitHubTokenRequest.server:type_name -> runnir.core.v1.GithubServer
-	53,  // 15: runnir.core.v1.CheckGitHubTokenResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	48,  // 14: runnir.core.v1.CheckGitHubTokenRequest.server:type_name -> runnir.core.v1.GithubServer
+	55,  // 15: runnir.core.v1.CheckGitHubTokenResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	2,   // 16: runnir.core.v1.CheckGitHubTokenResponse.kind:type_name -> runnir.core.v1.GithubCredentialKind
-	197, // 17: runnir.core.v1.CheckGitHubTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
-	50,  // 18: runnir.core.v1.CheckGitHubTokenResponse.checks:type_name -> runnir.core.v1.GitHubTokenCheck
+	205, // 17: runnir.core.v1.CheckGitHubTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
+	52,  // 18: runnir.core.v1.CheckGitHubTokenResponse.checks:type_name -> runnir.core.v1.GitHubTokenCheck
 	3,   // 19: runnir.core.v1.GitHubTokenCheck.state:type_name -> runnir.core.v1.GithubTokenCheckState
 	4,   // 20: runnir.core.v1.GitHubStatus.access:type_name -> runnir.core.v1.GithubAccess
-	197, // 21: runnir.core.v1.GitHubStatus.retry_after:type_name -> google.protobuf.Timestamp
-	55,  // 22: runnir.core.v1.WorkflowValidation.diagnostics:type_name -> runnir.core.v1.WorkflowDiagnostic
-	56,  // 23: runnir.core.v1.ValidateWorkflowsResponse.workflows:type_name -> runnir.core.v1.WorkflowValidation
-	53,  // 24: runnir.core.v1.GetGitHubRepositoryResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	74,  // 25: runnir.core.v1.GetGitHubRepositoryResponse.installation:type_name -> runnir.core.v1.GitHubInstallation
-	197, // 26: runnir.core.v1.ListPullRequestsRequest.closed_since:type_name -> google.protobuf.Timestamp
-	53,  // 27: runnir.core.v1.ListPullRequestsResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	63,  // 28: runnir.core.v1.ListPullRequestsResponse.open:type_name -> runnir.core.v1.PullRequest
-	63,  // 29: runnir.core.v1.ListPullRequestsResponse.closed:type_name -> runnir.core.v1.PullRequest
-	74,  // 30: runnir.core.v1.ListPullRequestsResponse.pending_installations:type_name -> runnir.core.v1.GitHubInstallation
-	197, // 31: runnir.core.v1.PullRequest.updated_at:type_name -> google.protobuf.Timestamp
-	197, // 32: runnir.core.v1.PullRequest.closed_at:type_name -> google.protobuf.Timestamp
+	205, // 21: runnir.core.v1.GitHubStatus.retry_after:type_name -> google.protobuf.Timestamp
+	57,  // 22: runnir.core.v1.WorkflowValidation.diagnostics:type_name -> runnir.core.v1.WorkflowDiagnostic
+	58,  // 23: runnir.core.v1.ValidateWorkflowsResponse.workflows:type_name -> runnir.core.v1.WorkflowValidation
+	55,  // 24: runnir.core.v1.GetGitHubRepositoryResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	76,  // 25: runnir.core.v1.GetGitHubRepositoryResponse.installation:type_name -> runnir.core.v1.GitHubInstallation
+	205, // 26: runnir.core.v1.ListPullRequestsRequest.closed_since:type_name -> google.protobuf.Timestamp
+	55,  // 27: runnir.core.v1.ListPullRequestsResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	65,  // 28: runnir.core.v1.ListPullRequestsResponse.open:type_name -> runnir.core.v1.PullRequest
+	65,  // 29: runnir.core.v1.ListPullRequestsResponse.closed:type_name -> runnir.core.v1.PullRequest
+	76,  // 30: runnir.core.v1.ListPullRequestsResponse.pending_installations:type_name -> runnir.core.v1.GitHubInstallation
+	205, // 31: runnir.core.v1.PullRequest.updated_at:type_name -> google.protobuf.Timestamp
+	205, // 32: runnir.core.v1.PullRequest.closed_at:type_name -> google.protobuf.Timestamp
 	5,   // 33: runnir.core.v1.PullRequest.ci:type_name -> runnir.core.v1.PullRequestCi
-	65,  // 34: runnir.core.v1.ListWatchedRunsRequest.repositories:type_name -> runnir.core.v1.WatchedRepository
-	67,  // 35: runnir.core.v1.ListWatchedRunsResponse.repositories:type_name -> runnir.core.v1.WatchedRuns
-	68,  // 36: runnir.core.v1.ListWatchedRunsResponse.pauses:type_name -> runnir.core.v1.ServerPause
-	65,  // 37: runnir.core.v1.WatchedRuns.repository:type_name -> runnir.core.v1.WatchedRepository
-	53,  // 38: runnir.core.v1.WatchedRuns.status:type_name -> runnir.core.v1.GitHubStatus
-	80,  // 39: runnir.core.v1.WatchedRuns.failed:type_name -> runnir.core.v1.WorkflowRun
-	80,  // 40: runnir.core.v1.WatchedRuns.running:type_name -> runnir.core.v1.WorkflowRun
-	197, // 41: runnir.core.v1.WatchedRuns.read_at:type_name -> google.protobuf.Timestamp
-	197, // 42: runnir.core.v1.ServerPause.until:type_name -> google.protobuf.Timestamp
-	71,  // 43: runnir.core.v1.GetGitHubOriginsResponse.origins:type_name -> runnir.core.v1.GitHubOrigin
-	53,  // 44: runnir.core.v1.ListGitHubRepositoriesResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	74,  // 45: runnir.core.v1.ListGitHubRepositoriesResponse.installations:type_name -> runnir.core.v1.GitHubInstallation
-	75,  // 46: runnir.core.v1.ListGitHubRepositoriesResponse.repositories:type_name -> runnir.core.v1.GitHubAccountRepository
+	67,  // 34: runnir.core.v1.ListWatchedRunsRequest.repositories:type_name -> runnir.core.v1.WatchedRepository
+	69,  // 35: runnir.core.v1.ListWatchedRunsResponse.repositories:type_name -> runnir.core.v1.WatchedRuns
+	70,  // 36: runnir.core.v1.ListWatchedRunsResponse.pauses:type_name -> runnir.core.v1.ServerPause
+	67,  // 37: runnir.core.v1.WatchedRuns.repository:type_name -> runnir.core.v1.WatchedRepository
+	55,  // 38: runnir.core.v1.WatchedRuns.status:type_name -> runnir.core.v1.GitHubStatus
+	82,  // 39: runnir.core.v1.WatchedRuns.failed:type_name -> runnir.core.v1.WorkflowRun
+	82,  // 40: runnir.core.v1.WatchedRuns.running:type_name -> runnir.core.v1.WorkflowRun
+	205, // 41: runnir.core.v1.WatchedRuns.read_at:type_name -> google.protobuf.Timestamp
+	205, // 42: runnir.core.v1.ServerPause.until:type_name -> google.protobuf.Timestamp
+	73,  // 43: runnir.core.v1.GetGitHubOriginsResponse.origins:type_name -> runnir.core.v1.GitHubOrigin
+	55,  // 44: runnir.core.v1.ListGitHubRepositoriesResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	76,  // 45: runnir.core.v1.ListGitHubRepositoriesResponse.installations:type_name -> runnir.core.v1.GitHubInstallation
+	77,  // 46: runnir.core.v1.ListGitHubRepositoriesResponse.repositories:type_name -> runnir.core.v1.GitHubAccountRepository
 	2,   // 47: runnir.core.v1.ListGitHubRepositoriesResponse.credential_kind:type_name -> runnir.core.v1.GithubCredentialKind
-	197, // 48: runnir.core.v1.GitHubAccountRepository.pushed_at:type_name -> google.protobuf.Timestamp
-	53,  // 49: runnir.core.v1.ListGitHubWorkflowsResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	77,  // 50: runnir.core.v1.ListGitHubWorkflowsResponse.workflows:type_name -> runnir.core.v1.GitHubWorkflow
-	53,  // 51: runnir.core.v1.ListWorkflowRunsResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	80,  // 52: runnir.core.v1.ListWorkflowRunsResponse.runs:type_name -> runnir.core.v1.WorkflowRun
-	197, // 53: runnir.core.v1.WorkflowRun.created_at:type_name -> google.protobuf.Timestamp
-	197, // 54: runnir.core.v1.WorkflowRun.updated_at:type_name -> google.protobuf.Timestamp
-	152, // 55: runnir.core.v1.WorkflowRun.link:type_name -> runnir.core.v1.RunLink
+	205, // 48: runnir.core.v1.GitHubAccountRepository.pushed_at:type_name -> google.protobuf.Timestamp
+	55,  // 49: runnir.core.v1.ListGitHubWorkflowsResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	79,  // 50: runnir.core.v1.ListGitHubWorkflowsResponse.workflows:type_name -> runnir.core.v1.GitHubWorkflow
+	55,  // 51: runnir.core.v1.ListWorkflowRunsResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	82,  // 52: runnir.core.v1.ListWorkflowRunsResponse.runs:type_name -> runnir.core.v1.WorkflowRun
+	205, // 53: runnir.core.v1.WorkflowRun.created_at:type_name -> google.protobuf.Timestamp
+	205, // 54: runnir.core.v1.WorkflowRun.updated_at:type_name -> google.protobuf.Timestamp
+	154, // 55: runnir.core.v1.WorkflowRun.link:type_name -> runnir.core.v1.RunLink
 	7,   // 56: runnir.core.v1.WorkflowRun.status_group:type_name -> runnir.core.v1.RunStatusGroup
-	81,  // 57: runnir.core.v1.WorkflowRun.runnir_starts:type_name -> runnir.core.v1.RunnirStart
+	83,  // 57: runnir.core.v1.WorkflowRun.runnir_starts:type_name -> runnir.core.v1.RunnirStart
 	6,   // 58: runnir.core.v1.RunnirStart.kind:type_name -> runnir.core.v1.RunnirStartKind
-	197, // 59: runnir.core.v1.RunnirStart.sent_at:type_name -> google.protobuf.Timestamp
-	53,  // 60: runnir.core.v1.GetRunWorkflowResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	37,  // 61: runnir.core.v1.GetRunWorkflowResponse.jobs:type_name -> runnir.core.v1.Job
-	86,  // 62: runnir.core.v1.GetRunWorkflowResponse.skips:type_name -> runnir.core.v1.JobSkip
+	205, // 59: runnir.core.v1.RunnirStart.sent_at:type_name -> google.protobuf.Timestamp
+	55,  // 60: runnir.core.v1.GetRunWorkflowResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	39,  // 61: runnir.core.v1.GetRunWorkflowResponse.jobs:type_name -> runnir.core.v1.Job
+	88,  // 62: runnir.core.v1.GetRunWorkflowResponse.skips:type_name -> runnir.core.v1.JobSkip
 	8,   // 63: runnir.core.v1.JobSkip.kind:type_name -> runnir.core.v1.SkipKind
-	85,  // 64: runnir.core.v1.JobSkip.values:type_name -> runnir.core.v1.ConditionValue
-	88,  // 65: runnir.core.v1.GetFlowRequest.scenario:type_name -> runnir.core.v1.Scenario
+	87,  // 64: runnir.core.v1.JobSkip.values:type_name -> runnir.core.v1.ConditionValue
+	90,  // 65: runnir.core.v1.GetFlowRequest.scenario:type_name -> runnir.core.v1.Scenario
 	9,   // 66: runnir.core.v1.Scenario.kind:type_name -> runnir.core.v1.ScenarioKind
-	192, // 67: runnir.core.v1.FlowJob.manual_inputs:type_name -> runnir.core.v1.FlowJob.ManualInputsEntry
+	200, // 67: runnir.core.v1.FlowJob.manual_inputs:type_name -> runnir.core.v1.FlowJob.ManualInputsEntry
 	10,  // 68: runnir.core.v1.FlowLane.kind:type_name -> runnir.core.v1.LaneKind
-	90,  // 69: runnir.core.v1.FlowLane.jobs:type_name -> runnir.core.v1.FlowJob
-	80,  // 70: runnir.core.v1.FlowLane.run:type_name -> runnir.core.v1.WorkflowRun
-	88,  // 71: runnir.core.v1.GetFlowResponse.scenarios:type_name -> runnir.core.v1.Scenario
-	88,  // 72: runnir.core.v1.GetFlowResponse.scenario:type_name -> runnir.core.v1.Scenario
-	89,  // 73: runnir.core.v1.GetFlowResponse.changes:type_name -> runnir.core.v1.FlowChanges
-	91,  // 74: runnir.core.v1.GetFlowResponse.lanes:type_name -> runnir.core.v1.FlowLane
-	92,  // 75: runnir.core.v1.GetFlowResponse.skipped:type_name -> runnir.core.v1.SkippedWorkflow
-	53,  // 76: runnir.core.v1.ListRunJobsResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	95,  // 77: runnir.core.v1.ListRunJobsResponse.jobs:type_name -> runnir.core.v1.RunJob
-	197, // 78: runnir.core.v1.RunJob.started_at:type_name -> google.protobuf.Timestamp
-	197, // 79: runnir.core.v1.RunJob.completed_at:type_name -> google.protobuf.Timestamp
-	96,  // 80: runnir.core.v1.RunJob.steps:type_name -> runnir.core.v1.RunStep
-	197, // 81: runnir.core.v1.RunStep.started_at:type_name -> google.protobuf.Timestamp
-	197, // 82: runnir.core.v1.RunStep.completed_at:type_name -> google.protobuf.Timestamp
-	53,  // 83: runnir.core.v1.ListGitHubRefsResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	92,  // 69: runnir.core.v1.FlowLane.jobs:type_name -> runnir.core.v1.FlowJob
+	82,  // 70: runnir.core.v1.FlowLane.run:type_name -> runnir.core.v1.WorkflowRun
+	90,  // 71: runnir.core.v1.GetFlowResponse.scenarios:type_name -> runnir.core.v1.Scenario
+	90,  // 72: runnir.core.v1.GetFlowResponse.scenario:type_name -> runnir.core.v1.Scenario
+	91,  // 73: runnir.core.v1.GetFlowResponse.changes:type_name -> runnir.core.v1.FlowChanges
+	93,  // 74: runnir.core.v1.GetFlowResponse.lanes:type_name -> runnir.core.v1.FlowLane
+	94,  // 75: runnir.core.v1.GetFlowResponse.skipped:type_name -> runnir.core.v1.SkippedWorkflow
+	55,  // 76: runnir.core.v1.ListRunJobsResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	97,  // 77: runnir.core.v1.ListRunJobsResponse.jobs:type_name -> runnir.core.v1.RunJob
+	205, // 78: runnir.core.v1.RunJob.started_at:type_name -> google.protobuf.Timestamp
+	205, // 79: runnir.core.v1.RunJob.completed_at:type_name -> google.protobuf.Timestamp
+	98,  // 80: runnir.core.v1.RunJob.steps:type_name -> runnir.core.v1.RunStep
+	205, // 81: runnir.core.v1.RunStep.started_at:type_name -> google.protobuf.Timestamp
+	205, // 82: runnir.core.v1.RunStep.completed_at:type_name -> google.protobuf.Timestamp
+	55,  // 83: runnir.core.v1.ListGitHubRefsResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	11,  // 84: runnir.core.v1.DispatchInput.type:type_name -> runnir.core.v1.DispatchInputType
-	53,  // 85: runnir.core.v1.DescribeWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	99,  // 86: runnir.core.v1.DescribeWorkflowDispatchResponse.inputs:type_name -> runnir.core.v1.DispatchInput
-	193, // 87: runnir.core.v1.PrepareWorkflowDispatchRequest.inputs:type_name -> runnir.core.v1.PrepareWorkflowDispatchRequest.InputsEntry
-	53,  // 88: runnir.core.v1.PrepareWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	197, // 89: runnir.core.v1.PrepareWorkflowDispatchResponse.expires_at:type_name -> google.protobuf.Timestamp
-	53,  // 90: runnir.core.v1.ConfirmWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	197, // 91: runnir.core.v1.ConfirmWorkflowDispatchResponse.dispatched_at:type_name -> google.protobuf.Timestamp
-	194, // 92: runnir.core.v1.DispatchRecord.inputs:type_name -> runnir.core.v1.DispatchRecord.InputsEntry
-	197, // 93: runnir.core.v1.DispatchRecord.sent_at:type_name -> google.protobuf.Timestamp
-	106, // 94: runnir.core.v1.ListDispatchHistoryResponse.records:type_name -> runnir.core.v1.DispatchRecord
+	55,  // 85: runnir.core.v1.DescribeWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	101, // 86: runnir.core.v1.DescribeWorkflowDispatchResponse.inputs:type_name -> runnir.core.v1.DispatchInput
+	201, // 87: runnir.core.v1.PrepareWorkflowDispatchRequest.inputs:type_name -> runnir.core.v1.PrepareWorkflowDispatchRequest.InputsEntry
+	55,  // 88: runnir.core.v1.PrepareWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	205, // 89: runnir.core.v1.PrepareWorkflowDispatchResponse.expires_at:type_name -> google.protobuf.Timestamp
+	55,  // 90: runnir.core.v1.ConfirmWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	205, // 91: runnir.core.v1.ConfirmWorkflowDispatchResponse.dispatched_at:type_name -> google.protobuf.Timestamp
+	202, // 92: runnir.core.v1.DispatchRecord.inputs:type_name -> runnir.core.v1.DispatchRecord.InputsEntry
+	205, // 93: runnir.core.v1.DispatchRecord.sent_at:type_name -> google.protobuf.Timestamp
+	108, // 94: runnir.core.v1.ListDispatchHistoryResponse.records:type_name -> runnir.core.v1.DispatchRecord
 	13,  // 95: runnir.core.v1.LogLine.kind:type_name -> runnir.core.v1.LogLineKind
-	53,  // 96: runnir.core.v1.GetJobLogResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	55,  // 96: runnir.core.v1.GetJobLogResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	12,  // 97: runnir.core.v1.GetJobLogResponse.availability:type_name -> runnir.core.v1.JobLogAvailability
-	114, // 98: runnir.core.v1.GetJobLogResponse.lines:type_name -> runnir.core.v1.LogLine
-	53,  // 99: runnir.core.v1.SaveJobLogResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	116, // 98: runnir.core.v1.GetJobLogResponse.lines:type_name -> runnir.core.v1.LogLine
+	55,  // 99: runnir.core.v1.SaveJobLogResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	12,  // 100: runnir.core.v1.SaveJobLogResponse.availability:type_name -> runnir.core.v1.JobLogAvailability
 	14,  // 101: runnir.core.v1.PrepareRunActionRequest.action:type_name -> runnir.core.v1.RunAction
-	53,  // 102: runnir.core.v1.PrepareRunActionResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	197, // 103: runnir.core.v1.PrepareRunActionResponse.expires_at:type_name -> google.protobuf.Timestamp
-	80,  // 104: runnir.core.v1.PrepareRunActionResponse.run:type_name -> runnir.core.v1.WorkflowRun
-	95,  // 105: runnir.core.v1.PrepareRunActionResponse.job:type_name -> runnir.core.v1.RunJob
-	53,  // 106: runnir.core.v1.ConfirmRunActionResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	197, // 107: runnir.core.v1.ConfirmRunActionResponse.accepted_at:type_name -> google.protobuf.Timestamp
+	55,  // 102: runnir.core.v1.PrepareRunActionResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	205, // 103: runnir.core.v1.PrepareRunActionResponse.expires_at:type_name -> google.protobuf.Timestamp
+	82,  // 104: runnir.core.v1.PrepareRunActionResponse.run:type_name -> runnir.core.v1.WorkflowRun
+	97,  // 105: runnir.core.v1.PrepareRunActionResponse.job:type_name -> runnir.core.v1.RunJob
+	55,  // 106: runnir.core.v1.ConfirmRunActionResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	205, // 107: runnir.core.v1.ConfirmRunActionResponse.accepted_at:type_name -> google.protobuf.Timestamp
 	15,  // 108: runnir.core.v1.ToolStatus.state:type_name -> runnir.core.v1.ToolState
 	15,  // 109: runnir.core.v1.ContainerEngine.state:type_name -> runnir.core.v1.ToolState
-	122, // 110: runnir.core.v1.ToolReadiness.bundled_act:type_name -> runnir.core.v1.ToolStatus
-	122, // 111: runnir.core.v1.ToolReadiness.installed_act:type_name -> runnir.core.v1.ToolStatus
-	122, // 112: runnir.core.v1.ToolReadiness.docker_cli:type_name -> runnir.core.v1.ToolStatus
-	123, // 113: runnir.core.v1.ToolReadiness.engine:type_name -> runnir.core.v1.ContainerEngine
-	197, // 114: runnir.core.v1.ToolReadiness.checked_at:type_name -> google.protobuf.Timestamp
-	124, // 115: runnir.core.v1.GetToolReadinessResponse.readiness:type_name -> runnir.core.v1.ToolReadiness
+	124, // 110: runnir.core.v1.ToolReadiness.bundled_act:type_name -> runnir.core.v1.ToolStatus
+	124, // 111: runnir.core.v1.ToolReadiness.installed_act:type_name -> runnir.core.v1.ToolStatus
+	124, // 112: runnir.core.v1.ToolReadiness.docker_cli:type_name -> runnir.core.v1.ToolStatus
+	125, // 113: runnir.core.v1.ToolReadiness.engine:type_name -> runnir.core.v1.ContainerEngine
+	205, // 114: runnir.core.v1.ToolReadiness.checked_at:type_name -> google.protobuf.Timestamp
+	126, // 115: runnir.core.v1.GetToolReadinessResponse.readiness:type_name -> runnir.core.v1.ToolReadiness
 	16,  // 116: runnir.core.v1.LocalRunJob.support:type_name -> runnir.core.v1.LocalJobSupport
-	127, // 117: runnir.core.v1.LocalRunPlan.jobs:type_name -> runnir.core.v1.LocalRunJob
-	128, // 118: runnir.core.v1.LocalRunPlan.images:type_name -> runnir.core.v1.LocalRunImage
-	131, // 119: runnir.core.v1.PrepareLocalRunRequest.limits:type_name -> runnir.core.v1.LocalRunLimits
-	124, // 120: runnir.core.v1.PrepareLocalRunResponse.readiness:type_name -> runnir.core.v1.ToolReadiness
-	129, // 121: runnir.core.v1.PrepareLocalRunResponse.plan:type_name -> runnir.core.v1.LocalRunPlan
-	197, // 122: runnir.core.v1.PrepareLocalRunResponse.expires_at:type_name -> google.protobuf.Timestamp
-	195, // 123: runnir.core.v1.ConfirmLocalRunRequest.secrets:type_name -> runnir.core.v1.ConfirmLocalRunRequest.SecretsEntry
-	196, // 124: runnir.core.v1.ConfirmLocalRunRequest.variables:type_name -> runnir.core.v1.ConfirmLocalRunRequest.VariablesEntry
-	42,  // 125: runnir.core.v1.ConfirmLocalRunResponse.execution:type_name -> runnir.core.v1.ExecutionResponse
+	129, // 117: runnir.core.v1.LocalRunPlan.jobs:type_name -> runnir.core.v1.LocalRunJob
+	130, // 118: runnir.core.v1.LocalRunPlan.images:type_name -> runnir.core.v1.LocalRunImage
+	133, // 119: runnir.core.v1.PrepareLocalRunRequest.limits:type_name -> runnir.core.v1.LocalRunLimits
+	126, // 120: runnir.core.v1.PrepareLocalRunResponse.readiness:type_name -> runnir.core.v1.ToolReadiness
+	131, // 121: runnir.core.v1.PrepareLocalRunResponse.plan:type_name -> runnir.core.v1.LocalRunPlan
+	205, // 122: runnir.core.v1.PrepareLocalRunResponse.expires_at:type_name -> google.protobuf.Timestamp
+	203, // 123: runnir.core.v1.ConfirmLocalRunRequest.secrets:type_name -> runnir.core.v1.ConfirmLocalRunRequest.SecretsEntry
+	204, // 124: runnir.core.v1.ConfirmLocalRunRequest.variables:type_name -> runnir.core.v1.ConfirmLocalRunRequest.VariablesEntry
+	44,  // 125: runnir.core.v1.ConfirmLocalRunResponse.execution:type_name -> runnir.core.v1.ExecutionResponse
 	18,  // 126: runnir.core.v1.LocalRunJobStatus.state:type_name -> runnir.core.v1.LocalJobState
-	197, // 127: runnir.core.v1.LocalRunJobStatus.started_at:type_name -> google.protobuf.Timestamp
-	197, // 128: runnir.core.v1.LocalRunJobStatus.finished_at:type_name -> google.protobuf.Timestamp
+	205, // 127: runnir.core.v1.LocalRunJobStatus.started_at:type_name -> google.protobuf.Timestamp
+	205, // 128: runnir.core.v1.LocalRunJobStatus.finished_at:type_name -> google.protobuf.Timestamp
 	0,   // 129: runnir.core.v1.GetLocalRunOutputResponse.state:type_name -> runnir.core.v1.ExecutionState
 	17,  // 130: runnir.core.v1.GetLocalRunOutputResponse.phase:type_name -> runnir.core.v1.LocalRunPhase
-	136, // 131: runnir.core.v1.GetLocalRunOutputResponse.lines:type_name -> runnir.core.v1.LocalRunLine
-	135, // 132: runnir.core.v1.GetLocalRunOutputResponse.jobs:type_name -> runnir.core.v1.LocalRunJobStatus
-	129, // 133: runnir.core.v1.GetLocalRunOutputResponse.plan:type_name -> runnir.core.v1.LocalRunPlan
-	197, // 134: runnir.core.v1.GetLocalRunOutputResponse.started_at:type_name -> google.protobuf.Timestamp
-	197, // 135: runnir.core.v1.GetLocalRunOutputResponse.finished_at:type_name -> google.protobuf.Timestamp
-	80,  // 136: runnir.core.v1.WorkspaceActivity.runs:type_name -> runnir.core.v1.WorkflowRun
-	77,  // 137: runnir.core.v1.WorkspaceActivity.workflows:type_name -> runnir.core.v1.GitHubWorkflow
-	151, // 138: runnir.core.v1.WorkspaceActivity.freshness:type_name -> runnir.core.v1.ActivityFreshness
-	153, // 139: runnir.core.v1.WorkspaceActivity.changes:type_name -> runnir.core.v1.RunChange
-	156, // 140: runnir.core.v1.WorkspaceActivity.concurrency_hints:type_name -> runnir.core.v1.ConcurrencyHint
-	150, // 141: runnir.core.v1.WorkspaceActivity.savings:type_name -> runnir.core.v1.Saving
+	138, // 131: runnir.core.v1.GetLocalRunOutputResponse.lines:type_name -> runnir.core.v1.LocalRunLine
+	137, // 132: runnir.core.v1.GetLocalRunOutputResponse.jobs:type_name -> runnir.core.v1.LocalRunJobStatus
+	131, // 133: runnir.core.v1.GetLocalRunOutputResponse.plan:type_name -> runnir.core.v1.LocalRunPlan
+	205, // 134: runnir.core.v1.GetLocalRunOutputResponse.started_at:type_name -> google.protobuf.Timestamp
+	205, // 135: runnir.core.v1.GetLocalRunOutputResponse.finished_at:type_name -> google.protobuf.Timestamp
+	82,  // 136: runnir.core.v1.WorkspaceActivity.runs:type_name -> runnir.core.v1.WorkflowRun
+	79,  // 137: runnir.core.v1.WorkspaceActivity.workflows:type_name -> runnir.core.v1.GitHubWorkflow
+	153, // 138: runnir.core.v1.WorkspaceActivity.freshness:type_name -> runnir.core.v1.ActivityFreshness
+	155, // 139: runnir.core.v1.WorkspaceActivity.changes:type_name -> runnir.core.v1.RunChange
+	158, // 140: runnir.core.v1.WorkspaceActivity.concurrency_hints:type_name -> runnir.core.v1.ConcurrencyHint
+	152, // 141: runnir.core.v1.WorkspaceActivity.savings:type_name -> runnir.core.v1.Saving
 	19,  // 142: runnir.core.v1.Saving.kind:type_name -> runnir.core.v1.SavingKind
-	197, // 143: runnir.core.v1.Saving.since:type_name -> google.protobuf.Timestamp
+	205, // 143: runnir.core.v1.Saving.since:type_name -> google.protobuf.Timestamp
 	20,  // 144: runnir.core.v1.ActivityFreshness.source:type_name -> runnir.core.v1.ActivitySource
-	53,  // 145: runnir.core.v1.ActivityFreshness.status:type_name -> runnir.core.v1.GitHubStatus
-	197, // 146: runnir.core.v1.ActivityFreshness.checked_at:type_name -> google.protobuf.Timestamp
-	197, // 147: runnir.core.v1.ActivityFreshness.synced_at:type_name -> google.protobuf.Timestamp
-	197, // 148: runnir.core.v1.ActivityFreshness.changed_at:type_name -> google.protobuf.Timestamp
+	55,  // 145: runnir.core.v1.ActivityFreshness.status:type_name -> runnir.core.v1.GitHubStatus
+	205, // 146: runnir.core.v1.ActivityFreshness.checked_at:type_name -> google.protobuf.Timestamp
+	205, // 147: runnir.core.v1.ActivityFreshness.synced_at:type_name -> google.protobuf.Timestamp
+	205, // 148: runnir.core.v1.ActivityFreshness.changed_at:type_name -> google.protobuf.Timestamp
 	4,   // 149: runnir.core.v1.ActivityFreshness.pull_requests_access:type_name -> runnir.core.v1.GithubAccess
 	21,  // 150: runnir.core.v1.RunLink.kind:type_name -> runnir.core.v1.RunLinkKind
-	154, // 151: runnir.core.v1.RunChange.pull_request:type_name -> runnir.core.v1.ChangePullRequest
+	156, // 151: runnir.core.v1.RunChange.pull_request:type_name -> runnir.core.v1.ChangePullRequest
 	5,   // 152: runnir.core.v1.RunChange.status:type_name -> runnir.core.v1.PullRequestCi
-	197, // 153: runnir.core.v1.RunChange.latest_at:type_name -> google.protobuf.Timestamp
-	155, // 154: runnir.core.v1.RunChange.sections:type_name -> runnir.core.v1.RunChangeSection
-	197, // 155: runnir.core.v1.ChangePullRequest.merged_at:type_name -> google.protobuf.Timestamp
+	205, // 153: runnir.core.v1.RunChange.latest_at:type_name -> google.protobuf.Timestamp
+	157, // 154: runnir.core.v1.RunChange.sections:type_name -> runnir.core.v1.RunChangeSection
+	205, // 155: runnir.core.v1.ChangePullRequest.merged_at:type_name -> google.protobuf.Timestamp
 	22,  // 156: runnir.core.v1.RunChangeSection.kind:type_name -> runnir.core.v1.RunChangeSectionKind
-	53,  // 157: runnir.core.v1.LoadOlderRunsResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	80,  // 158: runnir.core.v1.SearchRunsResponse.indexed_runs:type_name -> runnir.core.v1.WorkflowRun
-	197, // 159: runnir.core.v1.SearchRunsOnGitHubRequest.cursor:type_name -> google.protobuf.Timestamp
-	53,  // 160: runnir.core.v1.SearchRunsOnGitHubResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	80,  // 161: runnir.core.v1.SearchRunsOnGitHubResponse.runs:type_name -> runnir.core.v1.WorkflowRun
-	197, // 162: runnir.core.v1.SearchRunsOnGitHubResponse.next_cursor:type_name -> google.protobuf.Timestamp
-	197, // 163: runnir.core.v1.SearchRunsOnGitHubResponse.looked_back_to:type_name -> google.protobuf.Timestamp
+	55,  // 157: runnir.core.v1.LoadOlderRunsResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	82,  // 158: runnir.core.v1.SearchRunsResponse.indexed_runs:type_name -> runnir.core.v1.WorkflowRun
+	205, // 159: runnir.core.v1.SearchRunsOnGitHubRequest.cursor:type_name -> google.protobuf.Timestamp
+	55,  // 160: runnir.core.v1.SearchRunsOnGitHubResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	82,  // 161: runnir.core.v1.SearchRunsOnGitHubResponse.runs:type_name -> runnir.core.v1.WorkflowRun
+	205, // 162: runnir.core.v1.SearchRunsOnGitHubResponse.next_cursor:type_name -> google.protobuf.Timestamp
+	205, // 163: runnir.core.v1.SearchRunsOnGitHubResponse.looked_back_to:type_name -> google.protobuf.Timestamp
 	23,  // 164: runnir.core.v1.SearchRunsOnGitHubResponse.stop:type_name -> runnir.core.v1.SearchStop
-	165, // 165: runnir.core.v1.SearchWorkspacesResponse.workspaces:type_name -> runnir.core.v1.WorkspaceSearchHits
-	197, // 166: runnir.core.v1.WorkspaceSearchHits.saved_at:type_name -> google.protobuf.Timestamp
-	80,  // 167: runnir.core.v1.WorkspaceSearchHits.runs:type_name -> runnir.core.v1.WorkflowRun
-	166, // 168: runnir.core.v1.WorkspaceSearchHits.pull_requests:type_name -> runnir.core.v1.SearchedPullRequest
-	77,  // 169: runnir.core.v1.WorkspaceSearchHits.workflows:type_name -> runnir.core.v1.GitHubWorkflow
-	167, // 170: runnir.core.v1.WorkspaceSearchHits.local_runs:type_name -> runnir.core.v1.SearchedLocalRun
-	197, // 171: runnir.core.v1.SearchedPullRequest.updated_at:type_name -> google.protobuf.Timestamp
-	197, // 172: runnir.core.v1.SearchedLocalRun.started_at:type_name -> google.protobuf.Timestamp
-	172, // 173: runnir.core.v1.ClearRunIndexResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
+	167, // 165: runnir.core.v1.SearchWorkspacesResponse.workspaces:type_name -> runnir.core.v1.WorkspaceSearchHits
+	205, // 166: runnir.core.v1.WorkspaceSearchHits.saved_at:type_name -> google.protobuf.Timestamp
+	82,  // 167: runnir.core.v1.WorkspaceSearchHits.runs:type_name -> runnir.core.v1.WorkflowRun
+	168, // 168: runnir.core.v1.WorkspaceSearchHits.pull_requests:type_name -> runnir.core.v1.SearchedPullRequest
+	79,  // 169: runnir.core.v1.WorkspaceSearchHits.workflows:type_name -> runnir.core.v1.GitHubWorkflow
+	169, // 170: runnir.core.v1.WorkspaceSearchHits.local_runs:type_name -> runnir.core.v1.SearchedLocalRun
+	205, // 171: runnir.core.v1.SearchedPullRequest.updated_at:type_name -> google.protobuf.Timestamp
+	205, // 172: runnir.core.v1.SearchedLocalRun.started_at:type_name -> google.protobuf.Timestamp
+	174, // 173: runnir.core.v1.ClearRunIndexResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
 	24,  // 174: runnir.core.v1.InsertWorkflowConcurrencyResponse.refusal:type_name -> runnir.core.v1.ConcurrencyRefusal
 	25,  // 175: runnir.core.v1.WorkspaceStorage.state:type_name -> runnir.core.v1.StorageState
-	172, // 176: runnir.core.v1.GetStorageUsageResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
-	172, // 177: runnir.core.v1.ClearWorkspaceCacheResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
-	182, // 178: runnir.core.v1.ParseEnvFileResponse.entries:type_name -> runnir.core.v1.EnvEntry
-	183, // 179: runnir.core.v1.ParseEnvFileResponse.problems:type_name -> runnir.core.v1.EnvProblem
-	186, // 180: runnir.core.v1.ListEnvFilesResponse.files:type_name -> runnir.core.v1.RepositoryEnvFile
-	26,  // 181: runnir.core.v1.RunnirCore.HealthCheck:input_type -> runnir.core.v1.HealthCheckRequest
-	28,  // 182: runnir.core.v1.RunnirCore.OpenRepository:input_type -> runnir.core.v1.OpenRepositoryRequest
-	29,  // 183: runnir.core.v1.RunnirCore.CloseRepository:input_type -> runnir.core.v1.CloseRepositoryRequest
-	31,  // 184: runnir.core.v1.RunnirCore.RefreshRepository:input_type -> runnir.core.v1.RefreshRepositoryRequest
-	147, // 185: runnir.core.v1.RunnirCore.GetWorkspaceActivity:input_type -> runnir.core.v1.GetWorkspaceActivityRequest
-	148, // 186: runnir.core.v1.RunnirCore.RefreshWorkspaceActivity:input_type -> runnir.core.v1.RefreshWorkspaceActivityRequest
-	157, // 187: runnir.core.v1.RunnirCore.LoadOlderRuns:input_type -> runnir.core.v1.LoadOlderRunsRequest
-	159, // 188: runnir.core.v1.RunnirCore.SearchRuns:input_type -> runnir.core.v1.SearchRunsRequest
-	161, // 189: runnir.core.v1.RunnirCore.SearchRunsOnGitHub:input_type -> runnir.core.v1.SearchRunsOnGitHubRequest
-	163, // 190: runnir.core.v1.RunnirCore.SearchWorkspaces:input_type -> runnir.core.v1.SearchWorkspacesRequest
-	168, // 191: runnir.core.v1.RunnirCore.ClearRunIndex:input_type -> runnir.core.v1.ClearRunIndexRequest
-	173, // 192: runnir.core.v1.RunnirCore.GetStorageUsage:input_type -> runnir.core.v1.GetStorageUsageRequest
-	175, // 193: runnir.core.v1.RunnirCore.ClearWorkspaceCache:input_type -> runnir.core.v1.ClearWorkspaceCacheRequest
-	177, // 194: runnir.core.v1.RunnirCore.DeleteWorkspaceData:input_type -> runnir.core.v1.DeleteWorkspaceDataRequest
-	179, // 195: runnir.core.v1.RunnirCore.SetStoragePreferences:input_type -> runnir.core.v1.SetStoragePreferencesRequest
-	34,  // 196: runnir.core.v1.RunnirCore.ListWorkflows:input_type -> runnir.core.v1.ListWorkflowsRequest
-	38,  // 197: runnir.core.v1.RunnirCore.ListLaunchPresets:input_type -> runnir.core.v1.ListLaunchPresetsRequest
-	54,  // 198: runnir.core.v1.RunnirCore.ValidateWorkflows:input_type -> runnir.core.v1.ValidateWorkflowsRequest
-	141, // 199: runnir.core.v1.RunnirCore.SaveWorkflowFile:input_type -> runnir.core.v1.SaveWorkflowFileRequest
-	143, // 200: runnir.core.v1.RunnirCore.CreateWorkflowFile:input_type -> runnir.core.v1.CreateWorkflowFileRequest
-	145, // 201: runnir.core.v1.RunnirCore.RenameWorkflowFile:input_type -> runnir.core.v1.RenameWorkflowFileRequest
-	170, // 202: runnir.core.v1.RunnirCore.InsertWorkflowConcurrency:input_type -> runnir.core.v1.InsertWorkflowConcurrencyRequest
-	41,  // 203: runnir.core.v1.RunnirCore.StartWorkflow:input_type -> runnir.core.v1.StartWorkflowRequest
-	43,  // 204: runnir.core.v1.RunnirCore.SubscribeEvents:input_type -> runnir.core.v1.SubscribeEventsRequest
-	45,  // 205: runnir.core.v1.RunnirCore.SetGitHubCredential:input_type -> runnir.core.v1.SetGitHubCredentialRequest
-	51,  // 206: runnir.core.v1.RunnirCore.ClearGitHubCredential:input_type -> runnir.core.v1.ClearGitHubCredentialRequest
-	48,  // 207: runnir.core.v1.RunnirCore.CheckGitHubToken:input_type -> runnir.core.v1.CheckGitHubTokenRequest
-	61,  // 208: runnir.core.v1.RunnirCore.ListPullRequests:input_type -> runnir.core.v1.ListPullRequestsRequest
-	64,  // 209: runnir.core.v1.RunnirCore.ListWatchedRuns:input_type -> runnir.core.v1.ListWatchedRunsRequest
-	69,  // 210: runnir.core.v1.RunnirCore.GetGitHubOrigins:input_type -> runnir.core.v1.GetGitHubOriginsRequest
-	72,  // 211: runnir.core.v1.RunnirCore.ListGitHubRepositories:input_type -> runnir.core.v1.ListGitHubRepositoriesRequest
-	60,  // 212: runnir.core.v1.RunnirCore.ListGitHubWorkflows:input_type -> runnir.core.v1.ListGitHubWorkflowsRequest
-	58,  // 213: runnir.core.v1.RunnirCore.GetGitHubRepository:input_type -> runnir.core.v1.GetGitHubRepositoryRequest
-	78,  // 214: runnir.core.v1.RunnirCore.ListWorkflowRuns:input_type -> runnir.core.v1.ListWorkflowRunsRequest
-	82,  // 215: runnir.core.v1.RunnirCore.ListRunJobs:input_type -> runnir.core.v1.ListRunJobsRequest
-	83,  // 216: runnir.core.v1.RunnirCore.GetRunWorkflow:input_type -> runnir.core.v1.GetRunWorkflowRequest
-	87,  // 217: runnir.core.v1.RunnirCore.GetFlow:input_type -> runnir.core.v1.GetFlowRequest
-	97,  // 218: runnir.core.v1.RunnirCore.ListGitHubRefs:input_type -> runnir.core.v1.ListGitHubRefsRequest
-	100, // 219: runnir.core.v1.RunnirCore.DescribeWorkflowDispatch:input_type -> runnir.core.v1.DescribeWorkflowDispatchRequest
-	102, // 220: runnir.core.v1.RunnirCore.PrepareWorkflowDispatch:input_type -> runnir.core.v1.PrepareWorkflowDispatchRequest
-	104, // 221: runnir.core.v1.RunnirCore.ConfirmWorkflowDispatch:input_type -> runnir.core.v1.ConfirmWorkflowDispatchRequest
-	107, // 222: runnir.core.v1.RunnirCore.ListDispatchHistory:input_type -> runnir.core.v1.ListDispatchHistoryRequest
-	109, // 223: runnir.core.v1.RunnirCore.ClearDispatchHistory:input_type -> runnir.core.v1.ClearDispatchHistoryRequest
-	111, // 224: runnir.core.v1.RunnirCore.LinkDispatchRun:input_type -> runnir.core.v1.LinkDispatchRunRequest
-	113, // 225: runnir.core.v1.RunnirCore.GetJobLog:input_type -> runnir.core.v1.GetJobLogRequest
-	116, // 226: runnir.core.v1.RunnirCore.SaveJobLog:input_type -> runnir.core.v1.SaveJobLogRequest
-	118, // 227: runnir.core.v1.RunnirCore.PrepareRunAction:input_type -> runnir.core.v1.PrepareRunActionRequest
-	120, // 228: runnir.core.v1.RunnirCore.ConfirmRunAction:input_type -> runnir.core.v1.ConfirmRunActionRequest
-	125, // 229: runnir.core.v1.RunnirCore.GetToolReadiness:input_type -> runnir.core.v1.GetToolReadinessRequest
-	130, // 230: runnir.core.v1.RunnirCore.PrepareLocalRun:input_type -> runnir.core.v1.PrepareLocalRunRequest
-	133, // 231: runnir.core.v1.RunnirCore.ConfirmLocalRun:input_type -> runnir.core.v1.ConfirmLocalRunRequest
-	137, // 232: runnir.core.v1.RunnirCore.GetLocalRunOutput:input_type -> runnir.core.v1.GetLocalRunOutputRequest
-	139, // 233: runnir.core.v1.RunnirCore.CancelExecution:input_type -> runnir.core.v1.CancelExecutionRequest
-	181, // 234: runnir.core.v1.RunnirCore.ParseEnvFile:input_type -> runnir.core.v1.ParseEnvFileRequest
-	185, // 235: runnir.core.v1.RunnirCore.ListEnvFiles:input_type -> runnir.core.v1.ListEnvFilesRequest
-	188, // 236: runnir.core.v1.RunnirCore.ListEnvironments:input_type -> runnir.core.v1.ListEnvironmentsRequest
-	27,  // 237: runnir.core.v1.RunnirCore.HealthCheck:output_type -> runnir.core.v1.HealthCheckResponse
-	32,  // 238: runnir.core.v1.RunnirCore.OpenRepository:output_type -> runnir.core.v1.RepositoryResponse
-	30,  // 239: runnir.core.v1.RunnirCore.CloseRepository:output_type -> runnir.core.v1.CloseRepositoryResponse
-	32,  // 240: runnir.core.v1.RunnirCore.RefreshRepository:output_type -> runnir.core.v1.RepositoryResponse
-	149, // 241: runnir.core.v1.RunnirCore.GetWorkspaceActivity:output_type -> runnir.core.v1.WorkspaceActivity
-	149, // 242: runnir.core.v1.RunnirCore.RefreshWorkspaceActivity:output_type -> runnir.core.v1.WorkspaceActivity
-	158, // 243: runnir.core.v1.RunnirCore.LoadOlderRuns:output_type -> runnir.core.v1.LoadOlderRunsResponse
-	160, // 244: runnir.core.v1.RunnirCore.SearchRuns:output_type -> runnir.core.v1.SearchRunsResponse
-	162, // 245: runnir.core.v1.RunnirCore.SearchRunsOnGitHub:output_type -> runnir.core.v1.SearchRunsOnGitHubResponse
-	164, // 246: runnir.core.v1.RunnirCore.SearchWorkspaces:output_type -> runnir.core.v1.SearchWorkspacesResponse
-	169, // 247: runnir.core.v1.RunnirCore.ClearRunIndex:output_type -> runnir.core.v1.ClearRunIndexResponse
-	174, // 248: runnir.core.v1.RunnirCore.GetStorageUsage:output_type -> runnir.core.v1.GetStorageUsageResponse
-	176, // 249: runnir.core.v1.RunnirCore.ClearWorkspaceCache:output_type -> runnir.core.v1.ClearWorkspaceCacheResponse
-	178, // 250: runnir.core.v1.RunnirCore.DeleteWorkspaceData:output_type -> runnir.core.v1.DeleteWorkspaceDataResponse
-	180, // 251: runnir.core.v1.RunnirCore.SetStoragePreferences:output_type -> runnir.core.v1.SetStoragePreferencesResponse
-	35,  // 252: runnir.core.v1.RunnirCore.ListWorkflows:output_type -> runnir.core.v1.ListWorkflowsResponse
-	39,  // 253: runnir.core.v1.RunnirCore.ListLaunchPresets:output_type -> runnir.core.v1.ListLaunchPresetsResponse
-	57,  // 254: runnir.core.v1.RunnirCore.ValidateWorkflows:output_type -> runnir.core.v1.ValidateWorkflowsResponse
-	142, // 255: runnir.core.v1.RunnirCore.SaveWorkflowFile:output_type -> runnir.core.v1.SaveWorkflowFileResponse
-	144, // 256: runnir.core.v1.RunnirCore.CreateWorkflowFile:output_type -> runnir.core.v1.CreateWorkflowFileResponse
-	146, // 257: runnir.core.v1.RunnirCore.RenameWorkflowFile:output_type -> runnir.core.v1.RenameWorkflowFileResponse
-	171, // 258: runnir.core.v1.RunnirCore.InsertWorkflowConcurrency:output_type -> runnir.core.v1.InsertWorkflowConcurrencyResponse
-	42,  // 259: runnir.core.v1.RunnirCore.StartWorkflow:output_type -> runnir.core.v1.ExecutionResponse
-	44,  // 260: runnir.core.v1.RunnirCore.SubscribeEvents:output_type -> runnir.core.v1.CoreEvent
-	47,  // 261: runnir.core.v1.RunnirCore.SetGitHubCredential:output_type -> runnir.core.v1.SetGitHubCredentialResponse
-	52,  // 262: runnir.core.v1.RunnirCore.ClearGitHubCredential:output_type -> runnir.core.v1.ClearGitHubCredentialResponse
-	49,  // 263: runnir.core.v1.RunnirCore.CheckGitHubToken:output_type -> runnir.core.v1.CheckGitHubTokenResponse
-	62,  // 264: runnir.core.v1.RunnirCore.ListPullRequests:output_type -> runnir.core.v1.ListPullRequestsResponse
-	66,  // 265: runnir.core.v1.RunnirCore.ListWatchedRuns:output_type -> runnir.core.v1.ListWatchedRunsResponse
-	70,  // 266: runnir.core.v1.RunnirCore.GetGitHubOrigins:output_type -> runnir.core.v1.GetGitHubOriginsResponse
-	73,  // 267: runnir.core.v1.RunnirCore.ListGitHubRepositories:output_type -> runnir.core.v1.ListGitHubRepositoriesResponse
-	76,  // 268: runnir.core.v1.RunnirCore.ListGitHubWorkflows:output_type -> runnir.core.v1.ListGitHubWorkflowsResponse
-	59,  // 269: runnir.core.v1.RunnirCore.GetGitHubRepository:output_type -> runnir.core.v1.GetGitHubRepositoryResponse
-	79,  // 270: runnir.core.v1.RunnirCore.ListWorkflowRuns:output_type -> runnir.core.v1.ListWorkflowRunsResponse
-	94,  // 271: runnir.core.v1.RunnirCore.ListRunJobs:output_type -> runnir.core.v1.ListRunJobsResponse
-	84,  // 272: runnir.core.v1.RunnirCore.GetRunWorkflow:output_type -> runnir.core.v1.GetRunWorkflowResponse
-	93,  // 273: runnir.core.v1.RunnirCore.GetFlow:output_type -> runnir.core.v1.GetFlowResponse
-	98,  // 274: runnir.core.v1.RunnirCore.ListGitHubRefs:output_type -> runnir.core.v1.ListGitHubRefsResponse
-	101, // 275: runnir.core.v1.RunnirCore.DescribeWorkflowDispatch:output_type -> runnir.core.v1.DescribeWorkflowDispatchResponse
-	103, // 276: runnir.core.v1.RunnirCore.PrepareWorkflowDispatch:output_type -> runnir.core.v1.PrepareWorkflowDispatchResponse
-	105, // 277: runnir.core.v1.RunnirCore.ConfirmWorkflowDispatch:output_type -> runnir.core.v1.ConfirmWorkflowDispatchResponse
-	108, // 278: runnir.core.v1.RunnirCore.ListDispatchHistory:output_type -> runnir.core.v1.ListDispatchHistoryResponse
-	110, // 279: runnir.core.v1.RunnirCore.ClearDispatchHistory:output_type -> runnir.core.v1.ClearDispatchHistoryResponse
-	112, // 280: runnir.core.v1.RunnirCore.LinkDispatchRun:output_type -> runnir.core.v1.LinkDispatchRunResponse
-	115, // 281: runnir.core.v1.RunnirCore.GetJobLog:output_type -> runnir.core.v1.GetJobLogResponse
-	117, // 282: runnir.core.v1.RunnirCore.SaveJobLog:output_type -> runnir.core.v1.SaveJobLogResponse
-	119, // 283: runnir.core.v1.RunnirCore.PrepareRunAction:output_type -> runnir.core.v1.PrepareRunActionResponse
-	121, // 284: runnir.core.v1.RunnirCore.ConfirmRunAction:output_type -> runnir.core.v1.ConfirmRunActionResponse
-	126, // 285: runnir.core.v1.RunnirCore.GetToolReadiness:output_type -> runnir.core.v1.GetToolReadinessResponse
-	132, // 286: runnir.core.v1.RunnirCore.PrepareLocalRun:output_type -> runnir.core.v1.PrepareLocalRunResponse
-	134, // 287: runnir.core.v1.RunnirCore.ConfirmLocalRun:output_type -> runnir.core.v1.ConfirmLocalRunResponse
-	138, // 288: runnir.core.v1.RunnirCore.GetLocalRunOutput:output_type -> runnir.core.v1.GetLocalRunOutputResponse
-	140, // 289: runnir.core.v1.RunnirCore.CancelExecution:output_type -> runnir.core.v1.CancelExecutionResponse
-	184, // 290: runnir.core.v1.RunnirCore.ParseEnvFile:output_type -> runnir.core.v1.ParseEnvFileResponse
-	187, // 291: runnir.core.v1.RunnirCore.ListEnvFiles:output_type -> runnir.core.v1.ListEnvFilesResponse
-	189, // 292: runnir.core.v1.RunnirCore.ListEnvironments:output_type -> runnir.core.v1.ListEnvironmentsResponse
-	237, // [237:293] is the sub-list for method output_type
-	181, // [181:237] is the sub-list for method input_type
-	181, // [181:181] is the sub-list for extension type_name
-	181, // [181:181] is the sub-list for extension extendee
-	0,   // [0:181] is the sub-list for field type_name
+	174, // 176: runnir.core.v1.GetStorageUsageResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
+	174, // 177: runnir.core.v1.ClearWorkspaceCacheResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
+	184, // 178: runnir.core.v1.ParseEnvFileResponse.entries:type_name -> runnir.core.v1.EnvEntry
+	185, // 179: runnir.core.v1.ParseEnvFileResponse.problems:type_name -> runnir.core.v1.EnvProblem
+	188, // 180: runnir.core.v1.ListEnvFilesResponse.files:type_name -> runnir.core.v1.RepositoryEnvFile
+	26,  // 181: runnir.core.v1.Analytics.level:type_name -> runnir.core.v1.AnalyticsLevel
+	192, // 182: runnir.core.v1.Analytics.sealed:type_name -> runnir.core.v1.AnalyticsCounter
+	192, // 183: runnir.core.v1.Analytics.today:type_name -> runnir.core.v1.AnalyticsCounter
+	26,  // 184: runnir.core.v1.SetAnalyticsLevelRequest.level:type_name -> runnir.core.v1.AnalyticsLevel
+	27,  // 185: runnir.core.v1.RecordUsageRequest.event:type_name -> runnir.core.v1.UsageEvent
+	28,  // 186: runnir.core.v1.RunnirCore.HealthCheck:input_type -> runnir.core.v1.HealthCheckRequest
+	30,  // 187: runnir.core.v1.RunnirCore.OpenRepository:input_type -> runnir.core.v1.OpenRepositoryRequest
+	31,  // 188: runnir.core.v1.RunnirCore.CloseRepository:input_type -> runnir.core.v1.CloseRepositoryRequest
+	33,  // 189: runnir.core.v1.RunnirCore.RefreshRepository:input_type -> runnir.core.v1.RefreshRepositoryRequest
+	149, // 190: runnir.core.v1.RunnirCore.GetWorkspaceActivity:input_type -> runnir.core.v1.GetWorkspaceActivityRequest
+	150, // 191: runnir.core.v1.RunnirCore.RefreshWorkspaceActivity:input_type -> runnir.core.v1.RefreshWorkspaceActivityRequest
+	159, // 192: runnir.core.v1.RunnirCore.LoadOlderRuns:input_type -> runnir.core.v1.LoadOlderRunsRequest
+	161, // 193: runnir.core.v1.RunnirCore.SearchRuns:input_type -> runnir.core.v1.SearchRunsRequest
+	163, // 194: runnir.core.v1.RunnirCore.SearchRunsOnGitHub:input_type -> runnir.core.v1.SearchRunsOnGitHubRequest
+	165, // 195: runnir.core.v1.RunnirCore.SearchWorkspaces:input_type -> runnir.core.v1.SearchWorkspacesRequest
+	170, // 196: runnir.core.v1.RunnirCore.ClearRunIndex:input_type -> runnir.core.v1.ClearRunIndexRequest
+	175, // 197: runnir.core.v1.RunnirCore.GetStorageUsage:input_type -> runnir.core.v1.GetStorageUsageRequest
+	177, // 198: runnir.core.v1.RunnirCore.ClearWorkspaceCache:input_type -> runnir.core.v1.ClearWorkspaceCacheRequest
+	179, // 199: runnir.core.v1.RunnirCore.DeleteWorkspaceData:input_type -> runnir.core.v1.DeleteWorkspaceDataRequest
+	181, // 200: runnir.core.v1.RunnirCore.SetStoragePreferences:input_type -> runnir.core.v1.SetStoragePreferencesRequest
+	194, // 201: runnir.core.v1.RunnirCore.GetAnalytics:input_type -> runnir.core.v1.GetAnalyticsRequest
+	195, // 202: runnir.core.v1.RunnirCore.SetAnalyticsLevel:input_type -> runnir.core.v1.SetAnalyticsLevelRequest
+	196, // 203: runnir.core.v1.RunnirCore.RecordUsage:input_type -> runnir.core.v1.RecordUsageRequest
+	36,  // 204: runnir.core.v1.RunnirCore.ListWorkflows:input_type -> runnir.core.v1.ListWorkflowsRequest
+	40,  // 205: runnir.core.v1.RunnirCore.ListLaunchPresets:input_type -> runnir.core.v1.ListLaunchPresetsRequest
+	56,  // 206: runnir.core.v1.RunnirCore.ValidateWorkflows:input_type -> runnir.core.v1.ValidateWorkflowsRequest
+	143, // 207: runnir.core.v1.RunnirCore.SaveWorkflowFile:input_type -> runnir.core.v1.SaveWorkflowFileRequest
+	145, // 208: runnir.core.v1.RunnirCore.CreateWorkflowFile:input_type -> runnir.core.v1.CreateWorkflowFileRequest
+	147, // 209: runnir.core.v1.RunnirCore.RenameWorkflowFile:input_type -> runnir.core.v1.RenameWorkflowFileRequest
+	172, // 210: runnir.core.v1.RunnirCore.InsertWorkflowConcurrency:input_type -> runnir.core.v1.InsertWorkflowConcurrencyRequest
+	43,  // 211: runnir.core.v1.RunnirCore.StartWorkflow:input_type -> runnir.core.v1.StartWorkflowRequest
+	45,  // 212: runnir.core.v1.RunnirCore.SubscribeEvents:input_type -> runnir.core.v1.SubscribeEventsRequest
+	47,  // 213: runnir.core.v1.RunnirCore.SetGitHubCredential:input_type -> runnir.core.v1.SetGitHubCredentialRequest
+	53,  // 214: runnir.core.v1.RunnirCore.ClearGitHubCredential:input_type -> runnir.core.v1.ClearGitHubCredentialRequest
+	50,  // 215: runnir.core.v1.RunnirCore.CheckGitHubToken:input_type -> runnir.core.v1.CheckGitHubTokenRequest
+	63,  // 216: runnir.core.v1.RunnirCore.ListPullRequests:input_type -> runnir.core.v1.ListPullRequestsRequest
+	66,  // 217: runnir.core.v1.RunnirCore.ListWatchedRuns:input_type -> runnir.core.v1.ListWatchedRunsRequest
+	71,  // 218: runnir.core.v1.RunnirCore.GetGitHubOrigins:input_type -> runnir.core.v1.GetGitHubOriginsRequest
+	74,  // 219: runnir.core.v1.RunnirCore.ListGitHubRepositories:input_type -> runnir.core.v1.ListGitHubRepositoriesRequest
+	62,  // 220: runnir.core.v1.RunnirCore.ListGitHubWorkflows:input_type -> runnir.core.v1.ListGitHubWorkflowsRequest
+	60,  // 221: runnir.core.v1.RunnirCore.GetGitHubRepository:input_type -> runnir.core.v1.GetGitHubRepositoryRequest
+	80,  // 222: runnir.core.v1.RunnirCore.ListWorkflowRuns:input_type -> runnir.core.v1.ListWorkflowRunsRequest
+	84,  // 223: runnir.core.v1.RunnirCore.ListRunJobs:input_type -> runnir.core.v1.ListRunJobsRequest
+	85,  // 224: runnir.core.v1.RunnirCore.GetRunWorkflow:input_type -> runnir.core.v1.GetRunWorkflowRequest
+	89,  // 225: runnir.core.v1.RunnirCore.GetFlow:input_type -> runnir.core.v1.GetFlowRequest
+	99,  // 226: runnir.core.v1.RunnirCore.ListGitHubRefs:input_type -> runnir.core.v1.ListGitHubRefsRequest
+	102, // 227: runnir.core.v1.RunnirCore.DescribeWorkflowDispatch:input_type -> runnir.core.v1.DescribeWorkflowDispatchRequest
+	104, // 228: runnir.core.v1.RunnirCore.PrepareWorkflowDispatch:input_type -> runnir.core.v1.PrepareWorkflowDispatchRequest
+	106, // 229: runnir.core.v1.RunnirCore.ConfirmWorkflowDispatch:input_type -> runnir.core.v1.ConfirmWorkflowDispatchRequest
+	109, // 230: runnir.core.v1.RunnirCore.ListDispatchHistory:input_type -> runnir.core.v1.ListDispatchHistoryRequest
+	111, // 231: runnir.core.v1.RunnirCore.ClearDispatchHistory:input_type -> runnir.core.v1.ClearDispatchHistoryRequest
+	113, // 232: runnir.core.v1.RunnirCore.LinkDispatchRun:input_type -> runnir.core.v1.LinkDispatchRunRequest
+	115, // 233: runnir.core.v1.RunnirCore.GetJobLog:input_type -> runnir.core.v1.GetJobLogRequest
+	118, // 234: runnir.core.v1.RunnirCore.SaveJobLog:input_type -> runnir.core.v1.SaveJobLogRequest
+	120, // 235: runnir.core.v1.RunnirCore.PrepareRunAction:input_type -> runnir.core.v1.PrepareRunActionRequest
+	122, // 236: runnir.core.v1.RunnirCore.ConfirmRunAction:input_type -> runnir.core.v1.ConfirmRunActionRequest
+	127, // 237: runnir.core.v1.RunnirCore.GetToolReadiness:input_type -> runnir.core.v1.GetToolReadinessRequest
+	132, // 238: runnir.core.v1.RunnirCore.PrepareLocalRun:input_type -> runnir.core.v1.PrepareLocalRunRequest
+	135, // 239: runnir.core.v1.RunnirCore.ConfirmLocalRun:input_type -> runnir.core.v1.ConfirmLocalRunRequest
+	139, // 240: runnir.core.v1.RunnirCore.GetLocalRunOutput:input_type -> runnir.core.v1.GetLocalRunOutputRequest
+	141, // 241: runnir.core.v1.RunnirCore.CancelExecution:input_type -> runnir.core.v1.CancelExecutionRequest
+	183, // 242: runnir.core.v1.RunnirCore.ParseEnvFile:input_type -> runnir.core.v1.ParseEnvFileRequest
+	187, // 243: runnir.core.v1.RunnirCore.ListEnvFiles:input_type -> runnir.core.v1.ListEnvFilesRequest
+	190, // 244: runnir.core.v1.RunnirCore.ListEnvironments:input_type -> runnir.core.v1.ListEnvironmentsRequest
+	29,  // 245: runnir.core.v1.RunnirCore.HealthCheck:output_type -> runnir.core.v1.HealthCheckResponse
+	34,  // 246: runnir.core.v1.RunnirCore.OpenRepository:output_type -> runnir.core.v1.RepositoryResponse
+	32,  // 247: runnir.core.v1.RunnirCore.CloseRepository:output_type -> runnir.core.v1.CloseRepositoryResponse
+	34,  // 248: runnir.core.v1.RunnirCore.RefreshRepository:output_type -> runnir.core.v1.RepositoryResponse
+	151, // 249: runnir.core.v1.RunnirCore.GetWorkspaceActivity:output_type -> runnir.core.v1.WorkspaceActivity
+	151, // 250: runnir.core.v1.RunnirCore.RefreshWorkspaceActivity:output_type -> runnir.core.v1.WorkspaceActivity
+	160, // 251: runnir.core.v1.RunnirCore.LoadOlderRuns:output_type -> runnir.core.v1.LoadOlderRunsResponse
+	162, // 252: runnir.core.v1.RunnirCore.SearchRuns:output_type -> runnir.core.v1.SearchRunsResponse
+	164, // 253: runnir.core.v1.RunnirCore.SearchRunsOnGitHub:output_type -> runnir.core.v1.SearchRunsOnGitHubResponse
+	166, // 254: runnir.core.v1.RunnirCore.SearchWorkspaces:output_type -> runnir.core.v1.SearchWorkspacesResponse
+	171, // 255: runnir.core.v1.RunnirCore.ClearRunIndex:output_type -> runnir.core.v1.ClearRunIndexResponse
+	176, // 256: runnir.core.v1.RunnirCore.GetStorageUsage:output_type -> runnir.core.v1.GetStorageUsageResponse
+	178, // 257: runnir.core.v1.RunnirCore.ClearWorkspaceCache:output_type -> runnir.core.v1.ClearWorkspaceCacheResponse
+	180, // 258: runnir.core.v1.RunnirCore.DeleteWorkspaceData:output_type -> runnir.core.v1.DeleteWorkspaceDataResponse
+	182, // 259: runnir.core.v1.RunnirCore.SetStoragePreferences:output_type -> runnir.core.v1.SetStoragePreferencesResponse
+	193, // 260: runnir.core.v1.RunnirCore.GetAnalytics:output_type -> runnir.core.v1.Analytics
+	193, // 261: runnir.core.v1.RunnirCore.SetAnalyticsLevel:output_type -> runnir.core.v1.Analytics
+	197, // 262: runnir.core.v1.RunnirCore.RecordUsage:output_type -> runnir.core.v1.RecordUsageResponse
+	37,  // 263: runnir.core.v1.RunnirCore.ListWorkflows:output_type -> runnir.core.v1.ListWorkflowsResponse
+	41,  // 264: runnir.core.v1.RunnirCore.ListLaunchPresets:output_type -> runnir.core.v1.ListLaunchPresetsResponse
+	59,  // 265: runnir.core.v1.RunnirCore.ValidateWorkflows:output_type -> runnir.core.v1.ValidateWorkflowsResponse
+	144, // 266: runnir.core.v1.RunnirCore.SaveWorkflowFile:output_type -> runnir.core.v1.SaveWorkflowFileResponse
+	146, // 267: runnir.core.v1.RunnirCore.CreateWorkflowFile:output_type -> runnir.core.v1.CreateWorkflowFileResponse
+	148, // 268: runnir.core.v1.RunnirCore.RenameWorkflowFile:output_type -> runnir.core.v1.RenameWorkflowFileResponse
+	173, // 269: runnir.core.v1.RunnirCore.InsertWorkflowConcurrency:output_type -> runnir.core.v1.InsertWorkflowConcurrencyResponse
+	44,  // 270: runnir.core.v1.RunnirCore.StartWorkflow:output_type -> runnir.core.v1.ExecutionResponse
+	46,  // 271: runnir.core.v1.RunnirCore.SubscribeEvents:output_type -> runnir.core.v1.CoreEvent
+	49,  // 272: runnir.core.v1.RunnirCore.SetGitHubCredential:output_type -> runnir.core.v1.SetGitHubCredentialResponse
+	54,  // 273: runnir.core.v1.RunnirCore.ClearGitHubCredential:output_type -> runnir.core.v1.ClearGitHubCredentialResponse
+	51,  // 274: runnir.core.v1.RunnirCore.CheckGitHubToken:output_type -> runnir.core.v1.CheckGitHubTokenResponse
+	64,  // 275: runnir.core.v1.RunnirCore.ListPullRequests:output_type -> runnir.core.v1.ListPullRequestsResponse
+	68,  // 276: runnir.core.v1.RunnirCore.ListWatchedRuns:output_type -> runnir.core.v1.ListWatchedRunsResponse
+	72,  // 277: runnir.core.v1.RunnirCore.GetGitHubOrigins:output_type -> runnir.core.v1.GetGitHubOriginsResponse
+	75,  // 278: runnir.core.v1.RunnirCore.ListGitHubRepositories:output_type -> runnir.core.v1.ListGitHubRepositoriesResponse
+	78,  // 279: runnir.core.v1.RunnirCore.ListGitHubWorkflows:output_type -> runnir.core.v1.ListGitHubWorkflowsResponse
+	61,  // 280: runnir.core.v1.RunnirCore.GetGitHubRepository:output_type -> runnir.core.v1.GetGitHubRepositoryResponse
+	81,  // 281: runnir.core.v1.RunnirCore.ListWorkflowRuns:output_type -> runnir.core.v1.ListWorkflowRunsResponse
+	96,  // 282: runnir.core.v1.RunnirCore.ListRunJobs:output_type -> runnir.core.v1.ListRunJobsResponse
+	86,  // 283: runnir.core.v1.RunnirCore.GetRunWorkflow:output_type -> runnir.core.v1.GetRunWorkflowResponse
+	95,  // 284: runnir.core.v1.RunnirCore.GetFlow:output_type -> runnir.core.v1.GetFlowResponse
+	100, // 285: runnir.core.v1.RunnirCore.ListGitHubRefs:output_type -> runnir.core.v1.ListGitHubRefsResponse
+	103, // 286: runnir.core.v1.RunnirCore.DescribeWorkflowDispatch:output_type -> runnir.core.v1.DescribeWorkflowDispatchResponse
+	105, // 287: runnir.core.v1.RunnirCore.PrepareWorkflowDispatch:output_type -> runnir.core.v1.PrepareWorkflowDispatchResponse
+	107, // 288: runnir.core.v1.RunnirCore.ConfirmWorkflowDispatch:output_type -> runnir.core.v1.ConfirmWorkflowDispatchResponse
+	110, // 289: runnir.core.v1.RunnirCore.ListDispatchHistory:output_type -> runnir.core.v1.ListDispatchHistoryResponse
+	112, // 290: runnir.core.v1.RunnirCore.ClearDispatchHistory:output_type -> runnir.core.v1.ClearDispatchHistoryResponse
+	114, // 291: runnir.core.v1.RunnirCore.LinkDispatchRun:output_type -> runnir.core.v1.LinkDispatchRunResponse
+	117, // 292: runnir.core.v1.RunnirCore.GetJobLog:output_type -> runnir.core.v1.GetJobLogResponse
+	119, // 293: runnir.core.v1.RunnirCore.SaveJobLog:output_type -> runnir.core.v1.SaveJobLogResponse
+	121, // 294: runnir.core.v1.RunnirCore.PrepareRunAction:output_type -> runnir.core.v1.PrepareRunActionResponse
+	123, // 295: runnir.core.v1.RunnirCore.ConfirmRunAction:output_type -> runnir.core.v1.ConfirmRunActionResponse
+	128, // 296: runnir.core.v1.RunnirCore.GetToolReadiness:output_type -> runnir.core.v1.GetToolReadinessResponse
+	134, // 297: runnir.core.v1.RunnirCore.PrepareLocalRun:output_type -> runnir.core.v1.PrepareLocalRunResponse
+	136, // 298: runnir.core.v1.RunnirCore.ConfirmLocalRun:output_type -> runnir.core.v1.ConfirmLocalRunResponse
+	140, // 299: runnir.core.v1.RunnirCore.GetLocalRunOutput:output_type -> runnir.core.v1.GetLocalRunOutputResponse
+	142, // 300: runnir.core.v1.RunnirCore.CancelExecution:output_type -> runnir.core.v1.CancelExecutionResponse
+	186, // 301: runnir.core.v1.RunnirCore.ParseEnvFile:output_type -> runnir.core.v1.ParseEnvFileResponse
+	189, // 302: runnir.core.v1.RunnirCore.ListEnvFiles:output_type -> runnir.core.v1.ListEnvFilesResponse
+	191, // 303: runnir.core.v1.RunnirCore.ListEnvironments:output_type -> runnir.core.v1.ListEnvironmentsResponse
+	245, // [245:304] is the sub-list for method output_type
+	186, // [186:245] is the sub-list for method input_type
+	186, // [186:186] is the sub-list for extension type_name
+	186, // [186:186] is the sub-list for extension extendee
+	0,   // [0:186] is the sub-list for field type_name
 }
 
 func init() { file_runnir_core_v1_runnir_core_proto_init() }
@@ -14846,8 +15450,8 @@ func file_runnir_core_v1_runnir_core_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_runnir_core_v1_runnir_core_proto_rawDesc), len(file_runnir_core_v1_runnir_core_proto_rawDesc)),
-			NumEnums:      26,
-			NumMessages:   171,
+			NumEnums:      28,
+			NumMessages:   177,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

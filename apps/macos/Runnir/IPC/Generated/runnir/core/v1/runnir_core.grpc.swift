@@ -221,6 +221,45 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "GetAnalytics" metadata.
+        internal enum GetAnalytics: Sendable {
+            /// Request type for "GetAnalytics".
+            internal typealias Input = Runnir_Core_V1_GetAnalyticsRequest
+            /// Response type for "GetAnalytics".
+            internal typealias Output = Runnir_Core_V1_Analytics
+            /// Descriptor for "GetAnalytics".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "GetAnalytics",
+                type: .unary
+            )
+        }
+        /// Namespace for "SetAnalyticsLevel" metadata.
+        internal enum SetAnalyticsLevel: Sendable {
+            /// Request type for "SetAnalyticsLevel".
+            internal typealias Input = Runnir_Core_V1_SetAnalyticsLevelRequest
+            /// Response type for "SetAnalyticsLevel".
+            internal typealias Output = Runnir_Core_V1_Analytics
+            /// Descriptor for "SetAnalyticsLevel".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "SetAnalyticsLevel",
+                type: .unary
+            )
+        }
+        /// Namespace for "RecordUsage" metadata.
+        internal enum RecordUsage: Sendable {
+            /// Request type for "RecordUsage".
+            internal typealias Input = Runnir_Core_V1_RecordUsageRequest
+            /// Response type for "RecordUsage".
+            internal typealias Output = Runnir_Core_V1_RecordUsageResponse
+            /// Descriptor for "RecordUsage".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "RecordUsage",
+                type: .unary
+            )
+        }
         /// Namespace for "ListWorkflows" metadata.
         internal enum ListWorkflows: Sendable {
             /// Request type for "ListWorkflows".
@@ -771,6 +810,9 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             ClearWorkspaceCache.descriptor,
             DeleteWorkspaceData.descriptor,
             SetStoragePreferences.descriptor,
+            GetAnalytics.descriptor,
+            SetAnalyticsLevel.descriptor,
+            RecordUsage.descriptor,
             ListWorkflows.descriptor,
             ListLaunchPresets.descriptor,
             ValidateWorkflows.descriptor,
@@ -1112,6 +1154,62 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SetStoragePreferencesRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SetStoragePreferencesResponse>
+
+        /// Handle the "GetAnalytics" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The analytics level, whether the consent question was answered and the
+        /// > counts waiting to be sent (docs/product/analytics-and-crash-reporting.md).
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_GetAnalyticsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_Analytics` messages.
+        func getAnalytics(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetAnalyticsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_Analytics>
+
+        /// Handle the "SetAnalyticsLevel" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Changes the level: a new analytics id for FULL; the id and section and
+        /// > action counts dropped when leaving FULL; everything unsent dropped for OFF.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_SetAnalyticsLevelRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_Analytics` messages.
+        func setAnalyticsLevel(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SetAnalyticsLevelRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_Analytics>
+
+        /// Handle the "RecordUsage" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > One more of a section or action; counted only at FULL.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_RecordUsageRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_RecordUsageResponse` messages.
+        func recordUsage(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_RecordUsageRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_RecordUsageResponse>
 
         /// Handle the "ListWorkflows" method.
         ///
@@ -2174,6 +2272,62 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SetStoragePreferencesResponse>
 
+        /// Handle the "GetAnalytics" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The analytics level, whether the consent question was answered and the
+        /// > counts waiting to be sent (docs/product/analytics-and-crash-reporting.md).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetAnalyticsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_Analytics` message.
+        func getAnalytics(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_GetAnalyticsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_Analytics>
+
+        /// Handle the "SetAnalyticsLevel" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Changes the level: a new analytics id for FULL; the id and section and
+        /// > action counts dropped when leaving FULL; everything unsent dropped for OFF.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SetAnalyticsLevelRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_Analytics` message.
+        func setAnalyticsLevel(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_SetAnalyticsLevelRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_Analytics>
+
+        /// Handle the "RecordUsage" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > One more of a section or action; counted only at FULL.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_RecordUsageRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_RecordUsageResponse` message.
+        func recordUsage(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_RecordUsageRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_RecordUsageResponse>
+
         /// Handle the "ListWorkflows" method.
         ///
         /// - Parameters:
@@ -3233,6 +3387,62 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_SetStoragePreferencesResponse
 
+        /// Handle the "GetAnalytics" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The analytics level, whether the consent question was answered and the
+        /// > counts waiting to be sent (docs/product/analytics-and-crash-reporting.md).
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_GetAnalyticsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_Analytics` to respond with.
+        func getAnalytics(
+            request: Runnir_Core_V1_GetAnalyticsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_Analytics
+
+        /// Handle the "SetAnalyticsLevel" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Changes the level: a new analytics id for FULL; the id and section and
+        /// > action counts dropped when leaving FULL; everything unsent dropped for OFF.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_SetAnalyticsLevelRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_Analytics` to respond with.
+        func setAnalyticsLevel(
+            request: Runnir_Core_V1_SetAnalyticsLevelRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_Analytics
+
+        /// Handle the "RecordUsage" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > One more of a section or action; counted only at FULL.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_RecordUsageRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_RecordUsageResponse` to respond with.
+        func recordUsage(
+            request: Runnir_Core_V1_RecordUsageRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_RecordUsageResponse
+
         /// Handle the "ListWorkflows" method.
         ///
         /// - Parameters:
@@ -4183,6 +4393,39 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.GetAnalytics.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_GetAnalyticsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_Analytics>(),
+            handler: { request, context in
+                try await self.getAnalytics(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.SetAnalyticsLevel.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SetAnalyticsLevelRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_Analytics>(),
+            handler: { request, context in
+                try await self.setAnalyticsLevel(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.RecordUsage.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_RecordUsageRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_RecordUsageResponse>(),
+            handler: { request, context in
+                try await self.recordUsage(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.ListWorkflows.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ListWorkflowsRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ListWorkflowsResponse>(),
@@ -4798,6 +5041,39 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_SetStoragePreferencesResponse> {
         let response = try await self.setStoragePreferences(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func getAnalytics(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_GetAnalyticsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_Analytics> {
+        let response = try await self.getAnalytics(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func setAnalyticsLevel(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_SetAnalyticsLevelRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_Analytics> {
+        let response = try await self.setAnalyticsLevel(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func recordUsage(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_RecordUsageRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_RecordUsageResponse> {
+        let response = try await self.recordUsage(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -5447,6 +5723,45 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_SetStoragePreferencesResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_SetStoragePreferencesResponse>(
             message: try await self.setStoragePreferences(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func getAnalytics(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_GetAnalyticsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_Analytics> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_Analytics>(
+            message: try await self.getAnalytics(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func setAnalyticsLevel(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_SetAnalyticsLevelRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_Analytics> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_Analytics>(
+            message: try await self.setAnalyticsLevel(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func recordUsage(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_RecordUsageRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_RecordUsageResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_RecordUsageResponse>(
+            message: try await self.recordUsage(
                 request: request.message,
                 context: context
             ),
@@ -6349,6 +6664,77 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_SetStoragePreferencesResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_SetStoragePreferencesResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "GetAnalytics" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The analytics level, whether the consent question was answered and the
+        /// > counts waiting to be sent (docs/product/analytics-and-crash-reporting.md).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetAnalyticsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetAnalyticsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_Analytics` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func getAnalytics<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetAnalyticsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetAnalyticsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_Analytics>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_Analytics>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "SetAnalyticsLevel" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Changes the level: a new analytics id for FULL; the id and section and
+        /// > action counts dropped when leaving FULL; everything unsent dropped for OFF.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SetAnalyticsLevelRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SetAnalyticsLevelRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_Analytics` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func setAnalyticsLevel<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SetAnalyticsLevelRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SetAnalyticsLevelRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_Analytics>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_Analytics>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "RecordUsage" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > One more of a section or action; counted only at FULL.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_RecordUsageRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_RecordUsageRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_RecordUsageResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func recordUsage<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_RecordUsageRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_RecordUsageRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_RecordUsageResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_RecordUsageResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "ListWorkflows" method.
@@ -7858,6 +8244,110 @@ extension Runnir_Core_V1_RunnirCore {
             try await self.client.unary(
                 request: request,
                 descriptor: Runnir_Core_V1_RunnirCore.Method.SetStoragePreferences.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "GetAnalytics" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > The analytics level, whether the consent question was answered and the
+        /// > counts waiting to be sent (docs/product/analytics-and-crash-reporting.md).
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_GetAnalyticsRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_GetAnalyticsRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_Analytics` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func getAnalytics<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_GetAnalyticsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_GetAnalyticsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_Analytics>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_Analytics>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.GetAnalytics.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "SetAnalyticsLevel" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Changes the level: a new analytics id for FULL; the id and section and
+        /// > action counts dropped when leaving FULL; everything unsent dropped for OFF.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_SetAnalyticsLevelRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_SetAnalyticsLevelRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_Analytics` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func setAnalyticsLevel<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_SetAnalyticsLevelRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_SetAnalyticsLevelRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_Analytics>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_Analytics>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.SetAnalyticsLevel.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "RecordUsage" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > One more of a section or action; counted only at FULL.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_RecordUsageRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_RecordUsageRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_RecordUsageResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func recordUsage<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_RecordUsageRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_RecordUsageRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_RecordUsageResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_RecordUsageResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.RecordUsage.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -9741,6 +10231,95 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "GetAnalytics" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The analytics level, whether the consent question was answered and the
+    /// > counts waiting to be sent (docs/product/analytics-and-crash-reporting.md).
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_GetAnalyticsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getAnalytics<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_GetAnalyticsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_Analytics>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.getAnalytics(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_GetAnalyticsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_Analytics>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SetAnalyticsLevel" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Changes the level: a new analytics id for FULL; the id and section and
+    /// > action counts dropped when leaving FULL; everything unsent dropped for OFF.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_SetAnalyticsLevelRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func setAnalyticsLevel<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_SetAnalyticsLevelRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_Analytics>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.setAnalyticsLevel(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SetAnalyticsLevelRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_Analytics>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "RecordUsage" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > One more of a section or action; counted only at FULL.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_RecordUsageRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func recordUsage<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_RecordUsageRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_RecordUsageResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.recordUsage(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_RecordUsageRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_RecordUsageResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "ListWorkflows" method.
     ///
     /// - Parameters:
@@ -11465,6 +12044,107 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.setStoragePreferences(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetAnalytics" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > The analytics level, whether the consent question was answered and the
+    /// > counts waiting to be sent (docs/product/analytics-and-crash-reporting.md).
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func getAnalytics<Result>(
+        _ message: Runnir_Core_V1_GetAnalyticsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_Analytics>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_GetAnalyticsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.getAnalytics(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SetAnalyticsLevel" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Changes the level: a new analytics id for FULL; the id and section and
+    /// > action counts dropped when leaving FULL; everything unsent dropped for OFF.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func setAnalyticsLevel<Result>(
+        _ message: Runnir_Core_V1_SetAnalyticsLevelRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_Analytics>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_SetAnalyticsLevelRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.setAnalyticsLevel(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "RecordUsage" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > One more of a section or action; counted only at FULL.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func recordUsage<Result>(
+        _ message: Runnir_Core_V1_RecordUsageRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_RecordUsageResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_RecordUsageRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.recordUsage(
             request: request,
             options: options,
             onResponse: handleResponse
