@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"runnir/core/internal/analytics"
 	"runnir/core/internal/approval"
 	"runnir/core/internal/buildinfo"
 	"runnir/core/internal/dispatch"
@@ -62,6 +63,13 @@ type Options struct {
 	// DataDir is the app's support folder; each workspace keeps its database
 	// in DataDir/repositories/<workspaceId>. Empty keeps everything in memory.
 	DataDir string
+	// PostHogHost and PostHogProjectToken replace buildinfo's, for tests.
+	// An empty token sends no analytics.
+	PostHogHost         string
+	PostHogProjectToken string
+	// AnalyticsFirstSend is how long after start the first send waits;
+	// 0 is one minute.
+	AnalyticsFirstSend time.Duration
 }
 
 // Run serves gRPC on a Unix domain socket until ctx is cancelled, then stops
@@ -101,12 +109,35 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 		return fmt.Errorf("restrict socket: %w", err)
 	}
 
+	// Opened before the workspaces, so it closes after them: their
+	// recorder may still add counts while shutting down.
+	ledger, err := analytics.Open(options.DataDir, analytics.Options{})
+	if err != nil {
+		_ = listener.Close()
+		return fmt.Errorf("analytics: %w", err)
+	}
+	defer ledger.Close()
+
 	bus := events.New(options.EventBuffer)
 	outputs := localrun.NewOutputs()
 	workspaces := workspace.New(workspace.Options{DataDir: options.DataDir, Publish: bus.Publish, BilledMinutes: outputs.BilledMinutes})
 	// Registered before repositories.Shutdown, so it runs after it: closing
 	// the repositories detaches their runtimes first.
 	defer workspaces.Shutdown()
+	host, token := options.PostHogHost, options.PostHogProjectToken
+	if host == "" && token == "" {
+		host, token = buildinfo.PostHogHost, buildinfo.PostHogProjectToken
+	}
+	sender := &analytics.Sender{Ledger: ledger, Host: host, Token: token,
+		Env: analytics.CurrentEnv(buildinfo.Version), Log: os.Stderr}
+	firstSend := options.AnalyticsFirstSend
+	if firstSend <= 0 {
+		firstSend = time.Minute
+	}
+	senderCtx, stopSender := context.WithCancel(context.Background())
+	senderDone := make(chan struct{})
+	go func() { defer close(senderDone); sender.Run(senderCtx, firstSend, 6*time.Hour) }()
+	defer func() { stopSender(); <-senderDone }()
 	runner := options.Runner
 	if runner == nil {
 		runner = localrun.NewRunner(outputs)
@@ -149,15 +180,17 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 	accounts := github.NewAccounts(options.GitHubBaseURL, buildinfo.Version)
 	corev1.RegisterRunnirCoreServer(grpcServer, &service{
 		repositories: repositories, events: bus, executions: executions, workspaces: workspaces,
-		accounts:     accounts,
-		watcher:      watch.New(accounts, workspaces, time.Now),
-		dispatches:   dispatch.NewStore(0, nil),
-		runActions:   approval.NewStore[runAction]("action_", 0, nil),
-		tools:        checker,
-		localRuns:    approval.NewStore[localRunApproval]("local_", 0, nil),
-		localOutputs: outputs,
-		home:         home,
-		actCache:     actCache,
+		accounts:         accounts,
+		watcher:          watch.New(accounts, workspaces, time.Now),
+		dispatches:       dispatch.NewStore(0, nil),
+		runActions:       approval.NewStore[runAction]("action_", 0, nil),
+		tools:            checker,
+		localRuns:        approval.NewStore[localRunApproval]("local_", 0, nil),
+		localOutputs:     outputs,
+		home:             home,
+		actCache:         actCache,
+		analytics:        ledger,
+		analyticsSending: sender.Enabled(),
 	})
 
 	done := make(chan error, 1)
