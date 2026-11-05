@@ -32,6 +32,16 @@ Task 10 writes these into the spec:
 - The payload check is the allowlist itself: `Ledger.Add` refuses any other name and `Body` refuses to build an event with one, so no repository data can reach a request; tests cover both instead of a scan for synthetic names.
 - A failed send is logged to the Core's stderr (the log the app shows) as one line without the body.
 
+## Changes Made While Implementing (2026-11-04)
+
+The spec has these already; where a task below differs, the spec wins:
+
+- Events are reshaped for PostHog insights (spec: Events, Reading The Data). A sealed batch becomes `minutes_saved` per source, `local_runs`, `concurrency_inserted`, and at Full `screen_viewed`, `overlay_viewed`, `action_used` and `async_event` with `area`, `name` and `count`; there is no `usage_day` event. Every event has a name-based `uuid` of its batch and kind.
+- `UsageEvent` values are `USAGE_EVENT_<CATEGORY>_<AREA>_<NAME>` in four categories (screen, overlay, action, async); a table in `names.go` gives each its category, area and name, and the ledger names a usage counter `<category>:<name>`. The Core counts the async events it sees itself (`Ledger.Record`).
+- `Analytics` has `sealed` and `today` instead of `pending`, for the two groups of "What is sent" in `runnir.pen`.
+- There is no `app_build`: the app has no `CFBundleVersion`, and the channel shows in `app_version`.
+- The build values are `buildinfo.PostHogProjectToken` and `buildinfo.PostHogHost`, from the `release` environment's `RUNNIR_POSTHOG_PROJECT_TOKEN` and `RUNNIR_POSTHOG_HOST`, and only the app of a tag (alpha, beta, release) gets them.
+
 ---
 
 ### Task 1: Contract And Build Settings
@@ -3878,5 +3888,5 @@ git commit -m "Docs: analytics levels, consent banner and metrics as built (B21)
 ## Manual Steps For The Account Owner (Not Part Of The Code)
 
 - In PostHog (US project): turn on "Discard client IP data"; note the event retention for the privacy policy.
-- In GitHub: add the repository variable `RUNNIR_POSTHOG_KEY` with the project's key (`phc_…`).
+- In GitHub: the `release` environment's variables `RUNNIR_POSTHOG_PROJECT_TOKEN` (`phc_…`) and `RUNNIR_POSTHOG_HOST` (set on 2026-11-04).
 - In PostHog: build the saved-minutes and usage insights so every sum takes one event per `batch_id` (for example in SQL: `SELECT sum(toInt(properties.local_billed_minutes)) FROM (SELECT argMax(properties, timestamp) AS properties FROM events WHERE event = 'usage_day' GROUP BY properties.batch_id)`).
