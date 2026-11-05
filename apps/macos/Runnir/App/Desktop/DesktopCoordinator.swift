@@ -81,6 +81,29 @@ final class DesktopCoordinator {
         showSettings(in: Self.managerWindowID, section: section)
     }
 
+    // MARK: Analytics question
+
+    /// The workspace window showing the analytics question (O10); at most one.
+    private(set) var analyticsPromptWindowID: UUID?
+
+    /// Shows the question in this window while it is unanswered, the ledger
+    /// is on disk and no other window shows it.
+    func offerAnalyticsPrompt(windowID: UUID) {
+        guard analyticsPromptWindowID == nil, let analytics = core?.analytics,
+              analytics.persistent, !analytics.promptAnswered else { return }
+        analyticsPromptWindowID = windowID
+    }
+
+    /// The window closed: another one may ask later.
+    func releaseAnalyticsPrompt(windowID: UUID) {
+        if analyticsPromptWindowID == windowID { analyticsPromptWindowID = nil }
+    }
+
+    func answerAnalyticsPrompt(_ level: CoreAnalyticsLevel) async {
+        guard await core?.setAnalyticsLevel(level, fromPrompt: true) == true else { return }
+        analyticsPromptWindowID = nil
+    }
+
     /// The Enterprise servers, for their names in lists and notices; set by
     /// the app delegate.
     @ObservationIgnored var enterpriseServers: EnterpriseServers?

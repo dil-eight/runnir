@@ -53,9 +53,9 @@ enum SettingsIndex {
         SettingsItem(id: "search-index", section: .storage, title: "Clear Search Index",
                      detail: "The runs Runnir keeps for search, also those GitHub deleted",
                      keywords: ["search", "index", "history", "storage", "delete"]),
-        SettingsItem(id: "telemetry", section: .privacy, title: "Telemetry",
-                     detail: "Runnir does not enable telemetry by default and sends no repository data to a Runnir backend",
-                     keywords: ["privacy", "analytics", "tracking", "data", "backend", "diagnostics"]),
+        SettingsItem(id: "analytics", section: .privacy, title: "Analytics",
+                     detail: "Anonymous counts of installs and saved minutes by default; screens and actions only with your permission",
+                     keywords: ["privacy", "telemetry", "tracking", "data", "usage", "posthog", "analytics id", "off"]),
     ]
 
     /// The settings that match every word, best matches first: a word in the

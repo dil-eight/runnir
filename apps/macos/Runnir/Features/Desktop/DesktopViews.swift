@@ -666,6 +666,7 @@ struct DesktopWorkspaceView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         coreBanner
+                        if desktop.analyticsPromptWindowID == windowID { AnalyticsConsentBanner(desktop: desktop) }
                         content
                     }
                 }
@@ -698,6 +699,8 @@ struct DesktopWorkspaceView: View {
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
         .onChange(of: state.runsMode) { _, value in desktop.selectRunsMode(value, windowID: windowID) }
+        .onChange(of: desktop.core?.analytics, initial: true) { _, _ in desktop.offerAnalyticsPrompt(windowID: windowID) }
+        .onDisappear { desktop.releaseAnalyticsPrompt(windowID: windowID) }
         // Once the Core has opened the working tree: its origin's GitHub
         // repository key, or none ("") when the origin is on no GitHub server.
         .onChange(of: session?.phase == .ready ? (session?.githubRef?.key ?? "") : nil, initial: true) { _, value in
