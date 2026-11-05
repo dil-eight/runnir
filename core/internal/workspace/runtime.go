@@ -285,6 +285,7 @@ func (r *Runtime) pass() {
 	r.mu.Lock()
 	r.syncing = false
 	r.finished++
+	previous := r.lastAccess
 	r.lastAccess, r.lastRetry = corev1.GithubAccess(p.Access), p.RetryAfter
 	r.lastServer, r.hasServer = "", false
 	if target != nil {
@@ -302,6 +303,9 @@ func (r *Runtime) pass() {
 	close(r.passDone)
 	r.passDone = make(chan struct{})
 	r.mu.Unlock()
+	if target != nil {
+		r.countSyncOutcome(previous, corev1.GithubAccess(p.Access))
+	}
 	r.publish()
 }
 

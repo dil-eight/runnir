@@ -18,6 +18,25 @@ var localRunEnds = map[string]corev1.UsageEvent{
 	store.LocalCancelled: corev1.UsageEvent_USAGE_EVENT_ASYNC_LOCAL_RUN_CANCELLED,
 }
 
+// syncFailures are the async usage events of a pass GitHub did not answer
+// with the activity.
+var syncFailures = map[corev1.GithubAccess]corev1.UsageEvent{
+	corev1.GithubAccess_GITHUB_ACCESS_UNAVAILABLE:    corev1.UsageEvent_USAGE_EVENT_ASYNC_GITHUB_SYNC_FAILED,
+	corev1.GithubAccess_GITHUB_ACCESS_RATE_LIMITED:   corev1.UsageEvent_USAGE_EVENT_ASYNC_GITHUB_RATE_LIMITED,
+	corev1.GithubAccess_GITHUB_ACCESS_TOKEN_REJECTED: corev1.UsageEvent_USAGE_EVENT_ASYNC_GITHUB_TOKEN_REJECTED,
+}
+
+// countSyncOutcome counts a pass that reached for GitHub and failed, once
+// when the outcome changes: a Mac offline for hours is one failure, not
+// one per retry.
+func (r *Runtime) countSyncOutcome(previous, access corev1.GithubAccess) {
+	event, failed := syncFailures[access]
+	if !failed || access == previous || r.cfg.analytics == nil {
+		return
+	}
+	r.cfg.analytics(r.cfg.now(), analytics.Counts{analytics.UsageCounter(event): 1})
+}
+
 // localRunCounts are a finished local run's counters (the metrics table of
 // the analytics spec): its minute counters, and its end as a usage event,
 // which the ledger keeps only at Full. saved and billed are B31's: whether

@@ -48,6 +48,7 @@ func (s *service) SaveWorkflowFile(ctx context.Context, request *corev1.SaveWork
 		if !workflow.Concurrency && scanner.HasSuggestedConcurrency(request.GetContent()) {
 			s.noteConcurrencySaved(ctx, info.ID, workflow.ID, time.Now())
 		}
+		s.recordUsage(corev1.UsageEvent_USAGE_EVENT_ACTION_EDITOR_SAVE)
 	}
 	return &corev1.SaveWorkflowFileResponse{Sha256: result.SHA256, Conflict: result.Conflict}, nil
 }
@@ -65,6 +66,7 @@ func (s *service) CreateWorkflowFile(ctx context.Context, request *corev1.Create
 	if err != nil {
 		return nil, fileError(err, "the workflow file could not be created")
 	}
+	s.recordUsage(corev1.UsageEvent_USAGE_EVENT_ACTION_EDITOR_CREATE)
 	_, _ = s.repositories.Refresh(ctx, info.ID)
 	return &corev1.CreateWorkflowFileResponse{WorkflowId: id}, nil
 }
@@ -86,6 +88,7 @@ func (s *service) RenameWorkflowFile(ctx context.Context, request *corev1.Rename
 	if err != nil {
 		return nil, fileError(err, "the workflow file could not be renamed")
 	}
+	s.recordUsage(corev1.UsageEvent_USAGE_EVENT_ACTION_EDITOR_RENAME)
 	_, _ = s.repositories.Refresh(ctx, info.ID)
 	return &corev1.RenameWorkflowFileResponse{WorkflowId: id}, nil
 }
