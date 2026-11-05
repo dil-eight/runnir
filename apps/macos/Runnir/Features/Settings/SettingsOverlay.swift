@@ -151,10 +151,7 @@ struct SettingsOverlay: View {
             case .storage:
                 StorageSettingsSection(model: StorageSettingsModel(hub: desktop.core, workspaces: { desktop.snapshot.workspaces }))
             case .privacy:
-                Section("Telemetry") {
-                    Text("Runnir does not enable telemetry by default and does not send repository data to a Runnir backend.")
-                        .foregroundStyle(RunnirTheme.secondaryForeground)
-                }
+                PrivacySettingsSection(hub: desktop.core)
             }
         }
         .formStyle(.grouped)
