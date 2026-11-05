@@ -3,6 +3,7 @@ package localrun
 import (
 	"encoding/json"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -205,9 +206,12 @@ func (o *Outputs) BilledMinutes(executionID string) int64 {
 type Summary struct {
 	WorkflowID    string
 	WholeWorkflow bool
-	StartedAt     time.Time
-	FinishedAt    time.Time
-	Jobs          []JobStatus
+	// Dispatchable: the workflow has a workflow_dispatch trigger, so GitHub
+	// can start it by hand.
+	Dispatchable bool
+	StartedAt    time.Time
+	FinishedAt   time.Time
+	Jobs         []JobStatus
 }
 
 // Summary returns a finished run's summary; false while it runs or once it
@@ -220,7 +224,8 @@ func (o *Outputs) Summary(executionID string) (Summary, bool) {
 		return Summary{}, false
 	}
 	return Summary{WorkflowID: r.snap.Plan.WorkflowID, WholeWorkflow: r.snap.Plan.JobID == "",
-		StartedAt: r.snap.StartedAt, FinishedAt: r.snap.FinishedAt, Jobs: append([]JobStatus(nil), r.snap.Jobs...)}, true
+		Dispatchable: slices.Contains(r.snap.Plan.Events, "workflow_dispatch"),
+		StartedAt:    r.snap.StartedAt, FinishedAt: r.snap.FinishedAt, Jobs: append([]JobStatus(nil), r.snap.Jobs...)}, true
 }
 
 // BilledJobMinutes is how GitHub bills a job on a hosted runner: its time

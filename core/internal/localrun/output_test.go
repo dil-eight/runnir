@@ -158,8 +158,8 @@ func TestBilledMinutesRoundEachJobUp(t *testing.T) {
 
 func TestSummaryOfAFinishedRun(t *testing.T) {
 	o := NewOutputs()
-	o.Create("e1", "repo", Plan{WorkflowID: ".github/workflows/ci.yml", Jobs: []JobPlan{{ID: "lint", Name: "Lint", Support: Supported}}},
-		"0.2.89", false, "OrbStack")
+	o.Create("e1", "repo", Plan{WorkflowID: ".github/workflows/ci.yml", Events: []string{"push", "workflow_dispatch"},
+		Jobs: []JobPlan{{ID: "lint", Name: "Lint", Support: Supported}}}, "0.2.89", false, "OrbStack")
 	start := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
 	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_RUNNING})
 	o.update("e1", func(r *run) {
@@ -171,7 +171,7 @@ func TestSummaryOfAFinishedRun(t *testing.T) {
 	}
 	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_SUCCEEDED})
 	s, ok := o.Summary("e1")
-	if !ok || s.WorkflowID != ".github/workflows/ci.yml" || !s.WholeWorkflow || len(s.Jobs) != 1 || s.Jobs[0].State != JobSucceeded {
+	if !ok || s.WorkflowID != ".github/workflows/ci.yml" || !s.WholeWorkflow || !s.Dispatchable || len(s.Jobs) != 1 || s.Jobs[0].State != JobSucceeded {
 		t.Fatalf("summary = %+v, %v", s, ok)
 	}
 	if BilledJobMinutes(90*time.Second) != 2 || BilledJobMinutes(0) != 1 || BilledJobMinutes(time.Minute) != 1 {
