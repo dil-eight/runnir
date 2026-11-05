@@ -33,6 +33,9 @@ type LocalRun struct {
 	Engine     string
 }
 
+// LocalTerminal reports a local run state that ends the run.
+func LocalTerminal(state string) bool { return terminal(state) }
+
 func terminal(state string) bool {
 	switch state {
 	case LocalSucceeded, LocalFailed, LocalCancelled, LocalInterrupted:
