@@ -48,6 +48,9 @@ private struct FakeService: CoreServicing {
     func clearWorkspaceCache(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] { throw CoreServiceError.unavailable }
     func deleteWorkspaceData(workspaceID: UUID) async throws { throw CoreServiceError.unavailable }
     func setStoragePreferences(keepJobLogs: Bool, deleteKeptLogs: Bool) async throws { throw CoreServiceError.unavailable }
+    func analytics() async throws -> CoreAnalytics { throw CoreServiceError.unavailable }
+    func setAnalyticsLevel(_ level: CoreAnalyticsLevel, fromPrompt: Bool) async throws -> CoreAnalytics { throw CoreServiceError.unavailable }
+    func recordUsage(_ event: UsageEvent) async throws { throw CoreServiceError.unavailable }
     func refreshRepository(id: String) async throws -> CoreRepository { throw CoreServiceError.unavailable }
     func closeRepository(id: String) async throws { throw CoreServiceError.unavailable }
     func listWorkflows(repositoryID: String) async throws -> [CoreWorkflow] { throw CoreServiceError.unavailable }
