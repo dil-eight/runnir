@@ -9,28 +9,33 @@ import (
 // Minute counters, counted at Basic and Full. Their meaning is in the
 // metrics table of docs/superpowers/specs/2026-10-25-anonymous-analytics-design.md.
 const (
-	LocalRuns                  = "local_runs"
-	LocalBilledMinutes         = "local_billed_minutes"
-	LocalJobsSucceeded         = "local_jobs_succeeded"
-	LocalJobsFailed            = "local_jobs_failed"
-	LocalJobsCancelled         = "local_jobs_cancelled"
-	LocalJobSeconds            = "local_job_seconds"
-	GHRefJobsMatched           = "gh_ref_jobs_matched"
-	GHRefBilledMinutes         = "gh_ref_billed_minutes"
-	LocalBilledMinutesMatched  = "local_billed_minutes_matched"
-	LocalRunsCompleted         = "local_runs_completed"
-	LocalRunWallSeconds        = "local_run_wall_seconds"
-	GHRefRunsMatched           = "gh_ref_runs_matched"
-	GHRefRunWallSeconds        = "gh_ref_run_wall_seconds"
-	SupersededCancels          = "superseded_cancels"
-	SupersededCancelMinutesEst = "superseded_cancel_minutes_est"
-	ConcurrencyInserted        = "concurrency_inserted"
-	ConcurrencyCancels         = "concurrency_cancels"
-	ConcurrencyMinutesEst      = "concurrency_minutes_est"
+	LocalRuns          = "local_runs"
+	LocalBilledMinutes = "local_billed_minutes"
+	// Of those, runs of a workflow GitHub cannot start without a push or a
+	// pull request: it has no workflow_dispatch trigger.
+	LocalRunsWithoutDispatch          = "local_runs_without_dispatch"
+	LocalBilledMinutesWithoutDispatch = "local_billed_minutes_without_dispatch"
+	LocalJobsSucceeded                = "local_jobs_succeeded"
+	LocalJobsFailed                   = "local_jobs_failed"
+	LocalJobsCancelled                = "local_jobs_cancelled"
+	LocalJobSeconds                   = "local_job_seconds"
+	GHRefJobsMatched                  = "gh_ref_jobs_matched"
+	GHRefBilledMinutes                = "gh_ref_billed_minutes"
+	LocalBilledMinutesMatched         = "local_billed_minutes_matched"
+	LocalRunsCompleted                = "local_runs_completed"
+	LocalRunWallSeconds               = "local_run_wall_seconds"
+	GHRefRunsMatched                  = "gh_ref_runs_matched"
+	GHRefRunWallSeconds               = "gh_ref_run_wall_seconds"
+	SupersededCancels                 = "superseded_cancels"
+	SupersededCancelMinutesEst        = "superseded_cancel_minutes_est"
+	ConcurrencyInserted               = "concurrency_inserted"
+	ConcurrencyCancels                = "concurrency_cancels"
+	ConcurrencyMinutesEst             = "concurrency_minutes_est"
 )
 
 var minuteCounters = map[string]bool{
-	LocalRuns: true, LocalBilledMinutes: true, LocalJobsSucceeded: true, LocalJobsFailed: true,
+	LocalRuns: true, LocalBilledMinutes: true, LocalRunsWithoutDispatch: true, LocalBilledMinutesWithoutDispatch: true,
+	LocalJobsSucceeded: true, LocalJobsFailed: true,
 	LocalJobsCancelled: true, LocalJobSeconds: true, GHRefJobsMatched: true, GHRefBilledMinutes: true,
 	LocalBilledMinutesMatched: true, LocalRunsCompleted: true, LocalRunWallSeconds: true, GHRefRunsMatched: true,
 	GHRefRunWallSeconds: true, SupersededCancels: true, SupersededCancelMinutesEst: true, ConcurrencyInserted: true,

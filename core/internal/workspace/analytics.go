@@ -30,6 +30,9 @@ func localRunCounts(ctx context.Context, st *store.Store, s localrun.Summary, st
 	}
 	if saved {
 		c[analytics.LocalRuns], c[analytics.LocalBilledMinutes] = 1, billed
+		if !s.Dispatchable {
+			c[analytics.LocalRunsWithoutDispatch], c[analytics.LocalBilledMinutesWithoutDispatch] = 1, billed
+		}
 	}
 	var ended []localrun.JobStatus
 	var names []string

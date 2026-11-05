@@ -36,11 +36,14 @@ var usageEvents = map[Category]string{
 	Async:   "async_event",
 }
 
-// savingSources are the minute counters of each minutes_saved source.
-var savingSources = []struct{ source, minutes, runs string }{
-	{"local_run", LocalBilledMinutes, LocalRuns},
-	{"superseded_cancel", SupersededCancelMinutesEst, SupersededCancels},
-	{"concurrency_cancel", ConcurrencyMinutesEst, ConcurrencyCancels},
+// savingSources are the minute counters of each minutes_saved source. The
+// sources do not overlap: local_run is the local runs less those without
+// dispatch, so a sum over every source is the total.
+var savingSources = []struct{ source, minutes, runs, less, lessRuns string }{
+	{"local_run", LocalBilledMinutes, LocalRuns, LocalBilledMinutesWithoutDispatch, LocalRunsWithoutDispatch},
+	{"local_run_without_dispatch", LocalBilledMinutesWithoutDispatch, LocalRunsWithoutDispatch, "", ""},
+	{"superseded_cancel", SupersededCancelMinutesEst, SupersededCancels, "", ""},
+	{"concurrency_cancel", ConcurrencyMinutesEst, ConcurrencyCancels, "", ""},
 }
 
 // localRunProperties are local_runs' properties and their counters.
@@ -120,9 +123,16 @@ func batchEvents(env Env, b Batch) ([]event, error) {
 	}
 
 	used := map[string]bool{}
-	take := func(counter string) int64 { used[counter] = true; return b.Counts[counter] }
+	take := func(counter string) int64 {
+		if counter == "" {
+			return 0
+		}
+		used[counter] = true
+		return b.Counts[counter]
+	}
 	for _, s := range savingSources {
-		if minutes, runs := take(s.minutes), take(s.runs); minutes != 0 || runs != 0 {
+		minutes, runs := max(take(s.minutes)-take(s.less), 0), max(take(s.runs)-take(s.lessRuns), 0)
+		if minutes != 0 || runs != 0 {
 			add(eventMinutesSaved, eventMinutesSaved+"/"+s.source,
 				map[string]any{"source": s.source, "minutes": minutes, "runs": runs})
 		}

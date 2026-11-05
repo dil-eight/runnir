@@ -133,7 +133,8 @@ func TestADayBecomesEventsShapedForInsights(t *testing.T) {
 	l := openLedger(t, t.TempDir(), c, sequence())
 	must(t, l.Remove([]string{"id-1"}))
 	must(t, l.SetLevel(Full, true)) // analytics id id-2
-	must(t, l.Add(day(0), Counts{LocalRuns: 2, LocalBilledMinutes: 9, LocalJobsSucceeded: 3, LocalJobSeconds: 412,
+	must(t, l.Add(day(0), Counts{LocalRuns: 2, LocalBilledMinutes: 9, LocalRunsWithoutDispatch: 1, LocalBilledMinutesWithoutDispatch: 4,
+		LocalJobsSucceeded: 3, LocalJobSeconds: 412,
 		SupersededCancels: 1, SupersededCancelMinutesEst: 6, ConcurrencyInserted: 1, screenRuns: 3, actionRunLocal: 2}))
 	// A zero count makes no event.
 	must(t, l.Add(day(0), Counts{UsageCounter(corev1.UsageEvent_USAGE_EVENT_OVERLAY_RUNS_DISPATCH): 0}))
@@ -146,7 +147,8 @@ func TestADayBecomesEventsShapedForInsights(t *testing.T) {
 		absent string
 	}
 	want := []row{
-		{"minutes_saved", map[string]any{"source": "local_run", "minutes": 9.0, "runs": 2.0}, ""},
+		{"minutes_saved", map[string]any{"source": "local_run", "minutes": 5.0, "runs": 1.0}, ""},
+		{"minutes_saved", map[string]any{"source": "local_run_without_dispatch", "minutes": 4.0, "runs": 1.0}, ""},
 		{"minutes_saved", map[string]any{"source": "superseded_cancel", "minutes": 6.0, "runs": 1.0}, ""},
 		{"local_runs", map[string]any{"jobs_succeeded": 3.0, "job_seconds": 412.0, "jobs_failed": 0.0, "gh_ref_run_wall_seconds": 0.0}, "source"},
 		{"concurrency_inserted", map[string]any{"count": 1.0}, ""},

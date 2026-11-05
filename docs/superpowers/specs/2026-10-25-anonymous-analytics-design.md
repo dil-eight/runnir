@@ -118,7 +118,7 @@ The `timestamp` is midnight UTC of the day. `distinct_id` is the `batch_id` at `
 | Event | Level | One per | Its own properties |
 | --- | --- | --- | --- |
 | `first_launch` | `basic`, `full` | install | none |
-| `minutes_saved` | `basic`, `full` | day and source | `source`: `local_run`, `superseded_cancel` or `concurrency_cancel`; `minutes`; `runs` |
+| `minutes_saved` | `basic`, `full` | day and source | `source`: `local_run`, `local_run_without_dispatch`, `superseded_cancel` or `concurrency_cancel`; `minutes`; `runs` |
 | `local_runs` | `basic`, `full` | day | `jobs_succeeded`, `jobs_failed`, `jobs_cancelled`, `job_seconds`, `workflow_runs`, `workflow_wall_seconds`, `gh_ref_jobs_matched`, `gh_ref_billed_minutes`, `local_billed_minutes_matched`, `gh_ref_runs_matched`, `gh_ref_run_wall_seconds` |
 | `concurrency_inserted` | `basic`, `full` | day | `count` |
 | `screen_viewed` | `full` | day and screen | `area`, `name`, `count` |
@@ -126,7 +126,7 @@ The `timestamp` is midnight UTC of the day. `distinct_id` is the `batch_id` at `
 | `action_used` | `full` | day and action | `area`, `name`, `count` |
 | `async_event` | `full` | day and event | `area`, `name`, `count` |
 
-`minutes_saved` comes from the minute counters: `local_run` from `local_billed_minutes` and `local_runs`, `superseded_cancel` from `superseded_cancel_minutes_est` and `superseded_cancels`, `concurrency_cancel` from `concurrency_minutes_est` and `concurrency_cancels`. `local_runs` holds the other local run counters without their `local_` prefix (`local_runs_completed` is `workflow_runs`, `local_run_wall_seconds` is `workflow_wall_seconds`).
+`minutes_saved` comes from the minute counters, and its sources do not overlap, so a sum over every source is the total: `local_run_without_dispatch` from `local_billed_minutes_without_dispatch` and `local_runs_without_dispatch`, `local_run` from `local_billed_minutes` and `local_runs` less those, `superseded_cancel` from `superseded_cancel_minutes_est` and `superseded_cancels`, `concurrency_cancel` from `concurrency_minutes_est` and `concurrency_cancels`. `local_runs` holds the other local run counters without their `local_` prefix (`local_runs_completed` is `workflow_runs`, `local_run_wall_seconds` is `workflow_wall_seconds`).
 
 ## Reading The Data
 
@@ -135,7 +135,7 @@ The events are shaped for PostHog's Trends insights; a dashboard needs no SQL:
 | Insight | Series |
 | --- | --- |
 | Installs | `first_launch`, total count, weekly; breakdown by `app_version`, `os_version` or `arch` |
-| Minutes saved | `minutes_saved`, sum of `minutes`, breakdown by `source` |
+| Minutes saved | `minutes_saved`, sum of `minutes`, breakdown by `source`; `local_run_without_dispatch` is what GitHub could not have started by hand |
 | Local runs | `local_runs`, sum of `jobs_succeeded`, `jobs_failed` and `jobs_cancelled`; success rate as a formula |
 | Waiting saved | `local_runs`, sum of `gh_ref_run_wall_seconds` minus sum of `workflow_wall_seconds` (formula) |
 | Screens, overlays, actions | `screen_viewed`, `overlay_viewed` or `action_used`, sum of `count` and unique users, breakdown by `name`, filtered by `area` |
@@ -153,6 +153,7 @@ Minute counters (`basic` and `full`). Raw parts; totals and differences are comp
 | --- | --- |
 | `local_runs` | Local runs on this Mac that ended succeeded or failed: B31's `LOCAL_RUNS` count, added at the same moment as `AddSaving` |
 | `local_billed_minutes` | Their jobs' time, each job rounded up to a whole minute (at least one), as GitHub bills hosted runners: B31's `LOCAL_RUNS` minutes, the number on the Saved tile |
+| `local_runs_without_dispatch`, `local_billed_minutes_without_dispatch` | Of those, the runs of a workflow without a `workflow_dispatch` trigger: GitHub cannot start it by hand, only on a push, a pull request or another event, while Runnir runs it directly |
 | `local_jobs_succeeded`, `local_jobs_failed`, `local_jobs_cancelled` | Jobs run by act on this Mac, by result |
 | `local_job_seconds` | Those jobs' total local time |
 | `gh_ref_jobs_matched` | How many of the succeeded or failed local jobs have a reference on GitHub: the latest completed run of a job with the same name in the same workflow file, in the workspace cache |

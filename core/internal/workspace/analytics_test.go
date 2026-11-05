@@ -54,6 +54,8 @@ func TestLocalRunCountsCompareWithGitHub(t *testing.T) {
 	want := analytics.Counts{
 		localRunFailed:      1,
 		analytics.LocalRuns: 1, analytics.LocalBilledMinutes: 4,
+		// ci.yml has no workflow_dispatch here: GitHub could not start it by hand.
+		analytics.LocalRunsWithoutDispatch: 1, analytics.LocalBilledMinutesWithoutDispatch: 4,
 		analytics.LocalJobsSucceeded: 1, analytics.LocalJobsFailed: 1, analytics.LocalJobsCancelled: 1,
 		analytics.LocalJobSeconds: 186,
 		// lint: 4m 1s on GitHub → 5; locally 1m 1s → 2.
@@ -68,6 +70,12 @@ func TestLocalRunCountsCompareWithGitHub(t *testing.T) {
 		if got[name] != value {
 			t.Fatalf("%s = %d, want %d (all: %+v)", name, got[name], value, got)
 		}
+	}
+	// A workflow GitHub can start by hand has no without-dispatch counts.
+	summary.Dispatchable = true
+	if got := localRunCounts(ctx, st, summary, store.LocalFailed, true, 4); got[analytics.LocalRunsWithoutDispatch] != 0 ||
+		got[analytics.LocalBilledMinutesWithoutDispatch] != 0 || got[analytics.LocalBilledMinutes] != 4 {
+		t.Fatalf("dispatchable = %+v", got)
 	}
 	// One job of a workflow, cancelled, nothing saved: only its jobs and its end count.
 	one := localrun.Summary{WorkflowID: ".github/workflows/ci.yml", Jobs: []localrun.JobStatus{job("lint", localrun.JobCancelled, 3)}}
