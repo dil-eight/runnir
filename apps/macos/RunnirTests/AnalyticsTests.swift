@@ -88,3 +88,48 @@ import Testing
         #expect(desktop.analyticsPromptWindowID == nil)
     }
 }
+
+@MainActor
+@Suite struct UsageCounterTests {
+    private func fullDesktop() async -> (DesktopCoordinator, FakeProvider) {
+        let provider = FakeProvider()
+        provider.core.analyticsState = CoreAnalytics(level: .full, promptAnswered: true, sendingAvailable: true, persistent: true,
+                                                     analyticsID: "id", sealed: [], today: [])
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        _ = await eventually { hub.analytics?.level == .full }
+        return (DesktopCoordinator(core: hub), provider)
+    }
+
+    @Test func openingOrSwitchingSettingsCountsTheSection() async {
+        let (desktop, provider) = await fullDesktop()
+        let window = UUID()
+        desktop.showSettings(in: window, section: .storage)
+        desktop.showSettingsSection(.storage) // same section: not again
+        desktop.showSettingsSection(.privacy)
+        // Each count is its own task, so their order is not fixed.
+        #expect(await eventually { provider.core.usage.count == 2 })
+        #expect(Set(provider.core.usage) == [.overlaySettingsStorage, .overlaySettingsPrivacy])
+    }
+
+    @Test func gitHubLinksAndTheIssuePageAreCounted() async {
+        let (desktop, provider) = await fullDesktop()
+        desktop.noteOpened(URL(string: "https://github.com/o/r/actions/runs/1")!)
+        desktop.noteOpened(BugReportDraft.newIssue)
+        desktop.noteOpened(URL(string: "https://github.com/settings/tokens")!)
+        desktop.noteOpened(URL(string: "https://docs.docker.com/desktop/")!)
+        desktop.noteOpened(URL(fileURLWithPath: "/tmp/log.txt"))
+        #expect(await eventually { provider.core.usage.count == 2 })
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(provider.core.usage.count == 2 && Set(provider.core.usage) == [.actionGithubOpenOnGithub, .actionAppReportBug])
+    }
+
+    @Test func everySidebarSectionAndSettingsSectionHasAnEvent() {
+        for tab in [WorkspaceTab.editor, .localRun] {
+            #expect(AppSection.sidebarSections.allSatisfy { $0.usageEvent(workspaceTab: tab) != nil })
+        }
+        #expect(AppSection.workspace.usageEvent(workspaceTab: .localRun) == .screenLocalRunHistory)
+        #expect(Set(SettingsSection.allCases.map(\.usageEvent)).count == SettingsSection.allCases.count)
+    }
+}

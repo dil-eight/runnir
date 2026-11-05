@@ -5,6 +5,7 @@ import SwiftUI
 /// on this Mac in Keychain. Names come from the workflows; only values are
 /// typed.
 struct WorkspaceValuesView: View {
+    @Environment(\.recordUsage) private var recordUsage
     @Bindable var model: WorkspaceValuesModel
     let workspaceID: UUID
     let session: RepositorySession
@@ -225,7 +226,9 @@ struct WorkspaceValuesView: View {
     private func importFile(_ url: URL) {
         Task {
             switch await hub.readEnvFile(url: url) {
-            case .read(let file): model.apply(file)
+            case .read(let file):
+                model.apply(file)
+                recordUsage?(.actionSecretsImportEnv)
             case .failed(let reason): model.showImportFailure(reason)
             }
         }

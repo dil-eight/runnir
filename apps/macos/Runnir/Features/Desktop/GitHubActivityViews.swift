@@ -498,6 +498,7 @@ struct WorkspaceRunsView: View {
 /// Workflows section: the repository's workflows on GitHub with each one's
 /// newest run.
 struct WorkspaceWorkflowsView: View {
+    @Environment(\.recordUsage) private var recordUsage
     let session: RepositorySession
     let hub: CoreHub
     let github: GitHubSession?
@@ -521,7 +522,12 @@ struct WorkspaceWorkflowsView: View {
                     let favorite = favorites?.isFavorite(workflow.path, workspaceID: session.workspaceID) ?? false
                     HStack(spacing: 10) {
                         if let favorites, WorkflowFavorites.canFavorite(workflow.path) {
-                            Button { favorites.toggle(workflow.path, workspaceID: session.workspaceID) } label: {
+                            Button {
+                                favorites.toggle(workflow.path, workspaceID: session.workspaceID)
+                                if favorites.isFavorite(workflow.path, workspaceID: session.workspaceID) {
+                                    recordUsage?(.actionWorkflowsFavorite)
+                                }
+                            } label: {
                                 Image(systemName: favorite ? "star.fill" : "star")
                                     .foregroundStyle(favorite ? RunnirTheme.warning : RunnirTheme.mutedForeground)
                             }

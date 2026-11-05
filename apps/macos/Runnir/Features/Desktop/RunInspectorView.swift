@@ -507,6 +507,7 @@ struct JobLogView: View {
     /// Set when the log is shown in the layer over the runs: its expand and close buttons.
     var layer: LogLayerControls? = nil
     @State private var log: CoreJobLog?
+    @State private var countedJobID: Int64?
     /// The shown lines (the end of the selection), kept so that a render or
     /// keystroke does not filter up to 50,000 lines again.
     @State private var visible: [CoreLogLine] = []
@@ -542,6 +543,11 @@ struct JobLogView: View {
             footer
         }
         .task(id: "\(job.id)-\(job.status)") {
+            // Once per job: a status change reloads the log, it is not opened again.
+            if countedJobID != job.id {
+                countedJobID = job.id
+                hub.recordUsage(.overlayLogsViewer)
+            }
             log = nil
             refreshLines()
             var retries = 0

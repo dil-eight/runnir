@@ -185,3 +185,72 @@ struct PrivacySettingsSection: View {
         }
     }
 }
+
+// MARK: Counting usage
+
+extension EnvironmentValues {
+    /// Counts a usage event; dropped below the Usage analytics level. Set by
+    /// `usageAnalytics(desktop:)`; unset outside Runnir's windows.
+    @Entry var recordUsage: (@MainActor (UsageEvent) -> Void)? = nil
+}
+
+extension View {
+    /// Lets views inside count usage, and counts the links they open on
+    /// GitHub.
+    func usageAnalytics(desktop: DesktopCoordinator) -> some View {
+        environment(\.recordUsage) { desktop.core?.recordUsage($0) }
+            .environment(\.openURL, OpenURLAction { url in
+                // SwiftUI opens links on the main thread.
+                MainActor.assumeIsolated { desktop.noteOpened(url) }
+                return .systemAction
+            })
+    }
+
+    /// Counts an overlay, a sheet or a panel each time it appears.
+    func countsUsage(_ event: UsageEvent) -> some View { modifier(UsageOnAppear(event: event)) }
+}
+
+private struct UsageOnAppear: ViewModifier {
+    let event: UsageEvent
+    @Environment(\.recordUsage) private var recordUsage
+
+    func body(content: Content) -> some View { content.onAppear { recordUsage?(event) } }
+}
+
+extension AppSection {
+    /// The screen a click on this sidebar section shows; the Workspace one
+    /// depends on its tab.
+    func usageEvent(workspaceTab: WorkspaceTab) -> UsageEvent? {
+        switch self {
+        case .dashboard: .screenOverviewPage
+        case .workflows: .screenWorkflowsList
+        case .runs: .screenRunsList
+        case .secrets: .screenSecretsValues
+        case .workspace: workspaceTab.usageEvent
+        case .repositories, .artifacts: nil
+        }
+    }
+}
+
+extension WorkspaceTab {
+    var usageEvent: UsageEvent {
+        switch self {
+        case .editor: .screenEditorWorkflow
+        case .localRun: .screenLocalRunHistory
+        }
+    }
+}
+
+extension SettingsSection {
+    var usageEvent: UsageEvent {
+        switch self {
+        case .account: .overlaySettingsAccount
+        case .runs: .overlaySettingsRuns
+        case .notifications: .overlaySettingsNotifications
+        case .pullRequests: .overlaySettingsPullRequests
+        case .tools: .overlaySettingsTools
+        case .storage: .overlaySettingsStorage
+        case .privacy: .overlaySettingsPrivacy
+        }
+    }
+}

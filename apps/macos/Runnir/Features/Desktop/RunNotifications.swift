@@ -87,6 +87,8 @@ final class RunNotifier: NSObject, UNUserNotificationCenterDelegate {
     var deliver: (RunNotification) -> Void
     var open: (URL) -> Void = { NSWorkspace.shared.open($0) }
     var showWorkspace: (UUID) -> Void = { _ in }
+    /// macOS took a notification to show; for usage analytics.
+    var delivered: @MainActor () -> Void = {}
     /// The bell's list: every notification Runnir sends is recorded in it.
     var inbox: NotificationInbox?
     private let defaults: UserDefaults
@@ -157,7 +159,10 @@ final class RunNotifier: NSObject, UNUserNotificationCenterDelegate {
             // stays in the bell, unread until it is opened there.
             guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return }
             guard (try? await center.add(request)) != nil else { return }
-            await MainActor.run { self?.inbox?.markDelivered(id) }
+            await MainActor.run {
+                self?.inbox?.markDelivered(id)
+                self?.delivered()
+            }
         }
     }
 

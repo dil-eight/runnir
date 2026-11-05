@@ -472,7 +472,10 @@ struct GitHubRepositoriesView: View {
                           canStar: desktop.repositoryFavorites.isAvailable,
                           serverHost: showServer && !repository.server.isEmpty ? desktop.core?.serverRef(for: repository.server)?.webHost : nil,
                           select: { model.selectedFullName = ref.key },
-                          toggleStar: { desktop.repositoryFavorites.toggle(ref.key) })
+                          toggleStar: {
+                              desktop.repositoryFavorites.toggle(ref.key)
+                              if desktop.repositoryFavorites.isFavorite(ref.key) { desktop.core?.recordUsage(.actionWorkflowsFavorite) }
+                          })
         DesignDivider()
     }
 

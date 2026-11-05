@@ -31,6 +31,7 @@ struct GitHubConnectView: View {
         .frame(width: usingToken ? 520 : 440)
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
+        .countsUsage(.overlayGithubConnect)
     }
 
     @ViewBuilder private var content: some View {

@@ -110,5 +110,6 @@ struct BugReportSheet: View {
             .buttonStyle(DesignButtonStyle())
         }
         .padding(20).frame(width: 460)
+        .countsUsage(.overlayAppBugReport)
     }
 }

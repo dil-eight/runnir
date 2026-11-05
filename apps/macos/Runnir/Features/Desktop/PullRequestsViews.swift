@@ -403,6 +403,7 @@ struct PullRequestsMenu: View {
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
         .task { await desktop.refreshMenuListsIfStale() }
+        .countsUsage(.overlayPullRequestsMenuBar)
     }
 
     private var header: some View {

@@ -307,6 +307,7 @@ struct LocalRunSheet: View {
         }
         .dropdownHost()
         .task { await model.prepare() }
+        .countsUsage(.overlayLocalRunReview)
     }
 
     /// The limits panel over the review, next to Change…: above it when there
@@ -914,6 +915,7 @@ struct LocalRunLimitsPanel: View {
         .onDisappear(perform: stopWatching)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Limits")
+        .countsUsage(.overlayLocalRunLimits)
     }
 
     private func update(_ change: (inout CoreLocalRunLimits) -> Void) {
