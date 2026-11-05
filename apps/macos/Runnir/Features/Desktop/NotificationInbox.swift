@@ -189,6 +189,7 @@ struct NotificationPanel: View {
                 .keyboardShortcut(.cancelAction).buttonStyle(.hit).opacity(0).frame(width: 0, height: 0).accessibilityHidden(true)
         }
         .transition(.opacity)
+        .countsUsage(.overlayNotificationsPanel)
     }
 }
 

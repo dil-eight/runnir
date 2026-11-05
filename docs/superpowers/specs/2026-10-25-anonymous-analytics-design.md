@@ -178,8 +178,8 @@ Usage counters (`full` only). Each is one `UsageEvent` value of the proto, named
 | --- | --- | --- | --- | --- |
 | `overview` | `overview.page` | | | |
 | `workflows` | `workflows.list` | | `workflows.favorite` (a workflow or repository starred) | |
-| `runs` | `runs.list` | `runs.dispatch` (Run Workflow) | `runs.dispatch`, `runs.cancel`, `runs.rerun` (any rerun) (Core, when GitHub accepts) | |
-| `local_run` | `local_run.history` (Workspace › Local Run) | `local_run.review`, `local_run.limits`, `local_run.skipped_job` | `local_run.run` (Core, when it starts) | `local_run.succeeded`, `local_run.failed`, `local_run.cancelled` (Core) |
+| `runs` | `runs.list` | `runs.dispatch` (Run Workflow), `runs.skipped_job` (why a job was skipped) | `runs.dispatch`, `runs.cancel`, `runs.rerun` (any rerun) (Core, when GitHub accepts) | |
+| `local_run` | `local_run.history` (Workspace › Local Run) | `local_run.review`, `local_run.limits` | `local_run.run` (Core, when it starts) | `local_run.succeeded`, `local_run.failed`, `local_run.cancelled` (Core) |
 | `editor` | `editor.workflow` (Workspace › Editor) | `editor.file_name` (new or renamed file) | `editor.save`, `editor.create`, `editor.rename`, `editor.insert_concurrency` (Core), `editor.validate` (started by the user, not the check after a save) | |
 | `secrets` | `secrets.values` | | `secrets.import_env` | |
 | `presets` | | | `presets.save` (a Mac preset), `presets.apply` (any preset) | |
@@ -190,7 +190,7 @@ Usage counters (`full` only). Each is one `UsageEvent` value of the proto, named
 | `search` | | `search.global` | | |
 | `notifications` | | `notifications.panel` | | `notifications.delivered` |
 | `pull_requests` | | `pull_requests.menu_bar` | | |
-| `app` | | `app.diagnostics`, `app.bug_report` | `app.report_bug` (a prefilled issue page opens) | `app.core_restarted` |
+| `app` | | `app.bug_report` | `app.report_bug` (a prefilled issue page opens) | `app.core_restarted` |
 
 Adding an event later is a proto value, a row here, and the call where it happens; a new area is also added to the Core's list.
 

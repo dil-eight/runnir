@@ -469,6 +469,7 @@ struct SkippedJobPanel: View {
         .background(HostWindow.Reader(host: host))
         .onAppear(perform: watchEscape)
         .onDisappear(perform: stopWatching)
+        .countsUsage(.overlayRunsSkippedJob)
     }
 
     @ViewBuilder private var details: some View {

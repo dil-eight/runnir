@@ -239,14 +239,21 @@ final class CoreHub {
             // A new Core process starts without a token or storage preferences.
             schedulePush()
             Task { await pushStoragePreferences() }
-            Task { await loadAnalytics() }
+            let restarted = coreWasLost
+            coreWasLost = false
+            Task {
+                await loadAnalytics()
+                if restarted { recordUsage(.asyncAppCoreRestarted) }
+            }
             // Not awaited: later states (a lost Core) must not wait for slow scans.
             Task { await openAll() }
         case .lost:
             status = .lost
+            coreWasLost = true
             markUnavailable()
         case .failed(let error):
             status = .failed(Self.describe(error))
+            coreWasLost = true
             markUnavailable()
         }
     }
@@ -794,6 +801,9 @@ final class CoreHub {
 
     /// The Core's analytics ledger as last read; nil before the Core answered.
     private(set) var analytics: CoreAnalytics?
+    /// The Core stopped or could not start since it last ran: its next start
+    /// is a restart.
+    @ObservationIgnored private var coreWasLost = false
 
     /// Reads the ledger; at each Core start and when Settings › Privacy opens.
     func loadAnalytics() async {

@@ -537,6 +537,7 @@ struct RunWorkflowSheet: View {
     var github: GitHubSession? = nil
     let showRun: (CoreWorkflowRun) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.recordUsage) private var recordUsage
     /// The question open in the panel under Preset.
     @State private var presetPrompt: PresetPrompt?
     @State private var presetName = ""
@@ -574,6 +575,7 @@ struct RunWorkflowSheet: View {
         .dropdownHost()
         .task { await model.load() }
         .githubAccessAlert(Binding(get: { model.accessHelp }, set: { model.accessHelp = $0 }), github: github)
+        .countsUsage(.overlayRunsDispatch)
     }
 
     private var presetFootnote: String {
@@ -631,7 +633,9 @@ struct RunWorkflowSheet: View {
         switch presetPrompt {
         case .save:
             DropdownPrompt(title: "Save Preset", message: "The branch and input values are saved on this Mac.", name: $presetName,
-                           action: "Save") { model.saveAsPreset(named: presetName) }
+                           action: "Save") {
+                if model.saveAsPreset(named: presetName) { recordUsage?(.actionPresetsSave) }
+            }
         case .rename:
             DropdownPrompt(title: "Rename Preset", message: "A new name for this preset.", name: $presetName,
                            action: "Rename") { model.renameAppliedPreset(to: presetName) }
@@ -680,7 +684,10 @@ struct RunWorkflowSheet: View {
 
 
     private func presetButton(_ preset: DispatchPreset) -> some View {
-        DropdownItem(preset.name, checked: preset.id == model.appliedPresetID) { model.apply(preset) }
+        DropdownItem(preset.name, checked: preset.id == model.appliedPresetID) {
+            model.apply(preset)
+            recordUsage?(.actionPresetsApply)
+        }
     }
 
     private var presetTitle: String {

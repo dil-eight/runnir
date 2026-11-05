@@ -48,6 +48,7 @@ struct GlobalSearchLayer: View {
         }
         .transition(.opacity)
         .onAppear { focused = true }
+        .countsUsage(.overlaySearchGlobal)
     }
 
     private var panel: some View {

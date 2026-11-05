@@ -174,8 +174,14 @@ struct WorkspaceManagerView: View {
             .frame(height: 51).padding(.bottom, 16)
 
             HStack(spacing: 4) {
-                Button("Workspaces") { tab = .workspaces }.handPointer().buttonStyle(WorkflowTabStyle(selected: tab == .workspaces))
-                Button("GitHub") { tab = .github }.handPointer().buttonStyle(WorkflowTabStyle(selected: tab == .github))
+                Button("Workspaces") {
+                    tab = .workspaces
+                    desktop.core?.recordUsage(.screenWorkspacesManager)
+                }.handPointer().buttonStyle(WorkflowTabStyle(selected: tab == .workspaces))
+                Button("GitHub") {
+                    tab = .github
+                    desktop.core?.recordUsage(.screenGithubManager)
+                }.handPointer().buttonStyle(WorkflowTabStyle(selected: tab == .github))
                     .accessibilityIdentifier("manager-github-tab")
                 Spacer()
             }.padding(.bottom, 14)
@@ -773,6 +779,13 @@ struct DesktopWorkspaceView: View {
 
     /// Checks the files on disk and reloads the ones shown, so diagnostics
     /// and the source on screen describe the same content.
+    /// Validation the user started, counted; the checks after a save or on
+    /// opening are not.
+    private func validateByHand() {
+        validateWorkflows()
+        desktop.core?.recordUsage(.actionEditorValidate)
+    }
+
     private func validateWorkflows() {
         guard let hub = desktop.core else { return }
         if let reader { Task { await files.load(reader) } }
@@ -995,7 +1008,7 @@ struct DesktopWorkspaceView: View {
                     .keyboardShortcut("s", modifiers: .command)
                     .disabled(!files.isDirty || files.isSaving || !canValidate || !files.isWritable)
                     .help(saveHelp)
-                Button(files.isValidating ? "Validating..." : "Validate") { validateWorkflows() }
+                Button(files.isValidating ? "Validating..." : "Validate") { validateByHand() }
                     .disabled(!canValidate || files.isValidating)
                     .help(canValidate ? "Check every workflow file with actionlint, offline" : "Validation runs in Runnir Core, which has not opened this repository yet")
                 localRunButtons
@@ -1059,8 +1072,14 @@ struct DesktopWorkspaceView: View {
     @ViewBuilder private var workspaceTabs: some View {
         if let run = localRun {
             HStack(spacing: 4) {
-                Button("Editor") { state.workspaceTab = .editor }.buttonStyle(WorkflowTabStyle(selected: state.workspaceTab == .editor))
-                Button { state.workspaceTab = .localRun } label: {
+                Button("Editor") {
+                    state.workspaceTab = .editor
+                    desktop.core?.recordUsage(.screenEditorWorkflow)
+                }.buttonStyle(WorkflowTabStyle(selected: state.workspaceTab == .editor))
+                Button {
+                    state.workspaceTab = .localRun
+                    desktop.core?.recordUsage(.screenLocalRunHistory)
+                } label: {
                     HStack(spacing: 6) {
                         LocalJobIcon(state: run.isFinished ? (run.state == .succeeded ? .succeeded : run.state == .cancelled ? .cancelled : .failed) : .running)
                             .font(.system(size: 11))
@@ -1119,7 +1138,10 @@ struct DesktopWorkspaceView: View {
             // The logo lives on the splash and in the Manager only.
             VStack(spacing: 2) {
                 ForEach(AppSection.sidebarSections) { section in
-                    Button { state.selectedSection = section } label: {
+                    Button {
+                        state.selectedSection = section
+                        if let event = section.usageEvent(workspaceTab: state.workspaceTab) { desktop.core?.recordUsage(event) }
+                    } label: {
                         SidebarItemLabel(title: section.title, symbol: section.symbolName, selected: state.selectedSection == section)
                     }.buttonStyle(.hit).accessibilityAddTraits(state.selectedSection == section ? .isSelected : [])
                 }
@@ -1219,7 +1241,7 @@ struct DesktopWorkspaceView: View {
                 if state.workspaceTab == .localRun, let run = localRun {
                     LocalRunView(run: run)
                 } else {
-                    LocalWorkflowBrowser(model: files, canValidate: canValidate, validate: validateWorkflows,
+                    LocalWorkflowBrowser(model: files, canValidate: canValidate, validate: validateByHand,
                                          reload: { if let reader { files.reloadFromDisk(reader: reader) } },
                                          saveAnyway: { save(overwrite: true) },
                                          newFile: { askForFileName(.create) })

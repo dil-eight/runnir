@@ -6,6 +6,7 @@ import SwiftUI
 /// after their source, the workflows run by hand, and those not in the
 /// scenario with the reason.
 struct ScenarioFlowView: View {
+    @Environment(\.recordUsage) private var recordUsage
     @Bindable var model: ScenarioFlowModel
     let session: RepositorySession?
     let hub: CoreHub?
@@ -166,7 +167,10 @@ struct ScenarioFlowView: View {
                 }
                 .buttonStyle(.hit).help("Open \(lane.path) in the Workspace editor")
                 let favorite = favorites.isFavorite(lane.path, workspaceID: workspaceID)
-                Button { favorites.toggle(lane.path, workspaceID: workspaceID) } label: {
+                Button {
+                    favorites.toggle(lane.path, workspaceID: workspaceID)
+                    if favorites.isFavorite(lane.path, workspaceID: workspaceID) { recordUsage?(.actionWorkflowsFavorite) }
+                } label: {
                     Image(systemName: favorite ? "star.fill" : "star").font(.system(size: 10))
                         .foregroundStyle(favorite ? RunnirTheme.warning : RunnirTheme.mutedForeground)
                 }

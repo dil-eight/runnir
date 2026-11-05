@@ -108,6 +108,7 @@ struct WorkflowFileNameSheet: View {
         .padding(20).frame(width: 440)
         .interactiveDismissDisabled(isWorking)
         .onAppear { focused = true }
+        .countsUsage(.overlayEditorFileName)
     }
 
     private var title: String {

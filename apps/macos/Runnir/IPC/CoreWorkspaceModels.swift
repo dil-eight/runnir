@@ -399,9 +399,9 @@ enum UsageEvent: Int, CaseIterable, Sendable {
          screenWorkspacesManager,
          screenGithubManager
     case overlayRunsDispatch,
+         overlayRunsSkippedJob,
          overlayLocalRunReview,
          overlayLocalRunLimits,
-         overlayLocalRunSkippedJob,
          overlayEditorFileName,
          overlayLogsViewer,
          overlayGithubConnect,
@@ -416,7 +416,6 @@ enum UsageEvent: Int, CaseIterable, Sendable {
          overlaySearchGlobal,
          overlayNotificationsPanel,
          overlayPullRequestsMenuBar,
-         overlayAppDiagnostics,
          overlayAppBugReport
     case actionWorkflowsFavorite,
          actionRunsDispatch,

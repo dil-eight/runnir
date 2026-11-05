@@ -59,6 +59,7 @@ final class DesktopCoordinator {
     func showSettings(in windowID: UUID, section: SettingsSection? = nil) {
         let section = section ?? settings?.section ?? lastSettingsSection
         lastSettingsSection = section
+        if settings?.section != section || settings?.windowID != windowID { core?.recordUsage(section.usageEvent) }
         settings = SettingsPresentation(windowID: windowID, section: section)
     }
 
@@ -102,6 +103,21 @@ final class DesktopCoordinator {
     func answerAnalyticsPrompt(_ level: CoreAnalyticsLevel) async {
         guard await core?.setAnalyticsLevel(level, fromPrompt: true) == true else { return }
         analyticsPromptWindowID = nil
+    }
+
+    /// Counts a link opened on GitHub: the new-issue page as Report a Bug,
+    /// any other page on github.com or an Enterprise server as Open on
+    /// GitHub, except account and app settings.
+    func noteOpened(_ url: URL) {
+        guard url.scheme == "https" || url.scheme == "http", let host = url.host()?.lowercased() else { return }
+        let enterprise = Set((enterpriseServers?.servers ?? []).map(\.ref.webHost))
+        guard host == "github.com" || enterprise.contains(host) else { return }
+        let path = url.path()
+        if host == "github.com", path == BugReportDraft.newIssue.path() {
+            core?.recordUsage(.actionAppReportBug)
+        } else if !path.hasPrefix("/settings") && !path.hasPrefix("/apps/") && !path.hasPrefix("/login") {
+            core?.recordUsage(.actionGithubOpenOnGithub)
+        }
     }
 
     /// The Enterprise servers, for their names in lists and notices; set by
@@ -245,7 +261,8 @@ final class DesktopCoordinator {
             // Wide enough for the GitHub tab's list next to a repository.
             let window = makeWindow(size: NSSize(width: 1000, height: 660), title: "Workspaces")
             window.minSize = NSSize(width: 820, height: 520)
-            window.contentViewController = NSHostingController(rootView: WorkspaceManagerView(desktop: self).handPointerButtons())
+            window.contentViewController = NSHostingController(rootView: WorkspaceManagerView(desktop: self)
+                .usageAnalytics(desktop: self).handPointerButtons())
             window.setContentSize(NSSize(width: 1000, height: 660))
             window.identifier = NSUserInterfaceItemIdentifier("workspace-manager")
             // Only the close button: the Manager is not minimized or zoomed.
@@ -266,6 +283,7 @@ final class DesktopCoordinator {
             window.minSize = NSSize(width: 480, height: 360)
             let hosting = NSHostingController(rootView: PullRequestsWindowView(model: pullRequests, desktop: self)
                 .environment(\.openRunnirSettings) { [weak self] section in self?.showSettingsInFrontWindow(section: section) }
+                .usageAnalytics(desktop: self)
                 .handPointerButtons())
             // The window's title follows the tab: "Pull Requests" or "Runs".
             hosting.sceneBridgingOptions = [.title]
@@ -898,6 +916,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
         window?.contentViewController = NSHostingController(rootView:
             DesktopWorkspaceView(desktop: desktop, workspace: workspace, windowID: record.id, reader: grant?.reader)
                 .environment(state)
+                .usageAnalytics(desktop: desktop)
                 .handPointerButtons())
         if let frame { window?.setFrame(frame, display: false) }
     }
@@ -1048,6 +1067,7 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         notifier.showWorkspace = { [desktop] id in
             if let workspace = desktop.snapshot.workspaces.first(where: { $0.id == id }) { desktop.openOrFocus(workspace) }
         }
+        notifier.delivered = { [coreHub] in coreHub.recordUsage(.asyncNotificationsDelivered) }
         runNotifier = notifier
         desktop.pullRequests.onChecksFinished = { [notifier] pr in notifier.notify(.checksFinished(pr)) }
         coreHub.onLocalRunFinished = { [notifier, desktop] run, folder in

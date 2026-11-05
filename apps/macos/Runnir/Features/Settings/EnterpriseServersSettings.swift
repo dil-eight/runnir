@@ -187,6 +187,7 @@ struct AddEnterpriseServerSheet: View {
         }
         .padding(20)
         .frame(width: 520)
+        .countsUsage(.overlayGithubEnterpriseServer)
     }
 
     private func add() async {
