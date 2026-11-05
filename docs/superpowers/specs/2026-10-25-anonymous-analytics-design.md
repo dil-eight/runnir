@@ -164,7 +164,7 @@ Minute counters (`basic` and `full`). Raw parts; totals and differences are comp
 | `concurrency_inserted` | Workflow files saved on this Mac with a `concurrency` block inserted by B30's suggestion (`InsertWorkflowConcurrency` then `SaveWorkflowFile` of the same file). The workspace database records the file and the save time |
 | `concurrency_cancels`, `concurrency_minutes_est` | Runs of such a workflow, created after that save, that GitHub ended cancelled while superseded. Counted only by the Mac that saved the block; each run id is recorded in the workspace database so a later sync does not count it again. Estimate as for `superseded_cancels` |
 
-Usage counters (`full` only). Each is one `UsageEvent` value of the proto, named `USAGE_EVENT_<CATEGORY>_<AREA>_<NAME>`; a table in the Core gives each its category, area and name, and a test fails for a value without a row. In the ledger a usage counter is `<category>:<name>`, for example `overlay:settings.privacy`. The app counts what it shows and what the user confirms (`RecordUsage`); the Core counts what it does itself.
+Usage counters (`full` only). Each is one `UsageEvent` value of the proto, named `USAGE_EVENT_<CATEGORY>_<AREA>_<NAME>`; the Core reads its category, area and name from that name with a list of areas, and a test fails for a value that does not read. In the ledger a usage counter is `<category>:<name>`, for example `overlay:settings.privacy`. The app counts what it shows and what the user confirms (`RecordUsage`); the Core counts what it does itself.
 
 | Category | Counted when | Counted by |
 | --- | --- | --- |
@@ -191,7 +191,7 @@ Usage counters (`full` only). Each is one `UsageEvent` value of the proto, named
 | `pull_requests` | | `pull_requests.menu_bar` | | |
 | `app` | | `app.diagnostics`, `app.bug_report` | `app.report_bug` (a prefilled issue page opens) | `app.core_restarted` |
 
-Adding an event later is a proto value, a row in the Core's table and here, and the call where it happens.
+Adding an event later is a proto value, a row here, and the call where it happens; a new area is also added to the Core's list.
 
 Never sent at any level: repository, owner, workflow, job, branch, tag or preset names; paths; SHAs; run, job or pull request numbers; hashes of any of these; error messages; logs; anything the user typed.
 
