@@ -8,8 +8,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"runnir/core/internal/analytics"
 	"runnir/core/internal/events"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
+	"runnir/core/internal/localrun"
 	"runnir/core/internal/store"
 )
 
@@ -29,6 +31,11 @@ type Options struct {
 	// BilledMinutes says what GitHub would have billed for a finished local
 	// run's jobs; nil counts nothing.
 	BilledMinutes func(executionID string) int64
+	// RunSummary returns a finished local run's jobs and span; with
+	// Analytics, its counters are added when it ends. nil counts nothing.
+	RunSummary func(executionID string) (localrun.Summary, bool)
+	// Analytics adds counts to the analytics ledger; nil drops them.
+	Analytics func(at time.Time, counts analytics.Counts)
 }
 
 // Usage is what one workspace keeps; State 0 means nothing on disk.
@@ -492,11 +499,20 @@ func (m *Runtimes) ObserveExecution(e events.Event) {
 	if (state == store.LocalSucceeded || state == store.LocalFailed) && m.opts.BilledMinutes != nil {
 		minutes = m.opts.BilledMinutes(e.ExecutionID)
 	}
+	var summary localrun.Summary
+	summarized := false
+	if store.LocalTerminal(state) && m.opts.RunSummary != nil && m.opts.Analytics != nil {
+		summary, summarized = m.opts.RunSummary(e.ExecutionID)
+	}
 	m.recorder.add(func() {
 		ctx := context.Background()
 		_ = rt.cfg.store.UpdateLocalRun(ctx, e.ExecutionID, state, at, e.Message)
-		if minutes > 0 && rt.cfg.store.AddSaving(ctx, store.SavingLocalRuns, minutes, at) == nil {
+		saved := minutes > 0 && rt.cfg.store.AddSaving(ctx, store.SavingLocalRuns, minutes, at) == nil
+		if saved {
 			rt.publish()
+		}
+		if summarized {
+			m.opts.Analytics(at, localRunCounts(ctx, rt.cfg.store, summary, state, saved, minutes))
 		}
 	})
 }

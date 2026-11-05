@@ -200,14 +200,42 @@ func (o *Outputs) BilledMinutes(executionID string) int64 {
 	return billedMinutes(r.snap.Jobs)
 }
 
+// Summary is a finished run, for analytics: its workflow, whether every job
+// of it was asked for, its span and its jobs.
+type Summary struct {
+	WorkflowID    string
+	WholeWorkflow bool
+	StartedAt     time.Time
+	FinishedAt    time.Time
+	Jobs          []JobStatus
+}
+
+// Summary returns a finished run's summary; false while it runs or once it
+// was forgotten.
+func (o *Outputs) Summary(executionID string) (Summary, bool) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	r := o.runs[executionID]
+	if r == nil || r.snap.Phase != PhaseFinished {
+		return Summary{}, false
+	}
+	return Summary{WorkflowID: r.snap.Plan.WorkflowID, WholeWorkflow: r.snap.Plan.JobID == "",
+		StartedAt: r.snap.StartedAt, FinishedAt: r.snap.FinishedAt, Jobs: append([]JobStatus(nil), r.snap.Jobs...)}, true
+}
+
+// BilledJobMinutes is how GitHub bills a job on a hosted runner: its time
+// rounded up to a whole minute, at least one.
+func BilledJobMinutes(d time.Duration) int64 {
+	return max(int64((max(d, 0)+time.Minute-1)/time.Minute), 1)
+}
+
 func billedMinutes(jobs []JobStatus) int64 {
 	var total int64
 	for _, job := range jobs {
 		if (job.State != JobSucceeded && job.State != JobFailed) || job.StartedAt.IsZero() || job.FinishedAt.IsZero() {
 			continue
 		}
-		d := max(job.FinishedAt.Sub(job.StartedAt), 0)
-		total += max(int64((d+time.Minute-1)/time.Minute), 1)
+		total += BilledJobMinutes(job.FinishedAt.Sub(job.StartedAt))
 	}
 	return total
 }
