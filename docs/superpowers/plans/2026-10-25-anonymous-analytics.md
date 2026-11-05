@@ -37,7 +37,7 @@ Task 10 writes these into the spec:
 The spec has these already; where a task below differs, the spec wins:
 
 - Events are reshaped for PostHog insights (spec: Events, Reading The Data). A sealed batch becomes `minutes_saved` per source, `local_runs`, `concurrency_inserted`, and at Full `screen_viewed`, `overlay_viewed`, `action_used` and `async_event` with `area`, `name` and `count`; there is no `usage_day` event. Every event has a name-based `uuid` of its batch and kind.
-- `UsageEvent` values are `USAGE_EVENT_<CATEGORY>_<AREA>_<NAME>` in four categories (screen, overlay, action, async); a table in `names.go` gives each its category, area and name, and the ledger names a usage counter `<category>:<name>`. The Core counts the async events it sees itself (`Ledger.Record`).
+- `UsageEvent` values are `USAGE_EVENT_<CATEGORY>_<AREA>_<NAME>` in four categories (screen, overlay, action, async); `names.go` reads each one's category, area and name from the proto name with a list of areas, and the ledger names a usage counter `<category>:<name>`. The Core counts the async events it sees itself (`Ledger.Record`).
 - `Analytics` has `sealed` and `today` instead of `pending`, for the two groups of "What is sent" in `runnir.pen`.
 - There is no `app_build`: the app has no `CFBundleVersion`, and the channel shows in `app_version`.
 - The build values are `buildinfo.PostHogProjectToken` and `buildinfo.PostHogHost`, from the `release` environment's `RUNNIR_POSTHOG_PROJECT_TOKEN` and `RUNNIR_POSTHOG_HOST`, and only the app of a tag (alpha, beta, release) gets them.
