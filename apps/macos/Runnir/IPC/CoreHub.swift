@@ -239,6 +239,7 @@ final class CoreHub {
             // A new Core process starts without a token or storage preferences.
             schedulePush()
             Task { await pushStoragePreferences() }
+            Task { await loadAnalytics() }
             // Not awaited: later states (a lost Core) must not wait for slow scans.
             Task { await openAll() }
         case .lost:
@@ -787,6 +788,37 @@ final class CoreHub {
     func flow(workspaceID: UUID, scenario: CoreScenario?) async -> CoreFlow? {
         guard let (service, coreID) = await serviceAndCoreID(workspaceID) else { return nil }
         return try? await service.flow(repositoryID: coreID, scenario: scenario)
+    }
+
+    // MARK: Analytics
+
+    /// The Core's analytics ledger as last read; nil before the Core answered.
+    private(set) var analytics: CoreAnalytics?
+
+    /// Reads the ledger; at each Core start and when Settings › Privacy opens.
+    func loadAnalytics() async {
+        guard isReady, let service = try? await provider.service(), let state = try? await service.analytics() else { return }
+        analytics = state
+    }
+
+    /// Changes the analytics level; false when the Core could not.
+    @discardableResult
+    func setAnalyticsLevel(_ level: CoreAnalyticsLevel, fromPrompt: Bool) async -> Bool {
+        guard isReady, let service = try? await provider.service(),
+              let state = try? await service.setAnalyticsLevel(level, fromPrompt: fromPrompt) else { return false }
+        analytics = state
+        return true
+    }
+
+    /// Counts a usage event at the Usage analytics level; below it nothing
+    /// leaves the app.
+    func recordUsage(_ event: UsageEvent) {
+        guard analytics?.level == .full else { return }
+        let provider = provider
+        Task {
+            guard let service = try? await provider.service() else { return }
+            try? await service.recordUsage(event)
+        }
     }
 
     // MARK: Storage

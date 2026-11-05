@@ -503,6 +503,31 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         }
     }
 
+    // MARK: Analytics
+
+    private var _analytics = CoreAnalytics(level: .basic, promptAnswered: false, sendingAvailable: true, persistent: true,
+                                           analyticsID: nil, sealed: [], today: [])
+    private var _levelCalls: [(level: CoreAnalyticsLevel, fromPrompt: Bool)] = []
+    private var _usage: [UsageEvent] = []
+    var analyticsState: CoreAnalytics {
+        get { lock.withLock { _analytics } }
+        set { lock.withLock { _analytics = newValue } }
+    }
+    var levelCalls: [(level: CoreAnalyticsLevel, fromPrompt: Bool)] { lock.withLock { _levelCalls } }
+    var usage: [UsageEvent] { lock.withLock { _usage } }
+    func analytics() async throws -> CoreAnalytics { lock.withLock { _analytics } }
+    func setAnalyticsLevel(_ level: CoreAnalyticsLevel, fromPrompt: Bool) async throws -> CoreAnalytics {
+        lock.withLock {
+            _levelCalls.append((level, fromPrompt))
+            _analytics = CoreAnalytics(level: level, promptAnswered: _analytics.promptAnswered || fromPrompt,
+                                       sendingAvailable: _analytics.sendingAvailable, persistent: _analytics.persistent,
+                                       analyticsID: level == .full ? "id-\(_levelCalls.count)" : nil,
+                                       sealed: _analytics.sealed, today: _analytics.today)
+            return _analytics
+        }
+    }
+    func recordUsage(_ event: UsageEvent) async throws { lock.withLock { _usage.append(event) } }
+
     // MARK: Saving files
 
     /// What the file on disk holds, by path; a save succeeds while its base

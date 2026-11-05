@@ -251,6 +251,50 @@ struct GRPCCoreService: CoreServicing {
         }
     }
 
+    func analytics() async throws -> CoreAnalytics {
+        let response = try await call { try await client.getAnalytics(.init(), options: Self.options(Self.callTimeout)) }
+        return Self.map(response)
+    }
+
+    func setAnalyticsLevel(_ level: CoreAnalyticsLevel, fromPrompt: Bool) async throws -> CoreAnalytics {
+        let response = try await call {
+            try await client.setAnalyticsLevel(.with {
+                $0.level = Self.map(level)
+                $0.fromPrompt = fromPrompt
+            }, options: Self.options(Self.callTimeout))
+        }
+        return Self.map(response)
+    }
+
+    func recordUsage(_ event: UsageEvent) async throws {
+        _ = try await call {
+            try await client.recordUsage(.with { $0.event = Runnir_Core_V1_UsageEvent(rawValue: event.rawValue) ?? .unspecified },
+                                         options: Self.options(Self.callTimeout))
+        }
+    }
+
+    static func map(_ response: Runnir_Core_V1_Analytics) -> CoreAnalytics {
+        let level: CoreAnalyticsLevel = switch response.level {
+        case .off: .off
+        case .full: .full
+        default: .basic
+        }
+        let counters = { (counters: [Runnir_Core_V1_AnalyticsCounter]) in
+            counters.map { CoreAnalyticsCounter(name: $0.name, value: $0.value) }
+        }
+        return CoreAnalytics(level: level, promptAnswered: response.promptAnswered, sendingAvailable: response.sendingAvailable,
+                             persistent: response.persistent, analyticsID: response.analyticsID.isEmpty ? nil : response.analyticsID,
+                             sealed: counters(response.sealed), today: counters(response.today))
+    }
+
+    static func map(_ level: CoreAnalyticsLevel) -> Runnir_Core_V1_AnalyticsLevel {
+        switch level {
+        case .off: .off
+        case .basic: .basic
+        case .full: .full
+        }
+    }
+
     static func map(_ workflow: Runnir_Core_V1_GitHubWorkflow) -> CoreGitHubWorkflow {
         CoreGitHubWorkflow(id: workflow.id, name: workflow.name, path: workflow.path, state: workflow.state, htmlURL: webURL(workflow.htmlURL))
     }

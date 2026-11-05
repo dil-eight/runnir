@@ -354,3 +354,92 @@ struct CoreStorageUsage: Equatable, Sendable {
     let workspaces: [CoreWorkspaceStorage]
     let keepJobLogs: Bool
 }
+
+enum CoreAnalyticsLevel: CaseIterable, Sendable {
+    /// Nothing is counted or sent.
+    case off
+    /// First launch and saved minutes, without an id. The default.
+    case basic
+    /// Basic plus screens, overlays, actions and how runs and syncs turn
+    /// out, with a random analytics id.
+    case full
+}
+
+struct CoreAnalyticsCounter: Equatable, Sendable {
+    let name: String
+    let value: UInt64
+}
+
+/// The Core's analytics ledger, as `GetAnalytics` reports it.
+struct CoreAnalytics: Equatable, Sendable {
+    let level: CoreAnalyticsLevel
+    let promptAnswered: Bool
+    /// A build of a tag with the ledger on disk: batches are sent.
+    let sendingAvailable: Bool
+    /// The ledger is on disk; without it there is no question and no level to choose.
+    let persistent: Bool
+    /// Set only at `.full`.
+    let analyticsID: String?
+    /// Counts sealed and waiting to be sent, by name.
+    let sealed: [CoreAnalyticsCounter]
+    /// Today's counts, sealed tomorrow, by name.
+    let today: [CoreAnalyticsCounter]
+}
+
+/// What the Usage analytics level counts: a screen, an overlay, an action
+/// or something that ends on its own, each in a product area. Raw values
+/// are the proto's `UsageEvent` numbers; a test keeps the names the same.
+enum UsageEvent: Int, CaseIterable, Sendable {
+    case screenOverviewPage = 1,
+         screenWorkflowsList,
+         screenRunsList,
+         screenLocalRunHistory,
+         screenEditorWorkflow,
+         screenSecretsValues,
+         screenWorkspacesManager,
+         screenGithubManager
+    case overlayRunsDispatch,
+         overlayLocalRunReview,
+         overlayLocalRunLimits,
+         overlayLocalRunSkippedJob,
+         overlayEditorFileName,
+         overlayLogsViewer,
+         overlayGithubConnect,
+         overlayGithubEnterpriseServer,
+         overlaySettingsAccount,
+         overlaySettingsRuns,
+         overlaySettingsNotifications,
+         overlaySettingsPullRequests,
+         overlaySettingsTools,
+         overlaySettingsStorage,
+         overlaySettingsPrivacy,
+         overlaySearchGlobal,
+         overlayNotificationsPanel,
+         overlayPullRequestsMenuBar,
+         overlayAppDiagnostics,
+         overlayAppBugReport
+    case actionWorkflowsFavorite,
+         actionRunsDispatch,
+         actionRunsCancel,
+         actionRunsRerun,
+         actionLocalRunRun,
+         actionEditorSave,
+         actionEditorCreate,
+         actionEditorRename,
+         actionEditorValidate,
+         actionEditorInsertConcurrency,
+         actionSecretsImportEnv,
+         actionPresetsSave,
+         actionPresetsApply,
+         actionLogsSave,
+         actionGithubOpenOnGithub,
+         actionAppReportBug
+    case asyncLocalRunSucceeded,
+         asyncLocalRunFailed,
+         asyncLocalRunCancelled,
+         asyncGithubSyncFailed,
+         asyncGithubRateLimited,
+         asyncGithubTokenRejected,
+         asyncNotificationsDelivered,
+         asyncAppCoreRestarted
+}

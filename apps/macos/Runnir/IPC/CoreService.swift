@@ -192,6 +192,13 @@ protocol CoreServicing: Sendable {
     /// Whether finished jobs' logs are kept; off with `deleteKeptLogs` also
     /// deletes the logs kept so far.
     func setStoragePreferences(keepJobLogs: Bool, deleteKeptLogs: Bool) async throws
+    /// The analytics level, whether the consent question was answered and
+    /// what waits to be sent.
+    func analytics() async throws -> CoreAnalytics
+    /// Changes the level; `fromPrompt` marks the consent question answered.
+    func setAnalyticsLevel(_ level: CoreAnalyticsLevel, fromPrompt: Bool) async throws -> CoreAnalytics
+    /// Counts one usage event; the Core ignores it below `.full`.
+    func recordUsage(_ event: UsageEvent) async throws
     func refreshRepository(id: String) async throws -> CoreRepository
     func closeRepository(id: String) async throws
     func listWorkflows(repositoryID: String) async throws -> [CoreWorkflow]
