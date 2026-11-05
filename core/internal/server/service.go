@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"runnir/core/internal/analytics"
 	"runnir/core/internal/approval"
 	"runnir/core/internal/buildinfo"
 	"runnir/core/internal/dispatch"
@@ -48,6 +49,10 @@ type service struct {
 	tools        toolChecker
 	localRuns    *approval.Store[localRunApproval]
 	localOutputs *localrun.Outputs
+	// analytics is this Mac's ledger; nil only in tests that build a
+	// service by hand. analyticsSending: this build sends it.
+	analytics        *analytics.Ledger
+	analyticsSending bool
 	// home is the user's home directory and actCache act's cache of
 	// actions, kept between runs.
 	home     string
