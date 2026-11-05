@@ -34,7 +34,7 @@ Reusable components exist in the current canvas; map their states during each fe
 
 Primary navigation follows the current Pen sidebar: Overview, Workflows, Runs and Workspace. Existing Repositories and Artifacts destinations remain available through the workspace menu during migration. The 18 surfaces include the app shell, detail views and sheets; they are not 18 sidebar entries. Draw a canonical screen per surface and selected meaningful states. Reuse components for cross-cutting states rather than making a full-screen copy for every combination.
 
-FR-07 adds the fixed Runnir GitHub toolbar link, optional analytics invitation, Privacy & Diagnostics settings and sanitized crash/issue preview. See [data/consent requirements](../product/analytics-and-crash-reporting.md). These designs must not show collection enabled by default or public reports sent without explicit review.
+FR-07 adds the fixed Runnir GitHub toolbar link, the analytics question (a banner in the first workspace window), Settings › Privacy and a sanitized crash/issue preview. See [data/consent requirements](../product/analytics-and-crash-reporting.md). These designs must not show collection enabled by default or public reports sent without explicit review.
 
 ## Workspace Lifecycle Scope
 

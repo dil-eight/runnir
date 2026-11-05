@@ -28,7 +28,7 @@ Status: design backlog, not implemented. IDs remain stable across Pen frames, fi
 
 S06 is a sheet, S08 a detail destination, S10 a sheet/detail review, S11 part of the workspace. S12 uses the native Settings window. S01 is the shared layout, not another navigation item.
 
-FR-07 additions: S13 is a feedback sheet reached from Help/Settings or a non-blocking unexpected-session notice. It is not a navigation destination. S12 gains Privacy & Diagnostics: analytics off/on/withdrawn, destination not yet configured (delivery unavailable), payload inspection and clear local records. A separate optional analytics invitation has Not Now and Enable; no preselection or effect on crash sharing. Define declined/dismissed states without repeated nagging.
+FR-07 additions: S13 is a feedback sheet reached from Help/Settings or a non-blocking unexpected-session notice. It is not a navigation destination. S12 gains Privacy: analytics Off / Basic counts / Usage analytics, what waits to be sent (sealed, and today's), the analytics id with Copy, and a note when the build does not send. The consent banner has Basic Counts Only and Share Usage Analytics; no preselection or effect on crash sharing. Define declined/dismissed states without repeated nagging.
 
 S01 has a GitHub action linking to https://github.com/dil-eight/runnir, with Open Runnir on GitHub tooltip/accessibility label: in a workspace window it sits in the top strip left of the notification bell, apart from the section toolbar and Run/Stop; the Workspace Manager keeps it in its header. No authenticated/star-count widget or background fetch. S13 states must say Draft Opened rather than Report Sent until publication is verified.
 
@@ -84,7 +84,7 @@ Local execution: review -> authorized -> preparing -> running -> stop requested 
 | O11 Workspace switch | Choose another registered local root from a workspace window | Reuse Current Window / Open New Window / Focus Existing; source preserved on failure; honor unsaved/active work |
 | O12 Registry/cache management | Remove registration or clear disposable cache with explicit effects | Separate operations; neither deletes .runnir/repository/Keychain/unique overrides implicitly |
 | O13 Restoration/persistence recovery | Invalid session, failed critical close write, missing monitor/root or corrupt DB | Non-blocking scoped recovery, retry/locate/keep open; never resurrect committed closed windows |
-| O10 Optional analytics invitation | Non-blocking Help improve Runnir prompt after useful work, plus data categories/destination link | Enable Usage Analytics / Not Now; decline persists, no crash consent, no buffering before opt-in |
+| O10 Analytics question | A banner at the top of the first workspace window: Help improve Runnir, what Basic sends, what Usage analytics adds, what is never sent, PostHog in the US | Basic Counts Only / Share Usage Analytics, equal weight; shown once, again in a later window only if unanswered |
 
 Do not create custom replicas of native file pickers/alerts just to make a new design surface. Show their placement/transition and annotate expected system behavior outside the app viewport.
 
