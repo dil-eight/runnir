@@ -4,6 +4,7 @@ package workspace
 
 import (
 	"context"
+	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -112,5 +113,33 @@ func TestFinishedLocalRunsAreCountedForAnalytics(t *testing.T) {
 	if len(counted) != 1 || counted[0][analytics.LocalRuns] != 1 || counted[0][analytics.LocalBilledMinutes] != 2 ||
 		counted[0][analytics.LocalJobsSucceeded] != 1 || counted[0][analytics.LocalJobSeconds] != 70 || counted[0][localRunSucceeded] != 1 {
 		t.Fatalf("counted = %+v, want one run once", counted)
+	}
+}
+
+func TestFailedPassesAreCountedOncePerOutcome(t *testing.T) {
+	fake, accounts := newFake(t)
+	var mu sync.Mutex
+	counted := analytics.Counts{}
+	r := startRuntimeWith(t, t.TempDir(), fixedResolver(accounts, "o", "r"), nil, func(c *config) {
+		c.analytics = func(_ time.Time, counts analytics.Counts) {
+			mu.Lock()
+			defer mu.Unlock()
+			for name, value := range counts {
+				counted[name] += value
+			}
+		}
+	})
+	waitRefresh(t, r)
+	fake.set(func(f *fakeGitHub) { f.status = http.StatusServiceUnavailable })
+	waitRefresh(t, r)
+	waitRefresh(t, r)
+	fake.set(func(f *fakeGitHub) { f.status = http.StatusUnauthorized })
+	waitRefresh(t, r)
+	mu.Lock()
+	defer mu.Unlock()
+	failed := analytics.UsageCounter(corev1.UsageEvent_USAGE_EVENT_ASYNC_GITHUB_SYNC_FAILED)
+	rejected := analytics.UsageCounter(corev1.UsageEvent_USAGE_EVENT_ASYNC_GITHUB_TOKEN_REJECTED)
+	if counted[failed] != 1 || counted[rejected] != 1 || len(counted) != 2 {
+		t.Fatalf("counted = %+v, want one failure and one rejection", counted)
 	}
 }

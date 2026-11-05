@@ -102,6 +102,7 @@ func (s *service) InsertWorkflowConcurrency(_ context.Context, request *corev1.I
 	out := &corev1.InsertWorkflowConcurrencyResponse{Refusal: concurrencyRefusal(edit.Refusal)}
 	if edit.Refusal == scanner.ConcurrencyInserted {
 		out.Content, out.FirstLine, out.LastLine = edit.Content, uint32(edit.FirstLine), uint32(edit.LastLine)
+		s.recordUsage(corev1.UsageEvent_USAGE_EVENT_ACTION_EDITOR_INSERT_CONCURRENCY)
 	}
 	return out, nil
 }

@@ -254,6 +254,7 @@ func (s *service) ConfirmLocalRun(_ context.Context, request *corev1.ConfirmLoca
 		s.workspaces.LocalRunNotStarted(id, "The run could not start.")
 		return nil, rpcError(err)
 	}
+	s.recordUsage(corev1.UsageEvent_USAGE_EVENT_ACTION_LOCAL_RUN_RUN)
 	return &corev1.ConfirmLocalRunResponse{Execution: &corev1.ExecutionResponse{
 		ExecutionId: started.ID, RepositoryId: started.RepositoryID, State: started.State,
 	}}, nil

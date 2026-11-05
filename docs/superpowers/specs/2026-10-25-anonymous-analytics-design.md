@@ -178,14 +178,14 @@ Usage counters (`full` only). Each is one `UsageEvent` value of the proto, named
 | --- | --- | --- | --- | --- |
 | `overview` | `overview.page` | | | |
 | `workflows` | `workflows.list` | | `workflows.favorite` (a workflow or repository starred) | |
-| `runs` | `runs.list` | `runs.dispatch` (Run Workflow) | `runs.dispatch`, `runs.cancel`, `runs.rerun` | |
-| `local_run` | `local_run.history` (Workspace › Local Run) | `local_run.review`, `local_run.limits`, `local_run.skipped_job` | `local_run.run` | `local_run.succeeded`, `local_run.failed`, `local_run.cancelled` (Core) |
-| `editor` | `editor.workflow` (Workspace › Editor) | `editor.file_name` (new or renamed file) | `editor.save`, `editor.create`, `editor.rename` (Core), `editor.validate` (started by the user, not the check after a save), `editor.insert_concurrency` | |
+| `runs` | `runs.list` | `runs.dispatch` (Run Workflow) | `runs.dispatch`, `runs.cancel`, `runs.rerun` (any rerun) (Core, when GitHub accepts) | |
+| `local_run` | `local_run.history` (Workspace › Local Run) | `local_run.review`, `local_run.limits`, `local_run.skipped_job` | `local_run.run` (Core, when it starts) | `local_run.succeeded`, `local_run.failed`, `local_run.cancelled` (Core) |
+| `editor` | `editor.workflow` (Workspace › Editor) | `editor.file_name` (new or renamed file) | `editor.save`, `editor.create`, `editor.rename`, `editor.insert_concurrency` (Core), `editor.validate` (started by the user, not the check after a save) | |
 | `secrets` | `secrets.values` | | `secrets.import_env` | |
 | `presets` | | | `presets.save` (a Mac preset), `presets.apply` (any preset) | |
-| `logs` | | `logs.viewer` | `logs.save` (saved and opened in an editor) | |
+| `logs` | | `logs.viewer` | `logs.save` (saved and opened in an editor; Core) | |
 | `workspaces` | `workspaces.manager` | | | |
-| `github` | `github.manager` | `github.connect`, `github.enterprise_server` | `github.open_on_github` (any Open on GitHub link) | `github.sync_failed`, `github.rate_limited`, `github.token_rejected` (Core) |
+| `github` | `github.manager` | `github.connect`, `github.enterprise_server` | `github.open_on_github` (any Open on GitHub link) | `github.sync_failed`, `github.rate_limited`, `github.token_rejected` (Core, once when a workspace's sync turns to that outcome, not on every retry) |
 | `settings` | | `settings.account`, `settings.runs`, `settings.notifications`, `settings.pull_requests`, `settings.tools`, `settings.storage`, `settings.privacy` | | |
 | `search` | | `search.global` | | |
 | `notifications` | | `notifications.panel` | | `notifications.delivered` |

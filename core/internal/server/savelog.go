@@ -79,6 +79,7 @@ func (s *service) SaveJobLog(ctx context.Context, request *corev1.SaveJobLogRequ
 		return nil, status.Error(codes.Internal, "the log file could not be written")
 	}
 	written = true
+	s.recordUsage(corev1.UsageEvent_USAGE_EVENT_ACTION_LOGS_SAVE)
 	return &corev1.SaveJobLogResponse{
 		Status:       result,
 		Availability: corev1.JobLogAvailability_JOB_LOG_AVAILABILITY_AVAILABLE,

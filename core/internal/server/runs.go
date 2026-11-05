@@ -252,8 +252,12 @@ func (s *service) ConfirmRunAction(ctx context.Context, request *corev1.ConfirmR
 	if sendErr == nil {
 		out.AcceptedAt = timestamppb.New(acceptedAt)
 		s.recordRerun(ctx, prepared, acceptedAt)
-		if prepared.Action == corev1.RunAction_RUN_ACTION_CANCEL {
+		switch prepared.Action {
+		case corev1.RunAction_RUN_ACTION_CANCEL:
+			s.recordUsage(corev1.UsageEvent_USAGE_EVENT_ACTION_RUNS_CANCEL)
 			s.countSupersededCancel(ctx, prepared.RepositoryID, prepared.RunID, acceptedAt)
+		case corev1.RunAction_RUN_ACTION_RERUN, corev1.RunAction_RUN_ACTION_RERUN_FAILED, corev1.RunAction_RUN_ACTION_RERUN_JOB:
+			s.recordUsage(corev1.UsageEvent_USAGE_EVENT_ACTION_RUNS_RERUN)
 		}
 	}
 	return out, nil

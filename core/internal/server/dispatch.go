@@ -154,6 +154,7 @@ func (s *service) ConfirmWorkflowDispatch(ctx context.Context, request *corev1.C
 		out.DispatchedAt = timestamppb.New(sentAt)
 		out.RunId = runID
 		out.HistoryId = s.recordDispatch(ctx, prepared, sentAt, runID)
+		s.recordUsage(corev1.UsageEvent_USAGE_EVENT_ACTION_RUNS_DISPATCH)
 	}
 	return out, nil
 }

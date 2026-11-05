@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
+	"runnir/core/internal/scanner"
 )
 
 func analyticsClient(t *testing.T, options Options) corev1.RunnirCoreClient {
@@ -113,5 +116,37 @@ func TestAnalyticsWithoutADataFolderStayInMemory(t *testing.T) {
 	a, err := client.GetAnalytics(ctx, &corev1.GetAnalyticsRequest{})
 	if err != nil || a.GetPersistent() || a.GetSendingAvailable() || len(a.GetSealed()) != 0 {
 		t.Fatalf("memory = %+v, %v", a, err)
+	}
+}
+
+func TestTheCoreCountsTheActionsItDoes(t *testing.T) {
+	client := analyticsClient(t, Options{DataDir: t.TempDir()})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	original := "name: CI\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps: [{run: echo}]\n"
+	root := repoWithWorkflows(t, map[string]string{"ci.yml": original})
+	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	save := func() {
+		t.Helper()
+		current, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "ci.yml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := client.SaveWorkflowFile(ctx, &corev1.SaveWorkflowFileRequest{RepositoryId: opened.Repository.Id,
+			WorkflowId: ".github/workflows/ci.yml", Content: string(current) + "\n", BaseSha256: scanner.SHA256(current)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	save() // at BASIC: not counted
+	if _, err := client.SetAnalyticsLevel(ctx, &corev1.SetAnalyticsLevelRequest{Level: corev1.AnalyticsLevel_ANALYTICS_LEVEL_FULL}); err != nil {
+		t.Fatal(err)
+	}
+	save()
+	a, err := client.GetAnalytics(ctx, &corev1.GetAnalyticsRequest{})
+	if err != nil || counted(a.GetToday(), "action:editor.save") != 1 {
+		t.Fatalf("today = %+v, %v", a.GetToday(), err)
 	}
 }
