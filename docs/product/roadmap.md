@@ -26,7 +26,7 @@ Phases are implementation dependencies, not six mandatory releases. Auth client 
 | M3 Run inspector | History, jobs/steps, bounded searchable logs, cancel/rerun, polling/error states | M1; selected repository/run; mutation confirmation |
 | M4 Local workspace | Folder grants, workflow discovery/jobs, YAML editing/conflict handling, offline actionlint diagnostics | Local scope/process design and actionlint setup; independent of OAuth |
 | M5 Local runner | Docker/OrbStack and act readiness, compatible jobs, opt-in execution/output/cancellation/cleanup | M4; execution approval, resource/network/credential policy |
-| Release readiness | Acceptance fixtures, permission/error tests, distribution/license decisions and accurate limitations | All six FRs; controlled real integration evidence |
+| Release readiness | Acceptance fixtures, permission/error tests, distribution decisions, third-party license notices and accurate limitations | All six FRs; controlled real integration evidence |
 | Feedback and diagnostics | Top-toolbar project link, reviewed issue drafts, local sanitized crash import, optional analytics consent | FR-07; independent consent/redaction checks; analytics delivery disabled until destination/retention review |
 
 The [first slice](first-implementation-slice.md) now establishes workspace/window lifecycle and registry identity; [offline validation](offline-validation-slice.md) follows using that context. Authentication configuration can proceed independently. Milestones group outcomes, not a mandatory serial schedule.
@@ -57,4 +57,4 @@ Preserve DigitalOcean/doctl, static landing deployment, external signed offer ca
 
 ## Continuing Engineering Work
 
-Keep Core target cross-build checks and macOS/Linux/Windows native CI; cross-platform packaging certification is outside v0.1. Continue tag-based draft releases. Resolve GPLv3 versus proposed Apache-2.0 explicitly; validate signing/notarization/updater separately before making production claims.
+Keep Core target cross-build checks and macOS/Linux/Windows native CI; cross-platform packaging certification is outside v0.1. Continue tag-based draft releases. Ship the third-party license notices with each release (Runnir itself is Apache-2.0, ADR 0008); validate signing/notarization/updater separately before making production claims.
