@@ -1475,44 +1475,66 @@ nonisolated enum Runnir_Core_V1_AnalyticsLevel: SwiftProtobuf.Enum, Swift.CaseIt
 
 }
 
-/// Sections and actions counted at FULL. The counter is the lowercase name
-/// without the prefix, for example "screen_overview".
+/// Usage counted at FULL: what the app shows and what the user confirms,
+/// and what ends or happens on its own. Named
+/// USAGE_EVENT_<CATEGORY>_<AREA>_<NAME>; the Core's analytics table gives
+/// each its category (screen, overlay, action, async), area and name
+/// (docs/superpowers/specs/2026-10-25-anonymous-analytics-design.md).
 nonisolated enum Runnir_Core_V1_UsageEvent: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
   case unspecified // = 0
-  case screenOverview // = 1
-  case screenWorkflows // = 2
-  case screenRuns // = 3
-  case screenSecrets // = 4
-  case screenWorkspace // = 5
-  case screenWorkspaceEditor // = 6
-  case screenWorkspaceLocalRun // = 7
-  case screenManagerWorkspaces // = 8
-  case screenManagerGithub // = 9
-  case screenSettingsAccount // = 10
-  case screenSettingsRuns // = 11
-  case screenSettingsNotifications // = 12
-  case screenSettingsPullRequests // = 13
-  case screenSettingsTools // = 14
-  case screenSettingsStorage // = 15
-  case screenSettingsPrivacy // = 16
-  case screenMenuBar // = 17
-  case actionRunLocal // = 18
-  case actionDispatch // = 19
-  case actionCancelRun // = 20
-  case actionRerun // = 21
-  case actionSaveWorkflow // = 22
-  case actionCreateWorkflow // = 23
-  case actionRenameWorkflow // = 24
-  case actionValidate // = 25
-  case actionOpenLog // = 26
-  case actionSaveLog // = 27
-  case actionSavePreset // = 28
-  case actionApplyPreset // = 29
-  case actionInsertConcurrency // = 30
-  case actionFavorite // = 31
-  case actionOpenOnGithub // = 32
-  case actionReportBug // = 33
+  case screenOverviewPage // = 1
+  case screenWorkflowsList // = 2
+  case screenRunsList // = 3
+  case screenLocalRunHistory // = 4
+  case screenEditorWorkflow // = 5
+  case screenSecretsValues // = 6
+  case screenWorkspacesManager // = 7
+  case screenGithubManager // = 8
+  case overlayRunsDispatch // = 9
+  case overlayLocalRunReview // = 10
+  case overlayLocalRunLimits // = 11
+  case overlayLocalRunSkippedJob // = 12
+  case overlayEditorFileName // = 13
+  case overlayLogsViewer // = 14
+  case overlayGithubConnect // = 15
+  case overlayGithubEnterpriseServer // = 16
+  case overlaySettingsAccount // = 17
+  case overlaySettingsRuns // = 18
+  case overlaySettingsNotifications // = 19
+  case overlaySettingsPullRequests // = 20
+  case overlaySettingsTools // = 21
+  case overlaySettingsStorage // = 22
+  case overlaySettingsPrivacy // = 23
+  case overlaySearchGlobal // = 24
+  case overlayNotificationsPanel // = 25
+  case overlayPullRequestsMenuBar // = 26
+  case overlayAppDiagnostics // = 27
+  case overlayAppBugReport // = 28
+  case actionWorkflowsFavorite // = 29
+  case actionRunsDispatch // = 30
+  case actionRunsCancel // = 31
+  case actionRunsRerun // = 32
+  case actionLocalRunRun // = 33
+  case actionEditorSave // = 34
+  case actionEditorCreate // = 35
+  case actionEditorRename // = 36
+  case actionEditorValidate // = 37
+  case actionEditorInsertConcurrency // = 38
+  case actionSecretsImportEnv // = 39
+  case actionPresetsSave // = 40
+  case actionPresetsApply // = 41
+  case actionLogsSave // = 42
+  case actionGithubOpenOnGithub // = 43
+  case actionAppReportBug // = 44
+  case asyncLocalRunSucceeded // = 45
+  case asyncLocalRunFailed // = 46
+  case asyncLocalRunCancelled // = 47
+  case asyncGithubSyncFailed // = 48
+  case asyncGithubRateLimited // = 49
+  case asyncGithubTokenRejected // = 50
+  case asyncNotificationsDelivered // = 51
+  case asyncAppCoreRestarted // = 52
   case UNRECOGNIZED(Int)
 
   init() {
@@ -1522,39 +1544,58 @@ nonisolated enum Runnir_Core_V1_UsageEvent: SwiftProtobuf.Enum, Swift.CaseIterab
   init?(rawValue: Int) {
     switch rawValue {
     case 0: self = .unspecified
-    case 1: self = .screenOverview
-    case 2: self = .screenWorkflows
-    case 3: self = .screenRuns
-    case 4: self = .screenSecrets
-    case 5: self = .screenWorkspace
-    case 6: self = .screenWorkspaceEditor
-    case 7: self = .screenWorkspaceLocalRun
-    case 8: self = .screenManagerWorkspaces
-    case 9: self = .screenManagerGithub
-    case 10: self = .screenSettingsAccount
-    case 11: self = .screenSettingsRuns
-    case 12: self = .screenSettingsNotifications
-    case 13: self = .screenSettingsPullRequests
-    case 14: self = .screenSettingsTools
-    case 15: self = .screenSettingsStorage
-    case 16: self = .screenSettingsPrivacy
-    case 17: self = .screenMenuBar
-    case 18: self = .actionRunLocal
-    case 19: self = .actionDispatch
-    case 20: self = .actionCancelRun
-    case 21: self = .actionRerun
-    case 22: self = .actionSaveWorkflow
-    case 23: self = .actionCreateWorkflow
-    case 24: self = .actionRenameWorkflow
-    case 25: self = .actionValidate
-    case 26: self = .actionOpenLog
-    case 27: self = .actionSaveLog
-    case 28: self = .actionSavePreset
-    case 29: self = .actionApplyPreset
-    case 30: self = .actionInsertConcurrency
-    case 31: self = .actionFavorite
-    case 32: self = .actionOpenOnGithub
-    case 33: self = .actionReportBug
+    case 1: self = .screenOverviewPage
+    case 2: self = .screenWorkflowsList
+    case 3: self = .screenRunsList
+    case 4: self = .screenLocalRunHistory
+    case 5: self = .screenEditorWorkflow
+    case 6: self = .screenSecretsValues
+    case 7: self = .screenWorkspacesManager
+    case 8: self = .screenGithubManager
+    case 9: self = .overlayRunsDispatch
+    case 10: self = .overlayLocalRunReview
+    case 11: self = .overlayLocalRunLimits
+    case 12: self = .overlayLocalRunSkippedJob
+    case 13: self = .overlayEditorFileName
+    case 14: self = .overlayLogsViewer
+    case 15: self = .overlayGithubConnect
+    case 16: self = .overlayGithubEnterpriseServer
+    case 17: self = .overlaySettingsAccount
+    case 18: self = .overlaySettingsRuns
+    case 19: self = .overlaySettingsNotifications
+    case 20: self = .overlaySettingsPullRequests
+    case 21: self = .overlaySettingsTools
+    case 22: self = .overlaySettingsStorage
+    case 23: self = .overlaySettingsPrivacy
+    case 24: self = .overlaySearchGlobal
+    case 25: self = .overlayNotificationsPanel
+    case 26: self = .overlayPullRequestsMenuBar
+    case 27: self = .overlayAppDiagnostics
+    case 28: self = .overlayAppBugReport
+    case 29: self = .actionWorkflowsFavorite
+    case 30: self = .actionRunsDispatch
+    case 31: self = .actionRunsCancel
+    case 32: self = .actionRunsRerun
+    case 33: self = .actionLocalRunRun
+    case 34: self = .actionEditorSave
+    case 35: self = .actionEditorCreate
+    case 36: self = .actionEditorRename
+    case 37: self = .actionEditorValidate
+    case 38: self = .actionEditorInsertConcurrency
+    case 39: self = .actionSecretsImportEnv
+    case 40: self = .actionPresetsSave
+    case 41: self = .actionPresetsApply
+    case 42: self = .actionLogsSave
+    case 43: self = .actionGithubOpenOnGithub
+    case 44: self = .actionAppReportBug
+    case 45: self = .asyncLocalRunSucceeded
+    case 46: self = .asyncLocalRunFailed
+    case 47: self = .asyncLocalRunCancelled
+    case 48: self = .asyncGithubSyncFailed
+    case 49: self = .asyncGithubRateLimited
+    case 50: self = .asyncGithubTokenRejected
+    case 51: self = .asyncNotificationsDelivered
+    case 52: self = .asyncAppCoreRestarted
     default: self = .UNRECOGNIZED(rawValue)
     }
   }
@@ -1562,39 +1603,58 @@ nonisolated enum Runnir_Core_V1_UsageEvent: SwiftProtobuf.Enum, Swift.CaseIterab
   var rawValue: Int {
     switch self {
     case .unspecified: return 0
-    case .screenOverview: return 1
-    case .screenWorkflows: return 2
-    case .screenRuns: return 3
-    case .screenSecrets: return 4
-    case .screenWorkspace: return 5
-    case .screenWorkspaceEditor: return 6
-    case .screenWorkspaceLocalRun: return 7
-    case .screenManagerWorkspaces: return 8
-    case .screenManagerGithub: return 9
-    case .screenSettingsAccount: return 10
-    case .screenSettingsRuns: return 11
-    case .screenSettingsNotifications: return 12
-    case .screenSettingsPullRequests: return 13
-    case .screenSettingsTools: return 14
-    case .screenSettingsStorage: return 15
-    case .screenSettingsPrivacy: return 16
-    case .screenMenuBar: return 17
-    case .actionRunLocal: return 18
-    case .actionDispatch: return 19
-    case .actionCancelRun: return 20
-    case .actionRerun: return 21
-    case .actionSaveWorkflow: return 22
-    case .actionCreateWorkflow: return 23
-    case .actionRenameWorkflow: return 24
-    case .actionValidate: return 25
-    case .actionOpenLog: return 26
-    case .actionSaveLog: return 27
-    case .actionSavePreset: return 28
-    case .actionApplyPreset: return 29
-    case .actionInsertConcurrency: return 30
-    case .actionFavorite: return 31
-    case .actionOpenOnGithub: return 32
-    case .actionReportBug: return 33
+    case .screenOverviewPage: return 1
+    case .screenWorkflowsList: return 2
+    case .screenRunsList: return 3
+    case .screenLocalRunHistory: return 4
+    case .screenEditorWorkflow: return 5
+    case .screenSecretsValues: return 6
+    case .screenWorkspacesManager: return 7
+    case .screenGithubManager: return 8
+    case .overlayRunsDispatch: return 9
+    case .overlayLocalRunReview: return 10
+    case .overlayLocalRunLimits: return 11
+    case .overlayLocalRunSkippedJob: return 12
+    case .overlayEditorFileName: return 13
+    case .overlayLogsViewer: return 14
+    case .overlayGithubConnect: return 15
+    case .overlayGithubEnterpriseServer: return 16
+    case .overlaySettingsAccount: return 17
+    case .overlaySettingsRuns: return 18
+    case .overlaySettingsNotifications: return 19
+    case .overlaySettingsPullRequests: return 20
+    case .overlaySettingsTools: return 21
+    case .overlaySettingsStorage: return 22
+    case .overlaySettingsPrivacy: return 23
+    case .overlaySearchGlobal: return 24
+    case .overlayNotificationsPanel: return 25
+    case .overlayPullRequestsMenuBar: return 26
+    case .overlayAppDiagnostics: return 27
+    case .overlayAppBugReport: return 28
+    case .actionWorkflowsFavorite: return 29
+    case .actionRunsDispatch: return 30
+    case .actionRunsCancel: return 31
+    case .actionRunsRerun: return 32
+    case .actionLocalRunRun: return 33
+    case .actionEditorSave: return 34
+    case .actionEditorCreate: return 35
+    case .actionEditorRename: return 36
+    case .actionEditorValidate: return 37
+    case .actionEditorInsertConcurrency: return 38
+    case .actionSecretsImportEnv: return 39
+    case .actionPresetsSave: return 40
+    case .actionPresetsApply: return 41
+    case .actionLogsSave: return 42
+    case .actionGithubOpenOnGithub: return 43
+    case .actionAppReportBug: return 44
+    case .asyncLocalRunSucceeded: return 45
+    case .asyncLocalRunFailed: return 46
+    case .asyncLocalRunCancelled: return 47
+    case .asyncGithubSyncFailed: return 48
+    case .asyncGithubRateLimited: return 49
+    case .asyncGithubTokenRejected: return 50
+    case .asyncNotificationsDelivered: return 51
+    case .asyncAppCoreRestarted: return 52
     case .UNRECOGNIZED(let i): return i
     }
   }
@@ -1602,39 +1662,58 @@ nonisolated enum Runnir_Core_V1_UsageEvent: SwiftProtobuf.Enum, Swift.CaseIterab
   // The compiler won't synthesize support with the UNRECOGNIZED case.
   static let allCases: [Runnir_Core_V1_UsageEvent] = [
     .unspecified,
-    .screenOverview,
-    .screenWorkflows,
-    .screenRuns,
-    .screenSecrets,
-    .screenWorkspace,
-    .screenWorkspaceEditor,
-    .screenWorkspaceLocalRun,
-    .screenManagerWorkspaces,
-    .screenManagerGithub,
-    .screenSettingsAccount,
-    .screenSettingsRuns,
-    .screenSettingsNotifications,
-    .screenSettingsPullRequests,
-    .screenSettingsTools,
-    .screenSettingsStorage,
-    .screenSettingsPrivacy,
-    .screenMenuBar,
-    .actionRunLocal,
-    .actionDispatch,
-    .actionCancelRun,
-    .actionRerun,
-    .actionSaveWorkflow,
-    .actionCreateWorkflow,
-    .actionRenameWorkflow,
-    .actionValidate,
-    .actionOpenLog,
-    .actionSaveLog,
-    .actionSavePreset,
-    .actionApplyPreset,
-    .actionInsertConcurrency,
-    .actionFavorite,
-    .actionOpenOnGithub,
-    .actionReportBug,
+    .screenOverviewPage,
+    .screenWorkflowsList,
+    .screenRunsList,
+    .screenLocalRunHistory,
+    .screenEditorWorkflow,
+    .screenSecretsValues,
+    .screenWorkspacesManager,
+    .screenGithubManager,
+    .overlayRunsDispatch,
+    .overlayLocalRunReview,
+    .overlayLocalRunLimits,
+    .overlayLocalRunSkippedJob,
+    .overlayEditorFileName,
+    .overlayLogsViewer,
+    .overlayGithubConnect,
+    .overlayGithubEnterpriseServer,
+    .overlaySettingsAccount,
+    .overlaySettingsRuns,
+    .overlaySettingsNotifications,
+    .overlaySettingsPullRequests,
+    .overlaySettingsTools,
+    .overlaySettingsStorage,
+    .overlaySettingsPrivacy,
+    .overlaySearchGlobal,
+    .overlayNotificationsPanel,
+    .overlayPullRequestsMenuBar,
+    .overlayAppDiagnostics,
+    .overlayAppBugReport,
+    .actionWorkflowsFavorite,
+    .actionRunsDispatch,
+    .actionRunsCancel,
+    .actionRunsRerun,
+    .actionLocalRunRun,
+    .actionEditorSave,
+    .actionEditorCreate,
+    .actionEditorRename,
+    .actionEditorValidate,
+    .actionEditorInsertConcurrency,
+    .actionSecretsImportEnv,
+    .actionPresetsSave,
+    .actionPresetsApply,
+    .actionLogsSave,
+    .actionGithubOpenOnGithub,
+    .actionAppReportBug,
+    .asyncLocalRunSucceeded,
+    .asyncLocalRunFailed,
+    .asyncLocalRunCancelled,
+    .asyncGithubSyncFailed,
+    .asyncGithubRateLimited,
+    .asyncGithubTokenRejected,
+    .asyncNotificationsDelivered,
+    .asyncAppCoreRestarted,
   ]
 
 }
@@ -6075,7 +6154,7 @@ nonisolated extension Runnir_Core_V1_AnalyticsLevel: SwiftProtobuf._ProtoNamePro
 }
 
 nonisolated extension Runnir_Core_V1_UsageEvent: SwiftProtobuf._ProtoNameProviding {
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0USAGE_EVENT_UNSPECIFIED\0\u{1}USAGE_EVENT_SCREEN_OVERVIEW\0\u{1}USAGE_EVENT_SCREEN_WORKFLOWS\0\u{1}USAGE_EVENT_SCREEN_RUNS\0\u{1}USAGE_EVENT_SCREEN_SECRETS\0\u{1}USAGE_EVENT_SCREEN_WORKSPACE\0\u{1}USAGE_EVENT_SCREEN_WORKSPACE_EDITOR\0\u{1}USAGE_EVENT_SCREEN_WORKSPACE_LOCAL_RUN\0\u{1}USAGE_EVENT_SCREEN_MANAGER_WORKSPACES\0\u{1}USAGE_EVENT_SCREEN_MANAGER_GITHUB\0\u{1}USAGE_EVENT_SCREEN_SETTINGS_ACCOUNT\0\u{1}USAGE_EVENT_SCREEN_SETTINGS_RUNS\0\u{1}USAGE_EVENT_SCREEN_SETTINGS_NOTIFICATIONS\0\u{1}USAGE_EVENT_SCREEN_SETTINGS_PULL_REQUESTS\0\u{1}USAGE_EVENT_SCREEN_SETTINGS_TOOLS\0\u{1}USAGE_EVENT_SCREEN_SETTINGS_STORAGE\0\u{1}USAGE_EVENT_SCREEN_SETTINGS_PRIVACY\0\u{1}USAGE_EVENT_SCREEN_MENU_BAR\0\u{1}USAGE_EVENT_ACTION_RUN_LOCAL\0\u{1}USAGE_EVENT_ACTION_DISPATCH\0\u{1}USAGE_EVENT_ACTION_CANCEL_RUN\0\u{1}USAGE_EVENT_ACTION_RERUN\0\u{1}USAGE_EVENT_ACTION_SAVE_WORKFLOW\0\u{1}USAGE_EVENT_ACTION_CREATE_WORKFLOW\0\u{1}USAGE_EVENT_ACTION_RENAME_WORKFLOW\0\u{1}USAGE_EVENT_ACTION_VALIDATE\0\u{1}USAGE_EVENT_ACTION_OPEN_LOG\0\u{1}USAGE_EVENT_ACTION_SAVE_LOG\0\u{1}USAGE_EVENT_ACTION_SAVE_PRESET\0\u{1}USAGE_EVENT_ACTION_APPLY_PRESET\0\u{1}USAGE_EVENT_ACTION_INSERT_CONCURRENCY\0\u{1}USAGE_EVENT_ACTION_FAVORITE\0\u{1}USAGE_EVENT_ACTION_OPEN_ON_GITHUB\0\u{1}USAGE_EVENT_ACTION_REPORT_BUG\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0USAGE_EVENT_UNSPECIFIED\0\u{1}USAGE_EVENT_SCREEN_OVERVIEW_PAGE\0\u{1}USAGE_EVENT_SCREEN_WORKFLOWS_LIST\0\u{1}USAGE_EVENT_SCREEN_RUNS_LIST\0\u{1}USAGE_EVENT_SCREEN_LOCAL_RUN_HISTORY\0\u{1}USAGE_EVENT_SCREEN_EDITOR_WORKFLOW\0\u{1}USAGE_EVENT_SCREEN_SECRETS_VALUES\0\u{1}USAGE_EVENT_SCREEN_WORKSPACES_MANAGER\0\u{1}USAGE_EVENT_SCREEN_GITHUB_MANAGER\0\u{1}USAGE_EVENT_OVERLAY_RUNS_DISPATCH\0\u{1}USAGE_EVENT_OVERLAY_LOCAL_RUN_REVIEW\0\u{1}USAGE_EVENT_OVERLAY_LOCAL_RUN_LIMITS\0\u{1}USAGE_EVENT_OVERLAY_LOCAL_RUN_SKIPPED_JOB\0\u{1}USAGE_EVENT_OVERLAY_EDITOR_FILE_NAME\0\u{1}USAGE_EVENT_OVERLAY_LOGS_VIEWER\0\u{1}USAGE_EVENT_OVERLAY_GITHUB_CONNECT\0\u{1}USAGE_EVENT_OVERLAY_GITHUB_ENTERPRISE_SERVER\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_ACCOUNT\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_RUNS\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_NOTIFICATIONS\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_PULL_REQUESTS\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_TOOLS\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_STORAGE\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_PRIVACY\0\u{1}USAGE_EVENT_OVERLAY_SEARCH_GLOBAL\0\u{1}USAGE_EVENT_OVERLAY_NOTIFICATIONS_PANEL\0\u{1}USAGE_EVENT_OVERLAY_PULL_REQUESTS_MENU_BAR\0\u{1}USAGE_EVENT_OVERLAY_APP_DIAGNOSTICS\0\u{1}USAGE_EVENT_OVERLAY_APP_BUG_REPORT\0\u{1}USAGE_EVENT_ACTION_WORKFLOWS_FAVORITE\0\u{1}USAGE_EVENT_ACTION_RUNS_DISPATCH\0\u{1}USAGE_EVENT_ACTION_RUNS_CANCEL\0\u{1}USAGE_EVENT_ACTION_RUNS_RERUN\0\u{1}USAGE_EVENT_ACTION_LOCAL_RUN_RUN\0\u{1}USAGE_EVENT_ACTION_EDITOR_SAVE\0\u{1}USAGE_EVENT_ACTION_EDITOR_CREATE\0\u{1}USAGE_EVENT_ACTION_EDITOR_RENAME\0\u{1}USAGE_EVENT_ACTION_EDITOR_VALIDATE\0\u{1}USAGE_EVENT_ACTION_EDITOR_INSERT_CONCURRENCY\0\u{1}USAGE_EVENT_ACTION_SECRETS_IMPORT_ENV\0\u{1}USAGE_EVENT_ACTION_PRESETS_SAVE\0\u{1}USAGE_EVENT_ACTION_PRESETS_APPLY\0\u{1}USAGE_EVENT_ACTION_LOGS_SAVE\0\u{1}USAGE_EVENT_ACTION_GITHUB_OPEN_ON_GITHUB\0\u{1}USAGE_EVENT_ACTION_APP_REPORT_BUG\0\u{1}USAGE_EVENT_ASYNC_LOCAL_RUN_SUCCEEDED\0\u{1}USAGE_EVENT_ASYNC_LOCAL_RUN_FAILED\0\u{1}USAGE_EVENT_ASYNC_LOCAL_RUN_CANCELLED\0\u{1}USAGE_EVENT_ASYNC_GITHUB_SYNC_FAILED\0\u{1}USAGE_EVENT_ASYNC_GITHUB_RATE_LIMITED\0\u{1}USAGE_EVENT_ASYNC_GITHUB_TOKEN_REJECTED\0\u{1}USAGE_EVENT_ASYNC_NOTIFICATIONS_DELIVERED\0\u{1}USAGE_EVENT_ASYNC_APP_CORE_RESTARTED\0")
 }
 
 nonisolated extension Runnir_Core_V1_HealthCheckRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
