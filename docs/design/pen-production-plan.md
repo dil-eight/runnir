@@ -36,7 +36,7 @@ Create screens as top-level frames with clipping, meaningful child names and lay
 | D08 Settings and recovery | Account/folders/tools/data sections and scoped error/recovery messages | D05/D07 | S12 consistent with inline setup; no fictional connected/installed/signed states |
 | D09 High-fidelity assembly | Apply tokens/components to approved flow frames; keep native conventions | D02-D08/D12/D13 wireframes | Coherent light/dark; component reuse; no unnecessary card nesting or marketing layout |
 | D10 QA and handoff | Minimum/wide windows, interaction/a11y notes, component/preview mapping and completion checklist | D09/D11/D14 | Review criteria below passed; remaining behavior decisions visible |
-| D11 Feedback and diagnostics | GitHub toolbar link, optional analytics invitation, Privacy & Diagnostics, S13 sanitized issue preview | D02/D08; FR-07 data/consent policy | Off/declined consent, blocked report, public-destination warning and draft-open/copy fallback states |
+| D11 Feedback and diagnostics | GitHub toolbar link, analytics question banner, Settings › Privacy, S13 sanitized issue preview | D02/D08; FR-07 data/consent policy | Off/declined consent, blocked report, public-destination warning and draft-open/copy fallback states |
 
 Work packages are an order/dependency plan, not calendar estimates. Start with D01/D12 and draft D02 for the lifecycle slice, then D03/D13 for offline validation and persistence; sketch remote flows before locking components that must serve both paths. Do not perfect every master before trying a screen, or draw all states before validating the primary journey.
 

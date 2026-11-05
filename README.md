@@ -14,6 +14,7 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 - Menu bar item: your open pull requests with their GitHub Actions CI, and those closed in the last day, which you can remove from the list. Its icon is the Runnir mark, with a red dot when a check failed and a teal one while checks run. Only repositories the sign-in reaches are searched (with Runnir Desktop, those where it is installed), and the list says so. ⌥⌘R opens the same list in a window from any app; Settings › Pull Requests turns the shortcut off or changes it and says when another shortcut already uses it.
 - Notifications sent by this Mac only, through macOS's notification center (Settings › Notifications): when the checks of a pull request you opened finish, and when a local run with act finishes or fails. Successes and failures by default, or failures only. Nothing goes through a server. Verified with a local fake Enterprise server: a failed check showed a banner.
 - Settings open over the window you are in, with the window blurred behind them, in sections: Account, Runs, Notifications, Pull Requests, Tools, Storage and Privacy. They are open over one window at a time.
+- Analytics: anonymous counts without an id are on by default (the first launch, once, and per day the GitHub Actions minutes local runs and cancelled runs saved), said so in a banner in the first window and turned off in Settings › Privacy; counts of screens, panels and actions with a random analytics id only with consent. They go to PostHog Cloud US, only from builds of a tag; no code, repository, workflow, log or GitHub identity is sent. Settings › Privacy shows what waits to be sent. See [analytics](docs/product/analytics-and-crash-reporting.md).
 - Report a Bug (above Settings in the sidebar) shows the app, Core and macOS versions it will fill in, then opens a new issue in Runnir's public repository in the browser; nothing is sent before that, and nothing from your repositories goes in it.
 - Settings › Runs can require Touch ID (or the Mac's password) before Run Workflow sends a run to GitHub. Off by default.
 - Local repository import with security-scoped bookmarks (a stale bookmark is refreshed, a moved folder followed), versioned atomic session storage and missing-folder recovery.
@@ -43,7 +44,7 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 ## Specifications
 
 - [Pen design plan: screens, states and reusable components](docs/design/README.md)
-- [Optional analytics, crash reports and public GitHub link](docs/product/analytics-and-crash-reporting.md)
+- [Analytics, crash reports and public GitHub link](docs/product/analytics-and-crash-reporting.md)
 
 - [MVP v0.1 specification](docs/product/specification.md)
 - [Implementation checklist and acceptance tests](docs/product/mvp-implementation-checklist.md)

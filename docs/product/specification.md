@@ -70,7 +70,7 @@ Docker is not a secure isolation guarantee for arbitrary workflows. Require exec
 
 ## FR-07 Optional Feedback And Diagnostics
 
-Priority: P1 supporting product quality. Add a public Runnir GitHub link in the top toolbar and a user-reviewed crash/problem report draft for GitHub. Invite users to help improve the app through separately controlled, off-by-default analytics. Never send code, secrets, repository metadata/logs or personal paths; use strict field allowlists. No automatic public issue creation or crash upload. See [analytics and crash reporting](analytics-and-crash-reporting.md) for consent, data boundaries and acceptance gates. No runtime capability is implemented yet.
+Priority: P1 supporting product quality. Add a public Runnir GitHub link in the top toolbar and a user-reviewed crash/problem report draft for GitHub. Basic anonymous counts (first launch, saved minutes) are on by default and disclosed; usage counts with a random id need consent; everything can be turned off. Never send code, secrets, repository metadata/logs or personal paths; use strict field allowlists. No automatic public issue creation or crash upload. See [analytics and crash reporting](analytics-and-crash-reporting.md) for consent, data boundaries and acceptance gates. Analytics are implemented (B21); crash reporting is not.
 
 Acceptance: the project link is fixed to Runnir, optional data sharing is independently controllable, a sanitized report can be inspected before browser handoff and publication is never claimed from opening a draft. Analytics transport stays disabled until its operator/schema/retention are documented; the app does not depend on it. Existing FR-01 through FR-06 remain the core usability gates.
 
@@ -96,7 +96,7 @@ Use versioned Application Support settings/session/registry files and an embedde
 
 ## Security And Release Requirements
 
-No telemetry by default, unrestricted AI/MCP commands, automatic commits/pushes, silently uploaded source/secrets or automatic production approval. Remote mutations require explicit user authorization. Treat workflows/logs as untrusted input.
+No telemetry beyond the disclosed anonymous counts, unrestricted AI/MCP commands, automatic commits/pushes, silently uploaded source/secrets or automatic production approval. Remote mutations require explicit user authorization. Treat workflows/logs as untrusted input.
 
 Before repository tools or local execution ship, verify folder access and process/container access in a Developer ID signed build. Runnir ships without the App Sandbox ([ADR 0005](../decisions/0005-developer-id-without-app-sandbox.md)), so the Core's own scope rules must hold.
 
@@ -122,6 +122,6 @@ Primary: common Actions operations require fewer navigation steps; workflow vali
 
 Measured by hand, not in the app: short moderated sessions on a fixture repository compare Runnir with the GitHub web UI on time to start a workflow with inputs, time to a failed job's log, time to a re-run request and the number of navigation steps (see [field research](../research/github-actions-pain-points.md#measuring-usability-without-telemetry)). The results are small-sample observations, not benchmarks.
 
-After public release, voluntary feedback, public aggregate signals and explicitly opted-in coarse usage analytics can inform priorities. No telemetry is enabled by default; identifier-free counters do not establish exact unique or weekly active users. See FR-07 before introducing any collection.
+After public release, voluntary feedback, public aggregate signals and explicitly opted-in coarse usage analytics can inform priorities. Only the disclosed anonymous counts are on by default; identifier-free counters do not establish exact unique or weekly active users. See FR-07 before introducing any collection.
 
 North star: make working with GitHub Actions faster, simpler and more predictable.

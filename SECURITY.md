@@ -4,7 +4,7 @@ Report security issues privately to Dil Eight LLC maintainers before public disc
 
 ## Security Principles
 
-- No telemetry by default.
+- No telemetry beyond the disclosed anonymous counts (first launch, saved minutes), which Settings › Privacy turns off; usage counts need consent.
 - No repository code or logs are sent to a Runnir backend.
 - GitHub credentials must be stored only in macOS Keychain.
 - Secrets, signing keys, certificates, and provisioning profiles must never be committed.

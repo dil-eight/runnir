@@ -3889,4 +3889,4 @@ git commit -m "Docs: analytics levels, consent banner and metrics as built (B21)
 
 - In PostHog (US project): turn on "Discard client IP data"; note the event retention for the privacy policy.
 - In GitHub: the `release` environment's variables `RUNNIR_POSTHOG_PROJECT_TOKEN` (`phc_…`) and `RUNNIR_POSTHOG_HOST` (set on 2026-11-04).
-- In PostHog: build the saved-minutes and usage insights so every sum takes one event per `batch_id` (for example in SQL: `SELECT sum(toInt(properties.local_billed_minutes)) FROM (SELECT argMax(properties, timestamp) AS properties FROM events WHERE event = 'usage_day' GROUP BY properties.batch_id)`).
+- In PostHog: build the dashboard of the spec's Reading The Data. Trends insights count a resent event once (same `uuid`); exact SQL takes one event per `batch_id` and kind.
