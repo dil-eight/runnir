@@ -16,7 +16,7 @@ A signed Runnir can only be replaced by downloading the next zip from GitHub and
 | "Get beta versions" | A setting in Settings › About, off by default, shown only in a release build of 1.0.0 or later; turned off, a beta build is offered nothing until the next release |
 | When it checks | At launch and once a day while "Check for updates automatically" is on (default), and on Check for Updates in Settings › About and in the app menu. Nothing installs by itself |
 | Where it shows | A card above the GitHub account at the bottom of the sidebar of every workspace window, and the Updates part of Settings › About |
-| Installing | One click: download with progress, check the signature, replace the app, restart it. A local run that is going asks first, as quitting does |
+| Installing | Two clicks. Download fetches the new version with progress and checks its signature while Runnir keeps working; the app on disk is not touched. Update quits as usual (asking about unsaved edits and local runs) and, once quitting goes ahead, replaces the app and opens it again. A cancelled quit changes nothing; quitting without Update drops the download |
 | Trust | The new app must have the running app's bundle identifier, be signed by the same Developer ID team (read from the running app's own signature, never from the repository) and be notarized. Anything else is refused and nothing changes |
 
 ## Versions
@@ -33,21 +33,23 @@ States, shared by the sidebar card and Settings › About:
 | --- | --- | --- |
 | idle | hidden | "Runnir is up to date · Checked 2 minutes ago", Check for Updates |
 | checking | hidden | "Checking for updates…", the button disabled |
-| available(version) | "Update available · Runnir 0.1.1 · What's New", Update | "Runnir 0.1.1 is available · What's New", Update |
+| available(version) | "Update available · Runnir 0.1.1 · What's New", Download | "Runnir 0.1.1 is available · What's New", Download |
 | downloading(fraction) | "Downloading 0.1.1 · 42%", a bar filling, "8.1 of 19.2 MB", Cancel | the same line and bar |
-| installing | "Installing 0.1.1…", a segment sweeping the bar, "Runnir checks the signature, installs the new version and restarts." | the same |
-| restartPending(version) | "0.1.1 is installed", "It opens when Runnir quits.", Restart Now | the same |
-| failed(reason) | "Couldn't update", the reason, "Nothing was changed.", Try Again, Download | the same, Try Again |
-| outsideApplications | "Move to Applications": macOS runs this copy from a temporary folder; Download | the same |
+| verifying | "Checking 0.1.1…", a segment sweeping the bar, "Runnir checks that the download is signed and notarized by its developer." | the same |
+| ready(version) | "Runnir 0.1.1 is ready", "Update restarts Runnir into the new version.", Update | the same |
+| failed(reason) | "Couldn't update", the reason, "Nothing was changed.", Try Again, Open on GitHub | the same |
+| outsideApplications | "Move to Applications": macOS runs this copy from a temporary folder; Open on GitHub | the same |
 
-What's New and Download open the release page on GitHub. The card appears with a short slide up and fade; Update turns into the bar.
+What's New and Open on GitHub open the release page. The card appears with a short slide up and fade; Download turns into the bar.
 
 1. **Check**: the request above, unauthenticated, with a 20-second timeout. A failed automatic check stays silent and retries at the next one; a failed Check for Updates says so in About. The result and the time are kept in user defaults, so About can say when it last checked.
 2. **Download**: `URLSession` download task of the zip into a temporary folder on the volume of the running app (`FileManager.url(for: .itemReplacementDirectory, …, appropriateFor: Bundle.main.bundleURL)`), with progress. Cancel stops it and deletes the file.
 3. **Unpack**: `/usr/bin/ditto -x -k` into the same folder; exactly one `Runnir.app` must come out.
 4. **Check**: `SecStaticCodeCreateWithPath` and `SecStaticCodeCheckValidity` with all architectures and nested code checked, against the requirement `anchor apple generic and identifier "<own identifier>" and certificate leaf[subject.OU] = "<own team>" and notarized`. Its `CFBundleShortVersionString` must be the offered version.
-5. **Replace**: `FileManager.replaceItemAt(Bundle.main.bundleURL, withItemAt: newApp)`, which swaps the two on the same volume in one step; the old bundle is deleted with the temporary folder.
-6. **Restart**: a detached `/bin/sh` waits until this process has ended and runs `open` on the app's path; then the app quits through the usual path (`applicationShouldTerminate`), which asks about unsaved edits and local runs as it always does and stops the Core. When the user cancels that, the new version is already in place and opens at the next quit (restartPending, Restart Now); if the waiting process could not start, the user opens Runnir again.
+   The checked app waits in the temporary folder (ready) until Update; the running app is not touched, so it never runs next to a newer bundle (a Core restarted from it, resources loaded later).
+5. **Quit**: Update quits through the usual path (`applicationShouldTerminate`), which asks about unsaved edits and local runs as it always does. When the user cancels that, nothing changes and Update stays offered; quitting without Update deletes the download.
+6. **Replace**: once quitting goes ahead (`applicationWillTerminate`, after the Core is stopped), `FileManager.replaceItemAt(Bundle.main.bundleURL, withItemAt: newApp)` swaps the two on the same volume in one step; the old bundle is deleted with the temporary folder.
+7. **Restart**: a detached `/bin/sh` waits until this process has ended and runs `open` on the app's path; if it could not start, the user opens Runnir again. If replacing failed, the same version opens again and says why (kept in user defaults for that tag) when it is offered next; Try Again downloads it again.
 
 Refused before downloading: a build that may not update (dev, local); an app the user cannot write (`FileManager.isWritableFile` on the bundle and its folder); an app macOS translocated (its path is under `/AppTranslocation/`) — the card says to move Runnir to Applications.
 
@@ -69,7 +71,7 @@ Unit tests, with fakes for the feed, the download and the installer:
 
 - Tag parsing and precedence, including pre-release ordering and tags that do not parse.
 - The policy table: alpha, beta and release builds with and without "Get beta versions", dev and local, never lower or equal.
-- The state machine: available → downloading → installing → restart; Cancel; each failure leaves the app untouched and offers Try Again; automatic check failures stay silent; dev and local never check.
+- The state machine: available → downloading → verifying → ready, nothing installed until Update; Update quits and the app is replaced only when quitting goes ahead; a cancelled quit or a quit without Update installs nothing; Cancel; each failure leaves the app untouched and offers Try Again; a failed replace is shown when that version is offered again; automatic check failures stay silent; dev and local never check.
 - The signature requirement names the running app's identifier and team and `notarized`; a build of another team, an unsigned build or one whose version differs is refused.
 - A translocated path and an unwritable folder are refused before downloading.
 
