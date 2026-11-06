@@ -71,8 +71,13 @@ for arch in $ARCHS; do
     esac
     go build -trimpath -ldflags "-s -w" -o "${DERIVED_FILE_DIR}/core/act-${arch}" github.com/nektos/act
 done
-cp "$(go list -m -f '{{.Dir}}' github.com/nektos/act)/LICENSE" "${licenses}/act-LICENSE.txt"
-chmod 0644 "${licenses}/act-LICENSE.txt"
+
+# Runnir's license and the notices of everything the app ships, act's
+# included (B49): generated and committed by scripts/update-notices.sh.
+for file in notices.json Runnir-LICENSE.txt; do
+    cp "${SRCROOT}/../../licenses/${file}" "${licenses}/${file}"
+    chmod 0644 "${licenses}/${file}"
+done
 
 # Xcode's ARCHS is a trusted, whitespace-separated build setting.
 for helper in runnir act; do

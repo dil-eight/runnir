@@ -12,6 +12,10 @@ on:
       - "docs/design/assets/**"
       - "scripts/build-core-macos.sh"
       - "scripts/check-app-build.sh"
+      - "scripts/update-notices.sh"
+      - "licenses/**"
+      - "tools/**"
+      - "LICENSE"
       - "third_party/act/**"
       - ".github/workflows/app-build.yml"
   push:
@@ -44,6 +48,15 @@ jobs:
         with:
           go-version-file: core/go.mod
           cache: false
+
+      - name: Check license notices
+        # The committed notices (B49) must be what the generator makes now:
+        # a dependency added, removed or relicensed fails here until
+        # scripts/update-notices.sh is run and its output committed.
+        run: |
+          go -C tools/notices vet ./...
+          go -C tools/notices test ./...
+          scripts/update-notices.sh -check
 
       - name: Archive
         run: |
