@@ -103,6 +103,8 @@ jobs:
                 -o "../build/export/runnir-${GITHUB_REF_NAME}-${goos}-${goarch}${suffix}" ./cmd/runnir
             done
           done
+          # What `runnir licenses` prints, for the binaries downloaded alone (B49).
+          go run ./cmd/runnir licenses > "../build/export/runnir-${GITHUB_REF_NAME}-THIRD-PARTY-NOTICES.txt"
 
       - name: Build archive
         env:
@@ -201,7 +203,7 @@ jobs:
             --draft \
             ${prerelease_flag} \
             --title "Runnir ${GITHUB_REF_NAME}" \
-            --notes "Runnir.app and the macOS command-line binaries are signed with Developer ID and notarized by Apple. The Linux and Windows binaries are not signed."
+            --notes "Runnir.app and the macOS command-line binaries are signed with Developer ID and notarized by Apple. The Linux and Windows binaries are not signed. Third-party licenses: Settings › About in the app, \`runnir licenses\`, or runnir-${GITHUB_REF_NAME}-THIRD-PARTY-NOTICES.txt."
 
       - name: Check release assets
         # Downloads every asset back from the release and compares it with

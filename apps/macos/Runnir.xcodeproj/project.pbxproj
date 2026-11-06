@@ -418,7 +418,7 @@
 			buildActionMask = 2147483647;
 			files = ();
 			inputPaths = ();
-			outputPaths = ("$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/runnir-core", "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/act", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses/act-LICENSE.txt");
+			outputPaths = ("$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/runnir-core", "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/act", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses/notices.json", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses/Runnir-LICENSE.txt");
 			name = "Build Go Core";
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
