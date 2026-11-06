@@ -162,7 +162,7 @@ struct SettingsOverlay: View {
             case .privacy:
                 PrivacySettingsSection(hub: desktop.core)
             case .about:
-                AboutSettingsSection(coreVersion: desktop.core?.status.coreVersion)
+                AboutSettingsSection(coreVersion: desktop.core?.status.coreVersion, updates: desktop.updates)
             }
         }
         .formStyle(.grouped)

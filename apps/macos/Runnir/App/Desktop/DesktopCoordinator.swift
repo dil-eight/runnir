@@ -72,6 +72,12 @@ final class DesktopCoordinator {
 
     /// Settings over the window in front: a workspace window, or the
     /// Workspace Manager, opened when no Runnir window is in front.
+    /// Check for Updates… in the app menu: About in the front window, and a check.
+    func checkForUpdates() {
+        showSettingsInFrontWindow(section: .about)
+        Task { await updates?.check(userInitiated: true) }
+    }
+
     func showSettingsInFrontWindow(section: SettingsSection? = nil) {
         if let key = NSApp.keyWindow ?? NSApp.mainWindow,
            let id = windows.first(where: { $0.value.window === key })?.key {
@@ -155,6 +161,9 @@ final class DesktopCoordinator {
     let core: CoreHub?
     /// The app-wide GitHub account; nil in tests that do not need it.
     let github: GitHubSession?
+    /// Updates by a click (B50); set at launch, nil in tests and in builds
+    /// that never update.
+    var updates: UpdateCenter?
     /// Saved Run Workflow presets, kept on this Mac.
     let presets: DispatchPresetLibrary
     /// Favorite workflows of each workspace, kept on this Mac.
@@ -1076,6 +1085,19 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
             notifier.notify(.localRunFinished(run, workspaceName: name))
         }
         desktop.pullRequests.startPolling(hub: coreHub, isSignedIn: { [desktop] in desktop.isSignedIn })
+        // Updates by a click (B50): a release, alpha or beta build asks GitHub
+        // at launch and once a day; dev and local builds never do.
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let bundleURL = Bundle.main.bundleURL
+        let updates = UpdateCenter(build: .current, current: version.flatMap(UpdateVersion.init),
+                                   feed: GitHubUpdateFeed(appVersion: version ?? "unknown"),
+                                   installer: BundleUpdateInstaller(bundleURL: bundleURL, signer: UpdateSignature.running()),
+                                   block: { BundleUpdateInstaller.block(for: bundleURL) })
+        updates.quit = { NSApp.terminate(nil) }
+        if updates.isEnabled {
+            desktop.updates = updates
+            updates.startAutomaticChecks()
+        }
         // The user's runs across repositories, asked again when what is watched changes.
         desktop.watchedRuns.repositories = { [desktop] in desktop.watchedRepositories }
         desktop.watchedRuns.startPolling(hub: coreHub, isSignedIn: { [desktop] in desktop.isSignedIn })

@@ -82,6 +82,8 @@ extension EnvironmentValues {
 /// the third-party software the app, the Core and act include.
 struct AboutSettingsSection: View {
     let coreVersion: String?
+    /// Updates (B50); nil in builds that never update.
+    var updates: UpdateCenter?
     var catalog: LicenseCatalog? = LicenseCatalog.bundled()
     var runnirLicense: String? = LicenseCatalog.runnirLicense()
     @Environment(\.showSettingsLicense) private var showLicense
@@ -91,6 +93,7 @@ struct AboutSettingsSection: View {
 
     var body: some View {
         Section { header }
+        if let updates { UpdateSettingsSection(center: updates) }
         Section {
             if let catalog {
                 searchField
