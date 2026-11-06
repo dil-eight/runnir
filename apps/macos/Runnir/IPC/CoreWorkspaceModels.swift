@@ -441,4 +441,5 @@ enum UsageEvent: Int, CaseIterable, Sendable {
          asyncGithubTokenRejected,
          asyncNotificationsDelivered,
          asyncAppCoreRestarted
+    case overlaySettingsAbout = 52
 }

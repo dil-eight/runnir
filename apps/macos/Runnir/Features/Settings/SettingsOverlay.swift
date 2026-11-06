@@ -2,7 +2,7 @@ import SwiftUI
 
 /// A part of Settings, listed in the overlay's sidebar.
 enum SettingsSection: String, CaseIterable, Identifiable, Sendable {
-    case account, runs, notifications, pullRequests, tools, storage, privacy
+    case account, runs, notifications, pullRequests, tools, storage, privacy, about
 
     var id: Self { self }
 
@@ -15,6 +15,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Sendable {
         case .tools: "Tools"
         case .storage: "Storage"
         case .privacy: "Privacy"
+        case .about: "About"
         }
     }
 
@@ -27,6 +28,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Sendable {
         case .tools: "wrench.and.screwdriver"
         case .storage: "internaldrive"
         case .privacy: "hand.raised"
+        case .about: "info.circle"
         }
     }
 }
@@ -48,6 +50,8 @@ extension EnvironmentValues {
 /// button or a click outside closes it.
 struct SettingsOverlay: View {
     let desktop: DesktopCoordinator
+    /// A license shown in Runnir's panel over Settings (About › View License).
+    @State private var license: SettingsLicenseText?
 
     var body: some View {
         ZStack {
@@ -58,8 +62,12 @@ struct SettingsOverlay: View {
                 .onTapGesture { desktop.closeSettings() }
                 .accessibilityHidden(true)
             panel
+                .overlay {
+                    if let license { SettingsLicensePanel(license: license) { self.license = nil } }
+                }
                 .frame(maxWidth: 900, maxHeight: 640)
                 .padding(24)
+                .environment(\.showSettingsLicense) { license = $0 }
         }
         .ignoresSafeArea()
         .transition(.opacity)
@@ -99,7 +107,8 @@ struct SettingsOverlay: View {
                     .background(Circle().fill(RunnirTheme.selected))
             }
             .buttonStyle(.hit)
-            .keyboardShortcut(.cancelAction)
+            // Escape closes the license panel first, then Settings.
+            .keyboardShortcut(license == nil ? .cancelAction : nil)
             .help("Close Settings")
             .accessibilityLabel("Close Settings")
             .padding(14)
@@ -152,6 +161,8 @@ struct SettingsOverlay: View {
                 StorageSettingsSection(model: StorageSettingsModel(hub: desktop.core, workspaces: { desktop.snapshot.workspaces }))
             case .privacy:
                 PrivacySettingsSection(hub: desktop.core)
+            case .about:
+                AboutSettingsSection(coreVersion: desktop.core?.status.coreVersion)
             }
         }
         .formStyle(.grouped)

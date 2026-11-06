@@ -251,6 +251,7 @@ extension SettingsSection {
         case .tools: .overlaySettingsTools
         case .storage: .overlaySettingsStorage
         case .privacy: .overlaySettingsPrivacy
+        case .about: .overlaySettingsAbout
         }
     }
 }

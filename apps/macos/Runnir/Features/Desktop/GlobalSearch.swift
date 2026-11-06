@@ -56,6 +56,12 @@ enum SettingsIndex {
         SettingsItem(id: "analytics", section: .privacy, title: "Analytics",
                      detail: "Anonymous counts of installs and saved minutes by default; screens and actions only with your permission",
                      keywords: ["privacy", "telemetry", "tracking", "data", "usage", "posthog", "analytics id", "off"]),
+        SettingsItem(id: "about", section: .about, title: "About Runnir",
+                     detail: "The app and Core versions, Runnir's license, and links to the website, privacy policy and terms",
+                     keywords: ["version", "license", "apache", "copy version", "website", "privacy policy", "terms", "build"]),
+        SettingsItem(id: "licenses", section: .about, title: "Third-party licenses",
+                     detail: "The open-source components the app, the Core and act include, with their licenses",
+                     keywords: ["acknowledgements", "acknowledgments", "credits", "open source", "notices", "mit", "bsd", "apache"]),
     ]
 
     /// The settings that match every word, best matches first: a word in the
