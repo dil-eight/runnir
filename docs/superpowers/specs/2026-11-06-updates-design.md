@@ -1,6 +1,6 @@
 # Updates By A Click (B50)
 
-Status: design approved on 2026-11-06. Backlog: B50 in the [MVP checklist](../../product/mvp-implementation-checklist.md), part of the distribution work of the B17 release gate. Builds on signed and notarized releases (B48), the build kinds (B47) and Settings › About (B49). Drawn in `runnir.pen` (journey G, Row — Updates (B50)).
+Status: design approved and built on 2026-11-06 on branch dilbarov/updates; not yet tried between two signed tags. Backlog: B50 in the [MVP checklist](../../product/mvp-implementation-checklist.md), part of the distribution work of the B17 release gate. Builds on signed and notarized releases (B48), the build kinds (B47) and Settings › About (B49). Drawn in `runnir.pen` (journey G, Row — Updates (B50)).
 
 ## Problem
 
@@ -35,7 +35,8 @@ States, shared by the sidebar card and Settings › About:
 | checking | hidden | "Checking for updates…", the button disabled |
 | available(version) | "Update available · Runnir 0.1.1 · What's New", Update | "Runnir 0.1.1 is available · What's New", Update |
 | downloading(fraction) | "Downloading 0.1.1 · 42%", a bar filling, "8.1 of 19.2 MB", Cancel | the same line and bar |
-| installing | "Installing 0.1.1…", a segment sweeping the bar, "Signature checked. Runnir restarts when it's done." | the same |
+| installing | "Installing 0.1.1…", a segment sweeping the bar, "Runnir checks the signature, installs the new version and restarts." | the same |
+| restartPending(version) | "0.1.1 is installed", "It opens when Runnir quits.", Restart Now | the same |
 | failed(reason) | "Couldn't update", the reason, "Nothing was changed.", Try Again, Download | the same, Try Again |
 | outsideApplications | "Move to Applications": macOS runs this copy from a temporary folder; Download | the same |
 
@@ -46,7 +47,7 @@ What's New and Download open the release page on GitHub. The card appears with a
 3. **Unpack**: `/usr/bin/ditto -x -k` into the same folder; exactly one `Runnir.app` must come out.
 4. **Check**: `SecStaticCodeCreateWithPath` and `SecStaticCodeCheckValidity` with all architectures and nested code checked, against the requirement `anchor apple generic and identifier "<own identifier>" and certificate leaf[subject.OU] = "<own team>" and notarized`. Its `CFBundleShortVersionString` must be the offered version.
 5. **Replace**: `FileManager.replaceItemAt(Bundle.main.bundleURL, withItemAt: newApp)`, which swaps the two on the same volume in one step; the old bundle is deleted with the temporary folder.
-6. **Restart**: a detached `/bin/sh` waits until this process has ended and runs `open` on the app's path; then the app quits through the usual path (`applicationShouldTerminate`), which asks first when a local run is going and stops the Core.
+6. **Restart**: a detached `/bin/sh` waits until this process has ended and runs `open` on the app's path; then the app quits through the usual path (`applicationShouldTerminate`), which asks about unsaved edits and local runs as it always does and stops the Core. When the user cancels that, the new version is already in place and opens at the next quit (restartPending, Restart Now); if the waiting process could not start, the user opens Runnir again.
 
 Refused before downloading: a build that may not update (dev, local); an app the user cannot write (`FileManager.isWritableFile` on the bundle and its folder); an app macOS translocated (its path is under `/AppTranslocation/`) — the card says to move Runnir to Applications.
 
