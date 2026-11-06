@@ -137,7 +137,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, scoped tasks, native/Core chec
 
 ## Releases
 
-Runnir is licensed under the [Apache License 2.0](LICENSE) ([ADR 0008](docs/decisions/0008-apache-2-license.md)). The app bundles act (MIT); its license ships in `Contents/Resources/Licenses`, and the notices of act's own dependencies, the Core's Go modules and the app's Swift packages still need to be collected before a release.
+Runnir is licensed under the [Apache License 2.0](LICENSE) ([ADR 0008](docs/decisions/0008-apache-2-license.md)). The licenses of the third-party code it ships (the app's Swift packages, the Core's Go modules, act and its modules, and Go) are in Settings › About, in `Contents/Resources/Licenses/notices.json`, printed by `runnir licenses`, and published with each release ([B49](docs/superpowers/specs/2026-11-06-license-notices-design.md)); `scripts/update-notices.sh` regenerates them and CI fails when they are out of date.
 
 Releases are tag-based:
 

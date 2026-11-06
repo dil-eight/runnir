@@ -1,6 +1,6 @@
 # Third-Party License Notices And Settings › About (B49)
 
-Status: design approved on 2026-11-06. Backlog: B49 in the [MVP checklist](../../product/mvp-implementation-checklist.md), part of the B17 release gate. Follows [ADR 0008](../../decisions/0008-apache-2-license.md), whose consequence "before the first release tag the app and the Core binaries must carry the third-party notices" this closes. Drawn in `runnir.pen` (journey G, Row — Settings, `S12 / Settings / About …`).
+Status: design approved and built on 2026-11-06 on branch dilbarov/license-notices. Backlog: B49 in the [MVP checklist](../../product/mvp-implementation-checklist.md), part of the B17 release gate. Follows [ADR 0008](../../decisions/0008-apache-2-license.md), whose consequence "before the first release tag the app and the Core binaries must carry the third-party notices" this closes. Drawn in `runnir.pen` (journey G, Row — Settings, `S12 / Settings / About …`).
 
 ## Problem
 
@@ -15,7 +15,7 @@ Runnir.app bundles two Go programs, `runnir-core` and `act`, and links 22 Swift 
 | How the texts are collected | A generator, `tools/notices` (its own Go module, standard library only), writes committed files; CI regenerates them and fails when they differ. Builds copy files and never read module caches or the network |
 | Which code | Go: the packages `go list -deps` links into the Core for the six release targets and into act for darwin arm64 and amd64, plus Go's own license. Swift: every package in `Package.resolved`, a superset of what the app links |
 | Which files | `LICENSE*`, `LICENCE*`, `COPYING*` and `NOTICE*` at a module's or package's root, and license files in the directories of linked Go packages and under a Swift package's `Sources/` (BoringSSL in swift-crypto and swift-nio-ssl) |
-| Allowed licenses | Apache-2.0, MIT, BSD-2-Clause, BSD-3-Clause, ISC, Zlib and MPL-2.0. Any other license, an unrecognised text or a component without a license file fails the generator with the component's name. `tools/notices/overrides.json` records a manual decision with its reason |
+| Allowed licenses | Apache-2.0, MIT, BSD-2-Clause, BSD-3-Clause, ISC, Zlib, MPL-2.0 and public domain (`LicenseRef-Public-Domain`, SQLite's dedication in modernc.org/sqlite). Any other license, an unrecognised text or a component without a license file fails the generator with the component's name. `tools/notices/overrides.json` records a manual decision with its reason |
 | MPL-2.0 | Every Go component names its exact source archive on `proxy.golang.org`, which is how a recipient obtains the MPL-covered source (`github.com/cyphar/filepath-securejoin` in act) |
 | Duplicates | Identical texts are stored once (one Apache-2.0 for dozens of modules); MIT and BSD differ in their copyright lines and stay separate |
 | Website links | `https://runnir.com`, `/privacy` and `/terms` |
@@ -35,7 +35,7 @@ Output is deterministic: groups in a fixed order, components by name, texts by i
 
 ## Generator
 
-`go run ./tools/notices` from the repository root writes the files; `-check` writes nothing and exits 1 with a diff summary when a file would change. `scripts/update-notices.sh` runs it.
+`go -C tools/notices run . -root <repository>` writes the files (the generator is its own module); `-check` writes nothing and exits 1 with a diff summary when a file would change. `scripts/update-notices.sh` runs it.
 
 1. Go: for each target, `go list -deps -json` of `./cmd/runnir` in `core` (GOOS darwin, linux, windows × GOARCH arm64, amd64) and of `github.com/nektos/act` in `third_party/act` (darwin arm64, amd64), with `CGO_ENABLED=0`. Modules other than the main one are collected with their directories; each linked package's directory and its parents up to the module root are searched for license files.
 2. Go itself: `$(go env GOROOT)/LICENSE`, as component "Go" with the toolchain's version, in the Core and act groups.
@@ -57,13 +57,13 @@ Drawn in Pen first. The last section of Settings, after Privacy; the global sear
 - License: "Runnir is licensed under the Apache License 2.0." and View License, which shows `Runnir-LICENSE.txt` in a panel inside Settings (Runnir's own panel, not a popover).
 - Links: Website, GitHub, Privacy Policy and Terms of Use, opened in the browser.
 - Third-party software: the number of components and a search field (name or license); three collapsible groups, Runnir.app, Runnir Core and act; a row shows the name, the version in monospace and the license id; clicking a row shows its texts in a scrolling monospaced box, then Source.
-- Data: `LicenseCatalog` (a protocol, the bundle's `Licenses/notices.json` in the app, a fake in tests). Without the file the section says "Licenses are missing from this build."
+- Data: `LicenseCatalog`, decoded from the bundle's `Licenses/notices.json` (tests decode their own file and check the built app's). Without the file the section says "Licenses are missing from this build."
 
 ## Build And CI
 
 - `scripts/build-core-macos.sh` copies `licenses/notices.json` and `licenses/Runnir-LICENSE.txt` into `Resources/Licenses` instead of act's `LICENSE` (act's text is in `notices.json`).
 - `scripts/check-app-build.sh` fails a bundle without both files or without the three groups.
-- `app-build.yml` (macOS) runs `go run ./tools/notices -check` and the generator's tests; `tools/**` triggers it.
+- `app-build.yml` (macOS) runs `scripts/update-notices.sh -check` and the generator's tests and vet; `tools/**`, `licenses/**` and `LICENSE` trigger it.
 
 ## Testing
 
@@ -74,3 +74,10 @@ Drawn in Pen first. The last section of Settings, after Privacy; the global sear
 ## Not In This Change
 
 A NOTICE file for Runnir itself (it has no upstream notices to carry); notices for the Linux and Windows Core binaries beyond what `runnir licenses` and the release asset provide; checking licenses of tools used only to build (Xcode, protoc plugins), which are not distributed.
+
+## Built
+
+- The first run found 22 Swift packages, 27 Core components and 88 for act, with 104 distinct texts; `NOTICES.txt` is about 150 KB, `notices.json` about 530 KB.
+- Two overrides, each with its reason: `github.com/opencontainers/go-digest` (its `LICENSE.docs`, CC BY-SA 4.0, covers documentation act does not link) and `modernc.org/memory` (its `LICENSE-LOGO` only names where a logo image comes from).
+- BoringSSL's terms reach the app through the `NOTICE.txt` files of swift-crypto and swift-nio-ssl, which have no separate license file for it.
+- Homebrew keeps Go's `LICENSE` next to `GOROOT` rather than in it; the generator reads either.

@@ -17,4 +17,4 @@ The repository started with GPLv3 in `LICENSE`, while the product brief proposed
 - Anyone may use, change and redistribute Runnir, also in closed or paid products, keeping the license and its notices; a fork does not have to publish its changes. The license's patent grant protects users and contributors.
 - Companies whose rules exclude copyleft licenses can use and contribute to Runnir.
 - A paid edition or a Mac App Store build stays possible.
-- Before the first release tag the app and the Core binaries must carry the third-party notices: today only act's license ships, in `Contents/Resources/Licenses`.
+- Before the first release tag the app and the Core binaries must carry the third-party notices. Done with B49 on 2026-11-06 ([spec](../superpowers/specs/2026-11-06-license-notices-design.md)): the app shows them in Settings › About from `Contents/Resources/Licenses/notices.json`, `runnir licenses` prints the Core's, and each release publishes them as `runnir-<tag>-THIRD-PARTY-NOTICES.txt`.
