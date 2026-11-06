@@ -17647,6 +17647,649 @@
           ]
         }
       ]
+    },
+    {
+      "type": "frame",
+      "id": "i3PPW",
+      "x": 4854,
+      "y": 5353,
+      "name": "Download button / states / Dark",
+      "width": 1240,
+      "fill": "$bg",
+      "cornerRadius": 16,
+      "layout": "vertical",
+      "gap": 28,
+      "padding": 48,
+      "children": [
+        {
+          "type": "text",
+          "id": "cemZc",
+          "name": "Download button: what th",
+          "fill": "$text",
+          "content": "Download button: what the site shows from GitHub Releases",
+          "fontFamily": "Inter",
+          "fontSize": 22,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "v7Ffym",
+          "name": "A published release wins",
+          "fill": "$text-2",
+          "textGrowth": "fixed-width",
+          "width": 1000,
+          "content": "A published release wins over a newer pre-release; a pre-release shows only while no release exists. Drafts are never shown. The nav button shows the same badge from 640 px up.",
+          "lineHeight": 1.5,
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "L600dh",
+          "name": "State · No build yet",
+          "width": "fill_container",
+          "gap": 32,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "P05URf",
+              "name": "Label",
+              "width": 260,
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "PpFCQ",
+                  "name": "No build yet",
+                  "fill": "$text",
+                  "content": "No build yet",
+                  "fontFamily": "Inter",
+                  "fontSize": 15,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "JcK7v",
+                  "name": "Opens the popover: the f",
+                  "fill": "$text-2",
+                  "textGrowth": "fixed-width",
+                  "width": 260,
+                  "content": "Opens the popover: the first release is in development, Star on GitHub.",
+                  "lineHeight": 1.45,
+                  "fontFamily": "Inter",
+                  "fontSize": 12.5,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "g5y64",
+              "name": "Download CTA",
+              "fill": "#7C9CFF33",
+              "cornerRadius": 10,
+              "stroke": "#7C9CFFAA",
+              "strokeWidth": 1,
+              "gap": 10,
+              "padding": [
+                15,
+                26
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "lS24X",
+                  "name": "download",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "download",
+                  "library": "lucide",
+                  "fill": "#FFFFFF"
+                },
+                {
+                  "type": "text",
+                  "id": "ONB4I",
+                  "name": "Download for macOS",
+                  "fill": "#FFFFFF",
+                  "content": "Download for macOS",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "h5hGcw",
+                  "name": "Badge",
+                  "fill": "#FBBF2426",
+                  "cornerRadius": 100,
+                  "padding": [
+                    2,
+                    8
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "U5utqc",
+                      "name": "In development",
+                      "fill": "$warning",
+                      "content": "In development",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "uhKYG",
+              "name": "Nav button",
+              "fill": "#7C9CFF33",
+              "cornerRadius": 10,
+              "stroke": "#7C9CFFAA",
+              "strokeWidth": 1,
+              "gap": 8,
+              "padding": [
+                9,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "s5SfW",
+                  "name": "download",
+                  "width": 15,
+                  "height": 15,
+                  "icon": "download",
+                  "library": "lucide",
+                  "fill": "#FFFFFF"
+                },
+                {
+                  "type": "text",
+                  "id": "Jipzy",
+                  "name": "Download",
+                  "fill": "#FFFFFF",
+                  "content": "Download",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "KbJa8",
+                  "name": "Badge",
+                  "fill": "#FBBF2426",
+                  "cornerRadius": 100,
+                  "padding": [
+                    2,
+                    8
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "u0w6k",
+                      "name": "In development",
+                      "fill": "$warning",
+                      "content": "In development",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "FbYtU",
+          "name": "State · Pre-release only",
+          "width": "fill_container",
+          "gap": 32,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "jjEbg",
+              "name": "Label",
+              "width": 260,
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "xdYT0",
+                  "name": "Pre-release only",
+                  "fill": "$text",
+                  "content": "Pre-release only",
+                  "fontFamily": "Inter",
+                  "fontSize": 15,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "V7hbq7",
+                  "name": "The newest alpha or beta",
+                  "fill": "$text-2",
+                  "textGrowth": "fixed-width",
+                  "width": 260,
+                  "content": "The newest alpha or beta with a macOS zip. FAQ: “Yes, as a pre-release”.",
+                  "lineHeight": 1.45,
+                  "fontFamily": "Inter",
+                  "fontSize": 12.5,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "zX5b9",
+              "name": "Download CTA",
+              "fill": "#7C9CFF33",
+              "cornerRadius": 10,
+              "stroke": "#7C9CFFAA",
+              "strokeWidth": 1,
+              "gap": 10,
+              "padding": [
+                15,
+                26
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "C41TT",
+                  "name": "download",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "download",
+                  "library": "lucide",
+                  "fill": "#FFFFFF"
+                },
+                {
+                  "type": "text",
+                  "id": "EWsgv",
+                  "name": "Download for macOS",
+                  "fill": "#FFFFFF",
+                  "content": "Download for macOS",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "xOmIh",
+                  "name": "Badge",
+                  "fill": "#FBBF2426",
+                  "cornerRadius": 100,
+                  "padding": [
+                    2,
+                    8
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "A1IAQ",
+                      "name": "v0.1.0-alpha.1",
+                      "fill": "$warning",
+                      "content": "v0.1.0-alpha.1",
+                      "fontFamily": "JetBrains Mono",
+                      "fontSize": 11,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "g9C5Hb",
+              "name": "Nav button",
+              "fill": "#7C9CFF33",
+              "cornerRadius": 10,
+              "stroke": "#7C9CFFAA",
+              "strokeWidth": 1,
+              "gap": 8,
+              "padding": [
+                9,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "y6jYr",
+                  "name": "download",
+                  "width": 15,
+                  "height": 15,
+                  "icon": "download",
+                  "library": "lucide",
+                  "fill": "#FFFFFF"
+                },
+                {
+                  "type": "text",
+                  "id": "s3VAWA",
+                  "name": "Download",
+                  "fill": "#FFFFFF",
+                  "content": "Download",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "tx3Xd",
+                  "name": "Badge",
+                  "fill": "#FBBF2426",
+                  "cornerRadius": 100,
+                  "padding": [
+                    2,
+                    8
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "XIIn8",
+                      "name": "v0.1.0-alpha.1",
+                      "fill": "$warning",
+                      "content": "v0.1.0-alpha.1",
+                      "fontFamily": "JetBrains Mono",
+                      "fontSize": 11,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "h3pFM",
+          "name": "State · Release",
+          "width": "fill_container",
+          "gap": 32,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "CPZTO",
+              "name": "Label",
+              "width": 260,
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ekZyq",
+                  "name": "Release",
+                  "fill": "$text",
+                  "content": "Release",
+                  "fontFamily": "Inter",
+                  "fontSize": 15,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "kZEw6",
+                  "name": "The newest release with ",
+                  "fill": "$text-2",
+                  "textGrowth": "fixed-width",
+                  "width": 260,
+                  "content": "The newest release with a macOS zip, even when a newer pre-release exists. FAQ: “Yes”.",
+                  "lineHeight": 1.45,
+                  "fontFamily": "Inter",
+                  "fontSize": 12.5,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "rUUPs",
+              "name": "Download CTA",
+              "fill": "#7C9CFF33",
+              "cornerRadius": 10,
+              "stroke": "#7C9CFFAA",
+              "strokeWidth": 1,
+              "gap": 10,
+              "padding": [
+                15,
+                26
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "fSIlz",
+                  "name": "download",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "download",
+                  "library": "lucide",
+                  "fill": "#FFFFFF"
+                },
+                {
+                  "type": "text",
+                  "id": "o5Argw",
+                  "name": "Download for macOS",
+                  "fill": "#FFFFFF",
+                  "content": "Download for macOS",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "HFnie",
+                  "name": "Badge",
+                  "fill": "#FFFFFF1F",
+                  "cornerRadius": 100,
+                  "padding": [
+                    2,
+                    8
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "rc1DQ",
+                      "name": "v0.1.0",
+                      "fill": "#FFFFFF",
+                      "content": "v0.1.0",
+                      "fontFamily": "JetBrains Mono",
+                      "fontSize": 11,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "irnhJ",
+              "name": "Nav button",
+              "fill": "#7C9CFF33",
+              "cornerRadius": 10,
+              "stroke": "#7C9CFFAA",
+              "strokeWidth": 1,
+              "gap": 8,
+              "padding": [
+                9,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "f0f8a1",
+                  "name": "download",
+                  "width": 15,
+                  "height": 15,
+                  "icon": "download",
+                  "library": "lucide",
+                  "fill": "#FFFFFF"
+                },
+                {
+                  "type": "text",
+                  "id": "Dpy2W",
+                  "name": "Download",
+                  "fill": "#FFFFFF",
+                  "content": "Download",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "VrODh",
+                  "name": "Badge",
+                  "fill": "#FFFFFF1F",
+                  "cornerRadius": 100,
+                  "padding": [
+                    2,
+                    8
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "jeB0b",
+                      "name": "v0.1.0",
+                      "fill": "#FFFFFF",
+                      "content": "v0.1.0",
+                      "fontFamily": "JetBrains Mono",
+                      "fontSize": 11,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Z5odF",
+          "name": "Download section note",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 8,
+          "padding": [
+            12,
+            0,
+            0,
+            0
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "F4AIE",
+              "name": "Under the Download secti",
+              "fill": "$text",
+              "content": "Under the Download section's buttons",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "pYrTy",
+              "name": "No build yet",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "DBta9",
+                  "name": "No build yet",
+                  "fill": "$text-2",
+                  "textGrowth": "fixed-width",
+                  "width": 140,
+                  "content": "No build yet",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "FGGpA",
+                  "name": "Signed and notarized bui",
+                  "fill": "$text",
+                  "content": "Signed and notarized builds are not available yet.",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "r1Cn4",
+              "name": "Pre-release",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "y4chhX",
+                  "name": "Pre-release",
+                  "fill": "$text-2",
+                  "textGrowth": "fixed-width",
+                  "width": 140,
+                  "content": "Pre-release",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "fk1Jd",
+                  "name": "Pre-release v0.1.0-alpha",
+                  "fill": "$text",
+                  "content": "Pre-release v0.1.0-alpha.1 for macOS 15 or newer, signed with Developer ID and notarized by Apple. Early builds can have rough edges.",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "RaXW4",
+              "name": "Release",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "sWGt7",
+                  "name": "Release",
+                  "fill": "$text-2",
+                  "textGrowth": "fixed-width",
+                  "width": 140,
+                  "content": "Release",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "a5HCFI",
+                  "name": "Runnir v0.1.0 for macOS ",
+                  "fill": "$text",
+                  "content": "Runnir v0.1.0 for macOS 15 or newer, signed with Developer ID and notarized by Apple.",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
   "variables": {
