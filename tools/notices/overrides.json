@@ -1,0 +1,12 @@
+{
+  "components": {
+    "github.com/opencontainers/go-digest": {
+      "license": "Apache-2.0",
+      "reason": "LICENSE.docs (CC BY-SA 4.0) covers the repository's documentation; act links only the Apache-2.0 code."
+    },
+    "modernc.org/memory": {
+      "license": "BSD-3-Clause",
+      "reason": "LICENSE-LOGO only names where the project's logo image comes from; the Core links only the BSD-3-Clause code."
+    }
+  }
+}

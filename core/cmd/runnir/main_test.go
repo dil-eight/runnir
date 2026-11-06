@@ -92,6 +92,17 @@ func TestRPCMultipleFramesAndOversize(t *testing.T) {
 	}
 }
 
+func TestLicensesPrintsRunnirsLicenseAndTheNotices(t *testing.T) {
+	var out, diagnostics bytes.Buffer
+	if code := run([]string{"licenses"}, strings.NewReader(""), &out, &diagnostics); code != 0 || diagnostics.Len() != 0 {
+		t.Fatalf("licenses = %d, %q", code, diagnostics.String())
+	}
+	text := out.String()
+	if !strings.HasPrefix(strings.TrimSpace(text), "Apache License") || !strings.Contains(text, "google.golang.org/grpc ") {
+		t.Fatalf("licenses printed %.60q…", text)
+	}
+}
+
 func TestUnknownCommand(t *testing.T) {
 	var out, diagnostics bytes.Buffer
 	if run([]string{"mcp"}, strings.NewReader(""), &out, &diagnostics) != 2 || out.Len() != 0 {
