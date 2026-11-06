@@ -7,7 +7,8 @@
     "defaultRuntime": "local",
     "repositoryScope": "explicit-core-enforced-grants",
     "returnsSecrets": false,
-    "allowsArbitraryShell": false
+    "allowsArbitraryShell": false,
+    "acceptsSecretValues": "runnir_set_values only; never returned, logged or kept in the audit trail"
   },
   "tools": [
     {
@@ -171,6 +172,81 @@
           "repository",
           "relativePath"
         ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "runnir_list_value_sets",
+      "description": "List a workspace's value sets for local runs (the Repository and its environments) with the secret and variable names each set's jobs read and whether each is saved, taken from the Repository or missing. Variable values may be returned; secret values never.",
+      "status": "planned",
+      "readOnly": true,
+      "requiresConfirmation": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "repository"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "runnir_set_values",
+      "description": "Save secrets and variables into one value set of a workspace (the Repository or an environment) for local runs, after the user confirms the change in Runnir. Secret values pass through the MCP client and the model's context; Runnir never returns them.",
+      "status": "planned",
+      "readOnly": false,
+      "requiresConfirmation": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string",
+            "minLength": 1
+          },
+          "set": {
+            "type": "string",
+            "minLength": 1,
+            "description": "\"Repository\" or an environment's name from runnir_list_value_sets"
+          },
+          "secrets": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^(?![Gg][Ii][Tt][Hh][Uu][Bb]_)[A-Za-z_][A-Za-z0-9_]*$",
+              "maxLength": 255
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 49152
+            },
+            "maxProperties": 100
+          },
+          "variables": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^(?![Gg][Ii][Tt][Hh][Uu][Bb]_)[A-Za-z_][A-Za-z0-9_]*$",
+              "maxLength": 255
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 49152
+            },
+            "maxProperties": 100
+          }
+        },
+        "required": [
+          "repository",
+          "set"
+        ],
+        "minProperties": 3,
         "additionalProperties": false
       }
     }
