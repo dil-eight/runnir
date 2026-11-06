@@ -137,6 +137,7 @@ final class FakeUpdateFeed: UpdateFeed, @unchecked Sendable {
 final class FakeUpdateInstaller: UpdateInstalling, @unchecked Sendable {
     var downloadError: UpdateError?
     var prepareError: UpdateError?
+    var installError: UpdateError?
     var holdDownload = false
     private(set) var steps: [String] = []
     private let lock = NSLock()
@@ -157,17 +158,20 @@ final class FakeUpdateInstaller: UpdateInstalling, @unchecked Sendable {
         return URL(fileURLWithPath: "/tmp/staging/unpacked/Runnir.app")
     }
 
-    func install(_ app: URL) throws { note("install") }
+    func install(_ app: URL) throws {
+        note("install")
+        if let installError { throw installError }
+    }
     func relaunchAfterExit() throws { note("relaunch") }
     func discard(_ url: URL) { note("discard \(url.lastPathComponent)") }
 }
 
 @MainActor
 @Suite struct UpdateCenterTests {
-    private func center(_ build: RunnirBuild = .alpha, current: String = "0.2.0-alpha.1", block: UpdateBlock? = nil)
+    private func center(_ build: RunnirBuild = .alpha, current: String = "0.2.0-alpha.1", block: UpdateBlock? = nil,
+                        defaults: UserDefaults = UserDefaults(suiteName: "UpdateCenterTests-\(UUID().uuidString)")!)
         -> (UpdateCenter, FakeUpdateFeed, FakeUpdateInstaller, UserDefaults)
     {
-        let defaults = UserDefaults(suiteName: "UpdateCenterTests-\(UUID().uuidString)")!
         let feed = FakeUpdateFeed()
         let installer = FakeUpdateInstaller()
         let center = UpdateCenter(build: build, current: UpdateVersion(current), feed: feed, installer: installer,
@@ -204,16 +208,59 @@ final class FakeUpdateInstaller: UpdateInstalling, @unchecked Sendable {
         }
     }
 
-    @Test func updateDownloadsChecksInstallsAndRestarts() async {
-        let (center, feed, installer, _) = center()
-        feed.result = .success([UpdateTestData.release("0.2.0-alpha.2")])
+    /// Checks, then downloads the offered version until it is ready.
+    private func ready(_ center: UpdateCenter, _ feed: FakeUpdateFeed, _ release: UpdateRelease) async -> Bool {
+        feed.result = .success([release])
         await center.check(userInitiated: false)
-        var quit = false
-        center.quit = { quit = true }
+        center.download()
+        return await eventually { center.state == .ready(release) }
+    }
+
+    @Test func downloadChecksAndUpdateInstallsOnlyOnceRunnirQuits() async {
+        let (center, feed, installer, _) = center()
+        let release = UpdateTestData.release("0.2.0-alpha.2")
+        #expect(await ready(center, feed, release))
+        #expect(installer.steps == ["download", "prepare"])
+        // A check while it waits for Update leaves it ready.
+        feed.result = .success([UpdateTestData.release("0.2.0-alpha.3")])
+        await center.check(userInitiated: true)
+        #expect(center.state == .ready(release))
+        var quits = 0
+        center.quit = { quits += 1 }
         center.update()
-        #expect(await eventually { quit })
-        #expect(installer.steps == ["download", "prepare", "install", "discard Runnir-v0.2.0-alpha.2.zip", "relaunch"])
-        #expect(center.state == .restartPending(UpdateTestData.release("0.2.0-alpha.2")))
+        #expect(quits == 1 && center.installsOnQuit)
+        #expect(installer.steps == ["download", "prepare"])
+        center.finishOnQuit()
+        #expect(installer.steps == ["download", "prepare", "install", "relaunch", "discard Runnir.app"])
+    }
+
+    @Test func aCancelledQuitOrAQuitWithoutUpdateInstallsNothing() async {
+        let (center, feed, installer, _) = center()
+        let release = UpdateTestData.release("0.2.0-alpha.2")
+        #expect(await ready(center, feed, release))
+        center.update()
+        center.quitCancelled()
+        #expect(center.state == .ready(release) && !center.installsOnQuit)
+        center.finishOnQuit()
+        #expect(installer.steps == ["download", "prepare", "discard Runnir.app"])
+    }
+
+    @Test func aFailedInstallIsShownWhenTheVersionIsOfferedAgain() async {
+        let (center, feed, installer, defaults) = center()
+        let release = UpdateTestData.release("0.2.0-alpha.2")
+        #expect(await ready(center, feed, release))
+        installer.installError = .install("Runnir could not replace itself: the disk is full.")
+        center.update()
+        center.finishOnQuit()
+        #expect(installer.steps.suffix(3) == ["install", "relaunch", "discard Runnir.app"])
+        // The same version opens again and says why.
+        let (reopened, again, _, _) = self.center(defaults: defaults)
+        again.result = .success([release])
+        await reopened.check(userInitiated: false)
+        #expect(reopened.state == .failed(release, "Runnir could not replace itself: the disk is full. Nothing was changed."))
+        reopened.download()
+        #expect(await eventually { reopened.state == .ready(release) })
+        #expect(defaults.dictionary(forKey: "updates.installFailure") == nil)
     }
 
     @Test func aFailedStepChangesNothingAndOffersTryAgain() async {
@@ -222,7 +269,7 @@ final class FakeUpdateInstaller: UpdateInstalling, @unchecked Sendable {
         feed.result = .success([release])
         await center.check(userInitiated: false)
         installer.prepareError = .refused("The downloaded app is not signed and notarized by Runnir's developer.")
-        center.update()
+        center.download()
         #expect(await eventually { if case .failed = center.state { true } else { false } })
         #expect(center.state == .failed(release, "The downloaded app is not signed and notarized by Runnir's developer. Nothing was changed."))
         #expect(!installer.steps.contains("install"))
@@ -231,10 +278,8 @@ final class FakeUpdateInstaller: UpdateInstalling, @unchecked Sendable {
         await center.check(userInitiated: false)
         #expect(center.state == .failed(release, "The downloaded app is not signed and notarized by Runnir's developer. Nothing was changed."))
         installer.prepareError = nil
-        var quit = false
-        center.quit = { quit = true }
-        center.update()
-        #expect(await eventually { quit })
+        center.download()
+        #expect(await eventually { center.state == .ready(release) })
     }
 
     @Test func cancelStopsTheDownload() async {
@@ -243,7 +288,7 @@ final class FakeUpdateInstaller: UpdateInstalling, @unchecked Sendable {
         feed.result = .success([release])
         await center.check(userInitiated: false)
         installer.holdDownload = true
-        center.update()
+        center.download()
         #expect(await eventually { if case let .downloading(_, received, total) = center.state { received == 8_100_000 && total == 19_200_000 } else { false } })
         center.cancel()
         #expect(await eventually { center.state == .available(release) })
@@ -257,7 +302,7 @@ final class FakeUpdateInstaller: UpdateInstalling, @unchecked Sendable {
             let (center, feed, installer, _) = center(block: block)
             feed.result = .success([release])
             await center.check(userInitiated: false)
-            center.update()
+            center.download()
             #expect(center.state == expected)
             #expect(installer.steps.isEmpty)
         }

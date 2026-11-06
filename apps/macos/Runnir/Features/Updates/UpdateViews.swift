@@ -2,7 +2,8 @@ import SwiftUI
 
 /// A new version, at the bottom of the sidebar above the GitHub account
 /// (S03, B50). Hidden while Runnir is up to date; appears with a short slide
-/// up and fade, and Update turns into a bar that fills as the download comes.
+/// up and fade, Download turns into a bar that fills as the download comes,
+/// and Update restarts into the checked version.
 struct UpdateCard: View {
     let center: UpdateCenter
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -40,9 +41,9 @@ struct UpdateStatus: View {
                     link("What's New", release.page)
                 }
                 .font(.system(size: 11.5))
-                Button { center.update() } label: { Text("Update").frame(maxWidth: .infinity) }
+                Button { center.download() } label: { Text("Download").frame(maxWidth: .infinity) }
                     .buttonStyle(DesignButtonStyle(primary: true, compact: true))
-                    .accessibilityIdentifier("update-now")
+                    .accessibilityIdentifier("update-download")
             case let .downloading(release, received, total):
                 HStack {
                     head("arrow.down.circle", RunnirTheme.primary, "Downloading \(release.version)")
@@ -60,26 +61,28 @@ struct UpdateStatus: View {
                     Button("Cancel") { center.cancel() }.buttonStyle(.link).pointerStyle(.link)
                 }
                 .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
-            case let .installing(release):
-                head("checkmark.shield", RunnirTheme.primary, "Installing \(release.version)…")
+            case let .verifying(release):
+                head("checkmark.shield", RunnirTheme.primary, "Checking \(release.version)…")
                 UpdateProgressBar(fraction: nil)
-                note("Runnir checks the signature, installs the new version and restarts.")
-            case let .restartPending(release):
-                head("arrow.clockwise.circle", RunnirTheme.success, "\(release.version) is installed")
-                note("It opens when Runnir quits.")
-                Button { center.update() } label: { Text("Restart Now").frame(maxWidth: .infinity) }
+                note("Runnir checks that the download is signed and notarized by its developer.")
+            case let .ready(release):
+                head("checkmark.circle.fill", RunnirTheme.success, "Runnir \(release.version) is ready")
+                note("Update restarts Runnir into the new version.")
+                Button { center.update() } label: { Text("Update").frame(maxWidth: .infinity) }
                     .buttonStyle(DesignButtonStyle(primary: true, compact: true))
+                    .accessibilityIdentifier("update-now")
             case let .failed(release, message):
                 head("exclamationmark.triangle.fill", RunnirTheme.destructive, "Couldn't update")
                 note(message)
-                HStack(spacing: 10) {
-                    Button("Try Again") { center.update() }.buttonStyle(DesignButtonStyle(compact: true))
-                    link("Download", release.page)
+                VStack(spacing: 8) {
+                    Button { center.download() } label: { Text("Try Again").frame(maxWidth: .infinity) }
+                        .buttonStyle(DesignButtonStyle(compact: true))
+                    link("Open on GitHub", release.page)
                 }
             case let .outsideApplications(release):
                 head("folder.badge.questionmark", RunnirTheme.warning, "Move to Applications")
                 note("Runnir \(release.version) is available. macOS runs this copy from a temporary folder, so Runnir can't replace it.")
-                link("Download", release.page)
+                link("Open on GitHub", release.page)
             }
         }
         .font(.system(size: 12))

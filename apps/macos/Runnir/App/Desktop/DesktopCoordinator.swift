@@ -1113,6 +1113,7 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         core.terminateImmediately()
+        desktop.updates?.finishOnQuit()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -1123,14 +1124,16 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         switch desktop.unsavedEditsQuitDecision() {
         case .cancel:
-            return .terminateCancel
+            return quitCancelled()
         case .proceed:
-            return finishTermination() ? .terminateNow : .terminateCancel
+            return finishTermination() ? .terminateNow : quitCancelled()
         case .saveFirst:
             // Saving goes through the Core; quit waits for it.
             Task { @MainActor in
                 let saved = await desktop.saveAllUnsavedWorkflows()
-                sender.reply(toApplicationShouldTerminate: saved && finishTermination())
+                let quits = saved && finishTermination()
+                if !quits { _ = quitCancelled() }
+                sender.reply(toApplicationShouldTerminate: quits)
             }
             return .terminateLater
         }
@@ -1138,5 +1141,12 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
 
     private func finishTermination() -> Bool {
         desktop.confirmQuitStopsLocalRuns() && desktop.prepareToQuit()
+    }
+
+    /// Quitting stops here; an update asked for by Update waits for the next
+    /// click.
+    private func quitCancelled() -> NSApplication.TerminateReply {
+        desktop.updates?.quitCancelled()
+        return .terminateCancel
     }
 }
