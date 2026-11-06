@@ -27,7 +27,7 @@ Phases are implementation dependencies, not six mandatory releases. Auth client 
 | M4 Local workspace | Folder grants, workflow discovery/jobs, YAML editing/conflict handling, offline actionlint diagnostics | Local scope/process design and actionlint setup; independent of OAuth |
 | M5 Local runner | Docker/OrbStack and act readiness, compatible jobs, opt-in execution/output/cancellation/cleanup | M4; execution approval, resource/network/credential policy |
 | Release readiness | Acceptance fixtures, permission/error tests, distribution decisions, third-party license notices and accurate limitations | All six FRs; controlled real integration evidence |
-| Feedback and diagnostics | Top-toolbar project link, reviewed issue drafts, local sanitized crash import, analytics (B21: anonymous counts by default, usage with consent) | FR-07; independent consent/redaction checks; PostHog's IP and retention settings written into the privacy policy before the first build of a tag sends |
+| Feedback and diagnostics | Top-toolbar project link, reviewed issue drafts, local sanitized crash import, analytics (B21: anonymous counts by default, usage with consent) | FR-07; independent consent/redaction checks; PostHog's "Discard client IP data" on before the first build of a tag sends; events kept one year |
 
 The [first slice](first-implementation-slice.md) now establishes workspace/window lifecycle and registry identity; [offline validation](offline-validation-slice.md) follows using that context. Authentication configuration can proceed independently. Milestones group outcomes, not a mandatory serial schedule.
 
