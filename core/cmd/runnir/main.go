@@ -17,6 +17,7 @@ import (
 
 	"runnir/core/internal/buildinfo"
 	"runnir/core/internal/ipc"
+	"runnir/core/internal/licenses"
 	"runnir/core/internal/server"
 )
 
@@ -27,17 +28,20 @@ func run(args []string, input io.Reader, output, diagnostics io.Writer) int {
 		return serve(args[1:], input, diagnostics)
 	}
 	if len(args) != 1 {
-		fmt.Fprintln(diagnostics, "usage: runnir version | rpc | serve --socket PATH [--data-dir PATH] [--cache-dir PATH]")
+		fmt.Fprintln(diagnostics, "usage: runnir version | licenses | rpc | serve --socket PATH [--data-dir PATH] [--cache-dir PATH]")
 		return 2
 	}
 	var err error
 	switch args[0] {
 	case "version":
 		err = json.NewEncoder(output).Encode(buildinfo.Current())
+	case "licenses":
+		// Runnir's license and the third-party notices the binary must carry (B49).
+		_, err = io.WriteString(output, licenses.Text())
 	case "rpc":
 		err = ipc.Serve(input, output, handle)
 	default:
-		fmt.Fprintln(diagnostics, "unknown command; usage: runnir version | rpc | serve --socket PATH [--data-dir PATH] [--cache-dir PATH]")
+		fmt.Fprintln(diagnostics, "unknown command; usage: runnir version | licenses | rpc | serve --socket PATH [--data-dir PATH] [--cache-dir PATH]")
 		return 2
 	}
 	if err != nil {
