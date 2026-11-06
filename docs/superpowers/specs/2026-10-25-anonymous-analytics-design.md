@@ -186,7 +186,7 @@ Usage counters (`full` only). Each is one `UsageEvent` value of the proto, named
 | `logs` | | `logs.viewer` | `logs.save` (saved and opened in an editor; Core) | |
 | `workspaces` | `workspaces.manager` | | | |
 | `github` | `github.manager` | `github.connect`, `github.enterprise_server` | `github.open_on_github` (any Open on GitHub link) | `github.sync_failed`, `github.rate_limited`, `github.token_rejected` (Core, once when a workspace's sync turns to that outcome, not on every retry) |
-| `settings` | | `settings.account`, `settings.runs`, `settings.notifications`, `settings.pull_requests`, `settings.tools`, `settings.storage`, `settings.privacy` | | |
+| `settings` | | `settings.account`, `settings.runs`, `settings.notifications`, `settings.pull_requests`, `settings.tools`, `settings.storage`, `settings.privacy`, `settings.about` | | |
 | `search` | | `search.global` | | |
 | `notifications` | | `notifications.panel` | | `notifications.delivered` |
 | `pull_requests` | | `pull_requests.menu_bar` | | |
