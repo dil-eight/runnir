@@ -256,8 +256,8 @@ App:
 
 Done by the account owner before the first tag build that sends:
 
-- Use the US project; turn on "Discard client IP data".
-- Event retention: one year, written into the privacy policy.
+- Use a US project of Runnir's own, shared only with the Runnir website; turn on "Discard client IP data".
+- Set the project's events retention to one year, as the privacy policy says.
 - Create the insights of Reading The Data.
 
 ## Order Of Work
