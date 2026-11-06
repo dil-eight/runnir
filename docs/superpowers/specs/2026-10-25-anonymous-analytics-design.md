@@ -257,7 +257,7 @@ App:
 Done by the account owner before the first tag build that sends:
 
 - Use the US project; turn on "Discard client IP data".
-- Check the plan's event retention and write it into the privacy policy.
+- Event retention: one year, written into the privacy policy.
 - Create the insights of Reading The Data.
 
 ## Order Of Work
