@@ -1147,6 +1147,8 @@ struct DesktopWorkspaceView: View {
                 }
             }
             Spacer()
+            // A new version, above the account (B50).
+            if let updates = desktop.updates { UpdateCard(center: updates).padding(.bottom, 6) }
             Group {
                 if let github = desktop.github {
                     GitHubAccountRow(session: github)

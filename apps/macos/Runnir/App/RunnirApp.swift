@@ -36,6 +36,11 @@ struct RunnirApp: App {
         .menuBarExtraStyle(.window)
         .commands {
             // Settings open over the window in front, not in a window of their own.
+            CommandGroup(after: .appInfo) {
+                if UpdatePolicy.updates(.current) {
+                    Button("Check for Updates...") { delegate.desktop.checkForUpdates() }
+                }
+            }
             CommandGroup(replacing: .appSettings) {
                 Button("Settings...") { delegate.desktop.showSettingsInFrontWindow() }
                     .keyboardShortcut(",", modifiers: .command)
