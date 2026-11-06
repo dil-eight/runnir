@@ -2,18 +2,20 @@ import Foundation
 import Observation
 
 /// Updates by a click (B50): checks GitHub Releases at launch and once a
-/// day, offers the newest version the build may take (`UpdatePolicy`), and on
-/// Update downloads, checks, installs and restarts. Nothing installs by itself.
+/// day and offers the newest version the build may take (`UpdatePolicy`).
+/// Download fetches it and checks its signature while Runnir keeps working;
+/// Update quits, and the app is replaced only once quitting goes ahead, then
+/// opens again. Nothing installs by itself.
 @MainActor @Observable
 final class UpdateCenter {
     enum State: Equatable {
         case idle
         case available(UpdateRelease)
         case downloading(UpdateRelease, received: Int64, total: Int64)
-        case installing(UpdateRelease)
-        /// The app was replaced but quitting was cancelled (unsaved edits, a
-        /// local run): it restarts into the new version when it quits.
-        case restartPending(UpdateRelease)
+        /// Unpacking the download and checking its signature.
+        case verifying(UpdateRelease)
+        /// Downloaded and checked; the app on disk is unchanged until Update.
+        case ready(UpdateRelease)
         case failed(UpdateRelease, String)
         case outsideApplications(UpdateRelease)
 
@@ -21,7 +23,7 @@ final class UpdateCenter {
         var release: UpdateRelease? {
             switch self {
             case .idle: nil
-            case let .available(r), let .downloading(r, _, _), let .installing(r), let .restartPending(r),
+            case let .available(r), let .downloading(r, _, _), let .verifying(r), let .ready(r),
                  let .failed(r, _), let .outsideApplications(r): r
             }
         }
@@ -46,8 +48,10 @@ final class UpdateCenter {
 
     let build: RunnirBuild
     let current: UpdateVersion?
-    /// Quits the app; the installer's waiting process opens the new one.
+    /// Quits the app through its usual path; `finishOnQuit` installs.
     var quit: @MainActor () -> Void = {}
+    /// Update was clicked: the checked app replaces this one when it quits.
+    private(set) var installsOnQuit = false
 
     private let feed: any UpdateFeed
     private let installer: any UpdateInstalling
@@ -56,11 +60,17 @@ final class UpdateCenter {
     private let now: () -> Date
     private var work: Task<Void, Never>?
     private var automatic: Task<Void, Never>?
+    /// The checked app of the `ready` release.
+    private var staged: URL?
+    /// Why replacing the app failed while Runnir quit, for the version it
+    /// was: shown when that version is offered again.
+    private var installFailure: [String: String]?
 
     private enum Keys {
         static let automatic = "updates.checksAutomatically"
         static let betas = "updates.getsBetas"
         static let lastChecked = "updates.lastChecked"
+        static let installFailure = "updates.installFailure"
     }
 
     init(build: RunnirBuild, current: UpdateVersion?, feed: any UpdateFeed, installer: any UpdateInstalling,
@@ -75,6 +85,7 @@ final class UpdateCenter {
         checksAutomatically = defaults.object(forKey: Keys.automatic) as? Bool ?? true
         getsBetas = defaults.bool(forKey: Keys.betas)
         lastChecked = defaults.object(forKey: Keys.lastChecked) as? Date
+        installFailure = defaults.dictionary(forKey: Keys.installFailure) as? [String: String]
     }
 
     /// Dev and local builds, and a build without a readable version, never update.
@@ -84,7 +95,7 @@ final class UpdateCenter {
 
     private var isBusy: Bool {
         switch state {
-        case .downloading, .installing: true
+        case .downloading, .verifying, .ready: true
         default: false
         }
     }
@@ -109,7 +120,6 @@ final class UpdateCenter {
     /// failed Check for Updates keeps its reason for About.
     func check(userInitiated: Bool) async {
         guard isEnabled, let current, !isChecking, !isBusy else { return }
-        if case .restartPending = state { return }
         isChecking = true
         if userInitiated { checkError = nil }
         defer { isChecking = false }
@@ -122,7 +132,11 @@ final class UpdateCenter {
             if let release = UpdatePolicy.pick(releases, current: current, build: build, betas: getsBetas && showsBetaSetting) {
                 // A failure for the same version stays until Try Again.
                 if case let .failed(failed, _) = state, failed == release { return }
-                state = .available(release)
+                if let failure = installFailure, failure["tag"] == release.tag, let message = failure["message"] {
+                    state = .failed(release, message)
+                } else {
+                    state = .available(release)
+                }
             } else {
                 state = .idle
             }
@@ -131,12 +145,12 @@ final class UpdateCenter {
         }
     }
 
-    /// Downloads, checks and installs the offered version, then restarts.
-    func update() {
+    /// Downloads the offered version and checks it; the app is unchanged
+    /// until Update.
+    func download() {
         guard work == nil, let release = state.release else { return }
         switch state {
         case .available, .failed, .outsideApplications: break
-        case .restartPending: quit(); return
         default: return
         }
         switch block() {
@@ -148,6 +162,8 @@ final class UpdateCenter {
             return
         case nil: break
         }
+        installFailure = nil
+        defaults.removeObject(forKey: Keys.installFailure)
         state = .downloading(release, received: 0, total: release.size ?? 0)
         work = Task { [weak self, installer] in
             var leftover: URL?
@@ -157,18 +173,12 @@ final class UpdateCenter {
                 }
                 leftover = zip
                 try Task.checkCancellation()
-                self?.state = .installing(release)
+                self?.state = .verifying(release)
                 let app = try await installer.prepare(zip, for: release)
-                try Task.checkCancellation()
-                try installer.install(app)
-                installer.discard(zip)
-                leftover = nil
-                // The new app is in place now; without the waiting process
-                // the user opens it after quitting.
-                try? installer.relaunchAfterExit()
-                self?.work = nil
-                self?.state = .restartPending(release)
-                self?.quit()
+                guard let self else { installer.discard(app); return }
+                work = nil
+                staged = app
+                state = .ready(release)
             } catch {
                 if let leftover { installer.discard(leftover) }
                 self?.work = nil
@@ -182,7 +192,40 @@ final class UpdateCenter {
         }
     }
 
-    /// Stops a download; checking and installing finish once started.
+    /// Quits Runnir to install the checked version; `finishOnQuit` replaces
+    /// the app once quitting goes ahead.
+    func update() {
+        guard case .ready = state, staged != nil else { return }
+        installsOnQuit = true
+        quit()
+    }
+
+    /// Quitting was cancelled (unsaved edits, a local run): nothing changes
+    /// and Update stays offered.
+    func quitCancelled() {
+        installsOnQuit = false
+    }
+
+    /// Runnir is quitting: after Update, puts the checked app in place of
+    /// this one and opens it once this process has ended; otherwise drops the
+    /// download. A failure is shown when the version is offered again.
+    func finishOnQuit() {
+        work?.cancel()
+        guard let app = staged else { return }
+        staged = nil
+        defer { installer.discard(app) }
+        guard installsOnQuit, let release = state.release else { return }
+        do {
+            try installer.install(app)
+        } catch {
+            let message = (error as? UpdateError)?.message ?? error.localizedDescription
+            defaults.set(["tag": release.tag, "message": "\(message) Nothing was changed."], forKey: Keys.installFailure)
+        }
+        // Without the waiting process the user opens Runnir again.
+        try? installer.relaunchAfterExit()
+    }
+
+    /// Stops a download; checking the signature finishes once started.
     func cancel() {
         guard case .downloading = state else { return }
         work?.cancel()
