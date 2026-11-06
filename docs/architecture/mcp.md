@@ -15,8 +15,19 @@ MCP server belongs in portable Go Core. Start with local stdio and read-only cap
 - runnir_analyze_workflow
 - runnir_validate_workflow
 - runnir_suggest_improvements
+- runnir_list_value_sets
 
-Future: runnir_generate_workflow, runnir_plan_execution, runnir_test_workflow, runnir_get_test_results, runnir_dispatch_workflow, runnir_prepare_deployment. See `mcp/runnir-tools.json` for the planned catalog.
+Future: runnir_set_values ([below](#secrets-and-variables)), runnir_generate_workflow, runnir_plan_execution, runnir_test_workflow, runnir_get_test_results, runnir_dispatch_workflow, runnir_prepare_deployment. See `mcp/runnir-tools.json` for the planned catalog.
+
+## Secrets And Variables
+
+Added on 2026-11-05: a client saves the secrets and variables local runs use into one value set of a workspace, the Repository's or an environment's, as [Values Per Environment](../superpowers/specs/2026-11-03-environment-values-design.md) keeps them.
+
+- `runnir_list_value_sets` (read-only): the sets, "Repository" and the environments as `ListEnvironments` returns them, and in each the names its jobs read, a secret or a variable, saved, empty (the Repository's value) or missing. A variable's value may come back; a secret's never does.
+- `runnir_set_values`: a workspace, one set from that list and names with values, secrets apart from variables, at least one name. The client passes secret values too (decided on 2026-11-05), so a secret goes through the MCP client and the model's context; the tool's description says so. Runnir never returns, logs or audits a value, only names.
+- Confirmation: the Core prepares the change and the workspace's window shows it: the set, each name, a variable's value, a secret masked with Show, and which names replace a saved value. Only Confirm in the app writes Keychain, under the accounts Secrets and Variables uses (`secret:NAME`, `environment:production:secret:NAME`). The client gets the saved names or the refusal.
+- Refused before the app asks: a set the workspace does not have, a name GitHub would not take (letters, digits and `_`, not starting with a digit or `GITHUB_`), an empty value, a value over 48 KiB (GitHub's limit for a secret), more than 100 names.
+- Not part of it: clearing a value (Secrets and Variables does that), GitHub's own secrets and variables (these sets are local), organization secrets.
 
 ## Enforcement
 
@@ -40,6 +51,7 @@ The intended shape is one MCP adapter process (stdio toward Claude or Codex) tha
 | `runnir_list_repositories` | none | a `ListRepositories` call returning only repositories the client may see |
 | `runnir_analyze_workflow`, `runnir_validate_workflow`, `runnir_suggest_improvements` | workflow ids are relative paths, matching `relativePath`; the Core has structure only | calls for bounded workflow source and validation (actionlint) |
 | `runnir_get_run`, `runnir_get_job_logs` | none: GitHub runs and logs are still in the Swift REST client | Core services for runs and logs after their migration; no duplicate logic |
+| `runnir_list_value_sets`, `runnir_set_values` | the names jobs read (`ListWorkflows`) and `ListEnvironments`; saved values are in the app's Keychain, which the Core cannot read | a call that asks the app which names are saved, and a prepare call that the app confirms in its own window before it writes Keychain |
 | future `runnir_dispatch_workflow`, `runnir_test_workflow` | `StartWorkflow` (stub runner) | an approval authority first |
 
 Blocking before any client other than the app connects. Observed on 2026-10-17 with a standalone Core and separate clients: a second client could open an unrelated folder, close the first client's repository so that its next refresh failed `NOT_FOUND`, and start a workflow, all without any grant or approval.
