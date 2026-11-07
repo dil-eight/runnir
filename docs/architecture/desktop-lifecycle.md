@@ -99,11 +99,11 @@ Swift owns native lifecycle/UI/Keychain; portable services remain Go-owned behin
 | ID | Scenario / required evidence |
 | --- | --- |
 | L01 | First launch: splash -> Manager -> import repo without .runnir -> workspace; no silent file writes |
-| L02 | Quit with A+B: both restore with correct IDs/selections, cached content before network |
-| L03 | Manually close A, quit with B: only B restores; close all then restart: Manager |
+| L02 | Quit with A+B: both restore with correct IDs/selections, cached content before network (two windows of one workspace restore with their ids in a UI test since 2026-11-06) |
+| L03 | Manually close A, quit with B: only B restores; close all then restart: Manager (UI test since 2026-11-06) |
 | L04 | Dock twice with zero windows: one Manager; Manager close leaves app running |
 | L05 | Reuse A's window for B: same windowId; failed destination keeps A usable |
-| L06 | New B window preserves A; same A twice has independent UI and one shared runtime/sync (the shared runtime and sync exist in the Core since 2026-10-22 and are covered by Core gRPC tests; not yet by UI automation) |
+| L06 | New B window preserves A; same A twice has independent UI and one shared runtime/sync (the shared runtime and sync exist in the Core since 2026-10-22 and are covered by Core gRPC tests; two windows of one workspace keeping their own section are covered by a UI test since 2026-11-06) |
 | L07 | Offline launch/missing repo/relink/invalid session: useful recovery, unrelated windows still open |
 | L08 | Crash immediately after committed manual close: window never resurrects; crash during navigation write preserves valid session (the files a crash leaves at each step of a save, and a torn file, are covered by app unit tests since 2026-11-06; no real process kill yet) |
 | L09 | Missing monitor, minimize/fullscreen and quit-cancellation/unsaved changes respect native behavior |
