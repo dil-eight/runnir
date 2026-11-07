@@ -1391,8 +1391,8 @@ modernc.org/memory v1.12.1 (BSD-3-Clause)
 https://commons.wikimedia.org/wiki/File:Memory_infra_logo.png
 
 ================================================================================
-modernc.org/sqlite v1.61.0 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
-  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.0.zip
+modernc.org/sqlite v1.61.1 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
+  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.1.zip
 --------------------------------------------------------------------------------
 SQLite Is Public Domain
 
@@ -1421,8 +1421,8 @@ public domain dedications on file. So the SQLite code base is clean and is
 uncontaminated with licensed code from other projects.
 
 ================================================================================
-modernc.org/sqlite v1.61.0 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
-  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.0.zip
+modernc.org/sqlite v1.61.1 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
+  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.1.zip
 --------------------------------------------------------------------------------
 MIT License
 
@@ -1447,8 +1447,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ================================================================================
-modernc.org/sqlite v1.61.0 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
-  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.0.zip
+modernc.org/sqlite v1.61.1 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
+  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.1.zip
 --------------------------------------------------------------------------------
 # Third-Party Licenses
 
@@ -3066,8 +3066,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ---
 
 ================================================================================
-modernc.org/sqlite v1.61.0 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
-  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.0.zip
+modernc.org/sqlite v1.61.1 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
+  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.1.zip
 --------------------------------------------------------------------------------
 Copyright (c) 2017 The Sqlite Authors. All rights reserved.
 

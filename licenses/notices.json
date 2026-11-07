@@ -464,9 +464,9 @@
         },
         {
           "name": "modernc.org/sqlite",
-          "version": "v1.61.0",
+          "version": "v1.61.1",
           "license": "Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0",
-          "source": "https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.0.zip",
+          "source": "https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.1.zip",
           "texts": [
             "ed5daf173854",
             "d782121ab8bc",
