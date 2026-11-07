@@ -504,6 +504,30 @@ struct DesktopCoordinatorTests {
         #expect(await eventually { provider.core.deletedData == [fixture.original.id] })
     }
 
+    @Test func aWindowWhoseMonitorIsGoneOpensOnTheFirstScreen() {
+        let main = NSRect(x: 0, y: 0, width: 1440, height: 875)
+        let external = NSRect(x: 1440, y: 0, width: 2560, height: 1415)
+        let saved = WindowGeometry(x: 2000, y: 300, width: 1600, height: 900)
+        // Both monitors: it stays where it was.
+        #expect(WorkspaceWindowController.restoredFrame(saved, screens: [main, external]) == NSRect(x: 2000, y: 300, width: 1600, height: 900))
+        // The external one unplugged: on the main screen, no larger than it.
+        let moved = WorkspaceWindowController.restoredFrame(saved, screens: [main])
+        #expect(main.contains(moved))
+        #expect(moved.size == NSSize(width: 1440, height: 875))
+    }
+
+    @Test func aRestoredWindowPicksTheScreenItOverlapsMostAndKeepsItsMinimumSize() {
+        let left = NSRect(x: -1920, y: 0, width: 1920, height: 1055)
+        let main = NSRect(x: 0, y: 0, width: 1440, height: 875)
+        let mostlyLeft = WindowGeometry(x: -1500, y: 100, width: 1200, height: 700)
+        #expect(WorkspaceWindowController.restoredFrame(mostlyLeft, screens: [main, left]) == NSRect(x: -1500, y: 100, width: 1200, height: 700))
+        let tiny = WindowGeometry(x: 1300, y: 800, width: 200, height: 150)
+        let grown = WorkspaceWindowController.restoredFrame(tiny, screens: [main])
+        #expect(grown.size == NSSize(width: 980, height: 640))
+        #expect(main.contains(grown))
+        #expect(WorkspaceWindowController.restoredFrame(tiny, screens: []).width == 980)
+    }
+
     @Test func aNewWindowOpensDownAndRightOfTheOneInFront() {
         let screen = NSRect(x: 0, y: 0, width: 2560, height: 1415)
         let size = NSSize(width: 1280, height: 800)

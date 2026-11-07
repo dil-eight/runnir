@@ -883,20 +883,31 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, Wor
         window.delegate = self
         window.center()
         if let saved = record.frame {
-            let visible = NSScreen.screens.map(\.visibleFrame)
-            let frame = NSRect(x: saved.x, y: saved.y, width: saved.width, height: saved.height)
-            let screen = visible.max { $0.intersection(frame).width * $0.intersection(frame).height
-                < $1.intersection(frame).width * $1.intersection(frame).height } ?? NSRect(x: 0, y: 0, width: 1280, height: 800)
-            let width = min(max(frame.width, 980), screen.width)
-            let height = min(max(frame.height, 640), screen.height)
-            window.setFrame(NSRect(x: min(max(frame.minX, screen.minX), screen.maxX - width),
-                                   y: min(max(frame.minY, screen.minY), screen.maxY - height), width: width, height: height), display: false)
+            window.setFrame(Self.restoredFrame(saved, screens: NSScreen.screens.map(\.visibleFrame)), display: false)
         }
         installContent(workspace)
         buttonLine = WindowButtonLine(window: window, middle: DesktopWorkspaceView.titleStripHeight / 2)
     }
 
     required init?(coder: NSCoder) { nil }
+
+    /// Where a saved window opens: on the screen it overlaps most, or the
+    /// first screen when its own is gone (a monitor unplugged, a smaller
+    /// resolution), at least 980 by 640 and never larger than that screen,
+    /// moved inside it.
+    static func restoredFrame(_ saved: WindowGeometry, screens: [NSRect]) -> NSRect {
+        let frame = NSRect(x: saved.x, y: saved.y, width: saved.width, height: saved.height)
+        func overlap(_ screen: NSRect) -> CGFloat {
+            let shared = screen.intersection(frame)
+            return shared.isNull ? 0 : shared.width * shared.height
+        }
+        let fallback = screens.first ?? NSRect(x: 0, y: 0, width: 1280, height: 800)
+        let screen = screens.max { overlap($0) < overlap($1) }.flatMap { overlap($0) > 0 ? $0 : nil } ?? fallback
+        let width = min(max(frame.width, 980), screen.width)
+        let height = min(max(frame.height, 640), screen.height)
+        return NSRect(x: min(max(frame.minX, screen.minX), screen.maxX - width),
+                      y: min(max(frame.minY, screen.minY), screen.maxY - height), width: width, height: height)
+    }
 
     func attach(record: WorkspaceWindowRecord, workspace: WorkspaceRecord, grant: any RepositoryGranting) {
         // The same workspace with renewed folder access (Locate) keeps the
