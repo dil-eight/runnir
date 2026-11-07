@@ -39,6 +39,7 @@ const (
 	RunnirCore_GetStorageUsage_FullMethodName           = "/runnir.core.v1.RunnirCore/GetStorageUsage"
 	RunnirCore_ClearWorkspaceCache_FullMethodName       = "/runnir.core.v1.RunnirCore/ClearWorkspaceCache"
 	RunnirCore_DeleteWorkspaceData_FullMethodName       = "/runnir.core.v1.RunnirCore/DeleteWorkspaceData"
+	RunnirCore_DeleteRecoveryCopies_FullMethodName      = "/runnir.core.v1.RunnirCore/DeleteRecoveryCopies"
 	RunnirCore_SetStoragePreferences_FullMethodName     = "/runnir.core.v1.RunnirCore/SetStoragePreferences"
 	RunnirCore_GetAnalytics_FullMethodName              = "/runnir.core.v1.RunnirCore/GetAnalytics"
 	RunnirCore_SetAnalyticsLevel_FullMethodName         = "/runnir.core.v1.RunnirCore/SetAnalyticsLevel"
@@ -132,6 +133,9 @@ type RunnirCoreClient interface {
 	ClearWorkspaceCache(ctx context.Context, in *ClearWorkspaceCacheRequest, opts ...grpc.CallOption) (*ClearWorkspaceCacheResponse, error)
 	// Deletes a workspace's whole folder; refused while it is open.
 	DeleteWorkspaceData(ctx context.Context, in *DeleteWorkspaceDataRequest, opts ...grpc.CallOption) (*DeleteWorkspaceDataResponse, error)
+	// Removes the recovery copies of damaged databases kept in each
+	// workspace's folder, open or not. The database and its backups stay.
+	DeleteRecoveryCopies(ctx context.Context, in *DeleteRecoveryCopiesRequest, opts ...grpc.CallOption) (*DeleteRecoveryCopiesResponse, error)
 	// Whether completed jobs' logs are kept on this Mac. Off in every new Core.
 	SetStoragePreferences(ctx context.Context, in *SetStoragePreferencesRequest, opts ...grpc.CallOption) (*SetStoragePreferencesResponse, error)
 	// The analytics level, whether the consent question was answered and the
@@ -431,6 +435,16 @@ func (c *runnirCoreClient) DeleteWorkspaceData(ctx context.Context, in *DeleteWo
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteWorkspaceDataResponse)
 	err := c.cc.Invoke(ctx, RunnirCore_DeleteWorkspaceData_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) DeleteRecoveryCopies(ctx context.Context, in *DeleteRecoveryCopiesRequest, opts ...grpc.CallOption) (*DeleteRecoveryCopiesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteRecoveryCopiesResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_DeleteRecoveryCopies_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -942,6 +956,9 @@ type RunnirCoreServer interface {
 	ClearWorkspaceCache(context.Context, *ClearWorkspaceCacheRequest) (*ClearWorkspaceCacheResponse, error)
 	// Deletes a workspace's whole folder; refused while it is open.
 	DeleteWorkspaceData(context.Context, *DeleteWorkspaceDataRequest) (*DeleteWorkspaceDataResponse, error)
+	// Removes the recovery copies of damaged databases kept in each
+	// workspace's folder, open or not. The database and its backups stay.
+	DeleteRecoveryCopies(context.Context, *DeleteRecoveryCopiesRequest) (*DeleteRecoveryCopiesResponse, error)
 	// Whether completed jobs' logs are kept on this Mac. Off in every new Core.
 	SetStoragePreferences(context.Context, *SetStoragePreferencesRequest) (*SetStoragePreferencesResponse, error)
 	// The analytics level, whether the consent question was answered and the
@@ -1148,6 +1165,9 @@ func (UnimplementedRunnirCoreServer) ClearWorkspaceCache(context.Context, *Clear
 }
 func (UnimplementedRunnirCoreServer) DeleteWorkspaceData(context.Context, *DeleteWorkspaceDataRequest) (*DeleteWorkspaceDataResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteWorkspaceData not implemented")
+}
+func (UnimplementedRunnirCoreServer) DeleteRecoveryCopies(context.Context, *DeleteRecoveryCopiesRequest) (*DeleteRecoveryCopiesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteRecoveryCopies not implemented")
 }
 func (UnimplementedRunnirCoreServer) SetStoragePreferences(context.Context, *SetStoragePreferencesRequest) (*SetStoragePreferencesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetStoragePreferences not implemented")
@@ -1553,6 +1573,24 @@ func _RunnirCore_DeleteWorkspaceData_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnirCoreServer).DeleteWorkspaceData(ctx, req.(*DeleteWorkspaceDataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_DeleteRecoveryCopies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteRecoveryCopiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).DeleteRecoveryCopies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_DeleteRecoveryCopies_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).DeleteRecoveryCopies(ctx, req.(*DeleteRecoveryCopiesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2422,6 +2460,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteWorkspaceData",
 			Handler:    _RunnirCore_DeleteWorkspaceData_Handler,
+		},
+		{
+			MethodName: "DeleteRecoveryCopies",
+			Handler:    _RunnirCore_DeleteRecoveryCopies_Handler,
 		},
 		{
 			MethodName: "SetStoragePreferences",

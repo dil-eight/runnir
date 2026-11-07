@@ -56,6 +56,9 @@ service RunnirCore {
   rpc ClearWorkspaceCache(ClearWorkspaceCacheRequest) returns (ClearWorkspaceCacheResponse);
   // Deletes a workspace's whole folder; refused while it is open.
   rpc DeleteWorkspaceData(DeleteWorkspaceDataRequest) returns (DeleteWorkspaceDataResponse);
+  // Removes the recovery copies of damaged databases kept in each
+  // workspace's folder, open or not. The database and its backups stay.
+  rpc DeleteRecoveryCopies(DeleteRecoveryCopiesRequest) returns (DeleteRecoveryCopiesResponse);
   // Whether completed jobs' logs are kept on this Mac. Off in every new Core.
   rpc SetStoragePreferences(SetStoragePreferencesRequest) returns (SetStoragePreferencesResponse);
   // The analytics level, whether the consent question was answered and the
@@ -1637,6 +1640,19 @@ message WorkspaceActivity {
   // What this Mac saved the workspace, one total per kind; a kind with
   // nothing counted yet is absent.
   repeated Saving savings = 8;
+  // How the workspace's saved data stands when it needs saying: recovered,
+  // or kept in memory only. Absent for a database opened as it was.
+  StorageNotice storage_notice = 9;
+}
+
+// What the user should know about a workspace's saved data.
+message StorageNotice {
+  // PERSISTENT after a recovery, or MEMORY_ONLY.
+  StorageState state = 1;
+  // What recovery did, or why the data is in memory. Never a credential.
+  string note = 2;
+  // The folder of recovery copies, when it holds one.
+  string recovery_path = 3;
 }
 
 enum SavingKind {
@@ -1946,6 +1962,8 @@ message WorkspaceStorage {
   uint32 recovery_copies = 9;
   // Runs in the search index.
   uint32 indexed_runs = 10;
+  // The folder of recovery copies, when it holds one.
+  string recovery_path = 11;
 }
 
 message GetStorageUsageRequest {
@@ -1971,6 +1989,15 @@ message DeleteWorkspaceDataRequest {
 }
 
 message DeleteWorkspaceDataResponse {}
+
+message DeleteRecoveryCopiesRequest {
+  // Empty: every workspace.
+  repeated string workspace_ids = 1;
+}
+
+message DeleteRecoveryCopiesResponse {
+  repeated WorkspaceStorage workspaces = 1;
+}
 
 message SetStoragePreferencesRequest {
   bool keep_job_logs = 1;
