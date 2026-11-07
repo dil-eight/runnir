@@ -111,6 +111,7 @@ struct FileDesktopStateStore: DesktopStateStoring {
     /// comes back. The unreadable file is kept and the recovered session is
     /// saved. With no readable backup it throws and writes nothing.
     func loadForLaunch() throws -> DesktopLaunchState {
+        removeLeftoverTemporaryFiles()
         do {
             return DesktopLaunchState(snapshot: try load())
         } catch {
@@ -126,6 +127,16 @@ struct FileDesktopStateStore: DesktopStateStoring {
         try snapshot.validate()
         try JSONFile.write(snapshot, to: stateURL, maxBytes: Self.maxFileBytes)
         try JSONFile.write(snapshot, to: backupURL, maxBytes: Self.maxFileBytes)
+    }
+
+    /// Removes the temporary files of saves a crash or a power loss cut
+    /// short; a save that finishes removes its own.
+    func removeLeftoverTemporaryFiles() {
+        let prefixes = [stateURL, backupURL].map { ".\($0.lastPathComponent)-" }
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        for name in names where name.hasSuffix(".tmp") && prefixes.contains(where: name.hasPrefix) {
+            try? FileManager.default.removeItem(at: directory.appendingPathComponent(name))
+        }
     }
 
     /// Copies the session file beside it as desktop-state-unreadable-<uuid>.json.

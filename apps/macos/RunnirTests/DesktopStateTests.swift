@@ -298,6 +298,84 @@ struct SessionRecoveryTests {
         #expect(!FileManager.default.fileExists(atPath: store.backupURL.path))
     }
 
+    /// The files a save leaves when the process stops at each step of
+    /// `AtomicFile.write`, for the main file and then the backup: nothing
+    /// renamed yet (a temporary file, maybe cut short), the main file
+    /// renamed, the backup's temporary file, both renamed; and a power loss
+    /// that tore a renamed file the disk had not written.
+    private enum Crash: CaseIterable {
+        case beforeMainRename, afterMainRename, beforeBackupRename, afterBackupRename, tornMain, tornMainAndBackup
+    }
+
+    private func bytes(of snapshot: DesktopSnapshot) throws -> Data {
+        let (scratch, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try scratch.save(snapshot)
+        return try Data(contentsOf: scratch.stateURL)
+    }
+
+    private func leave(_ crash: Crash, new: Data, in store: FileDesktopStateStore) throws {
+        let half = new.prefix(new.count / 2)
+        func temporary(for url: URL) -> URL {
+            store.directory.appendingPathComponent(".\(url.lastPathComponent)-\(UUID().uuidString).tmp")
+        }
+        switch crash {
+        case .beforeMainRename:
+            try half.write(to: temporary(for: store.stateURL))
+        case .afterMainRename:
+            try new.write(to: store.stateURL)
+        case .beforeBackupRename:
+            try new.write(to: store.stateURL)
+            try half.write(to: temporary(for: store.backupURL))
+        case .afterBackupRename:
+            try new.write(to: store.stateURL)
+            try new.write(to: store.backupURL)
+        case .tornMain:
+            try half.write(to: store.stateURL)
+        case .tornMainAndBackup:
+            try half.write(to: store.stateURL)
+            try Data().write(to: store.backupURL)
+        }
+    }
+
+    @Test func aCrashAtAnyStepOfAManualCloseNeverBringsTheWindowBack() throws {
+        var before = snapshotWithWindows()
+        let other = WorkspaceWindowRecord(id: UUID(), workspaceID: before.workspaces[0].id, section: .workspace)
+        before.windows.append(other)
+        var after = before
+        let closed = before.windows[0].id
+        after.closeWindow(closed)
+        let new = try bytes(of: after)
+
+        for crash in Crash.allCases {
+            let (store, directory) = makeStore()
+            defer { try? FileManager.default.removeItem(at: directory) }
+            try store.save(before)
+            try leave(crash, new: new, in: store)
+
+            let launch = try? store.loadForLaunch()
+            switch crash {
+            case .beforeMainRename:
+                // The close was not committed, so its window was still open.
+                #expect(launch?.snapshot == before, "\(crash)")
+            case .afterMainRename, .beforeBackupRename, .afterBackupRename:
+                #expect(launch?.snapshot == after, "\(crash)")
+            case .tornMain:
+                #expect(launch?.restoredFromBackup == true, "\(crash)")
+                #expect(launch?.snapshot.windows.isEmpty == true, "\(crash)")
+            case .tornMainAndBackup:
+                #expect(launch == nil, "\(crash): both unreadable stays blocked")
+            }
+            #expect(launch?.snapshot.windows.contains { $0.id == closed } != true || crash == .beforeMainRename, "\(crash)")
+            #expect(launch?.snapshot.workspaces ?? before.workspaces == before.workspaces, "\(crash)")
+            // Nothing a crash left behind stays once the launch is done.
+            if launch != nil {
+                let leftovers = try FileManager.default.contentsOfDirectory(atPath: directory.path).filter { $0.hasSuffix(".tmp") }
+                #expect(leftovers.isEmpty, "\(crash): \(leftovers)")
+            }
+        }
+    }
+
     @Test func aWindowClosedBeforeTheDamageNeverComesBack() throws {
         let (store, directory) = makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
