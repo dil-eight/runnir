@@ -349,9 +349,9 @@
         },
         {
           "name": "go.yaml.in/yaml/v3",
-          "version": "v3.0.5",
+          "version": "v3.0.6",
           "license": "Apache-2.0 AND MIT",
-          "source": "https://proxy.golang.org/go.yaml.in/yaml/v3/@v/v3.0.5.zip",
+          "source": "https://proxy.golang.org/go.yaml.in/yaml/v3/@v/v3.0.6.zip",
           "texts": [
             "ad456c7bd002",
             "2f98f631d836"
