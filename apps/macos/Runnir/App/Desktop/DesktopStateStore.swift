@@ -126,7 +126,9 @@ struct FileDesktopStateStore: DesktopStateStoring {
     func save(_ snapshot: DesktopSnapshot) throws {
         try snapshot.validate()
         try JSONFile.write(snapshot, to: stateURL, maxBytes: Self.maxFileBytes)
-        try JSONFile.write(snapshot, to: backupURL, maxBytes: Self.maxFileBytes)
+        // The session is saved once the main file is; a backup that cannot
+        // be written must not fail the save the caller then rolls back.
+        try? JSONFile.write(snapshot, to: backupURL, maxBytes: Self.maxFileBytes)
     }
 
     /// Removes the temporary files of saves a crash or a power loss cut
