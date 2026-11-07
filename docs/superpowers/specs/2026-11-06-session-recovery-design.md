@@ -1,6 +1,6 @@
 # Session Recovery From A Backup (B23)
 
-Status: design approved on 2026-11-06. Backlog: B23 in the [MVP checklist](../../product/mvp-implementation-checklist.md) (durable manual close, last-known-good recovery), FR-08 in the [specification](../../product/specification.md), the SessionStore contract in [desktop lifecycle](../../architecture/desktop-lifecycle.md). No new screen: a message in the Workspace Manager.
+Status: design approved and built on 2026-11-06 on branch dilbarov/session-recovery; covered by app unit tests, not yet checked in a running build. Backlog: B23 in the [MVP checklist](../../product/mvp-implementation-checklist.md) (durable manual close, last-known-good recovery), FR-08 in the [specification](../../product/specification.md), the SessionStore contract in [desktop lifecycle](../../architecture/desktop-lifecycle.md). No new screen: a message in the Workspace Manager.
 
 ## Problem
 
