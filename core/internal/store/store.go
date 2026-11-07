@@ -62,10 +62,10 @@ type Options struct {
 // Store is safe for concurrent use: database/sql serializes callers on the
 // single connection.
 type Store struct {
-	db     *sql.DB
-	dir    string // "" for a memory store
-	lock   *fileLock
-	now    func() time.Time
+	db       *sql.DB
+	dir      string // "" for a memory store
+	lock     *fileLock
+	now      func() time.Time
 	reportMu sync.Mutex
 	report   Report
 	// otherNote is the part of report.Note that is not about a recovery.
