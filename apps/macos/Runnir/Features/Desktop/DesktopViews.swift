@@ -672,6 +672,9 @@ struct DesktopWorkspaceView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         coreBanner
+                        if let session, let notice = session.visibleStorageNotice {
+                            StorageNoticeBanner(notice: notice, dismiss: session.dismissStorageNotice)
+                        }
                         if desktop.analyticsPromptWindowID == windowID { AnalyticsConsentBanner(desktop: desktop) }
                         content
                     }

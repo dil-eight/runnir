@@ -481,11 +481,16 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     private var _deletedData: [UUID] = []
     private var _storagePreferences: [(keep: Bool, delete: Bool)] = []
     var clearedCaches: [[UUID]] { lock.withLock { _clearedCaches } }
+    private var _deletedRecoveryCopies: [[UUID]] = []
+    var deletedRecoveryCopies: [[UUID]] { lock.withLock { _deletedRecoveryCopies } }
     var deletedData: [UUID] { lock.withLock { _deletedData } }
     var storagePreferences: [(keep: Bool, delete: Bool)] { lock.withLock { _storagePreferences } }
     func storageUsage(workspaceIDs: [UUID]) async throws -> CoreStorageUsage { lock.withLock { storage } }
     func clearWorkspaceCache(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] {
         lock.withLock { _clearedCaches.append(workspaceIDs); return storage.workspaces }
+    }
+    func deleteRecoveryCopies(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] {
+        lock.withLock { _deletedRecoveryCopies.append(workspaceIDs); return storage.workspaces }
     }
     func deleteWorkspaceData(workspaceID: UUID) async throws {
         try lock.withLock {

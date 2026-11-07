@@ -385,3 +385,85 @@ struct TestDefaults {
         #expect(!defaults.bool(forKey: StorageSettings.logDeletionPendingKey), "the Core confirmed the deletion")
     }
 }
+
+@MainActor
+@Suite struct StorageNoticeTests {
+    private func readyHub() async -> (CoreHub, FakeProvider) {
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        _ = await eventually { hub.status == .ready(version: "fake") }
+        _ = await eventually { provider.core.subscriptions >= 1 }
+        return (hub, provider)
+    }
+
+    private func activity(_ notice: CoreStorageNotice?) -> CoreWorkspaceActivity {
+        CoreWorkspaceActivity(runs: [], workflows: [], freshness: CoreActivityFreshness(source: .cache), storageNotice: notice)
+    }
+
+    private static let recovered = CoreStorageNotice(state: .persistent,
+        note: "The database was damaged; it was kept in recovery/x and a new one was made.", recoveryPath: "/data/recovery")
+
+    @Test func aRecoveredDatabaseIsShownUntilClosedInEveryWindow() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        let path = "/repo/recovered"
+        provider.core.setActivity(activity(Self.recovered), for: path)
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: path)
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: path)
+        #expect(await eventually { hub.session(for: workspace)?.visibleStorageNotice == Self.recovered })
+
+        hub.session(for: workspace)?.dismissStorageNotice()
+        #expect(hub.session(for: workspace)?.visibleStorageNotice == nil)
+        // The same note read again stays hidden.
+        await hub.loadGitHubActivity(workspaceID: workspace)
+        #expect(hub.session(for: workspace)?.visibleStorageNotice == nil)
+
+        // Another recovery shows again.
+        let again = CoreStorageNotice(state: .persistent, note: "The database was missing. Restored 2 local run records from the backup.")
+        provider.core.setActivity(activity(again), for: path)
+        await hub.loadGitHubActivity(workspaceID: workspace)
+        #expect(hub.session(for: workspace)?.visibleStorageNotice == again)
+    }
+
+    @Test func aMemoryOnlyWorkspaceCannotHideItsNotice() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        let memory = CoreStorageNotice(state: .memoryOnly, note: "The workspace database could not be opened.")
+        provider.core.setActivity(activity(memory), for: "/repo/memory")
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/memory")
+        #expect(await eventually { hub.session(for: workspace)?.visibleStorageNotice == memory })
+        hub.session(for: workspace)?.dismissStorageNotice()
+        #expect(hub.session(for: workspace)?.visibleStorageNotice == memory)
+        #expect(!StorageNoticeBanner.canDismiss(memory))
+        #expect(StorageNoticeBanner.detail(memory) != nil)
+        #expect(StorageNoticeBanner.canDismiss(Self.recovered))
+    }
+
+    @Test func aHealthyWorkspaceHasNoNotice() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        provider.core.setActivity(activity(nil), for: "/repo/healthy")
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: "/repo/healthy")
+        #expect(await eventually { hub.session(for: workspace)?.freshness.source == .cache })
+        #expect(hub.session(for: workspace)?.visibleStorageNotice == nil)
+    }
+
+    @Test func deletingRecoveryCopiesAsksTheCoreAndReadsTheNoticeAgain() async {
+        let (hub, provider) = await readyHub()
+        let workspace = UUID()
+        let path = "/repo/recovered"
+        provider.core.setActivity(activity(Self.recovered), for: path)
+        hub.attach(windowID: UUID(), workspaceID: workspace, path: path)
+        #expect(await eventually { hub.session(for: workspace)?.storageNotice?.recoveryPath != nil })
+
+        var gone = Self.recovered
+        gone.recoveryPath = nil
+        provider.core.setActivity(activity(gone), for: path)
+        let model = StorageSettingsModel(hub: hub, workspaces: { [] })
+        await model.deleteRecoveryCopies(workspace)
+        #expect(provider.core.deletedRecoveryCopies == [[workspace]])
+        #expect(hub.session(for: workspace)?.storageNotice?.recoveryPath == nil)
+    }
+}

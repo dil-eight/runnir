@@ -41,6 +41,19 @@ struct CoreWorkspaceActivity: Equatable, Sendable {
     var historyComplete = false
     /// What this Mac saved the workspace, one total per kind.
     var savings: [CoreSaving] = []
+    /// How the workspace's saved data stands when the user should know.
+    var storageNotice: CoreStorageNotice?
+}
+
+/// The workspace's saved data was recovered when it was opened, or lives in
+/// memory only.
+struct CoreStorageNotice: Equatable, Sendable {
+    /// `.persistent` after a recovery, or `.memoryOnly`.
+    let state: CoreStorageState
+    /// What recovery did, or why the data is in memory.
+    let note: String
+    /// The folder of recovery copies, while it holds one.
+    var recoveryPath: String?
 }
 
 /// What a saving total counts.
@@ -347,6 +360,8 @@ struct CoreWorkspaceStorage: Equatable, Identifiable, Sendable {
     let recoveryCopies: Int
     /// Runs in the search index.
     var indexedRuns = 0
+    /// The folder of recovery copies, while it holds one.
+    var recoveryPath: String?
     var id: UUID { workspaceID }
 }
 

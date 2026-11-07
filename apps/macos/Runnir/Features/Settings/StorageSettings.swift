@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Settings › Storage, kept in UserDefaults.
 enum StorageSettings {
@@ -51,6 +52,12 @@ final class StorageSettingsModel {
         rows = out
     }
 
+    /// Deletes the recovery copies of damaged databases of a workspace.
+    func deleteRecoveryCopies(_ id: UUID) async {
+        await hub?.deleteRecoveryCopies(workspaceIDs: [id])
+        await load()
+    }
+
     func clear(_ ids: [UUID]) async {
         await hub?.clearCache(workspaceIDs: ids)
         await load()
@@ -99,7 +106,7 @@ struct StorageSettingsSection: View {
     @State private var confirming: Confirmation?
 
     private enum Confirmation: Identifiable {
-        case clear(StorageRow), clearAll, delete(StorageRow), stopKeepingLogs, clearIndex
+        case clear(StorageRow), clearAll, delete(StorageRow), stopKeepingLogs, clearIndex, deleteRecoveryCopies(StorageRow)
         var id: String {
             switch self {
             case .clear(let row): "clear-\(row.id)"
@@ -107,6 +114,7 @@ struct StorageSettingsSection: View {
             case .delete(let row): "delete-\(row.id)"
             case .stopKeepingLogs: "logs"
             case .clearIndex: "index"
+            case .deleteRecoveryCopies(let row): "recovery-\(row.id)"
             }
         }
     }
@@ -127,6 +135,15 @@ struct StorageSettingsSection: View {
                         Text(StorageSettingsModel.summary(row.storage)).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                         if let note = row.storage?.note {
                             Text(note).font(.system(size: 12)).foregroundStyle(RunnirTheme.warning)
+                        }
+                        if let path = row.storage?.recoveryPath {
+                            HStack(spacing: 8) {
+                                Button("Show Recovery Copies") {
+                                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path, isDirectory: true)])
+                                }
+                                Button("Delete Recovery Copies\u{2026}") { confirming = .deleteRecoveryCopies(row) }
+                            }
+                            .controlSize(.small).padding(.top, 2)
                         }
                     }
                     Spacer()
@@ -165,6 +182,8 @@ struct StorageSettingsSection: View {
             case .delete(let row): Button("Delete", role: .destructive) { Task { await model.delete(row.id) } }
             case .stopKeepingLogs: Button("Stop and Delete Logs", role: .destructive) { Task { await model.setKeepJobLogs(false) } }
             case .clearIndex: Button("Clear Search Index", role: .destructive) { Task { await model.clearIndex([]) } }
+            case .deleteRecoveryCopies(let row):
+                Button("Delete Recovery Copies", role: .destructive) { Task { await model.deleteRecoveryCopies(row.id) } }
             case nil: EmptyView()
             }
             Button("Cancel", role: .cancel) { confirming = nil }
@@ -180,6 +199,7 @@ struct StorageSettingsSection: View {
         case .delete: "Delete this removed workspace's data?"
         case .stopKeepingLogs: "Stop keeping job logs?"
         case .clearIndex: "Clear the search index?"
+        case .deleteRecoveryCopies(let row): "Delete the recovery copies of \(row.name)?"
         case nil: ""
         }
     }
@@ -190,6 +210,7 @@ struct StorageSettingsSection: View {
         case .delete: "Its saved activity and local run history are deleted from this Mac. Nothing in any repository changes."
         case .stopKeepingLogs: "Logs kept so far are deleted from this Mac."
         case .clearIndex: "Runs that GitHub no longer has, or that the saved runs dropped, can no longer be found by search. Saved activity and everything else stay."
+        case .deleteRecoveryCopies: "The damaged databases Runnir set aside are deleted from this Mac. The workspace's current data and local run history stay."
         case nil: ""
         }
     }
