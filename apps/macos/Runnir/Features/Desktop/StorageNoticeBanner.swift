@@ -28,7 +28,7 @@ struct StorageNoticeBanner: View {
             Spacer(minLength: 0)
             if Self.canDismiss(notice) {
                 Button(action: dismiss) { Image(systemName: "xmark").font(.system(size: 11, weight: .semibold)) }
-                    .buttonStyle(.plain).foregroundStyle(RunnirTheme.secondaryForeground)
+                    .buttonStyle(.plain).foregroundStyle(RunnirTheme.secondaryForeground).handPointer()
                     .help("Hide this notice in every window of this workspace")
                     .accessibilityLabel("Close")
             }
