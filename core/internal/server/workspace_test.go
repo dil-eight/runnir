@@ -361,3 +361,78 @@ func TestInsertWorkflowConcurrencyOnlyChangesTheText(t *testing.T) {
 		t.Fatalf("unknown repository = %v", err)
 	}
 }
+
+func TestARecoveredDatabaseIsAnnouncedAndItsCopiesDeleted(t *testing.T) {
+	data := t.TempDir()
+	repo := linkedRepository(t, "git@github.com:o/r.git")
+	first, stop, ctx := workspaceRig(t, data, "http://127.0.0.1:1")
+	opened, err := first.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: repo, WorkspaceId: testWorkspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	healthy, err := first.GetWorkspaceActivity(ctx, &corev1.GetWorkspaceActivityRequest{RepositoryId: opened.Repository.Id})
+	if err != nil || healthy.StorageNotice != nil {
+		t.Fatalf("healthy = %v, %v", healthy.GetStorageNotice(), err)
+	}
+	if err := stop(); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(data, "repositories", strings.ToLower(testWorkspace))
+	path := filepath.Join(dir, "state.sqlite")
+	damaged, _ := os.ReadFile(path)
+	copy(damaged[:16], "garbage garbage!")
+	if err := os.WriteFile(path, damaged, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	client, stopAgain, ctx := workspaceRig(t, data, "http://127.0.0.1:1")
+	defer stopAgain()
+	reopened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: repo, WorkspaceId: testWorkspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	activity, err := client.GetWorkspaceActivity(ctx, &corev1.GetWorkspaceActivityRequest{RepositoryId: reopened.Repository.Id})
+	notice := activity.GetStorageNotice()
+	recovery := filepath.Join(dir, "recovery")
+	if err != nil || notice.GetState() != corev1.StorageState_STORAGE_STATE_PERSISTENT ||
+		!strings.Contains(notice.GetNote(), "damaged") || notice.GetRecoveryPath() != recovery {
+		t.Fatalf("notice = %v, %v", notice, err)
+	}
+	usage, err := client.GetStorageUsage(ctx, &corev1.GetStorageUsageRequest{})
+	if err != nil || usage.Workspaces[0].RecoveryCopies != 1 || usage.Workspaces[0].RecoveryPath != recovery {
+		t.Fatalf("usage = %v, %v", usage, err)
+	}
+
+	deleted, err := client.DeleteRecoveryCopies(ctx, &corev1.DeleteRecoveryCopiesRequest{WorkspaceIds: []string{testWorkspace}})
+	if err != nil || len(deleted.Workspaces) != 1 || deleted.Workspaces[0].RecoveryCopies != 0 ||
+		deleted.Workspaces[0].RecoveryPath != "" || !deleted.Workspaces[0].Open {
+		t.Fatalf("deleted = %v, %v", deleted, err)
+	}
+	if _, err := os.Stat(recovery); !os.IsNotExist(err) {
+		t.Fatalf("recovery folder: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("database: %v", err)
+	}
+	// With its copies gone the recovery is no longer announced.
+	after, _ := client.GetWorkspaceActivity(ctx, &corev1.GetWorkspaceActivityRequest{RepositoryId: reopened.Repository.Id})
+	if after.StorageNotice != nil {
+		t.Fatalf("after = %v", after.GetStorageNotice())
+	}
+	if _, err := client.DeleteRecoveryCopies(ctx, &corev1.DeleteRecoveryCopiesRequest{WorkspaceIds: []string{"not-a-uuid"}}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("bad id = %v", err)
+	}
+}
+
+func TestAMemoryOnlyWorkspaceIsAnnounced(t *testing.T) {
+	client, stop, ctx := workspaceRig(t, "", "http://127.0.0.1:1")
+	defer stop()
+	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: linkedRepository(t, "git@github.com:o/r.git"), WorkspaceId: testWorkspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	activity, err := client.GetWorkspaceActivity(ctx, &corev1.GetWorkspaceActivityRequest{RepositoryId: opened.Repository.Id})
+	if err != nil || activity.GetStorageNotice().GetState() != corev1.StorageState_STORAGE_STATE_MEMORY_ONLY {
+		t.Fatalf("notice = %v, %v", activity.GetStorageNotice(), err)
+	}
+}

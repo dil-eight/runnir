@@ -235,6 +235,14 @@ struct GRPCCoreService: CoreServicing {
         return response.workspaces.compactMap(Self.map)
     }
 
+    func deleteRecoveryCopies(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage] {
+        let response = try await call {
+            try await client.deleteRecoveryCopies(.with { $0.workspaceIds = workspaceIDs.map { $0.uuidString.lowercased() } },
+                                                  options: Self.options(Self.callTimeout))
+        }
+        return response.workspaces.compactMap(Self.map)
+    }
+
     func deleteWorkspaceData(workspaceID: UUID) async throws {
         _ = try await call {
             try await client.deleteWorkspaceData(.with { $0.workspaceID = workspaceID.uuidString.lowercased() },
@@ -316,7 +324,13 @@ struct GRPCCoreService: CoreServicing {
                 changedAt: f.hasChangedAt ? f.changedAt.date : nil, pullRequestsAccess: pullRequestsAccess),
             changes: activity.changes.map(map), concurrencyHints: activity.concurrencyHints.map(map),
             cachedRuns: Int(activity.cachedRuns), historyComplete: activity.historyComplete,
-            savings: activity.savings.compactMap(map))
+            savings: activity.savings.compactMap(map),
+            storageNotice: activity.hasStorageNotice ? map(activity.storageNotice) : nil)
+    }
+
+    static func map(_ notice: Runnir_Core_V1_StorageNotice) -> CoreStorageNotice {
+        CoreStorageNotice(state: notice.state == .memoryOnly ? .memoryOnly : .persistent, note: notice.note,
+                          recoveryPath: notice.recoveryPath.isEmpty ? nil : notice.recoveryPath)
     }
 
     /// Nil for a kind this app does not know.
@@ -386,7 +400,8 @@ struct GRPCCoreService: CoreServicing {
         return CoreWorkspaceStorage(workspaceID: id, state: state, note: storage.note.isEmpty ? nil : storage.note, isOpen: storage.open,
                                     databaseBytes: storage.databaseBytes, logBytes: storage.logBytes, cachedRuns: Int(storage.cachedRuns),
                                     localRuns: Int(storage.localRuns), recoveryCopies: Int(storage.recoveryCopies),
-                                    indexedRuns: Int(storage.indexedRuns))
+                                    indexedRuns: Int(storage.indexedRuns),
+                                    recoveryPath: storage.recoveryPath.isEmpty ? nil : storage.recoveryPath)
     }
 
     func refreshRepository(id: String) async throws -> CoreRepository {

@@ -25,7 +25,7 @@ No requirement is accepted yet: each still lacks the controlled real-GitHub or s
 
 - **App:** Swift 6, SwiftUI and Observation. Features: Authentication, Desktop (Manager, workspace windows, Overview, Workflows editor, Runs, Run inspector, local runs, the menu bar with pull requests and CI state, notifications), Settings (Tools, Storage, Enterprise servers).
 - **Core:** pure Go, `CGO_ENABLED=0`, one app-managed child process. Packages: `approval` and `dispatch` (two-step confirmations), `changes` (runs linked to pull requests and commits), `events`, `execution`, `github`, `ipc` (stdio JSON-RPC, version handshake only), `joblog`, `localrun` (act), `repository`, `scanner`, `server` (gRPC), `store` (SQLite), `tools` (Docker and act detection), `validate` (actionlint), `workspace` (shared runtime and sync).
-- **Contract:** `runnir.core.v1` over a Unix socket with 44 RPCs ([gRPC API](grpc-api.md), [ADR 0004](../decisions/0004-single-core-process-grpc.md)); protobuf sources in `contracts/`, generated Go and Swift committed and compared in CI.
+- **Contract:** `runnir.core.v1` over a Unix socket with 60 RPCs ([gRPC API](grpc-api.md), [ADR 0004](../decisions/0004-single-core-process-grpc.md)); protobuf sources in `contracts/`, generated Go and Swift committed and compared in CI.
 - **Persistence:** Application Support registry and session; one SQLite database per workspace; credentials only in Keychain.
 - **CI:** workflows `CI`, `Go Core`, `App Build` and `Release Build`.
 - **Not present:** an MCP server (`mcp/runnir-tools.json` is a design-only catalog), AI features, a signed build from the release workflow.

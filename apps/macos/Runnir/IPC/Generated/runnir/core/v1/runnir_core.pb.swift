@@ -5040,11 +5040,42 @@ nonisolated struct Runnir_Core_V1_WorkspaceActivity: @unchecked Sendable {
     set {_uniqueStorage()._savings = newValue}
   }
 
+  /// How the workspace's saved data stands when it needs saying: recovered,
+  /// or kept in memory only. Absent for a database opened as it was.
+  var storageNotice: Runnir_Core_V1_StorageNotice {
+    get {_storage._storageNotice ?? Runnir_Core_V1_StorageNotice()}
+    set {_uniqueStorage()._storageNotice = newValue}
+  }
+  /// Returns true if `storageNotice` has been explicitly set.
+  var hasStorageNotice: Bool {_storage._storageNotice != nil}
+  /// Clears the value of `storageNotice`. Subsequent reads from it will return its default value.
+  mutating func clearStorageNotice() {_uniqueStorage()._storageNotice = nil}
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
 
   fileprivate var _storage = _StorageClass.defaultInstance
+}
+
+/// What the user should know about a workspace's saved data.
+nonisolated struct Runnir_Core_V1_StorageNotice: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// PERSISTENT after a recovery, or MEMORY_ONLY.
+  var state: Runnir_Core_V1_StorageState = .unspecified
+
+  /// What recovery did, or why the data is in memory. Never a credential.
+  var note: String = String()
+
+  /// The folder of recovery copies, when it holds one.
+  var recoveryPath: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
 }
 
 nonisolated struct Runnir_Core_V1_Saving: Sendable {
@@ -5718,6 +5749,9 @@ nonisolated struct Runnir_Core_V1_WorkspaceStorage: Sendable {
   /// Runs in the search index.
   var indexedRuns: UInt32 = 0
 
+  /// The folder of recovery copies, when it holds one.
+  var recoveryPath: String = String()
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -5790,6 +5824,31 @@ nonisolated struct Runnir_Core_V1_DeleteWorkspaceDataResponse: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_DeleteRecoveryCopiesRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// Empty: every workspace.
+  var workspaceIds: [String] = []
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_DeleteRecoveryCopiesResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var workspaces: [Runnir_Core_V1_WorkspaceStorage] = []
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -12174,7 +12233,7 @@ nonisolated extension Runnir_Core_V1_RefreshWorkspaceActivityRequest: SwiftProto
 
 nonisolated extension Runnir_Core_V1_WorkspaceActivity: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".WorkspaceActivity"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}runs\0\u{1}workflows\0\u{1}freshness\0\u{1}changes\0\u{3}concurrency_hints\0\u{3}cached_runs\0\u{3}history_complete\0\u{1}savings\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}runs\0\u{1}workflows\0\u{1}freshness\0\u{1}changes\0\u{3}concurrency_hints\0\u{3}cached_runs\0\u{3}history_complete\0\u{1}savings\0\u{3}storage_notice\0")
 
   fileprivate class _StorageClass {
     var _runs: [Runnir_Core_V1_WorkflowRun] = []
@@ -12185,6 +12244,7 @@ nonisolated extension Runnir_Core_V1_WorkspaceActivity: SwiftProtobuf.Message, S
     var _cachedRuns: UInt32 = 0
     var _historyComplete: Bool = false
     var _savings: [Runnir_Core_V1_Saving] = []
+    var _storageNotice: Runnir_Core_V1_StorageNotice? = nil
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -12203,6 +12263,7 @@ nonisolated extension Runnir_Core_V1_WorkspaceActivity: SwiftProtobuf.Message, S
       _cachedRuns = source._cachedRuns
       _historyComplete = source._historyComplete
       _savings = source._savings
+      _storageNotice = source._storageNotice
     }
   }
 
@@ -12229,6 +12290,7 @@ nonisolated extension Runnir_Core_V1_WorkspaceActivity: SwiftProtobuf.Message, S
         case 6: try { try decoder.decodeSingularUInt32Field(value: &_storage._cachedRuns) }()
         case 7: try { try decoder.decodeSingularBoolField(value: &_storage._historyComplete) }()
         case 8: try { try decoder.decodeRepeatedMessageField(value: &_storage._savings) }()
+        case 9: try { try decoder.decodeSingularMessageField(value: &_storage._storageNotice) }()
         default: break
         }
       }
@@ -12265,6 +12327,9 @@ nonisolated extension Runnir_Core_V1_WorkspaceActivity: SwiftProtobuf.Message, S
       if !_storage._savings.isEmpty {
         try visitor.visitRepeatedMessageField(value: _storage._savings, fieldNumber: 8)
       }
+      try { if let v = _storage._storageNotice {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 9)
+      } }()
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -12282,10 +12347,51 @@ nonisolated extension Runnir_Core_V1_WorkspaceActivity: SwiftProtobuf.Message, S
         if _storage._cachedRuns != rhs_storage._cachedRuns {return false}
         if _storage._historyComplete != rhs_storage._historyComplete {return false}
         if _storage._savings != rhs_storage._savings {return false}
+        if _storage._storageNotice != rhs_storage._storageNotice {return false}
         return true
       }
       if !storagesAreEqual {return false}
     }
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_StorageNotice: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".StorageNotice"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}state\0\u{1}note\0\u{3}recovery_path\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.state) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.note) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.recoveryPath) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.state != .unspecified {
+      try visitor.visitSingularEnumField(value: self.state, fieldNumber: 1)
+    }
+    if !self.note.isEmpty {
+      try visitor.visitSingularStringField(value: self.note, fieldNumber: 2)
+    }
+    if !self.recoveryPath.isEmpty {
+      try visitor.visitSingularStringField(value: self.recoveryPath, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_StorageNotice, rhs: Runnir_Core_V1_StorageNotice) -> Bool {
+    if lhs.state != rhs.state {return false}
+    if lhs.note != rhs.note {return false}
+    if lhs.recoveryPath != rhs.recoveryPath {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -13476,7 +13582,7 @@ nonisolated extension Runnir_Core_V1_InsertWorkflowConcurrencyResponse: SwiftPro
 
 nonisolated extension Runnir_Core_V1_WorkspaceStorage: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".WorkspaceStorage"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workspace_id\0\u{1}state\0\u{1}note\0\u{1}open\0\u{3}database_bytes\0\u{3}log_bytes\0\u{3}cached_runs\0\u{3}local_runs\0\u{3}recovery_copies\0\u{3}indexed_runs\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workspace_id\0\u{1}state\0\u{1}note\0\u{1}open\0\u{3}database_bytes\0\u{3}log_bytes\0\u{3}cached_runs\0\u{3}local_runs\0\u{3}recovery_copies\0\u{3}indexed_runs\0\u{3}recovery_path\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -13494,6 +13600,7 @@ nonisolated extension Runnir_Core_V1_WorkspaceStorage: SwiftProtobuf.Message, Sw
       case 8: try { try decoder.decodeSingularUInt32Field(value: &self.localRuns) }()
       case 9: try { try decoder.decodeSingularUInt32Field(value: &self.recoveryCopies) }()
       case 10: try { try decoder.decodeSingularUInt32Field(value: &self.indexedRuns) }()
+      case 11: try { try decoder.decodeSingularStringField(value: &self.recoveryPath) }()
       default: break
       }
     }
@@ -13530,6 +13637,9 @@ nonisolated extension Runnir_Core_V1_WorkspaceStorage: SwiftProtobuf.Message, Sw
     if self.indexedRuns != 0 {
       try visitor.visitSingularUInt32Field(value: self.indexedRuns, fieldNumber: 10)
     }
+    if !self.recoveryPath.isEmpty {
+      try visitor.visitSingularStringField(value: self.recoveryPath, fieldNumber: 11)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -13544,6 +13654,7 @@ nonisolated extension Runnir_Core_V1_WorkspaceStorage: SwiftProtobuf.Message, Sw
     if lhs.localRuns != rhs.localRuns {return false}
     if lhs.recoveryCopies != rhs.recoveryCopies {return false}
     if lhs.indexedRuns != rhs.indexedRuns {return false}
+    if lhs.recoveryPath != rhs.recoveryPath {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -13718,6 +13829,66 @@ nonisolated extension Runnir_Core_V1_DeleteWorkspaceDataResponse: SwiftProtobuf.
   }
 
   static func ==(lhs: Runnir_Core_V1_DeleteWorkspaceDataResponse, rhs: Runnir_Core_V1_DeleteWorkspaceDataResponse) -> Bool {
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_DeleteRecoveryCopiesRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".DeleteRecoveryCopiesRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workspace_ids\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeRepeatedStringField(value: &self.workspaceIds) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.workspaceIds.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.workspaceIds, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_DeleteRecoveryCopiesRequest, rhs: Runnir_Core_V1_DeleteRecoveryCopiesRequest) -> Bool {
+    if lhs.workspaceIds != rhs.workspaceIds {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_DeleteRecoveryCopiesResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".DeleteRecoveryCopiesResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}workspaces\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeRepeatedMessageField(value: &self.workspaces) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.workspaces.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.workspaces, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_DeleteRecoveryCopiesResponse, rhs: Runnir_Core_V1_DeleteRecoveryCopiesResponse) -> Bool {
+    if lhs.workspaces != rhs.workspaces {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

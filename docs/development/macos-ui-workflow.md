@@ -51,3 +51,17 @@ The [desktop lifecycle](../architecture/desktop-lifecycle.md) adds real-app scen
 ## Verification
 
 Inspect visuals in previews/catalog, then exercise actual integration flows in the app. Previews and screenshots do not replace unit/UI tests. For code changes, run the build/test commands in AGENTS.md and Core checks when Go changes. Documentation-only updates do not require a rebuild.
+
+### UI tests
+
+`RunnirUITests` drives a Debug build with `--ui-testing`, so it uses a temporary state and Core data folder and Keychain items of its own, never the developer's. Two things are needed on the Mac:
+
+- Automation Mode without a password prompt, once per Mac: `sudo automationmodetool enable-automationmode-without-authentication`. Without it the runner stops with "Timed out while enabling automation mode".
+- A signed runner: the targets build with `CODE_SIGNING_ALLOWED = NO`, and macOS kills an unsigned runner before it connects. Sign ad hoc on the command line, into a derived data folder of its own so the ad hoc app does not replace the one Xcode signs:
+
+```sh
+xcodebuild -project apps/macos/Runnir.xcodeproj -scheme Runnir -destination 'platform=macOS' \
+  -derivedDataPath build/ui-tests CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test -only-testing:RunnirUITests
+```
+
+The runner is sandboxed: it cannot start git or other tools, so fixtures are written as files. Keystrokes do not reach the app's menus in a UI test run; tests use the menu bar items (File › Open Workspace..., File › Close, Quit).

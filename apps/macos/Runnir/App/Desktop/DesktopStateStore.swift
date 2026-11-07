@@ -71,14 +71,30 @@ enum DesktopStoreError: Error {
     case tooManyWindows
 }
 
+/// The session a launch starts from, and whether its workspaces came from
+/// the backup because the saved session could not be read.
+struct DesktopLaunchState: Equatable, Sendable {
+    var snapshot: DesktopSnapshot
+    var restoredFromBackup = false
+}
+
 protocol DesktopStateStoring: Sendable {
+    /// The saved session, or an error when it cannot be read.
     func load() throws -> DesktopSnapshot
+    /// The session to launch with; a store may recover it from a backup.
+    func loadForLaunch() throws -> DesktopLaunchState
     func save(_ snapshot: DesktopSnapshot) throws
+}
+
+extension DesktopStateStoring {
+    func loadForLaunch() throws -> DesktopLaunchState { DesktopLaunchState(snapshot: try load()) }
 }
 
 struct FileDesktopStateStore: DesktopStateStoring {
     let directory: URL
     var stateURL: URL { directory.appendingPathComponent("desktop-state.json") }
+    /// The same snapshot as `stateURL`, written after it by every save.
+    var backupURL: URL { directory.appendingPathComponent("desktop-state.backup.json") }
 
     static func live() throws -> FileDesktopStateStore {
         FileDesktopStateStore(directory: try RunnirSupportDirectory.url())
@@ -87,14 +103,55 @@ struct FileDesktopStateStore: DesktopStateStoring {
     static let maxFileBytes = 2 * 1024 * 1024
 
     func load() throws -> DesktopSnapshot {
-        guard let snapshot = try JSONFile.read(DesktopSnapshot.self, from: stateURL, maxBytes: Self.maxFileBytes) else { return DesktopSnapshot() }
-        try snapshot.validate()
-        return snapshot
+        try Self.read(stateURL) ?? DesktopSnapshot()
+    }
+
+    /// The saved session; when it exists but cannot be read, the workspaces
+    /// of the backup without any window, so a window closed by hand never
+    /// comes back. The unreadable file is kept and the recovered session is
+    /// saved. With no readable backup it throws and writes nothing.
+    func loadForLaunch() throws -> DesktopLaunchState {
+        removeLeftoverTemporaryFiles()
+        do {
+            return DesktopLaunchState(snapshot: try load())
+        } catch {
+            guard let backup = try? Self.read(backupURL) else { throw error }
+            let recovered = DesktopSnapshot(workspaces: backup.workspaces)
+            try preserveUnreadable()
+            try save(recovered)
+            return DesktopLaunchState(snapshot: recovered, restoredFromBackup: true)
+        }
     }
 
     func save(_ snapshot: DesktopSnapshot) throws {
         try snapshot.validate()
         try JSONFile.write(snapshot, to: stateURL, maxBytes: Self.maxFileBytes)
+        // The session is saved once the main file is; a backup that cannot
+        // be written must not fail the save the caller then rolls back.
+        try? JSONFile.write(snapshot, to: backupURL, maxBytes: Self.maxFileBytes)
+    }
+
+    /// Removes the temporary files of saves a crash or a power loss cut
+    /// short; a save that finishes removes its own.
+    func removeLeftoverTemporaryFiles() {
+        let prefixes = [stateURL, backupURL].map { ".\($0.lastPathComponent)-" }
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        for name in names where name.hasSuffix(".tmp") && prefixes.contains(where: name.hasPrefix) {
+            try? FileManager.default.removeItem(at: directory.appendingPathComponent(name))
+        }
+    }
+
+    /// Copies the session file beside it as desktop-state-unreadable-<uuid>.json.
+    func preserveUnreadable() throws {
+        guard FileManager.default.fileExists(atPath: stateURL.path) else { return }
+        try FileManager.default.copyItem(at: stateURL,
+            to: directory.appendingPathComponent("desktop-state-unreadable-\(UUID().uuidString).json"))
+    }
+
+    private static func read(_ url: URL) throws -> DesktopSnapshot? {
+        guard let snapshot = try JSONFile.read(DesktopSnapshot.self, from: url, maxBytes: maxFileBytes) else { return nil }
+        try snapshot.validate()
+        return snapshot
     }
 }
 

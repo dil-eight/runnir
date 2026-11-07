@@ -187,6 +187,8 @@ protocol CoreServicing: Sendable {
     func storageUsage(workspaceIDs: [UUID]) async throws -> CoreStorageUsage
     /// Deletes what can be downloaded again; empty ids: every workspace.
     func clearWorkspaceCache(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage]
+    /// Deletes the recovery copies of damaged databases; empty ids: every workspace.
+    func deleteRecoveryCopies(workspaceIDs: [UUID]) async throws -> [CoreWorkspaceStorage]
     /// Deletes a closed workspace's data folder.
     func deleteWorkspaceData(workspaceID: UUID) async throws
     /// Whether finished jobs' logs are kept; off with `deleteKeptLogs` also

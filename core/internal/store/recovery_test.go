@@ -290,3 +290,91 @@ func TestADatabaseFromAnEarlierBuildWithoutAColumnIsReplaced(t *testing.T) {
 		t.Fatalf("report = %+v, recovery = %v", r, recoveryDirs(t, dir))
 	}
 }
+
+func TestRecoveryCopiesAreFoundAndDeletedAlone(t *testing.T) {
+	dir := t.TempDir()
+	s := openTest(t, dir)
+	record(t, s, "exec_1", LocalSucceeded)
+	if path := RecoveryPath(dir); path != "" {
+		t.Fatalf("path before any recovery = %q", path)
+	}
+	_ = s.Close()
+	path := filepath.Join(dir, "state.sqlite")
+	data, _ := os.ReadFile(path)
+	copy(data[:16], "garbage garbage!")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	again := openTest(t, dir)
+	want := filepath.Join(dir, "recovery")
+	if got := RecoveryPath(dir); got != want {
+		t.Fatalf("path = %q, want %q", got, want)
+	}
+	u, err := again.Usage(context.Background())
+	if err != nil || u.RecoveryCopies != 1 || u.RecoveryPath != want {
+		t.Fatalf("usage = %+v, %v", u, err)
+	}
+
+	if err := DeleteRecoveryCopies(dir); err != nil {
+		t.Fatal(err)
+	}
+	if got := RecoveryPath(dir); got != "" {
+		t.Fatalf("path after delete = %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "state.sqlite")); err != nil {
+		t.Fatalf("database: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, backupsDir, localBackupName)); err != nil {
+		t.Fatalf("backup: %v", err)
+	}
+	runs, _ := again.LocalRuns(context.Background(), 10)
+	if len(runs) != 1 {
+		t.Fatalf("runs = %v", runs)
+	}
+	u, _ = again.Usage(context.Background())
+	if u.RecoveryCopies != 0 || u.RecoveryPath != "" {
+		t.Fatalf("usage after delete = %+v", u)
+	}
+}
+
+func TestAnEmptyRecoveryFolderHasNoPath(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "recovery"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if got := RecoveryPath(dir); got != "" {
+		t.Fatalf("path = %q", got)
+	}
+	if err := DeleteRecoveryCopies(""); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOnlyARealRecoveryIsReported(t *testing.T) {
+	dir := t.TempDir()
+	s := openTest(t, dir)
+	if r := s.Report(); r.Recovered {
+		t.Fatalf("a new workspace = %+v", r)
+	}
+	record(t, s, "exec_1", LocalSucceeded)
+	_ = s.Close()
+	reopened := openTest(t, dir)
+	if r := reopened.Report(); r.Recovered || r.Note != "" {
+		t.Fatalf("reopened as it was = %+v", r)
+	}
+	_ = reopened.Close()
+
+	// The database gone, its local runs come back from the backup.
+	for _, name := range []string{"state.sqlite", "state.sqlite-wal", "state.sqlite-shm"} {
+		_ = os.Remove(filepath.Join(dir, name))
+	}
+	again := openTest(t, dir)
+	r := again.Report()
+	if !r.Recovered || !strings.Contains(r.Note, "missing") {
+		t.Fatalf("missing = %+v", r)
+	}
+	again.ForgetRecovery()
+	if r := again.Report(); r.Recovered || r.Note != "" {
+		t.Fatalf("after forgetting = %+v", r)
+	}
+}

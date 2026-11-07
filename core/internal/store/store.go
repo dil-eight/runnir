@@ -48,6 +48,10 @@ const (
 type Report struct {
 	State State
 	Note  string
+	// Recovered: the database was set aside or missing when the store was
+	// opened and a new one was made (Note says what was kept and restored).
+	// Cleared by ForgetRecovery.
+	Recovered bool
 }
 
 type Options struct {
@@ -58,11 +62,14 @@ type Options struct {
 // Store is safe for concurrent use: database/sql serializes callers on the
 // single connection.
 type Store struct {
-	db     *sql.DB
-	dir    string // "" for a memory store
-	lock   *fileLock
-	now    func() time.Time
-	report Report
+	db       *sql.DB
+	dir      string // "" for a memory store
+	lock     *fileLock
+	now      func() time.Time
+	reportMu sync.Mutex
+	report   Report
+	// otherNote is the part of report.Note that is not about a recovery.
+	otherNote string
 	// readOnly: opened by OpenReadOnly; Close leaves the files as they are.
 	readOnly bool
 
@@ -164,6 +171,7 @@ func (s *Store) openDatabase(ctx context.Context) (string, bool) {
 	var notes []string
 	var salvaged localData
 	damaged := false
+	restoredAny := false
 	if missing {
 		// A WAL without its database cannot be applied; keep it as evidence.
 		if _, err := os.Lstat(path + "-wal"); err == nil {
@@ -244,6 +252,7 @@ func (s *Store) openDatabase(ctx context.Context) (string, bool) {
 		if err != nil {
 			return "Local run records could not be restored.", false
 		}
+		restoredAny = restored > 0
 		switch {
 		case damaged && restored > 0:
 			notes = append(notes, fmt.Sprintf("Restored %d local run records.", restored))
@@ -259,15 +268,33 @@ func (s *Store) openDatabase(ctx context.Context) (string, bool) {
 	if err := s.cleanBlobs(ctx); err != nil {
 		return "The workspace database could not be updated.", false
 	}
+	recovered := damaged || ((missing || empty) && restoredAny)
 	if err := s.writeLocalBackup(ctx); err != nil {
-		notes = append(notes, "The backup of local data could not be written.")
+		s.otherNote = "The backup of local data could not be written."
+		notes = append(notes, s.otherNote)
 	}
 	s.report.Note = joinNotes(notes)
+	s.report.Recovered = recovered
 	return "", true
 }
 
 // Report says how the store was opened.
-func (s *Store) Report() Report { return s.report }
+func (s *Store) Report() Report {
+	s.reportMu.Lock()
+	defer s.reportMu.Unlock()
+	return s.report
+}
+
+// ForgetRecovery drops what the report says about a recovery once its
+// copies are deleted; other notes stay.
+func (s *Store) ForgetRecovery() {
+	s.reportMu.Lock()
+	defer s.reportMu.Unlock()
+	if s.report.Recovered {
+		s.report.Recovered = false
+		s.report.Note = s.otherNote
+	}
+}
 
 // Dir is the workspace directory; "" for a memory store.
 func (s *Store) Dir() string { return s.dir }

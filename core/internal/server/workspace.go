@@ -98,6 +98,7 @@ func (s *service) snapshotMessage(ctx context.Context, rt *workspace.Runtime, li
 		freshness.Status = statusMessage(snap.Access, snap.RetryAfter)
 	}
 	out := &corev1.WorkspaceActivity{Freshness: freshness, CachedRuns: uint32(snap.CachedRuns), HistoryComplete: snap.HistoryComplete}
+	out.StorageNotice = storageNotice(rt.Store())
 	for _, r := range snap.Runs {
 		message := runMessage(r)
 		message.Link = linkMessage(snap.Analysis.Links[r.ID])
@@ -155,9 +156,34 @@ func storageMessages(usage []workspace.Usage) []*corev1.WorkspaceStorage {
 			WorkspaceId: u.WorkspaceID, State: state, Note: u.Note, Open: u.Open,
 			DatabaseBytes: u.DatabaseBytes, LogBytes: u.LogBytes, CachedRuns: uint32(u.CachedRuns),
 			LocalRuns: uint32(u.LocalRuns), RecoveryCopies: uint32(u.RecoveryCopies), IndexedRuns: uint32(u.IndexedRuns),
+			RecoveryPath: u.RecoveryPath,
 		})
 	}
 	return out
+}
+
+// storageNotice says how a workspace's saved data stands when the user
+// should know: kept in memory, or recovered when it was opened (until its
+// copies are deleted). nil otherwise; other notes stay in Settings › Storage.
+func storageNotice(st *store.Store) *corev1.StorageNotice {
+	report := st.Report()
+	switch {
+	case report.State == store.MemoryOnly:
+		return &corev1.StorageNotice{State: corev1.StorageState_STORAGE_STATE_MEMORY_ONLY, Note: report.Note}
+	case report.Recovered:
+		return &corev1.StorageNotice{State: corev1.StorageState_STORAGE_STATE_PERSISTENT, Note: report.Note,
+			RecoveryPath: store.RecoveryPath(st.Dir())}
+	default:
+		return nil
+	}
+}
+
+func (s *service) DeleteRecoveryCopies(ctx context.Context, request *corev1.DeleteRecoveryCopiesRequest) (*corev1.DeleteRecoveryCopiesResponse, error) {
+	usage, err := s.workspaces.DeleteRecoveryCopies(ctx, request.GetWorkspaceIds())
+	if err != nil {
+		return nil, storageError(err)
+	}
+	return &corev1.DeleteRecoveryCopiesResponse{Workspaces: storageMessages(usage)}, nil
 }
 
 func storageError(err error) error {

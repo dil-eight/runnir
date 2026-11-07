@@ -13,7 +13,9 @@ type Usage struct {
 	CachedRuns     int
 	LocalRuns      int
 	RecoveryCopies int
-	IndexedRuns    int
+	// RecoveryPath is the folder of the recovery copies when it holds one.
+	RecoveryPath string
+	IndexedRuns  int
 }
 
 func (s *Store) Usage(ctx context.Context) (Usage, error) {
@@ -36,13 +38,7 @@ func (s *Store) Usage(ctx context.Context) (Usage, error) {
 			u.DatabaseBytes += uint64(info.Size())
 		}
 	}
-	if entries, err := os.ReadDir(filepath.Join(s.dir, recoveryDir)); err == nil {
-		for _, e := range entries {
-			if e.IsDir() {
-				u.RecoveryCopies++
-			}
-		}
-	}
+	u.RecoveryCopies, u.RecoveryPath = recoveryCopies(s.dir)
 	return u, nil
 }
 
@@ -82,13 +78,7 @@ func Peek(dir string) (u Usage, report Report, ok bool) {
 			u.DatabaseBytes += uint64(info.Size())
 		}
 	}
-	if entries, err := os.ReadDir(filepath.Join(dir, recoveryDir)); err == nil {
-		for _, e := range entries {
-			if e.IsDir() {
-				u.RecoveryCopies++
-			}
-		}
-	}
+	u.RecoveryCopies, u.RecoveryPath = recoveryCopies(dir)
 	if !regular {
 		return u, report, true // no database yet, or not a file Runnir made
 	}
@@ -104,4 +94,43 @@ func Peek(dir string) (u Usage, report Report, ok bool) {
 		report.Note = "Its database could not be read now; it is checked when the workspace opens."
 	}
 	return u, report, true
+}
+
+// recoveryCopies counts the copies in a workspace directory's recovery
+// folder and returns the folder when it holds at least one.
+func recoveryCopies(dir string) (int, string) {
+	folder := filepath.Join(dir, recoveryDir)
+	entries, err := os.ReadDir(folder)
+	if err != nil {
+		return 0, ""
+	}
+	n := 0
+	for _, e := range entries {
+		if e.IsDir() {
+			n++
+		}
+	}
+	if n == 0 {
+		return 0, ""
+	}
+	return n, folder
+}
+
+// RecoveryPath is the recovery folder of the workspace directory dir when it
+// holds a copy, else "".
+func RecoveryPath(dir string) string {
+	if dir == "" {
+		return ""
+	}
+	_, folder := recoveryCopies(dir)
+	return folder
+}
+
+// DeleteRecoveryCopies removes the recovery folder of the workspace directory
+// dir. The database, its backups and migration copies are elsewhere and stay.
+func DeleteRecoveryCopies(dir string) error {
+	if dir == "" {
+		return nil
+	}
+	return os.RemoveAll(filepath.Join(dir, recoveryDir))
 }

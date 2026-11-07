@@ -379,6 +379,28 @@ func (m *Runtimes) clearCache(ctx context.Context, id string) error {
 	return clearErr
 }
 
+// DeleteRecoveryCopies removes the recovery copies of each workspace (all
+// when none are named), open or not, and returns their usage afterwards.
+// The open database is never among them.
+func (m *Runtimes) DeleteRecoveryCopies(ctx context.Context, requested []string) ([]Usage, error) {
+	ids, err := m.ids(requested)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		rt, release := m.claim(id)
+		err := store.DeleteRecoveryCopies(m.dir(id))
+		if err == nil && rt != nil {
+			rt.Store().ForgetRecovery()
+		}
+		release()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return m.Usage(ctx, ids)
+}
+
 // ClearRunIndex forgets the search index of each workspace (all when none are
 // named) and returns their usage afterwards.
 func (m *Runtimes) ClearRunIndex(ctx context.Context, requested []string) ([]Usage, error) {

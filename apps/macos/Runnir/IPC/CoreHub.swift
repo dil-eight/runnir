@@ -79,6 +79,23 @@ final class RepositorySession: Identifiable {
     fileprivate(set) var historyComplete = false
     /// What this Mac saved the workspace, as the Core counted it.
     fileprivate(set) var savings: [CoreSaving] = []
+    /// How the workspace's saved data stands, when the user should know.
+    fileprivate(set) var storageNotice: CoreStorageNotice?
+    /// The note of a recovery the user closed; the notice stays hidden in
+    /// every window of the workspace until the Core reports another.
+    fileprivate(set) var dismissedStorageNote: String?
+    /// The notice to show: memory only always, a recovery until closed.
+    var visibleStorageNotice: CoreStorageNotice? {
+        guard let storageNotice else { return nil }
+        if storageNotice.state == .persistent, storageNotice.note == dismissedStorageNote { return nil }
+        return storageNotice
+    }
+
+    /// Hides a recovery notice in every window; a memory-only one stays.
+    func dismissStorageNotice() {
+        guard let storageNotice, storageNotice.state == .persistent else { return }
+        dismissedStorageNote = storageNotice.note
+    }
     /// How many of the newest runs the session reads; grows as lists scroll.
     fileprivate(set) var activityLimit = CoreHub.activityPage
     /// The limit a search replaced to cover every saved run; nil outside a search.
@@ -450,6 +467,7 @@ final class CoreHub {
         session.cachedRuns = activity.cachedRuns
         session.historyComplete = activity.historyComplete
         session.savings = activity.savings
+        session.storageNotice = activity.storageNotice
         // Whether an owner has to accept the pull request permission decides
         // what the note asks for.
         if activity.freshness.pullRequestsAccess == .permissionMissing, previousPullRequests != .permissionMissing {
@@ -862,6 +880,18 @@ final class CoreHub {
     func clearCache(workspaceIDs: [UUID]) async -> Bool {
         guard isReady, let service = try? await provider.service() else { return false }
         return (try? await service.clearWorkspaceCache(workspaceIDs: workspaceIDs)) != nil
+    }
+
+    /// Deletes the recovery copies of damaged databases of the workspaces
+    /// (all when empty); the open sessions read their notice again.
+    @discardableResult
+    func deleteRecoveryCopies(workspaceIDs: [UUID]) async -> Bool {
+        guard isReady, let service = try? await provider.service(),
+              (try? await service.deleteRecoveryCopies(workspaceIDs: workspaceIDs)) != nil else { return false }
+        for session in sessions.values where workspaceIDs.isEmpty || workspaceIDs.contains(session.workspaceID) {
+            await readActivity(of: session)
+        }
+        return true
     }
 
     /// Forgets the search index of the workspaces (all when empty): the runs

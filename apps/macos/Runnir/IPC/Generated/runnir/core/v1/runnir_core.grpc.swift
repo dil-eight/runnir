@@ -208,6 +208,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "DeleteRecoveryCopies" metadata.
+        internal enum DeleteRecoveryCopies: Sendable {
+            /// Request type for "DeleteRecoveryCopies".
+            internal typealias Input = Runnir_Core_V1_DeleteRecoveryCopiesRequest
+            /// Response type for "DeleteRecoveryCopies".
+            internal typealias Output = Runnir_Core_V1_DeleteRecoveryCopiesResponse
+            /// Descriptor for "DeleteRecoveryCopies".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "DeleteRecoveryCopies",
+                type: .unary
+            )
+        }
         /// Namespace for "SetStoragePreferences" metadata.
         internal enum SetStoragePreferences: Sendable {
             /// Request type for "SetStoragePreferences".
@@ -809,6 +822,7 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             GetStorageUsage.descriptor,
             ClearWorkspaceCache.descriptor,
             DeleteWorkspaceData.descriptor,
+            DeleteRecoveryCopies.descriptor,
             SetStoragePreferences.descriptor,
             GetAnalytics.descriptor,
             SetAnalyticsLevel.descriptor,
@@ -1136,6 +1150,25 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_DeleteWorkspaceDataRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse>
+
+        /// Handle the "DeleteRecoveryCopies" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Removes the recovery copies of damaged databases kept in each
+        /// > workspace's folder, open or not. The database and its backups stay.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_DeleteRecoveryCopiesRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_DeleteRecoveryCopiesResponse` messages.
+        func deleteRecoveryCopies(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_DeleteRecoveryCopiesRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_DeleteRecoveryCopiesResponse>
 
         /// Handle the "SetStoragePreferences" method.
         ///
@@ -2254,6 +2287,25 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse>
 
+        /// Handle the "DeleteRecoveryCopies" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Removes the recovery copies of damaged databases kept in each
+        /// > workspace's folder, open or not. The database and its backups stay.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_DeleteRecoveryCopiesRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_DeleteRecoveryCopiesResponse` message.
+        func deleteRecoveryCopies(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_DeleteRecoveryCopiesRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_DeleteRecoveryCopiesResponse>
+
         /// Handle the "SetStoragePreferences" method.
         ///
         /// > Source IDL Documentation:
@@ -3369,6 +3421,25 @@ extension Runnir_Core_V1_RunnirCore {
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_DeleteWorkspaceDataResponse
 
+        /// Handle the "DeleteRecoveryCopies" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Removes the recovery copies of damaged databases kept in each
+        /// > workspace's folder, open or not. The database and its backups stay.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_DeleteRecoveryCopiesRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_DeleteRecoveryCopiesResponse` to respond with.
+        func deleteRecoveryCopies(
+            request: Runnir_Core_V1_DeleteRecoveryCopiesRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_DeleteRecoveryCopiesResponse
+
         /// Handle the "SetStoragePreferences" method.
         ///
         /// > Source IDL Documentation:
@@ -4382,6 +4453,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.DeleteRecoveryCopies.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_DeleteRecoveryCopiesRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_DeleteRecoveryCopiesResponse>(),
+            handler: { request, context in
+                try await self.deleteRecoveryCopies(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Runnir_Core_V1_RunnirCore.Method.SetStoragePreferences.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_SetStoragePreferencesRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_SetStoragePreferencesResponse>(),
@@ -5030,6 +5112,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse> {
         let response = try await self.deleteWorkspaceData(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func deleteRecoveryCopies(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_DeleteRecoveryCopiesRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_DeleteRecoveryCopiesResponse> {
+        let response = try await self.deleteRecoveryCopies(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -5710,6 +5803,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse>(
             message: try await self.deleteWorkspaceData(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func deleteRecoveryCopies(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_DeleteRecoveryCopiesRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_DeleteRecoveryCopiesResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_DeleteRecoveryCopiesResponse>(
+            message: try await self.deleteRecoveryCopies(
                 request: request.message,
                 context: context
             ),
@@ -6641,6 +6747,30 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_DeleteWorkspaceDataResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_DeleteWorkspaceDataResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "DeleteRecoveryCopies" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Removes the recovery copies of damaged databases kept in each
+        /// > workspace's folder, open or not. The database and its backups stay.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_DeleteRecoveryCopiesRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_DeleteRecoveryCopiesRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_DeleteRecoveryCopiesResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func deleteRecoveryCopies<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_DeleteRecoveryCopiesRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_DeleteRecoveryCopiesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_DeleteRecoveryCopiesResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_DeleteRecoveryCopiesResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "SetStoragePreferences" method.
@@ -8210,6 +8340,41 @@ extension Runnir_Core_V1_RunnirCore {
             try await self.client.unary(
                 request: request,
                 descriptor: Runnir_Core_V1_RunnirCore.Method.DeleteWorkspaceData.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "DeleteRecoveryCopies" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Removes the recovery copies of damaged databases kept in each
+        /// > workspace's folder, open or not. The database and its backups stay.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_DeleteRecoveryCopiesRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_DeleteRecoveryCopiesRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_DeleteRecoveryCopiesResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func deleteRecoveryCopies<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_DeleteRecoveryCopiesRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_DeleteRecoveryCopiesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_DeleteRecoveryCopiesResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_DeleteRecoveryCopiesResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.DeleteRecoveryCopies.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -10202,6 +10367,36 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
         )
     }
 
+    /// Call the "DeleteRecoveryCopies" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Removes the recovery copies of damaged databases kept in each
+    /// > workspace's folder, open or not. The database and its backups stay.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_DeleteRecoveryCopiesRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func deleteRecoveryCopies<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_DeleteRecoveryCopiesRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_DeleteRecoveryCopiesResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.deleteRecoveryCopies(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_DeleteRecoveryCopiesRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_DeleteRecoveryCopiesResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "SetStoragePreferences" method.
     ///
     /// > Source IDL Documentation:
@@ -12011,6 +12206,40 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.deleteWorkspaceData(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "DeleteRecoveryCopies" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Removes the recovery copies of damaged databases kept in each
+    /// > workspace's folder, open or not. The database and its backups stay.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func deleteRecoveryCopies<Result>(
+        _ message: Runnir_Core_V1_DeleteRecoveryCopiesRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_DeleteRecoveryCopiesResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_DeleteRecoveryCopiesRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.deleteRecoveryCopies(
             request: request,
             options: options,
             onResponse: handleResponse

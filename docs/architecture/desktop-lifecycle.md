@@ -72,7 +72,7 @@ Resolve Application Support with native APIs. The first implementation combines 
 }
 ```
 
-Single actor/queue serializes mutations; schema migration/validation checks types, duplicate IDs, missing associations, bounded frames and known navigation identifiers. Critical opened/closed/reassociated entries commit immediately; debounce geometry/navigation only. Do not use a single debounce for close events. Define last-known-good recovery and close tombstone ordering so restoring an older backup cannot resurrect durably closed windows. Corrupt JSON never crashes launch; do not overwrite recovery evidence silently.
+Single actor/queue serializes mutations; schema migration/validation checks types, duplicate IDs, missing associations, bounded frames and known navigation identifiers. Critical opened/closed/reassociated entries commit immediately; debounce geometry/navigation only. Do not use a single debounce for close events. Every save also writes `desktop-state.backup.json` with the same snapshot. When the main file exists but cannot be read, launch keeps it as `desktop-state-unreadable-<uuid>.json`, takes only the workspaces from the backup, never its windows (so no tombstones are needed and a closed window cannot come back), saves that and opens the Manager with a note; with no readable backup saving stays blocked until Back Up and Reset ([session recovery](../superpowers/specs/2026-11-06-session-recovery-design.md), built 2026-11-06). Corrupt JSON never crashes launch; do not overwrite recovery evidence silently.
 
 Use one authoritative workspace-restoration mechanism. Coordinate SwiftUI scenes/AppKit callbacks explicitly; validate actual API availability against the project's macOS 15 deployment target during implementation. Quit-triggered willClose notifications must not erase the snapshot. Repeated restore/Dock calls are idempotent. Persisted UI eligibility is separate from actual process liveness.
 
@@ -99,13 +99,13 @@ Swift owns native lifecycle/UI/Keychain; portable services remain Go-owned behin
 | ID | Scenario / required evidence |
 | --- | --- |
 | L01 | First launch: splash -> Manager -> import repo without .runnir -> workspace; no silent file writes |
-| L02 | Quit with A+B: both restore with correct IDs/selections, cached content before network |
-| L03 | Manually close A, quit with B: only B restores; close all then restart: Manager |
+| L02 | Quit with A+B: both restore with correct IDs/selections, cached content before network (two windows of one workspace restore with their ids in a UI test since 2026-11-06) |
+| L03 | Manually close A, quit with B: only B restores; close all then restart: Manager (UI test since 2026-11-06) |
 | L04 | Dock twice with zero windows: one Manager; Manager close leaves app running |
 | L05 | Reuse A's window for B: same windowId; failed destination keeps A usable |
-| L06 | New B window preserves A; same A twice has independent UI and one shared runtime/sync (the shared runtime and sync exist in the Core since 2026-10-22 and are covered by Core gRPC tests; not yet by UI automation) |
+| L06 | New B window preserves A; same A twice has independent UI and one shared runtime/sync (the shared runtime and sync exist in the Core since 2026-10-22 and are covered by Core gRPC tests; two windows of one workspace keeping their own section are covered by a UI test since 2026-11-06) |
 | L07 | Offline launch/missing repo/relink/invalid session: useful recovery, unrelated windows still open |
-| L08 | Crash immediately after committed manual close: window never resurrects; crash during navigation write preserves valid session |
+| L08 | Crash immediately after committed manual close: window never resurrects; crash during navigation write preserves valid session (the files a crash leaves at each step of a save, and a torn file, are covered by app unit tests since 2026-11-06; no real process kill yet) |
 | L09 | Missing monitor, minimize/fullscreen and quit-cancellation/unsaved changes respect native behavior |
 | L10 | Active execution on quit is stopped/cleaned up; next launch marks interrupted/unknown history and never restarts it |
 

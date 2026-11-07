@@ -201,8 +201,223 @@ struct DesktopStateTests {
     }
 }
 
+struct SessionRecoveryTests {
+    private func makeStore() -> (FileDesktopStateStore, URL) {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        return (FileDesktopStateStore(directory: directory), directory)
+    }
+
+    private func unreadableCopies(in directory: URL) -> [URL] {
+        ((try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.lastPathComponent.hasPrefix("desktop-state-unreadable-") }
+    }
+
+    private func snapshotWithWindows() -> DesktopSnapshot {
+        let workspace = WorkspaceRecord(id: UUID(), path: "/test/repo", name: "repo", bookmark: Data([1, 2]), lastOpenedAt: Date())
+        return DesktopSnapshot(workspaces: [workspace],
+                               windows: [WorkspaceWindowRecord(id: UUID(), workspaceID: workspace.id, section: .runs)])
+    }
+
+    @Test func aSaveWritesTheSameSnapshotToTheBackup() throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try store.save(snapshotWithWindows())
+        #expect(try Data(contentsOf: store.backupURL) == Data(contentsOf: store.stateURL))
+    }
+
+    @Test func anUnreadableSessionRecoversItsWorkspacesWithoutWindows() throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let saved = snapshotWithWindows()
+        try store.save(saved)
+        let corrupt = Data("not json".utf8)
+        try corrupt.write(to: store.stateURL)
+
+        let launch = try store.loadForLaunch()
+        #expect(launch.restoredFromBackup)
+        #expect(launch.snapshot.workspaces == saved.workspaces)
+        #expect(launch.snapshot.windows.isEmpty)
+        let kept = unreadableCopies(in: directory)
+        #expect(kept.count == 1)
+        #expect(try kept.first.map { try Data(contentsOf: $0) } == corrupt)
+        #expect(try store.load() == launch.snapshot)
+        #expect(try Data(contentsOf: store.backupURL) == Data(contentsOf: store.stateURL))
+    }
+
+    @Test func aSessionThatFailsValidationRecoversTheSameWay() throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let saved = snapshotWithWindows()
+        try store.save(saved)
+        let duplicated = DesktopSnapshot(workspaces: saved.workspaces + saved.workspaces)
+        try JSONEncoder().encode(duplicated).write(to: store.stateURL)
+
+        let launch = try store.loadForLaunch()
+        #expect(launch.restoredFromBackup)
+        #expect(launch.snapshot == DesktopSnapshot(workspaces: saved.workspaces))
+        #expect(unreadableCopies(in: directory).count == 1)
+    }
+
+    @Test func aMissingSessionStartsEmptyAndLeavesTheBackup() throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try store.save(snapshotWithWindows())
+        let backup = try Data(contentsOf: store.backupURL)
+        try FileManager.default.removeItem(at: store.stateURL)
+
+        let launch = try store.loadForLaunch()
+        #expect(!launch.restoredFromBackup)
+        #expect(launch.snapshot == DesktopSnapshot())
+        #expect(try Data(contentsOf: store.backupURL) == backup)
+    }
+
+    @Test func twoUnreadableFilesChangeNothing() throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try store.save(snapshotWithWindows())
+        let corrupt = Data("not json".utf8)
+        let corruptBackup = Data("{\"version\":1".utf8)
+        try corrupt.write(to: store.stateURL)
+        try corruptBackup.write(to: store.backupURL)
+
+        #expect(throws: (any Error).self) { try store.loadForLaunch() }
+        #expect(try Data(contentsOf: store.stateURL) == corrupt)
+        #expect(try Data(contentsOf: store.backupURL) == corruptBackup)
+        #expect(unreadableCopies(in: directory).isEmpty)
+    }
+
+    @Test func anUnreadableSessionWithoutABackupStaysBlocked() throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let corrupt = Data("not json".utf8)
+        try corrupt.write(to: store.stateURL)
+
+        #expect(throws: (any Error).self) { try store.loadForLaunch() }
+        #expect(try Data(contentsOf: store.stateURL) == corrupt)
+        #expect(!FileManager.default.fileExists(atPath: store.backupURL.path))
+    }
+
+    /// The files a save leaves when the process stops at each step of
+    /// `AtomicFile.write`, for the main file and then the backup: nothing
+    /// renamed yet (a temporary file, maybe cut short), the main file
+    /// renamed, the backup's temporary file, both renamed; and a power loss
+    /// that tore a renamed file the disk had not written.
+    private enum Crash: CaseIterable {
+        case beforeMainRename, afterMainRename, beforeBackupRename, afterBackupRename, tornMain, tornMainAndBackup
+    }
+
+    private func bytes(of snapshot: DesktopSnapshot) throws -> Data {
+        let (scratch, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try scratch.save(snapshot)
+        return try Data(contentsOf: scratch.stateURL)
+    }
+
+    private func leave(_ crash: Crash, new: Data, in store: FileDesktopStateStore) throws {
+        let half = new.prefix(new.count / 2)
+        func temporary(for url: URL) -> URL {
+            store.directory.appendingPathComponent(".\(url.lastPathComponent)-\(UUID().uuidString).tmp")
+        }
+        switch crash {
+        case .beforeMainRename:
+            try half.write(to: temporary(for: store.stateURL))
+        case .afterMainRename:
+            try new.write(to: store.stateURL)
+        case .beforeBackupRename:
+            try new.write(to: store.stateURL)
+            try half.write(to: temporary(for: store.backupURL))
+        case .afterBackupRename:
+            try new.write(to: store.stateURL)
+            try new.write(to: store.backupURL)
+        case .tornMain:
+            try half.write(to: store.stateURL)
+        case .tornMainAndBackup:
+            try half.write(to: store.stateURL)
+            try Data().write(to: store.backupURL)
+        }
+    }
+
+    @Test func aCrashAtAnyStepOfAManualCloseNeverBringsTheWindowBack() throws {
+        var before = snapshotWithWindows()
+        let other = WorkspaceWindowRecord(id: UUID(), workspaceID: before.workspaces[0].id, section: .workspace)
+        before.windows.append(other)
+        var after = before
+        let closed = before.windows[0].id
+        after.closeWindow(closed)
+        let new = try bytes(of: after)
+
+        for crash in Crash.allCases {
+            let (store, directory) = makeStore()
+            defer { try? FileManager.default.removeItem(at: directory) }
+            try store.save(before)
+            try leave(crash, new: new, in: store)
+
+            let launch = try? store.loadForLaunch()
+            switch crash {
+            case .beforeMainRename:
+                // The close was not committed, so its window was still open.
+                #expect(launch?.snapshot == before, "\(crash)")
+            case .afterMainRename, .beforeBackupRename, .afterBackupRename:
+                #expect(launch?.snapshot == after, "\(crash)")
+            case .tornMain:
+                #expect(launch?.restoredFromBackup == true, "\(crash)")
+                #expect(launch?.snapshot.windows.isEmpty == true, "\(crash)")
+            case .tornMainAndBackup:
+                #expect(launch == nil, "\(crash): both unreadable stays blocked")
+            }
+            #expect(launch?.snapshot.windows.contains { $0.id == closed } != true || crash == .beforeMainRename, "\(crash)")
+            #expect(launch?.snapshot.workspaces ?? before.workspaces == before.workspaces, "\(crash)")
+            // Nothing a crash left behind stays once the launch is done.
+            if launch != nil {
+                let leftovers = try FileManager.default.contentsOfDirectory(atPath: directory.path).filter { $0.hasSuffix(".tmp") }
+                #expect(leftovers.isEmpty, "\(crash): \(leftovers)")
+            }
+        }
+    }
+
+    @Test func aWindowClosedBeforeTheDamageNeverComesBack() throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var state = snapshotWithWindows()
+        let kept = WorkspaceWindowRecord(id: UUID(), workspaceID: state.workspaces[0].id)
+        state.windows.append(kept)
+        try store.save(state)
+        state.closeWindow(state.windows[0].id)
+        try store.save(state)
+        try Data("not json".utf8).write(to: store.stateURL)
+
+        let launch = try store.loadForLaunch()
+        #expect(launch.snapshot.windows.isEmpty)
+        #expect(try store.load().windows.isEmpty)
+    }
+}
+
 @MainActor
 struct DesktopCoordinatorTests {
+    @Test func anUnreadableSessionOpensWithItsWorkspacesAndSaysSo() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        try Data("not json".utf8).write(to: fixture.store.stateURL)
+        let coordinator = DesktopCoordinator(store: fixture.store)
+        await coordinator.loadSession()
+        #expect(!coordinator.persistenceBlocked)
+        #expect(coordinator.snapshot.workspaces == [fixture.original])
+        #expect(coordinator.snapshot.windows.isEmpty)
+        #expect(coordinator.message == DesktopCoordinator.restoredFromBackupMessage)
+    }
+
+    @Test func twoUnreadableFilesKeepTheSessionBlocked() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        try Data("not json".utf8).write(to: fixture.store.stateURL)
+        try Data("not json".utf8).write(to: fixture.store.backupURL)
+        let coordinator = DesktopCoordinator(store: fixture.store)
+        await coordinator.loadSession()
+        #expect(coordinator.persistenceBlocked)
+        #expect(coordinator.snapshot.workspaces.isEmpty)
+    }
+
     @Test func quittingBeforeLoadDoesNotOverwritePersistedSession() throws {
         let fixture = try CoordinatorFixture()
         defer { fixture.remove() }
@@ -287,6 +502,30 @@ struct DesktopCoordinatorTests {
         coordinator.removeRegistration(fixture.original)
         #expect(coordinator.snapshot.workspaces.isEmpty)
         #expect(await eventually { provider.core.deletedData == [fixture.original.id] })
+    }
+
+    @Test func aWindowWhoseMonitorIsGoneOpensOnTheFirstScreen() {
+        let main = NSRect(x: 0, y: 0, width: 1440, height: 875)
+        let external = NSRect(x: 1440, y: 0, width: 2560, height: 1415)
+        let saved = WindowGeometry(x: 2000, y: 300, width: 1600, height: 900)
+        // Both monitors: it stays where it was.
+        #expect(WorkspaceWindowController.restoredFrame(saved, screens: [main, external]) == NSRect(x: 2000, y: 300, width: 1600, height: 900))
+        // The external one unplugged: on the main screen, no larger than it.
+        let moved = WorkspaceWindowController.restoredFrame(saved, screens: [main])
+        #expect(main.contains(moved))
+        #expect(moved.size == NSSize(width: 1440, height: 875))
+    }
+
+    @Test func aRestoredWindowPicksTheScreenItOverlapsMostAndKeepsItsMinimumSize() {
+        let left = NSRect(x: -1920, y: 0, width: 1920, height: 1055)
+        let main = NSRect(x: 0, y: 0, width: 1440, height: 875)
+        let mostlyLeft = WindowGeometry(x: -1500, y: 100, width: 1200, height: 700)
+        #expect(WorkspaceWindowController.restoredFrame(mostlyLeft, screens: [main, left]) == NSRect(x: -1500, y: 100, width: 1200, height: 700))
+        let tiny = WindowGeometry(x: 1300, y: 800, width: 200, height: 150)
+        let grown = WorkspaceWindowController.restoredFrame(tiny, screens: [main])
+        #expect(grown.size == NSSize(width: 980, height: 640))
+        #expect(main.contains(grown))
+        #expect(WorkspaceWindowController.restoredFrame(tiny, screens: []).width == 980)
     }
 
     @Test func aNewWindowOpensDownAndRightOfTheOneInFront() {
