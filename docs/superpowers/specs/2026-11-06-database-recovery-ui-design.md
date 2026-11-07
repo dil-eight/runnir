@@ -1,6 +1,6 @@
 # Telling The User About A Recovered Database (B29)
 
-Status: design approved on 2026-11-06. Backlog: B29 (a recovery UI beyond the note in Settings › Storage; B26's open item) in the [MVP checklist](../../product/mvp-implementation-checklist.md), W05 in [workspace persistence](../../architecture/workspace-persistence.md).
+Status: design approved and built on 2026-11-06 on branch dilbarov/session-recovery; covered by Core and app tests, not yet seen in a running build. Backlog: B29 (a recovery UI beyond the note in Settings › Storage; B26's open item) in the [MVP checklist](../../product/mvp-implementation-checklist.md), W05 in [workspace persistence](../../architecture/workspace-persistence.md).
 
 ## Problem
 
