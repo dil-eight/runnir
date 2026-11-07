@@ -201,8 +201,145 @@ struct DesktopStateTests {
     }
 }
 
+struct SessionRecoveryTests {
+    private func makeStore() -> (FileDesktopStateStore, URL) {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        return (FileDesktopStateStore(directory: directory), directory)
+    }
+
+    private func unreadableCopies(in directory: URL) -> [URL] {
+        ((try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.lastPathComponent.hasPrefix("desktop-state-unreadable-") }
+    }
+
+    private func snapshotWithWindows() -> DesktopSnapshot {
+        let workspace = WorkspaceRecord(id: UUID(), path: "/test/repo", name: "repo", bookmark: Data([1, 2]), lastOpenedAt: Date())
+        return DesktopSnapshot(workspaces: [workspace],
+                               windows: [WorkspaceWindowRecord(id: UUID(), workspaceID: workspace.id, section: .runs)])
+    }
+
+    @Test func aSaveWritesTheSameSnapshotToTheBackup() throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try store.save(snapshotWithWindows())
+        #expect(try Data(contentsOf: store.backupURL) == Data(contentsOf: store.stateURL))
+    }
+
+    @Test func anUnreadableSessionRecoversItsWorkspacesWithoutWindows() throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let saved = snapshotWithWindows()
+        try store.save(saved)
+        let corrupt = Data("not json".utf8)
+        try corrupt.write(to: store.stateURL)
+
+        let launch = try store.loadForLaunch()
+        #expect(launch.restoredFromBackup)
+        #expect(launch.snapshot.workspaces == saved.workspaces)
+        #expect(launch.snapshot.windows.isEmpty)
+        let kept = unreadableCopies(in: directory)
+        #expect(kept.count == 1)
+        #expect(try kept.first.map { try Data(contentsOf: $0) } == corrupt)
+        #expect(try store.load() == launch.snapshot)
+        #expect(try Data(contentsOf: store.backupURL) == Data(contentsOf: store.stateURL))
+    }
+
+    @Test func aSessionThatFailsValidationRecoversTheSameWay() throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let saved = snapshotWithWindows()
+        try store.save(saved)
+        let duplicated = DesktopSnapshot(workspaces: saved.workspaces + saved.workspaces)
+        try JSONEncoder().encode(duplicated).write(to: store.stateURL)
+
+        let launch = try store.loadForLaunch()
+        #expect(launch.restoredFromBackup)
+        #expect(launch.snapshot == DesktopSnapshot(workspaces: saved.workspaces))
+        #expect(unreadableCopies(in: directory).count == 1)
+    }
+
+    @Test func aMissingSessionStartsEmptyAndLeavesTheBackup() throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try store.save(snapshotWithWindows())
+        let backup = try Data(contentsOf: store.backupURL)
+        try FileManager.default.removeItem(at: store.stateURL)
+
+        let launch = try store.loadForLaunch()
+        #expect(!launch.restoredFromBackup)
+        #expect(launch.snapshot == DesktopSnapshot())
+        #expect(try Data(contentsOf: store.backupURL) == backup)
+    }
+
+    @Test func twoUnreadableFilesChangeNothing() throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try store.save(snapshotWithWindows())
+        let corrupt = Data("not json".utf8)
+        let corruptBackup = Data("{\"version\":1".utf8)
+        try corrupt.write(to: store.stateURL)
+        try corruptBackup.write(to: store.backupURL)
+
+        #expect(throws: (any Error).self) { try store.loadForLaunch() }
+        #expect(try Data(contentsOf: store.stateURL) == corrupt)
+        #expect(try Data(contentsOf: store.backupURL) == corruptBackup)
+        #expect(unreadableCopies(in: directory).isEmpty)
+    }
+
+    @Test func anUnreadableSessionWithoutABackupStaysBlocked() throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let corrupt = Data("not json".utf8)
+        try corrupt.write(to: store.stateURL)
+
+        #expect(throws: (any Error).self) { try store.loadForLaunch() }
+        #expect(try Data(contentsOf: store.stateURL) == corrupt)
+        #expect(!FileManager.default.fileExists(atPath: store.backupURL.path))
+    }
+
+    @Test func aWindowClosedBeforeTheDamageNeverComesBack() throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var state = snapshotWithWindows()
+        let kept = WorkspaceWindowRecord(id: UUID(), workspaceID: state.workspaces[0].id)
+        state.windows.append(kept)
+        try store.save(state)
+        state.closeWindow(state.windows[0].id)
+        try store.save(state)
+        try Data("not json".utf8).write(to: store.stateURL)
+
+        let launch = try store.loadForLaunch()
+        #expect(launch.snapshot.windows.isEmpty)
+        #expect(try store.load().windows.isEmpty)
+    }
+}
+
 @MainActor
 struct DesktopCoordinatorTests {
+    @Test func anUnreadableSessionOpensWithItsWorkspacesAndSaysSo() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        try Data("not json".utf8).write(to: fixture.store.stateURL)
+        let coordinator = DesktopCoordinator(store: fixture.store)
+        await coordinator.loadSession()
+        #expect(!coordinator.persistenceBlocked)
+        #expect(coordinator.snapshot.workspaces == [fixture.original])
+        #expect(coordinator.snapshot.windows.isEmpty)
+        #expect(coordinator.message == DesktopCoordinator.restoredFromBackupMessage)
+    }
+
+    @Test func twoUnreadableFilesKeepTheSessionBlocked() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        try Data("not json".utf8).write(to: fixture.store.stateURL)
+        try Data("not json".utf8).write(to: fixture.store.backupURL)
+        let coordinator = DesktopCoordinator(store: fixture.store)
+        await coordinator.loadSession()
+        #expect(coordinator.persistenceBlocked)
+        #expect(coordinator.snapshot.workspaces.isEmpty)
+    }
+
     @Test func quittingBeforeLoadDoesNotOverwritePersistedSession() throws {
         let fixture = try CoordinatorFixture()
         defer { fixture.remove() }

@@ -221,9 +221,10 @@ final class DesktopCoordinator {
             let storage: any DesktopStateStoring
             if let store { storage = store } else { storage = try FileDesktopStateStore.live() }
             store = storage
-            let loaded = try await Task.detached { try storage.load() }.value
+            let loaded = try await Task.detached { try storage.loadForLaunch() }.value
             guard !Task.isCancelled, !terminationInProgress else { return }
-            snapshot = loaded
+            snapshot = loaded.snapshot
+            if loaded.restoredFromBackup { message = Self.restoredFromBackupMessage }
         } catch {
             guard !terminationInProgress else { return }
             persistenceBlocked = true
@@ -419,6 +420,7 @@ final class DesktopCoordinator {
         }
     }
 
+    static let restoredFromBackupMessage = "The saved session could not be read. Workspaces were restored from a backup; windows were not reopened."
     static let tooManyWindowsMessage = "Runnir keeps at most \(DesktopSnapshot.maxWindows) windows open. Close a window to open another."
 
     func openRegistered(_ workspace: WorkspaceRecord, reuseWindowID: UUID? = nil) {
@@ -827,10 +829,7 @@ final class DesktopCoordinator {
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         do {
-            if FileManager.default.fileExists(atPath: fileStore.stateURL.path) {
-                try FileManager.default.copyItem(at: fileStore.stateURL,
-                    to: fileStore.directory.appendingPathComponent("desktop-state-unreadable-\(UUID().uuidString).json"))
-            }
+            try fileStore.preserveUnreadable()
             try fileStore.save(DesktopSnapshot())
             snapshot = DesktopSnapshot()
             persistenceBlocked = false
