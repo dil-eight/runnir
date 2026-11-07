@@ -10,12 +10,12 @@ When a workspace's `state.sqlite` is damaged, made by an earlier build or cannot
 
 | Question | Decision |
 | --- | --- |
-| What a window learns | `WorkspaceActivity.storage_notice`: the store's state (persistent or memory only), the store's note (what recovery did, or why it is in memory) and the recovery folder's path when it holds a copy. Absent for a persistent store without a note, so the usual case adds nothing |
+| What a window learns | `WorkspaceActivity.storage_notice`: the store's state (persistent or memory only), the store's note (what recovery did, or why it is in memory) and the recovery folder's path when it holds a copy. Only for a store in memory or one that was recovered when it opened (set aside as damaged or from an earlier build, or missing or empty with local runs restored from the backup): another note, such as a backup that could not be written, stays in Settings › Storage. Absent in the usual case |
 | Where it shows | A banner in every window of the workspace, above the content and under the Core banner, like the analytics question |
 | Recovered (persistent with a note) | "Saved data of this workspace was recovered." with the Core's note under it, Show in Finder when there is a recovery folder, and a close button. Closing it hides it in every window of the workspace until the Core reports another note |
 | Memory only | "Runnir cannot save this workspace's data." with the Core's note and "Runs, logs and local run history shown here are lost when Runnir quits." No close button: it stays while the store is in memory |
 | Settings › Storage | A workspace with recovery copies gets Show in Finder (the recovery folder) and Delete Recovery Copies… with a confirmation; the summary keeps "N recovery copies" |
-| Deleting copies | A new RPC `DeleteRecoveryCopies(workspace_ids)` removes each workspace's `recovery` folder and returns the storage of each, like `ClearWorkspaceCache`. Allowed while the workspace is open: the open database never lives in `recovery`. Backups and migration copies are not touched |
+| Deleting copies | A new RPC `DeleteRecoveryCopies(workspace_ids)` removes each workspace's `recovery` folder and returns the storage of each, like `ClearWorkspaceCache`; an open workspace then stops announcing its recovery, so the banner goes away. Allowed while the workspace is open: the open database never lives in `recovery`. Backups and migration copies are not touched |
 | Who knows the folder | The Core: `WorkspaceStorage.recovery_path` and `StorageNotice.recovery_path`, set only when the folder holds a copy. The app never builds the path itself |
 | Not done | Restoring a copy, opening a copy, recovery of the search index or the analytics ledger, a Pen frame (the banner reuses the analytics question's layout) |
 

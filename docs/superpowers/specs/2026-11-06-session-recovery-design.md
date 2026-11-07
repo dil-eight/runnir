@@ -13,7 +13,7 @@ The lifecycle contract asks for last-known-good recovery that never brings back 
 | Question | Decision |
 | --- | --- |
 | Where the backup is | `desktop-state.backup.json` beside `desktop-state.json` in Runnir's support folder, 0600 like it |
-| What it holds | The same snapshot as the main file. Every save writes the main file and then the backup, each atomically; a crash between the two leaves the main file one save newer, and the main file is read first |
+| What it holds | The same snapshot as the main file. Every save writes the main file and then the backup, each atomically; a crash between the two, or a backup write that fails, leaves the backup one save behind, and the main file is read first. A failed backup write does not fail the save: the main file holds the session, and recovery takes no windows from the backup anyway |
 | When it is used | Only when the main file exists and cannot be read or fails validation (not JSON, too large, an unknown version, duplicate ids, a window without its workspace, invalid geometry) |
 | What comes back | The workspaces of the backup only. Windows are never restored from it, so a window closed by hand cannot come back, and no tombstones are needed |
 | The unreadable file | Kept beside it as `desktop-state-unreadable-<uuid>.json`, as Back Up and Reset keeps it today |
