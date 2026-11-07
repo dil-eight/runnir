@@ -105,7 +105,7 @@ Swift owns native lifecycle/UI/Keychain; portable services remain Go-owned behin
 | L05 | Reuse A's window for B: same windowId; failed destination keeps A usable |
 | L06 | New B window preserves A; same A twice has independent UI and one shared runtime/sync (the shared runtime and sync exist in the Core since 2026-10-22 and are covered by Core gRPC tests; not yet by UI automation) |
 | L07 | Offline launch/missing repo/relink/invalid session: useful recovery, unrelated windows still open |
-| L08 | Crash immediately after committed manual close: window never resurrects; crash during navigation write preserves valid session |
+| L08 | Crash immediately after committed manual close: window never resurrects; crash during navigation write preserves valid session (the files a crash leaves at each step of a save, and a torn file, are covered by app unit tests since 2026-11-06; no real process kill yet) |
 | L09 | Missing monitor, minimize/fullscreen and quit-cancellation/unsaved changes respect native behavior |
 | L10 | Active execution on quit is stopped/cleaned up; next launch marks interrupted/unknown history and never restarts it |
 
