@@ -414,9 +414,9 @@ func TestARecoveredDatabaseIsAnnouncedAndItsCopiesDeleted(t *testing.T) {
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("database: %v", err)
 	}
-	// The note stays while the store is open; only the folder is gone.
+	// With its copies gone the recovery is no longer announced.
 	after, _ := client.GetWorkspaceActivity(ctx, &corev1.GetWorkspaceActivityRequest{RepositoryId: reopened.Repository.Id})
-	if after.GetStorageNotice().GetNote() == "" || after.GetStorageNotice().GetRecoveryPath() != "" {
+	if after.StorageNotice != nil {
 		t.Fatalf("after = %v", after.GetStorageNotice())
 	}
 	if _, err := client.DeleteRecoveryCopies(ctx, &corev1.DeleteRecoveryCopiesRequest{WorkspaceIds: []string{"not-a-uuid"}}); status.Code(err) != codes.InvalidArgument {

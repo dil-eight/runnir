@@ -388,8 +388,11 @@ func (m *Runtimes) DeleteRecoveryCopies(ctx context.Context, requested []string)
 		return nil, err
 	}
 	for _, id := range ids {
-		_, release := m.claim(id)
+		rt, release := m.claim(id)
 		err := store.DeleteRecoveryCopies(m.dir(id))
+		if err == nil && rt != nil {
+			rt.Store().ForgetRecovery()
+		}
 		release()
 		if err != nil {
 			return nil, err

@@ -163,14 +163,14 @@ func storageMessages(usage []workspace.Usage) []*corev1.WorkspaceStorage {
 }
 
 // storageNotice says how a workspace's saved data stands when the user
-// should know: kept in memory, or recovered when it was opened. nil for a
-// database opened as it was.
+// should know: kept in memory, or recovered when it was opened (until its
+// copies are deleted). nil otherwise; other notes stay in Settings › Storage.
 func storageNotice(st *store.Store) *corev1.StorageNotice {
 	report := st.Report()
 	switch {
 	case report.State == store.MemoryOnly:
 		return &corev1.StorageNotice{State: corev1.StorageState_STORAGE_STATE_MEMORY_ONLY, Note: report.Note}
-	case report.Note != "":
+	case report.Recovered:
 		return &corev1.StorageNotice{State: corev1.StorageState_STORAGE_STATE_PERSISTENT, Note: report.Note,
 			RecoveryPath: store.RecoveryPath(st.Dir())}
 	default:

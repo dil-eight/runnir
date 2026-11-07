@@ -349,3 +349,32 @@ func TestAnEmptyRecoveryFolderHasNoPath(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestOnlyARealRecoveryIsReported(t *testing.T) {
+	dir := t.TempDir()
+	s := openTest(t, dir)
+	if r := s.Report(); r.Recovered {
+		t.Fatalf("a new workspace = %+v", r)
+	}
+	record(t, s, "exec_1", LocalSucceeded)
+	_ = s.Close()
+	reopened := openTest(t, dir)
+	if r := reopened.Report(); r.Recovered || r.Note != "" {
+		t.Fatalf("reopened as it was = %+v", r)
+	}
+	_ = reopened.Close()
+
+	// The database gone, its local runs come back from the backup.
+	for _, name := range []string{"state.sqlite", "state.sqlite-wal", "state.sqlite-shm"} {
+		_ = os.Remove(filepath.Join(dir, name))
+	}
+	again := openTest(t, dir)
+	r := again.Report()
+	if !r.Recovered || !strings.Contains(r.Note, "missing") {
+		t.Fatalf("missing = %+v", r)
+	}
+	again.ForgetRecovery()
+	if r := again.Report(); r.Recovered || r.Note != "" {
+		t.Fatalf("after forgetting = %+v", r)
+	}
+}
