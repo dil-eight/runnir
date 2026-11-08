@@ -105,8 +105,33 @@ func TestLicensesPrintsRunnirsLicenseAndTheNotices(t *testing.T) {
 
 func TestUnknownCommand(t *testing.T) {
 	var out, diagnostics bytes.Buffer
-	if run([]string{"mcp"}, strings.NewReader(""), &out, &diagnostics) != 2 || out.Len() != 0 {
-		t.Fatal("unimplemented command accepted")
+	if run([]string{"bogus"}, strings.NewReader(""), &out, &diagnostics) != 2 || out.Len() != 0 {
+		t.Fatal("unknown command accepted")
+	}
+}
+
+func TestMcpUsage(t *testing.T) {
+	for _, args := range [][]string{{"mcp"}, {"mcp", "--data-dir"}, {"mcp", "--data-dir", "relative"}, {"mcp", "--data-dir", "/tmp/x", "extra"}} {
+		var out, diagnostics bytes.Buffer
+		if code := run(args, strings.NewReader(""), &out, &diagnostics); code != 2 || out.Len() != 0 {
+			t.Fatalf("%v: code=%d out=%q", args, code, out.String())
+		}
+	}
+}
+
+func TestMcpWithoutRunnirAnswersTheProtocolAndSaysSo(t *testing.T) {
+	var out, diagnostics bytes.Buffer
+	input := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"runnir_list_value_sets","arguments":{"repository":"/r"}}}`,
+	}, "\n") + "\n"
+	if code := run([]string{"mcp", "--data-dir", t.TempDir()}, strings.NewReader(input), &out, &diagnostics); code != 0 {
+		t.Fatalf("code=%d %q", code, diagnostics.String())
+	}
+	text := out.String()
+	if !strings.Contains(text, `"runnir_set_values"`) || !strings.Contains(text, "Runnir is not running") || !strings.Contains(text, `"isError":true`) {
+		t.Fatalf("out = %s", text)
 	}
 }
 

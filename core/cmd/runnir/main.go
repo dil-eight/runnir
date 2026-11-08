@@ -18,6 +18,7 @@ import (
 	"runnir/core/internal/buildinfo"
 	"runnir/core/internal/ipc"
 	"runnir/core/internal/licenses"
+	"runnir/core/internal/mcp"
 	"runnir/core/internal/server"
 )
 
@@ -27,8 +28,11 @@ func run(args []string, input io.Reader, output, diagnostics io.Writer) int {
 	if len(args) > 0 && args[0] == "serve" {
 		return serve(args[1:], input, diagnostics)
 	}
+	if len(args) > 0 && args[0] == "mcp" {
+		return serveMcp(args[1:], input, output, diagnostics)
+	}
 	if len(args) != 1 {
-		fmt.Fprintln(diagnostics, "usage: runnir version | licenses | rpc | serve --socket PATH [--data-dir PATH] [--cache-dir PATH]")
+		fmt.Fprintln(diagnostics, usage)
 		return 2
 	}
 	var err error
@@ -41,12 +45,36 @@ func run(args []string, input io.Reader, output, diagnostics io.Writer) int {
 	case "rpc":
 		err = ipc.Serve(input, output, handle)
 	default:
-		fmt.Fprintln(diagnostics, "unknown command; usage: runnir version | licenses | rpc | serve --socket PATH [--data-dir PATH] [--cache-dir PATH]")
+		fmt.Fprintln(diagnostics, "unknown command; "+usage)
 		return 2
 	}
 	if err != nil {
 		// Diagnostics never echo request bodies or credentials.
 		fmt.Fprintln(diagnostics, "runnir: command failed")
+		return 1
+	}
+	return 0
+}
+
+const usage = "usage: runnir version | licenses | rpc | serve --socket PATH [--data-dir PATH] [--cache-dir PATH] | mcp --data-dir PATH"
+
+// serveMcp serves Runnir's MCP tools over stdin and stdout for an MCP
+// client (Claude Code, Codex). --data-dir is the folder of the Runnir app
+// whose Core answers, as Settings › MCP shows it; the Core listens on
+// mcp.sock there while the app runs.
+func serveMcp(args []string, input io.Reader, output, diagnostics io.Writer) int {
+	flags := flag.NewFlagSet("mcp", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	dataDir := flags.String("data-dir", "", "the Runnir app's support folder")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || *dataDir == "" || !filepath.IsAbs(*dataDir) {
+		fmt.Fprintln(diagnostics, "usage: runnir mcp --data-dir PATH")
+		return 2
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	bridge := mcp.DialBridge(filepath.Join(*dataDir, server.McpSocketName))
+	if err := mcp.Serve(ctx, input, output, bridge); err != nil {
+		fmt.Fprintln(diagnostics, "runnir: mcp input failed")
 		return 1
 	}
 	return 0

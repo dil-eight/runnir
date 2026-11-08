@@ -1,7 +1,7 @@
 {
   "name": "runnir-core-mcp",
   "catalogVersion": 1,
-  "status": "design-only-not-an-MCP-server",
+  "status": "partly-implemented: runnir_list_value_sets and runnir_set_values are served by `runnir-core mcp`; the other tools are planned",
   "transport": "local-stdio",
   "privacy": {
     "defaultRuntime": "local",
@@ -178,7 +178,7 @@
     {
       "name": "runnir_list_value_sets",
       "description": "List a workspace's value sets for local runs (the Repository and its environments) with the secret and variable names each set's jobs read and whether each is saved, taken from the Repository or missing. Variable values may be returned; secret values never.",
-      "status": "planned",
+      "status": "implemented",
       "readOnly": true,
       "requiresConfirmation": false,
       "inputSchema": {
@@ -186,7 +186,8 @@
         "properties": {
           "repository": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "A workspace registered in Runnir: its folder's absolute path (an agent's working directory) or its name"
           }
         },
         "required": [
@@ -198,7 +199,7 @@
     {
       "name": "runnir_set_values",
       "description": "Save secrets and variables into one value set of a workspace (the Repository or an environment) for local runs, after the user confirms the change in Runnir. Secret values pass through the MCP client and the model's context; Runnir never returns them.",
-      "status": "planned",
+      "status": "implemented",
       "readOnly": false,
       "requiresConfirmation": true,
       "inputSchema": {
@@ -206,7 +207,8 @@
         "properties": {
           "repository": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "A workspace registered in Runnir: its folder's absolute path (an agent's working directory) or its name"
           },
           "set": {
             "type": "string",
@@ -259,5 +261,5 @@
     "runnir_dispatch_workflow",
     "runnir_prepare_deployment"
   ],
-  "approvalAuthority": "Runnir outside the model and MCP client; no mutation tools implemented"
+  "approvalAuthority": "Runnir outside the model and MCP client: runnir_set_values writes only after Save in Runnir"
 }
