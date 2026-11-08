@@ -38,6 +38,9 @@ final class DesktopCoordinator {
         var locate: UUID?
     }
     private(set) var notice: Notice?
+    /// A change an MCP client asks for, waiting for Save in a workspace window.
+    var mcpPrompt: McpValuesPrompt?
+    @ObservationIgnored private var mcpHandler: McpRequestHandler?
     /// The notice's text. Setting it replaces the notice, Locate included.
     var message: String? {
         get { notice?.text }
@@ -235,6 +238,12 @@ final class DesktopCoordinator {
 
     func start() {
         guard bootTask == nil else { return }
+        // MCP clients reach this app's Core; their calls are answered here.
+        let handler = McpRequestHandler(desktop: self)
+        mcpHandler = handler
+        core?.mcpRequestHandler = { [weak handler] request in
+            await handler?.answer(request) ?? .refusal("Runnir is closing.")
+        }
         splash = makeWindow(size: NSSize(width: 480, height: 280), title: "Runnir", borderless: true)
         splash?.contentViewController = NSHostingController(rootView: StartupSplashView())
         splash?.makeKeyAndOrderFront(nil)
@@ -1158,5 +1167,48 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
     private func quitCancelled() -> NSApplication.TerminateReply {
         desktop.updates?.quitCancelled()
         return .terminateCancel
+    }
+}
+
+// MARK: MCP
+
+extension DesktopCoordinator: McpDesktop {
+    var mcpWorkspaces: [WorkspaceRecord] { snapshot.workspaces }
+
+    func mcpContext(for workspace: WorkspaceRecord, front: Bool) async -> Result<McpWorkspaceContext, McpRefusal> {
+        guard let core else { return .failure(McpRefusal("Runnir Core is not running.")) }
+        guard !isLoading else { return .failure(McpRefusal("Runnir is still starting. Try again in a moment.")) }
+        if openCount(workspace.id) == 0 {
+            openRegistered(workspace)
+            guard openCount(workspace.id) > 0 else {
+                return .failure(McpRefusal("Runnir could not open \(workspace.name): its folder needs access again. Choose Locate in Runnir, then try again."))
+            }
+        }
+        guard let windowID = windows.first(where: { $0.value.record.workspaceID == workspace.id })?.key else {
+            return .failure(McpRefusal("Runnir could not open \(workspace.name)."))
+        }
+        if front {
+            NSApp.activate()
+            windows[windowID]?.window?.makeKeyAndOrderFront(nil)
+        }
+        // The Core reads the workflows once the window attached the workspace.
+        for _ in 0..<300 {
+            if let session = core.session(for: workspace.id) {
+                switch session.phase {
+                case .ready:
+                    return .success(McpWorkspaceContext(windowID: windowID, workflows: session.workflows))
+                case .failed(let reason):
+                    return .failure(McpRefusal("Runnir could not read \(workspace.name): \(reason)"))
+                default:
+                    break
+                }
+            }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        return .failure(McpRefusal("Runnir did not finish reading \(workspace.name) in time. Try again."))
+    }
+
+    func mcpEnvironments(for workspaceID: UUID) async -> [String]? {
+        await core?.environments(workspaceID: workspaceID)
     }
 }
