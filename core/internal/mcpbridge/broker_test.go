@@ -202,3 +202,19 @@ func TestAWrongKindOfAnswerIsARefusal(t *testing.T) {
 		t.Fatal("no error")
 	}
 }
+
+func TestClosingEndsTheSubscription(t *testing.T) {
+	b := NewBroker(time.Minute, nil)
+	requests, _ := b.Subscribe(context.Background())
+	b.Close()
+	if _, ok := <-requests; ok {
+		t.Fatal("still open")
+	}
+	later, _ := b.Subscribe(context.Background())
+	if _, ok := <-later; ok {
+		t.Fatal("a later subscription is open")
+	}
+	if _, err := b.List(context.Background(), "c", "/r"); !errors.Is(err, ErrNoApp) {
+		t.Fatalf("err = %v", err)
+	}
+}

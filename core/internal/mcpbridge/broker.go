@@ -45,6 +45,7 @@ type Broker struct {
 	subscriber chan *corev1.McpRequest
 	generation uint64
 	waiting    map[string]*pending
+	closed     bool
 }
 
 // NewBroker waits wait (DefaultWait when 0) for each answer and writes one
@@ -65,7 +66,11 @@ func (b *Broker) Subscribe(ctx context.Context) (<-chan *corev1.McpRequest, func
 	b.generation++
 	generation := b.generation
 	channel := make(chan *corev1.McpRequest, 16)
-	b.subscriber = channel
+	if b.closed {
+		close(channel)
+	} else {
+		b.subscriber = channel
+	}
 	b.mu.Unlock()
 	var once sync.Once
 	stop := func() {
@@ -91,6 +96,15 @@ func (b *Broker) dropSubscriberLocked() {
 		delete(b.waiting, id)
 		p.done <- result{err: ErrNoApp}
 	}
+}
+
+// Close ends the subscription, fails the calls still waiting and makes
+// every later subscription end at once: the Core is shutting down.
+func (b *Broker) Close() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.closed = true
+	b.dropSubscriberLocked()
 }
 
 // Answer delivers the app's answer to the call waiting with its id.
