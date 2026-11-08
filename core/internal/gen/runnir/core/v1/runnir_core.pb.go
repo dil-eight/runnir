@@ -1811,6 +1811,7 @@ const (
 	UsageEvent_USAGE_EVENT_ASYNC_NOTIFICATIONS_DELIVERED    UsageEvent = 50
 	UsageEvent_USAGE_EVENT_ASYNC_APP_CORE_RESTARTED         UsageEvent = 51
 	UsageEvent_USAGE_EVENT_OVERLAY_SETTINGS_ABOUT           UsageEvent = 52
+	UsageEvent_USAGE_EVENT_OVERLAY_SETTINGS_MCP             UsageEvent = 53
 )
 
 // Enum value maps for UsageEvent.
@@ -1869,6 +1870,7 @@ var (
 		50: "USAGE_EVENT_ASYNC_NOTIFICATIONS_DELIVERED",
 		51: "USAGE_EVENT_ASYNC_APP_CORE_RESTARTED",
 		52: "USAGE_EVENT_OVERLAY_SETTINGS_ABOUT",
+		53: "USAGE_EVENT_OVERLAY_SETTINGS_MCP",
 	}
 	UsageEvent_value = map[string]int32{
 		"USAGE_EVENT_UNSPECIFIED":                      0,
@@ -1924,6 +1926,7 @@ var (
 		"USAGE_EVENT_ASYNC_NOTIFICATIONS_DELIVERED":    50,
 		"USAGE_EVENT_ASYNC_APP_CORE_RESTARTED":         51,
 		"USAGE_EVENT_OVERLAY_SETTINGS_ABOUT":           52,
+		"USAGE_EVENT_OVERLAY_SETTINGS_MCP":             53,
 	}
 )
 
@@ -15924,7 +15927,7 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x1bANALYTICS_LEVEL_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13ANALYTICS_LEVEL_OFF\x10\x01\x12\x19\n" +
 	"\x15ANALYTICS_LEVEL_BASIC\x10\x02\x12\x18\n" +
-	"\x14ANALYTICS_LEVEL_FULL\x10\x03*\x80\x11\n" +
+	"\x14ANALYTICS_LEVEL_FULL\x10\x03*\xa6\x11\n" +
 	"\n" +
 	"UsageEvent\x12\x1b\n" +
 	"\x17USAGE_EVENT_UNSPECIFIED\x10\x00\x12$\n" +
@@ -15980,7 +15983,8 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"'USAGE_EVENT_ASYNC_GITHUB_TOKEN_REJECTED\x101\x12-\n" +
 	")USAGE_EVENT_ASYNC_NOTIFICATIONS_DELIVERED\x102\x12(\n" +
 	"$USAGE_EVENT_ASYNC_APP_CORE_RESTARTED\x103\x12&\n" +
-	"\"USAGE_EVENT_OVERLAY_SETTINGS_ABOUT\x1042\xd81\n" +
+	"\"USAGE_EVENT_OVERLAY_SETTINGS_ABOUT\x104\x12$\n" +
+	" USAGE_EVENT_OVERLAY_SETTINGS_MCP\x1052\xd81\n" +
 	"\n" +
 	"RunnirCore\x12V\n" +
 	"\vHealthCheck\x12\".runnir.core.v1.HealthCheckRequest\x1a#.runnir.core.v1.HealthCheckResponse\x12[\n" +

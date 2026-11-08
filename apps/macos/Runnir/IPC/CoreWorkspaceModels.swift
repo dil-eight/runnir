@@ -457,4 +457,5 @@ enum UsageEvent: Int, CaseIterable, Sendable {
          asyncNotificationsDelivered,
          asyncAppCoreRestarted
     case overlaySettingsAbout = 52
+    case overlaySettingsMcp = 53
 }

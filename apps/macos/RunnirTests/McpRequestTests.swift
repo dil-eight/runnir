@@ -209,3 +209,28 @@ private final class FakeMcpDesktop: McpDesktop {
         return nil
     }
 }
+
+@Suite struct McpSettingsTests {
+    @Test func theClaudeCommandQuotesPathsForTheShell() {
+        let command = McpSettings.claudeCommand(name: "runnir", helper: "/Applications/Runnir.app/Contents/Helpers/runnir-core",
+                                                dataDir: "/Users/me/Library/Application Support/Runnir")
+        #expect(command == "claude mcp add runnir -- '/Applications/Runnir.app/Contents/Helpers/runnir-core' mcp --data-dir '/Users/me/Library/Application Support/Runnir'")
+        #expect(McpSettings.shellQuoted("it's") == "'it'\\''s'")
+    }
+
+    @Test func theCodexBlockWaitsLongEnoughForAConfirmation() {
+        let block = McpSettings.codexBlock(name: "runnir-dev", helper: "/A \"B\"/runnir-core", dataDir: "/Users/me/Library/Application Support/Runnir Dev")
+        #expect(block.contains("[mcp_servers.runnir-dev]"))
+        #expect(block.contains(#"command = "/A \"B\"/runnir-core""#))
+        #expect(block.contains(#"args = ["mcp", "--data-dir", "/Users/me/Library/Application Support/Runnir Dev"]"#))
+        #expect(block.contains("tool_timeout_sec = 300"))
+    }
+
+    @Test func eachBuildHasItsOwnServerName() {
+        #expect(Set(RunnirBuild.allCases.map(McpSettings.serverName(for:))) == ["runnir", "runnir-dev", "runnir-local"])
+    }
+
+    @Test func theSettingIsFoundBySearch() {
+        #expect(SettingsIndex.items.contains { $0.section == .mcp && $0.keywords.contains("codex") })
+    }
+}
