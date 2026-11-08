@@ -26,7 +26,7 @@ type tool struct {
 
 const repositorySchema = `{"type":"string","minLength":1,"description":"A workspace registered in Runnir: its folder's absolute path (an agent's working directory) or its name"}`
 
-const valuesSchema = `{"type":"object","propertyNames":{"type":"string","pattern":"^(?![Gg][Ii][Tt][Hh][Uu][Bb]_)[A-Za-z_][A-Za-z0-9_]*$","maxLength":255},"additionalProperties":{"type":"string","minLength":1,"maxLength":49152},"maxProperties":100}`
+const valuesSchema = `{"type":"object","propertyNames":{"type":"string","pattern":"^(?![Gg][Ii][Tt][Hh][Uu][Bb]_(?![Tt][Oo][Kk][Ee][Nn]$))[A-Za-z_][A-Za-z0-9_]*$","maxLength":255},"additionalProperties":{"type":"string","minLength":1,"maxLength":49152},"maxProperties":100}`
 
 var tools = []tool{
 	{

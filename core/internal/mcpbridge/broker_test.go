@@ -113,7 +113,7 @@ func TestACheckFailsBeforeTheAppIsAsked(t *testing.T) {
 	asked := false
 	defer app(t, b, func(*corev1.McpRequest) *corev1.AnswerMcpRequestRequest { asked = true; return nil })()
 	request := setRequest()
-	request.Secrets = values("GITHUB_TOKEN", "x")
+	request.Secrets = values("GITHUB_SHA", "x")
 	if _, err := b.Set(context.Background(), request); err == nil {
 		t.Fatal("no refusal")
 	}

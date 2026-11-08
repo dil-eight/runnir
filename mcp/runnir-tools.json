@@ -219,7 +219,7 @@
             "type": "object",
             "propertyNames": {
               "type": "string",
-              "pattern": "^(?![Gg][Ii][Tt][Hh][Uu][Bb]_)[A-Za-z_][A-Za-z0-9_]*$",
+              "pattern": "^(?![Gg][Ii][Tt][Hh][Uu][Bb]_(?![Tt][Oo][Kk][Ee][Nn]$))[A-Za-z_][A-Za-z0-9_]*$",
               "maxLength": 255
             },
             "additionalProperties": {
@@ -233,7 +233,7 @@
             "type": "object",
             "propertyNames": {
               "type": "string",
-              "pattern": "^(?![Gg][Ii][Tt][Hh][Uu][Bb]_)[A-Za-z_][A-Za-z0-9_]*$",
+              "pattern": "^(?![Gg][Ii][Tt][Hh][Uu][Bb]_(?![Tt][Oo][Kk][Ee][Nn]$))[A-Za-z_][A-Za-z0-9_]*$",
               "maxLength": 255
             },
             "additionalProperties": {

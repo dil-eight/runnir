@@ -93,7 +93,7 @@ func TestMcpCallsReachTheAppAndItsAnswersComeBack(t *testing.T) {
 		t.Fatalf("refusal = %v", err)
 	}
 	_, err = bridge.SetValues(ctx, &corev1.McpBridgeSetValuesRequest{Repository: "/r", Set: "production",
-		Secrets: []*corev1.McpValue{{Name: "GITHUB_TOKEN", Value: "x"}}})
+		Secrets: []*corev1.McpValue{{Name: "GITHUB_SHA", Value: "x"}}})
 	if status.Code(err) != codes.FailedPrecondition || !strings.Contains(status.Convert(err).Message(), "GITHUB_") {
 		t.Fatalf("check = %v", err)
 	}

@@ -283,7 +283,7 @@ func TestInvalidArgumentsAreToolErrors(t *testing.T) {
 	answers, raw := exchange(t, bridge, initialize,
 		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"runnir_list_value_sets","arguments":{}}}`,
 		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"runnir_list_value_sets","arguments":{"repository":"/r","extra":1}}}`,
-		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"runnir_set_values","arguments":{"repository":"/r","set":"Repository","secrets":{"GITHUB_TOKEN":"s3cr3t-VALUE"}}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"runnir_set_values","arguments":{"repository":"/r","set":"Repository","secrets":{"GITHUB_SHA":"s3cr3t-VALUE"}}}}`,
 		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"runnir_set_values","arguments":{"repository":"/r","set":"Repository","secrets":{"A":5}}}}`,
 		`{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"runnir_set_values","arguments":{"repository":"/r","set":"Repository"}}}`)
 	for _, id := range []string{"2", "3", "4", "5", "6"} {

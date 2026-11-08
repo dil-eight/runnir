@@ -76,7 +76,8 @@ func checkValue(v *corev1.McpValue, kind string, seen map[string]bool) error {
 }
 
 // checkName takes the names GitHub takes: letters, digits and underscores,
-// not starting with a digit or GITHUB_.
+// not starting with a digit or GITHUB_. GITHUB_TOKEN is the exception: a
+// local run has no token of its own, so a set may give it one.
 func checkName(name string) error {
 	quoted := name
 	if len(quoted) > 64 {
@@ -87,7 +88,7 @@ func checkName(name string) error {
 		return Refusal("A name is empty.")
 	case len(name) > MaxNameBytes:
 		return Refusal(fmt.Sprintf("%q is longer than %d characters.", quoted, MaxNameBytes))
-	case strings.HasPrefix(strings.ToUpper(name), "GITHUB_"):
+	case strings.HasPrefix(strings.ToUpper(name), "GITHUB_") && strings.ToUpper(name) != "GITHUB_TOKEN":
 		return Refusal(fmt.Sprintf("%s starts with GITHUB_, which GitHub keeps for itself.", name))
 	case name[0] >= '0' && name[0] <= '9':
 		return Refusal(fmt.Sprintf("%s starts with a digit.", name))

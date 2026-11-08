@@ -32,7 +32,7 @@ func TestCheckSetRefuses(t *testing.T) {
 	cases := map[string]*corev1.McpBridgeSetValuesRequest{
 		"at least one secret or variable":       {Repository: "/r", Set: "Repository"},
 		"at most 100":                           {Repository: "/r", Set: "Repository", Secrets: values(many...)},
-		"GITHUB_TOKEN":                          {Repository: "/r", Set: "Repository", Secrets: values("GITHUB_TOKEN", "v")},
+		"GITHUB_SHA":                            {Repository: "/r", Set: "Repository", Secrets: values("GITHUB_SHA", "v")},
 		"github_x":                              {Repository: "/r", Set: "Repository", Secrets: values("github_x", "v")},
 		"1A":                                    {Repository: "/r", Set: "Repository", Variables: values("1A", "v")},
 		"A-B":                                   {Repository: "/r", Set: "Repository", Variables: values("A-B", "v")},
@@ -60,5 +60,13 @@ func TestCheckSetNeverQuotesAValue(t *testing.T) {
 		Secrets: values("TWICE", "s3cr3t-VALUE"), Variables: values("TWICE", "s3cr3t-VALUE")})
 	if err == nil || strings.Contains(err.Error(), "s3cr3t") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestCheckSetTakesAGitHubTokenForLocalRuns(t *testing.T) {
+	for _, name := range []string{"GITHUB_TOKEN", "github_token"} {
+		if err := CheckSet(&corev1.McpBridgeSetValuesRequest{Repository: "/r", Set: "Repository", Secrets: values(name, "ghp_x")}); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
 	}
 }
