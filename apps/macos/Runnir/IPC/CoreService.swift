@@ -307,6 +307,12 @@ protocol CoreServicing: Sendable {
     /// `.resourceExhausted` when the subscriber falls behind and with
     /// `.unavailable` when the Core goes away; callers resubscribe and reload.
     func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error>
+    /// The calls of MCP clients for the app to answer. Ends with
+    /// `.unavailable` when the Core goes away or another subscriber takes
+    /// them; callers subscribe again.
+    func mcpRequests() -> AsyncThrowingStream<CoreMcpRequest, any Error>
+    /// The answer to one MCP request; `.notFound` when it no longer waits.
+    func answerMcpRequest(id: String, answer: CoreMcpAnswer) async throws
 }
 
 /// The GitHub repository a call is about.
@@ -318,6 +324,14 @@ enum CoreGitHubTarget: Hashable, Sendable {
 }
 
 extension CoreServicing {
+    func mcpRequests() -> AsyncThrowingStream<CoreMcpRequest, any Error> {
+        AsyncThrowingStream { $0.finish(throwing: CoreServiceError.unavailable) }
+    }
+
+    func answerMcpRequest(id: String, answer: CoreMcpAnswer) async throws {
+        throw CoreServiceError.unavailable
+    }
+
     func openRepository(path: String) async throws -> CoreRepository {
         try await openRepository(path: path, workspaceID: nil)
     }

@@ -1245,6 +1245,84 @@ struct GRPCCoreService: CoreServicing {
         }
     }
 
+    // MARK: MCP
+
+    func mcpRequests() -> AsyncThrowingStream<CoreMcpRequest, any Error> {
+        let client = client
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    try await client.subscribeMcpRequests(Runnir_Core_V1_SubscribeMcpRequestsRequest()) { response in
+                        for try await message in response.messages {
+                            continuation.yield(Self.map(message))
+                        }
+                    }
+                    continuation.finish(throwing: CoreServiceError.unavailable)
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: Self.map(error))
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    func answerMcpRequest(id: String, answer: CoreMcpAnswer) async throws {
+        _ = try await call {
+            try await client.answerMcpRequest(.with {
+                $0.id = id
+                switch answer {
+                case .sets(let sets): $0.sets = Self.message(sets)
+                case .saved(let saved): $0.saved = Self.message(saved)
+                case .refusal(let reason): $0.refusal = reason
+                }
+            }, options: Self.options(Self.callTimeout))
+        }
+    }
+
+    static func map(_ request: Runnir_Core_V1_McpRequest) -> CoreMcpRequest {
+        CoreMcpRequest(id: request.id, client: request.client, tool: request.tool == .setValues ? .setValues : .listValueSets,
+                       repository: request.repository, set: request.set,
+                       secrets: request.secrets.map { CoreMcpValue(name: $0.name, value: $0.value) },
+                       variables: request.variables.map { CoreMcpValue(name: $0.name, value: $0.value) })
+    }
+
+    static func message(_ sets: CoreMcpValueSets) -> Runnir_Core_V1_McpValueSets {
+        .with {
+            $0.workspace = sets.workspace
+            $0.sets = sets.sets.map { set in
+                .with {
+                    $0.name = set.name
+                    $0.stale = set.stale
+                    $0.names = set.names.map { name in
+                        .with {
+                            $0.name = name.name
+                            $0.secret = name.secret
+                            $0.state = switch name.state {
+                            case .saved: .saved
+                            case .fromRepository: .fromRepository
+                            case .missing: .missing
+                            case .notNeeded: .notNeeded
+                            }
+                            // A secret's value never leaves the app.
+                            if !name.secret, let value = name.value { $0.value = value }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    static func message(_ saved: CoreMcpSaved) -> Runnir_Core_V1_McpSavedValues {
+        .with {
+            $0.workspace = saved.workspace
+            $0.set = saved.set
+            $0.secrets = saved.secrets
+            $0.variables = saved.variables
+        }
+    }
+
     // MARK: Mapping
 
     private func call<T: Sendable>(_ body: () async throws -> T) async throws -> T {

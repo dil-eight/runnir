@@ -698,6 +698,43 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         lock.withLock { _subscriptions += 1; continuations.append(continuation) }
         return stream
     }
+
+    // MARK: MCP requests
+
+    private var mcpContinuations: [UUID: AsyncThrowingStream<CoreMcpRequest, any Error>.Continuation] = [:]
+    private var mcpLatest: UUID?
+    private var mcpPending: [CoreMcpRequest] = []
+    private var _mcpSubscriptions = 0
+    private var _mcpAnswers: [(id: String, answer: CoreMcpAnswer)] = []
+    var mcpSubscriptions: Int { lock.withLock { _mcpSubscriptions } }
+    var mcpAnswers: [(id: String, answer: CoreMcpAnswer)] { lock.withLock { _mcpAnswers } }
+    func mcpRequests() -> AsyncThrowingStream<CoreMcpRequest, any Error> {
+        let (stream, continuation) = AsyncThrowingStream.makeStream(of: CoreMcpRequest.self, throwing: (any Error).self)
+        let id = UUID()
+        continuation.onTermination = { [weak self] _ in
+            guard let self else { return }
+            self.lock.withLock { self.mcpContinuations[id] = nil }
+        }
+        let pending: [CoreMcpRequest] = lock.withLock {
+            _mcpSubscriptions += 1
+            mcpContinuations[id] = continuation
+            mcpLatest = id
+            defer { mcpPending = [] }
+            return mcpPending
+        }
+        for request in pending { continuation.yield(request) }
+        return stream
+    }
+    /// Sends a request to the latest MCP subscriber, as the Core does; one
+    /// sent while none listens waits for the next.
+    func sendMcp(_ request: CoreMcpRequest) {
+        let continuation = lock.withLock { mcpLatest.flatMap { mcpContinuations[$0] } }
+        if let continuation, case .enqueued = continuation.yield(request) { return }
+        lock.withLock { mcpPending.append(request) }
+    }
+    func answerMcpRequest(id: String, answer: CoreMcpAnswer) async throws {
+        lock.withLock { _mcpAnswers.append((id, answer)) }
+    }
 }
 
 final class FakeProvider: CoreProviding, @unchecked Sendable {
@@ -1440,5 +1477,68 @@ struct CoreHubTests {
                           executionState: .unspecified, message: "disk full", date: Date())
         provider.core.push(event)
         #expect(await eventually { hub.lastCoreMessage == "disk full" })
+    }
+}
+
+@MainActor
+@Suite struct CoreHubMcpTests {
+    private func readyHub() async -> (CoreHub, FakeProvider) {
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        _ = await eventually { hub.status == .ready(version: "fake") }
+        _ = await eventually { provider.core.mcpSubscriptions >= 1 }
+        return (hub, provider)
+    }
+
+    private static let list = CoreMcpRequest(id: "mcp_1", client: "codex", tool: .listValueSets,
+                                             repository: "/r", set: "", secrets: [], variables: [])
+
+    @Test func theHandlerAnswersEachRequest() async {
+        let (hub, provider) = await readyHub()
+        var seen: [CoreMcpRequest] = []
+        hub.mcpRequestHandler = { request in
+            seen.append(request)
+            return .sets(CoreMcpValueSets(workspace: "r", sets: []))
+        }
+        provider.core.sendMcp(Self.list)
+        #expect(await eventually { provider.core.mcpAnswers.count == 1 })
+        #expect(seen == [Self.list])
+        #expect(provider.core.mcpAnswers.first?.id == "mcp_1")
+        #expect(provider.core.mcpAnswers.first?.answer == .sets(CoreMcpValueSets(workspace: "r", sets: [])))
+    }
+
+    @Test func withoutAHandlerARequestIsRefused() async {
+        let (hub, provider) = await readyHub()
+        provider.core.sendMcp(Self.list)
+        #expect(await eventually { provider.core.mcpAnswers.count == 1 })
+        withExtendedLifetime(hub) {}
+        guard case .refusal(let reason)? = provider.core.mcpAnswers.first?.answer else {
+            Issue.record("not a refusal")
+            return
+        }
+        #expect(reason.contains("starting"))
+    }
+
+    @Test func aWaitingAnswerDoesNotHoldTheNext() async {
+        let (hub, provider) = await readyHub()
+        var release: CheckedContinuation<Void, Never>?
+        hub.mcpRequestHandler = { request in
+            if request.tool == .setValues { await withCheckedContinuation { release = $0 } }
+            return .refusal(request.id)
+        }
+        provider.core.sendMcp(CoreMcpRequest(id: "mcp_set", client: "c", tool: .setValues, repository: "/r", set: "Repository",
+                                             secrets: [CoreMcpValue(name: "A", value: "x")], variables: []))
+        provider.core.sendMcp(Self.list)
+        #expect(await eventually { provider.core.mcpAnswers.map(\.id) == ["mcp_1"] })
+        release?.resume()
+        #expect(await eventually { provider.core.mcpAnswers.count == 2 })
+    }
+
+    @Test func aRequestNeverPrintsASecret() {
+        let value = CoreMcpValue(name: "API_KEY", value: "s3cr3t-VALUE")
+        #expect(!"\(value)".contains("s3cr3t"))
+        #expect(!String(describing: [value]).contains("s3cr3t"))
     }
 }

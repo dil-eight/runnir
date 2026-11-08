@@ -183,6 +183,10 @@ final class CoreHub {
     @ObservationIgnored private var windowWorkspace: [UUID: UUID] = [:]
     @ObservationIgnored private var monitor: Task<Void, Never>?
     @ObservationIgnored private var eventTask: Task<Void, Never>?
+    @ObservationIgnored private var mcpTask: Task<Void, Never>?
+    /// Answers the calls of MCP clients (the desktop sets it). Without it
+    /// every call is refused.
+    @ObservationIgnored var mcpRequestHandler: (@MainActor (CoreMcpRequest) async -> CoreMcpAnswer)?
     /// Ids this hub closed itself; their REPOSITORY_CLOSED events are not
     /// "someone else closed it" and must not trigger a reopen.
     @ObservationIgnored private var ownCloses: Set<String> = []
@@ -223,6 +227,8 @@ final class CoreHub {
         monitor = nil
         eventTask?.cancel()
         eventTask = nil
+        mcpTask?.cancel()
+        mcpTask = nil
     }
 
     /// Restarts a lost or failed Core. Attached repositories reopen themselves
@@ -245,6 +251,8 @@ final class CoreHub {
             status = .stopped
             eventTask?.cancel()
             eventTask = nil
+            mcpTask?.cancel()
+            mcpTask = nil
             for session in sessions.values { session.phase = .waitingForCore }
         case .starting:
             if !isReady { status = .starting }
@@ -253,6 +261,7 @@ final class CoreHub {
             // Close events of a previous Core process will never arrive.
             ownCloses.removeAll()
             startEvents()
+            startMcpRequests()
             // A new Core process starts without a token or storage preferences.
             schedulePush()
             Task { await pushStoragePreferences() }
@@ -278,6 +287,8 @@ final class CoreHub {
     private func markUnavailable() {
         eventTask?.cancel()
         eventTask = nil
+        mcpTask?.cancel()
+        mcpTask = nil
         for session in sessions.values { session.phase = .unavailable }
     }
 
@@ -1478,6 +1489,40 @@ final class CoreHub {
                 }
             }
         }
+    }
+
+    /// Takes the Core's MCP requests for as long as it runs, subscribing
+    /// again when the stream ends. Each request is answered on its own, so a
+    /// change waiting for Save does not hold up a list.
+    private func startMcpRequests() {
+        mcpTask?.cancel()
+        let provider = provider
+        let firstDelay = eventRetryDelay
+        mcpTask = Task { [weak self] in
+            var delay = firstDelay
+            while !Task.isCancelled {
+                do {
+                    let service = try await provider.service()
+                    for try await request in service.mcpRequests() {
+                        guard let self else { return }
+                        delay = firstDelay
+                        Task { await self.answer(request, with: service) }
+                    }
+                } catch is CancellationError {
+                    return
+                } catch {
+                    // The stream ended: the Core went away or restarts it.
+                }
+                guard !Task.isCancelled, self?.isReady == true else { return }
+                try? await Task.sleep(for: delay)
+                delay = min(delay * 2, .seconds(30))
+            }
+        }
+    }
+
+    private func answer(_ request: CoreMcpRequest, with service: any CoreServicing) async {
+        let answer = await mcpRequestHandler?(request) ?? .refusal("Runnir is still starting. Try again in a moment.")
+        try? await service.answerMcpRequest(id: request.id, answer: answer)
     }
 
     private func resync() async {
