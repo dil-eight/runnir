@@ -226,7 +226,117 @@ service RunnirCore {
   // job may run in any of them. GitHub out of reach leaves its own out.
   // NOT_FOUND for an unknown repository.
   rpc ListEnvironments(ListEnvironmentsRequest) returns (ListEnvironmentsResponse);
+  // The calls MCP clients make through McpBridge, for the app to answer
+  // (docs/superpowers/specs/2026-11-08-mcp-value-sets-design.md). One
+  // subscriber at a time; a new one replaces the previous. Secret values
+  // of a SET_VALUES request travel only on this authenticated socket.
+  rpc SubscribeMcpRequests(SubscribeMcpRequestsRequest) returns (stream McpRequest);
+  // The app's answer to one request. NOT_FOUND when the request no longer
+  // waits (answered, timed out or its client went away).
+  rpc AnswerMcpRequest(AnswerMcpRequestRequest) returns (AnswerMcpRequestResponse);
 }
+
+// Served only on mcp.sock in the data folder, for `runnir mcp`: the tools
+// of MCP clients, answered by the app. FAILED_PRECONDITION carries a
+// refusal (its message says why); UNAVAILABLE says Runnir is not running.
+service McpBridge {
+  rpc ListValueSets(McpBridgeListValueSetsRequest) returns (McpValueSets);
+  // Saves values only after the user confirms in Runnir; waits up to five
+  // minutes for that.
+  rpc SetValues(McpBridgeSetValuesRequest) returns (McpSavedValues);
+}
+
+enum McpTool {
+  MCP_TOOL_UNSPECIFIED = 0;
+  MCP_TOOL_LIST_VALUE_SETS = 1;
+  MCP_TOOL_SET_VALUES = 2;
+}
+
+message McpValue {
+  string name = 1;
+  string value = 2;
+}
+
+message McpBridgeListValueSetsRequest {
+  // The MCP client's name from its initialize request.
+  string client = 1;
+  // A registered workspace's folder (absolute path) or its name.
+  string repository = 2;
+}
+
+message McpBridgeSetValuesRequest {
+  string client = 1;
+  string repository = 2;
+  // "Repository" or an environment's name.
+  string set = 3;
+  repeated McpValue secrets = 4;
+  repeated McpValue variables = 5;
+}
+
+message SubscribeMcpRequestsRequest {}
+
+message McpRequest {
+  string id = 1;
+  string client = 2;
+  McpTool tool = 3;
+  string repository = 4;
+  string set = 5;
+  repeated McpValue secrets = 6;
+  repeated McpValue variables = 7;
+}
+
+enum McpValueState {
+  MCP_VALUE_STATE_UNSPECIFIED = 0;
+  // The set has its own value.
+  MCP_VALUE_STATE_SAVED = 1;
+  // An environment without its own value: its jobs get the Repository's.
+  MCP_VALUE_STATE_FROM_REPOSITORY = 2;
+  // Some job would get an empty value.
+  MCP_VALUE_STATE_MISSING = 3;
+  // No job needs a value here (every environment reading it sets its own).
+  MCP_VALUE_STATE_NOT_NEEDED = 4;
+}
+
+message McpValueName {
+  string name = 1;
+  bool secret = 2;
+  McpValueState state = 3;
+  // A saved variable's value; never a secret's.
+  string value = 4;
+}
+
+message McpValueSet {
+  // "Repository" or an environment's name.
+  string name = 1;
+  // An environment no run can take any more that still has saved values.
+  bool stale = 2;
+  repeated McpValueName names = 3;
+}
+
+message McpValueSets {
+  // The workspace's name.
+  string workspace = 1;
+  repeated McpValueSet sets = 2;
+}
+
+message McpSavedValues {
+  string workspace = 1;
+  string set = 2;
+  repeated string secrets = 3;
+  repeated string variables = 4;
+}
+
+message AnswerMcpRequestRequest {
+  string id = 1;
+  oneof answer {
+    McpValueSets sets = 2;
+    McpSavedValues saved = 3;
+    // Why not, said to the MCP client as it is.
+    string refusal = 4;
+  }
+}
+
+message AnswerMcpRequestResponse {}
 
 message HealthCheckRequest {}
 

@@ -30,8 +30,8 @@
 
 **Produces:**
 - `rpc SubscribeMcpRequests(SubscribeMcpRequestsRequest) returns (stream McpRequest)` and `rpc AnswerMcpRequest(AnswerMcpRequestRequest) returns (AnswerMcpRequestResponse)` on `RunnirCore`.
-- `service McpBridge { rpc ListValueSets(McpListValueSetsRequest) returns (McpValueSets); rpc SetValues(McpSetValuesRequest) returns (McpSavedValues); }`
-- Messages: `McpTool` (`MCP_TOOL_LIST_VALUE_SETS`, `MCP_TOOL_SET_VALUES`); `McpValue {name, value}`; `McpRequest {id, client, tool, repository, set, repeated McpValue secrets, repeated McpValue variables}`; `McpValueState` (`SAVED`, `FROM_REPOSITORY`, `MISSING`, `NOT_NEEDED`); `McpValueName {name, bool secret, McpValueState state, string value}`; `McpValueSet {name, workspace, bool stale, repeated McpValueName names}`; `McpValueSets {workspace, repeated McpValueSet sets}`; `McpSavedValues {workspace, set, repeated string secrets, repeated string variables}`; `AnswerMcpRequestRequest {id, oneof answer {McpValueSets sets; McpSavedValues saved; string refusal}}`; `McpListValueSetsRequest {client, repository}`; `McpSetValuesRequest {client, repository, set, secrets, variables}`.
+- `service McpBridge { rpc ListValueSets(McpBridgeListValueSetsRequest) returns (McpValueSets); rpc SetValues(McpBridgeSetValuesRequest) returns (McpSavedValues); }`
+- Messages: `McpTool` (`MCP_TOOL_LIST_VALUE_SETS`, `MCP_TOOL_SET_VALUES`); `McpValue {name, value}`; `McpRequest {id, client, tool, repository, set, repeated McpValue secrets, repeated McpValue variables}`; `McpValueState` (`SAVED`, `FROM_REPOSITORY`, `MISSING`, `NOT_NEEDED`); `McpValueName {name, bool secret, McpValueState state, string value}`; `McpValueSet {name, workspace, bool stale, repeated McpValueName names}`; `McpValueSets {workspace, repeated McpValueSet sets}`; `McpSavedValues {workspace, set, repeated string secrets, repeated string variables}`; `AnswerMcpRequestRequest {id, oneof answer {McpValueSets sets; McpSavedValues saved; string refusal}}`; `McpBridgeListValueSetsRequest {client, repository}`; `McpBridgeSetValuesRequest {client, repository, set, secrets, variables}`.
 
 - [ ] Add the messages and RPCs with comments; `buf lint` clean.
 - [ ] Run `scripts/generate-contracts.sh`; `go build ./...` from `core/`.
@@ -43,10 +43,10 @@
 - Create: `core/internal/mcpbridge/broker.go`, `checks.go`, `broker_test.go`, `checks_test.go`
 
 **Produces:**
-- `func CheckSet(r *corev1.McpSetValuesRequest) error` — the spec's checks; the error text is the refusal.
+- `func CheckSet(r *corev1.McpBridgeSetValuesRequest) error` — the spec's checks; the error text is the refusal.
 - `type Broker struct`; `func NewBroker(wait time.Duration, log io.Writer) *Broker`.
 - `func (b *Broker) Subscribe(ctx context.Context) (<-chan *corev1.McpRequest, func())` — one subscriber; a new one replaces the old.
-- `func (b *Broker) List(ctx, client, repository string) (*corev1.McpValueSets, error)` and `func (b *Broker) Set(ctx, *corev1.McpSetValuesRequest) (*corev1.McpSavedValues, error)` — `ErrNoApp`, `ErrBusy`, `ErrTimeout`, `Refusal` (string error).
+- `func (b *Broker) List(ctx, client, repository string) (*corev1.McpValueSets, error)` and `func (b *Broker) Set(ctx, *corev1.McpBridgeSetValuesRequest) (*corev1.McpSavedValues, error)` — `ErrNoApp`, `ErrBusy`, `ErrTimeout`, `Refusal` (string error).
 - `func (b *Broker) Answer(*corev1.AnswerMcpRequestRequest) error` — `ErrUnknownRequest` for an id not waiting.
 - Log line per call: `mcp: <tool> <workspace> <set> secrets=[A B] variables=[C] -> <outcome>`.
 
@@ -73,7 +73,7 @@
 - Create: `core/internal/mcp/server.go`, `tools.go`, `server_test.go`
 - Modify: `core/cmd/runnir/main.go`, `core/cmd/runnir/main_test.go`
 
-**Produces:** `func Serve(ctx context.Context, in io.Reader, out io.Writer, bridge Bridge) error`; `type Bridge interface { ListValueSets(ctx, *corev1.McpListValueSetsRequest) (*corev1.McpValueSets, error); SetValues(ctx, *corev1.McpSetValuesRequest) (*corev1.McpSavedValues, error) }`; `func DialBridge(socketPath string) Bridge` (lazy: dials per call, so a later-started app is found). `runnir mcp --data-dir PATH`.
+**Produces:** `func Serve(ctx context.Context, in io.Reader, out io.Writer, bridge Bridge) error`; `type Bridge interface { ListValueSets(ctx, *corev1.McpBridgeListValueSetsRequest) (*corev1.McpValueSets, error); SetValues(ctx, *corev1.McpBridgeSetValuesRequest) (*corev1.McpSavedValues, error) }`; `func DialBridge(socketPath string) Bridge` (lazy: dials per call, so a later-started app is found). `runnir mcp --data-dir PATH`.
 
 - [ ] Tests first (with a fake `Bridge`): `initialize` echoes a supported version, else the newest, with `capabilities.tools` and `serverInfo`; `tools/list` returns both tools with the catalog's schemas; `tools/call` for each tool returns `content: [{type: text, text: <JSON>}]` and `structuredContent`; invalid arguments → `isError: true` with the reason; a bridge error → `isError: true` with its message; unknown method → `-32601`; notifications get no reply; malformed JSON → `-32700`; the client's name from `initialize` reaches the bridge; a secret value never appears in output.
 - [ ] Implement; `go test ./internal/mcp/ ./cmd/runnir/`; `runnir mcp` without `--data-dir` exits 2; the old `mcp` unknown-command assertion in `main_test.go` changes accordingly.

@@ -31,6 +31,98 @@ fileprivate nonisolated struct _GeneratedWithProtocGenSwiftVersion: SwiftProtobu
   typealias Version = _2
 }
 
+nonisolated enum Runnir_Core_V1_McpTool: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+  case listValueSets // = 1
+  case setValues // = 2
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .listValueSets
+    case 2: self = .setValues
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .listValueSets: return 1
+    case .setValues: return 2
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_McpTool] = [
+    .unspecified,
+    .listValueSets,
+    .setValues,
+  ]
+
+}
+
+nonisolated enum Runnir_Core_V1_McpValueState: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+
+  /// The set has its own value.
+  case saved // = 1
+
+  /// An environment without its own value: its jobs get the Repository's.
+  case fromRepository // = 2
+
+  /// Some job would get an empty value.
+  case missing // = 3
+
+  /// No job needs a value here (every environment reading it sets its own).
+  case notNeeded // = 4
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .saved
+    case 2: self = .fromRepository
+    case 3: self = .missing
+    case 4: self = .notNeeded
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .saved: return 1
+    case .fromRepository: return 2
+    case .missing: return 3
+    case .notNeeded: return 4
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_McpValueState] = [
+    .unspecified,
+    .saved,
+    .fromRepository,
+    .missing,
+    .notNeeded,
+  ]
+
+}
+
 nonisolated enum Runnir_Core_V1_ExecutionState: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
   case unspecified // = 0
@@ -1716,6 +1808,218 @@ nonisolated enum Runnir_Core_V1_UsageEvent: SwiftProtobuf.Enum, Swift.CaseIterab
     .overlaySettingsAbout,
   ]
 
+}
+
+nonisolated struct Runnir_Core_V1_McpValue: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var name: String = String()
+
+  var value: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_McpBridgeListValueSetsRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// The MCP client's name from its initialize request.
+  var client: String = String()
+
+  /// A registered workspace's folder (absolute path) or its name.
+  var repository: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_McpBridgeSetValuesRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var client: String = String()
+
+  var repository: String = String()
+
+  /// "Repository" or an environment's name.
+  var set: String = String()
+
+  var secrets: [Runnir_Core_V1_McpValue] = []
+
+  var variables: [Runnir_Core_V1_McpValue] = []
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_SubscribeMcpRequestsRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_McpRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var id: String = String()
+
+  var client: String = String()
+
+  var tool: Runnir_Core_V1_McpTool = .unspecified
+
+  var repository: String = String()
+
+  var set: String = String()
+
+  var secrets: [Runnir_Core_V1_McpValue] = []
+
+  var variables: [Runnir_Core_V1_McpValue] = []
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_McpValueName: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var name: String = String()
+
+  var secret: Bool = false
+
+  var state: Runnir_Core_V1_McpValueState = .unspecified
+
+  /// A saved variable's value; never a secret's.
+  var value: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_McpValueSet: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// "Repository" or an environment's name.
+  var name: String = String()
+
+  /// An environment no run can take any more that still has saved values.
+  var stale: Bool = false
+
+  var names: [Runnir_Core_V1_McpValueName] = []
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_McpValueSets: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// The workspace's name.
+  var workspace: String = String()
+
+  var sets: [Runnir_Core_V1_McpValueSet] = []
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_McpSavedValues: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var workspace: String = String()
+
+  var set: String = String()
+
+  var secrets: [String] = []
+
+  var variables: [String] = []
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_AnswerMcpRequestRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var id: String = String()
+
+  var answer: Runnir_Core_V1_AnswerMcpRequestRequest.OneOf_Answer? = nil
+
+  var sets: Runnir_Core_V1_McpValueSets {
+    get {
+      if case .sets(let v)? = answer {return v}
+      return Runnir_Core_V1_McpValueSets()
+    }
+    set {answer = .sets(newValue)}
+  }
+
+  var saved: Runnir_Core_V1_McpSavedValues {
+    get {
+      if case .saved(let v)? = answer {return v}
+      return Runnir_Core_V1_McpSavedValues()
+    }
+    set {answer = .saved(newValue)}
+  }
+
+  /// Why not, said to the MCP client as it is.
+  var refusal: String {
+    get {
+      if case .refusal(let v)? = answer {return v}
+      return String()
+    }
+    set {answer = .refusal(newValue)}
+  }
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  nonisolated enum OneOf_Answer: Equatable, Sendable {
+    case sets(Runnir_Core_V1_McpValueSets)
+    case saved(Runnir_Core_V1_McpSavedValues)
+    /// Why not, said to the MCP client as it is.
+    case refusal(String)
+
+  }
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_AnswerMcpRequestResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
 }
 
 nonisolated struct Runnir_Core_V1_HealthCheckRequest: Sendable {
@@ -6104,6 +6408,14 @@ nonisolated struct Runnir_Core_V1_RecordUsageResponse: Sendable {
 
 fileprivate nonisolated let _protobuf_package = "runnir.core.v1"
 
+nonisolated extension Runnir_Core_V1_McpTool: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0MCP_TOOL_UNSPECIFIED\0\u{1}MCP_TOOL_LIST_VALUE_SETS\0\u{1}MCP_TOOL_SET_VALUES\0")
+}
+
+nonisolated extension Runnir_Core_V1_McpValueState: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0MCP_VALUE_STATE_UNSPECIFIED\0\u{1}MCP_VALUE_STATE_SAVED\0\u{1}MCP_VALUE_STATE_FROM_REPOSITORY\0\u{1}MCP_VALUE_STATE_MISSING\0\u{1}MCP_VALUE_STATE_NOT_NEEDED\0")
+}
+
 nonisolated extension Runnir_Core_V1_ExecutionState: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0EXECUTION_STATE_UNSPECIFIED\0\u{1}EXECUTION_STATE_QUEUED\0\u{1}EXECUTION_STATE_RUNNING\0\u{1}EXECUTION_STATE_SUCCEEDED\0\u{1}EXECUTION_STATE_FAILED\0\u{1}EXECUTION_STATE_CANCELLED\0")
 }
@@ -6214,6 +6526,473 @@ nonisolated extension Runnir_Core_V1_AnalyticsLevel: SwiftProtobuf._ProtoNamePro
 
 nonisolated extension Runnir_Core_V1_UsageEvent: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0USAGE_EVENT_UNSPECIFIED\0\u{1}USAGE_EVENT_SCREEN_OVERVIEW_PAGE\0\u{1}USAGE_EVENT_SCREEN_WORKFLOWS_LIST\0\u{1}USAGE_EVENT_SCREEN_RUNS_LIST\0\u{1}USAGE_EVENT_SCREEN_LOCAL_RUN_HISTORY\0\u{1}USAGE_EVENT_SCREEN_EDITOR_WORKFLOW\0\u{1}USAGE_EVENT_SCREEN_SECRETS_VALUES\0\u{1}USAGE_EVENT_SCREEN_WORKSPACES_MANAGER\0\u{1}USAGE_EVENT_SCREEN_GITHUB_MANAGER\0\u{1}USAGE_EVENT_OVERLAY_RUNS_DISPATCH\0\u{1}USAGE_EVENT_OVERLAY_RUNS_SKIPPED_JOB\0\u{1}USAGE_EVENT_OVERLAY_LOCAL_RUN_REVIEW\0\u{1}USAGE_EVENT_OVERLAY_LOCAL_RUN_LIMITS\0\u{1}USAGE_EVENT_OVERLAY_EDITOR_FILE_NAME\0\u{1}USAGE_EVENT_OVERLAY_LOGS_VIEWER\0\u{1}USAGE_EVENT_OVERLAY_GITHUB_CONNECT\0\u{1}USAGE_EVENT_OVERLAY_GITHUB_ENTERPRISE_SERVER\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_ACCOUNT\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_RUNS\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_NOTIFICATIONS\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_PULL_REQUESTS\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_TOOLS\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_STORAGE\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_PRIVACY\0\u{1}USAGE_EVENT_OVERLAY_SEARCH_GLOBAL\0\u{1}USAGE_EVENT_OVERLAY_NOTIFICATIONS_PANEL\0\u{1}USAGE_EVENT_OVERLAY_PULL_REQUESTS_MENU_BAR\0\u{1}USAGE_EVENT_OVERLAY_APP_BUG_REPORT\0\u{1}USAGE_EVENT_ACTION_WORKFLOWS_FAVORITE\0\u{1}USAGE_EVENT_ACTION_RUNS_DISPATCH\0\u{1}USAGE_EVENT_ACTION_RUNS_CANCEL\0\u{1}USAGE_EVENT_ACTION_RUNS_RERUN\0\u{1}USAGE_EVENT_ACTION_LOCAL_RUN_RUN\0\u{1}USAGE_EVENT_ACTION_EDITOR_SAVE\0\u{1}USAGE_EVENT_ACTION_EDITOR_CREATE\0\u{1}USAGE_EVENT_ACTION_EDITOR_RENAME\0\u{1}USAGE_EVENT_ACTION_EDITOR_VALIDATE\0\u{1}USAGE_EVENT_ACTION_EDITOR_INSERT_CONCURRENCY\0\u{1}USAGE_EVENT_ACTION_SECRETS_IMPORT_ENV\0\u{1}USAGE_EVENT_ACTION_PRESETS_SAVE\0\u{1}USAGE_EVENT_ACTION_PRESETS_APPLY\0\u{1}USAGE_EVENT_ACTION_LOGS_SAVE\0\u{1}USAGE_EVENT_ACTION_GITHUB_OPEN_ON_GITHUB\0\u{1}USAGE_EVENT_ACTION_APP_REPORT_BUG\0\u{1}USAGE_EVENT_ASYNC_LOCAL_RUN_SUCCEEDED\0\u{1}USAGE_EVENT_ASYNC_LOCAL_RUN_FAILED\0\u{1}USAGE_EVENT_ASYNC_LOCAL_RUN_CANCELLED\0\u{1}USAGE_EVENT_ASYNC_GITHUB_SYNC_FAILED\0\u{1}USAGE_EVENT_ASYNC_GITHUB_RATE_LIMITED\0\u{1}USAGE_EVENT_ASYNC_GITHUB_TOKEN_REJECTED\0\u{1}USAGE_EVENT_ASYNC_NOTIFICATIONS_DELIVERED\0\u{1}USAGE_EVENT_ASYNC_APP_CORE_RESTARTED\0\u{1}USAGE_EVENT_OVERLAY_SETTINGS_ABOUT\0")
+}
+
+nonisolated extension Runnir_Core_V1_McpValue: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".McpValue"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}name\0\u{1}value\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.value) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.name.isEmpty {
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 1)
+    }
+    if !self.value.isEmpty {
+      try visitor.visitSingularStringField(value: self.value, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_McpValue, rhs: Runnir_Core_V1_McpValue) -> Bool {
+    if lhs.name != rhs.name {return false}
+    if lhs.value != rhs.value {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_McpBridgeListValueSetsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".McpBridgeListValueSetsRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}client\0\u{1}repository\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.client) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.repository) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.client.isEmpty {
+      try visitor.visitSingularStringField(value: self.client, fieldNumber: 1)
+    }
+    if !self.repository.isEmpty {
+      try visitor.visitSingularStringField(value: self.repository, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_McpBridgeListValueSetsRequest, rhs: Runnir_Core_V1_McpBridgeListValueSetsRequest) -> Bool {
+    if lhs.client != rhs.client {return false}
+    if lhs.repository != rhs.repository {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_McpBridgeSetValuesRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".McpBridgeSetValuesRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}client\0\u{1}repository\0\u{1}set\0\u{1}secrets\0\u{1}variables\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.client) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.repository) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.set) }()
+      case 4: try { try decoder.decodeRepeatedMessageField(value: &self.secrets) }()
+      case 5: try { try decoder.decodeRepeatedMessageField(value: &self.variables) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.client.isEmpty {
+      try visitor.visitSingularStringField(value: self.client, fieldNumber: 1)
+    }
+    if !self.repository.isEmpty {
+      try visitor.visitSingularStringField(value: self.repository, fieldNumber: 2)
+    }
+    if !self.set.isEmpty {
+      try visitor.visitSingularStringField(value: self.set, fieldNumber: 3)
+    }
+    if !self.secrets.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.secrets, fieldNumber: 4)
+    }
+    if !self.variables.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.variables, fieldNumber: 5)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_McpBridgeSetValuesRequest, rhs: Runnir_Core_V1_McpBridgeSetValuesRequest) -> Bool {
+    if lhs.client != rhs.client {return false}
+    if lhs.repository != rhs.repository {return false}
+    if lhs.set != rhs.set {return false}
+    if lhs.secrets != rhs.secrets {return false}
+    if lhs.variables != rhs.variables {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_SubscribeMcpRequestsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".SubscribeMcpRequestsRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    // Load everything into unknown fields
+    while try decoder.nextFieldNumber() != nil {}
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_SubscribeMcpRequestsRequest, rhs: Runnir_Core_V1_SubscribeMcpRequestsRequest) -> Bool {
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_McpRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".McpRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}client\0\u{1}tool\0\u{1}repository\0\u{1}set\0\u{1}secrets\0\u{1}variables\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.client) }()
+      case 3: try { try decoder.decodeSingularEnumField(value: &self.tool) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.repository) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.set) }()
+      case 6: try { try decoder.decodeRepeatedMessageField(value: &self.secrets) }()
+      case 7: try { try decoder.decodeRepeatedMessageField(value: &self.variables) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.id.isEmpty {
+      try visitor.visitSingularStringField(value: self.id, fieldNumber: 1)
+    }
+    if !self.client.isEmpty {
+      try visitor.visitSingularStringField(value: self.client, fieldNumber: 2)
+    }
+    if self.tool != .unspecified {
+      try visitor.visitSingularEnumField(value: self.tool, fieldNumber: 3)
+    }
+    if !self.repository.isEmpty {
+      try visitor.visitSingularStringField(value: self.repository, fieldNumber: 4)
+    }
+    if !self.set.isEmpty {
+      try visitor.visitSingularStringField(value: self.set, fieldNumber: 5)
+    }
+    if !self.secrets.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.secrets, fieldNumber: 6)
+    }
+    if !self.variables.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.variables, fieldNumber: 7)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_McpRequest, rhs: Runnir_Core_V1_McpRequest) -> Bool {
+    if lhs.id != rhs.id {return false}
+    if lhs.client != rhs.client {return false}
+    if lhs.tool != rhs.tool {return false}
+    if lhs.repository != rhs.repository {return false}
+    if lhs.set != rhs.set {return false}
+    if lhs.secrets != rhs.secrets {return false}
+    if lhs.variables != rhs.variables {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_McpValueName: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".McpValueName"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}name\0\u{1}secret\0\u{1}state\0\u{1}value\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 2: try { try decoder.decodeSingularBoolField(value: &self.secret) }()
+      case 3: try { try decoder.decodeSingularEnumField(value: &self.state) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.value) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.name.isEmpty {
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 1)
+    }
+    if self.secret != false {
+      try visitor.visitSingularBoolField(value: self.secret, fieldNumber: 2)
+    }
+    if self.state != .unspecified {
+      try visitor.visitSingularEnumField(value: self.state, fieldNumber: 3)
+    }
+    if !self.value.isEmpty {
+      try visitor.visitSingularStringField(value: self.value, fieldNumber: 4)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_McpValueName, rhs: Runnir_Core_V1_McpValueName) -> Bool {
+    if lhs.name != rhs.name {return false}
+    if lhs.secret != rhs.secret {return false}
+    if lhs.state != rhs.state {return false}
+    if lhs.value != rhs.value {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_McpValueSet: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".McpValueSet"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}name\0\u{1}stale\0\u{1}names\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 2: try { try decoder.decodeSingularBoolField(value: &self.stale) }()
+      case 3: try { try decoder.decodeRepeatedMessageField(value: &self.names) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.name.isEmpty {
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 1)
+    }
+    if self.stale != false {
+      try visitor.visitSingularBoolField(value: self.stale, fieldNumber: 2)
+    }
+    if !self.names.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.names, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_McpValueSet, rhs: Runnir_Core_V1_McpValueSet) -> Bool {
+    if lhs.name != rhs.name {return false}
+    if lhs.stale != rhs.stale {return false}
+    if lhs.names != rhs.names {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_McpValueSets: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".McpValueSets"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}workspace\0\u{1}sets\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.workspace) }()
+      case 2: try { try decoder.decodeRepeatedMessageField(value: &self.sets) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.workspace.isEmpty {
+      try visitor.visitSingularStringField(value: self.workspace, fieldNumber: 1)
+    }
+    if !self.sets.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.sets, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_McpValueSets, rhs: Runnir_Core_V1_McpValueSets) -> Bool {
+    if lhs.workspace != rhs.workspace {return false}
+    if lhs.sets != rhs.sets {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_McpSavedValues: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".McpSavedValues"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}workspace\0\u{1}set\0\u{1}secrets\0\u{1}variables\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.workspace) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.set) }()
+      case 3: try { try decoder.decodeRepeatedStringField(value: &self.secrets) }()
+      case 4: try { try decoder.decodeRepeatedStringField(value: &self.variables) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.workspace.isEmpty {
+      try visitor.visitSingularStringField(value: self.workspace, fieldNumber: 1)
+    }
+    if !self.set.isEmpty {
+      try visitor.visitSingularStringField(value: self.set, fieldNumber: 2)
+    }
+    if !self.secrets.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.secrets, fieldNumber: 3)
+    }
+    if !self.variables.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.variables, fieldNumber: 4)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_McpSavedValues, rhs: Runnir_Core_V1_McpSavedValues) -> Bool {
+    if lhs.workspace != rhs.workspace {return false}
+    if lhs.set != rhs.set {return false}
+    if lhs.secrets != rhs.secrets {return false}
+    if lhs.variables != rhs.variables {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_AnswerMcpRequestRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".AnswerMcpRequestRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}sets\0\u{1}saved\0\u{1}refusal\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
+      case 2: try {
+        var v: Runnir_Core_V1_McpValueSets?
+        var hadOneofValue = false
+        if let current = self.answer {
+          hadOneofValue = true
+          if case .sets(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.answer = .sets(v)
+        }
+      }()
+      case 3: try {
+        var v: Runnir_Core_V1_McpSavedValues?
+        var hadOneofValue = false
+        if let current = self.answer {
+          hadOneofValue = true
+          if case .saved(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.answer = .saved(v)
+        }
+      }()
+      case 4: try {
+        var v: String?
+        try decoder.decodeSingularStringField(value: &v)
+        if let v = v {
+          if self.answer != nil {try decoder.handleConflictingOneOf()}
+          self.answer = .refusal(v)
+        }
+      }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if !self.id.isEmpty {
+      try visitor.visitSingularStringField(value: self.id, fieldNumber: 1)
+    }
+    switch self.answer {
+    case .sets?: try {
+      guard case .sets(let v)? = self.answer else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+    }()
+    case .saved?: try {
+      guard case .saved(let v)? = self.answer else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
+    }()
+    case .refusal?: try {
+      guard case .refusal(let v)? = self.answer else { preconditionFailure() }
+      try visitor.visitSingularStringField(value: v, fieldNumber: 4)
+    }()
+    case nil: break
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_AnswerMcpRequestRequest, rhs: Runnir_Core_V1_AnswerMcpRequestRequest) -> Bool {
+    if lhs.id != rhs.id {return false}
+    if lhs.answer != rhs.answer {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_AnswerMcpRequestResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".AnswerMcpRequestResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    // Load everything into unknown fields
+    while try decoder.nextFieldNumber() != nil {}
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_AnswerMcpRequestResponse, rhs: Runnir_Core_V1_AnswerMcpRequestResponse) -> Bool {
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
 }
 
 nonisolated extension Runnir_Core_V1_HealthCheckRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
