@@ -1,6 +1,6 @@
 # MCP Tools For The Values Of Local Runs
 
-Status: design approved on 2026-11-08. It builds the two tools that [MCP Architecture](../../architecture/mcp.md#secrets-and-variables) decided on 2026-11-05, ahead of the rest of MCP (v0.3), for the first alpha. Values are the sets of [Values Per Environment](2026-11-03-environment-values-design.md) and [Secrets And Variables For Local Runs (B28)](2026-10-25-local-run-secrets-design.md).
+Status: design approved and built on 2026-11-08 on branch dilbarov/mcp-values; covered by Core and app tests, not yet tried with Claude Code or Codex. It builds the two tools that [MCP Architecture](../../architecture/mcp.md#secrets-and-variables) decided on 2026-11-05, ahead of the rest of MCP (v0.3), for the first alpha. Values are the sets of [Values Per Environment](2026-11-03-environment-values-design.md) and [Secrets And Variables For Local Runs (B28)](2026-10-25-local-run-secrets-design.md).
 
 ## Problem
 

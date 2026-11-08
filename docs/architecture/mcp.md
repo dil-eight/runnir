@@ -1,8 +1,8 @@
 # MCP Architecture
 
-Status: planned. The checked-in catalog is a design artifact; `runnir rpc` (version handshake) and `runnir serve` (the app's [gRPC API](grpc-api.md)) are desktop IPC endpoints, not MCP servers.
+Status: two tools built on 2026-11-08, the rest planned. `runnir-core mcp --data-dir PATH` serves `runnir_list_value_sets` and `runnir_set_values` over stdio ([design](../superpowers/specs/2026-11-08-mcp-value-sets-design.md)); every other tool of the catalog is a design artifact. `runnir rpc` (version handshake) and `runnir serve` (the app's [gRPC API](grpc-api.md)) are desktop IPC endpoints, not MCP servers.
 
-MCP is deferred to the optional v0.3 direction. It is not an active v0.1 implementation requirement; see the [current roadmap](../product/roadmap.md).
+The rest of MCP is deferred to the optional v0.3 direction; see the [current roadmap](../product/roadmap.md). The value tools came first, for the first alpha (B52).
 
 MCP server belongs in portable Go Core. Start with local stdio and read-only capabilities. A future MCP client is optional and out of initial scope. MCP adapters reuse Core services rather than reimplementing GitHub/workflow logic.
 
@@ -20,6 +20,9 @@ MCP server belongs in portable Go Core. Start with local stdio and read-only cap
 Future: runnir_set_values ([below](#secrets-and-variables)), runnir_generate_workflow, runnir_plan_execution, runnir_test_workflow, runnir_get_test_results, runnir_dispatch_workflow, runnir_prepare_deployment. See `mcp/runnir-tools.json` for the planned catalog.
 
 ## Secrets And Variables
+
+Built on 2026-11-08 as decided below. How it runs: the app's Core listens on a second socket, `mcp.sock` in the build's data folder (mode 0600, peers of this user only), serving only the `McpBridge` service; `runnir-core mcp` connects to it for each call. The Core hands each call to the app over `SubscribeMcpRequests` on its authenticated socket and waits up to five minutes for `AnswerMcpRequest`; one `runnir_set_values` waits at a time. The app opens the workspace's window when none shows it, answers a list from the same model as Secrets and Variables, and shows a change in its own panel; Save writes Keychain. Settings › MCP gives the command for Claude Code and the block for Codex (`tool_timeout_sec = 300`). The Core's log gets one line per call with names and the outcome, never a value.
+
 
 Added on 2026-11-05: a client saves the secrets and variables local runs use into one value set of a workspace, the Repository's or an environment's, as [Values Per Environment](../superpowers/specs/2026-11-03-environment-values-design.md) keeps them.
 
