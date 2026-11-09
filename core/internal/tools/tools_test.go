@@ -370,3 +370,28 @@ func TestAnEngineCheckThatRunsOutOfTimeIsAFailedCheck(t *testing.T) {
 		t.Fatalf("engine = %+v", report.Engine)
 	}
 }
+
+func TestNodeIsFoundOnThePathOrInNvm(t *testing.T) {
+	home := t.TempDir()
+	for _, version := range []string{"v18.20.4", "v24.13.1", "v9.11.2", "vnext"} {
+		bin := filepath.Join(home, ".nvm", "versions", "node", version, "bin")
+		if err := os.MkdirAll(bin, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(bin, "node"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	empty := t.TempDir()
+	if got := FindNode(home, empty); got != filepath.Join(home, ".nvm", "versions", "node", "v24.13.1", "bin", "node") &&
+		!strings.HasPrefix(got, "/opt/homebrew/") && !strings.HasPrefix(got, "/usr/local/") && !strings.HasPrefix(got, "/usr/bin/") {
+		t.Fatalf("node = %q", got)
+	}
+	onPath := t.TempDir()
+	if err := os.WriteFile(filepath.Join(onPath, "node"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := FindNode(home, onPath); got != filepath.Join(onPath, "node") {
+		t.Fatalf("node on the path = %q", got)
+	}
+}

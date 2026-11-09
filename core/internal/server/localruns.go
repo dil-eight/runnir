@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"path"
 	"sort"
 	"strings"
@@ -144,6 +145,11 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 	if account, ok := s.accounts.ForHost(info.OriginHost); ok && account.Server.ID != "" {
 		instance = account.Server.WebHost
 	}
+	// Jobs on this Mac run JavaScript actions with its Node.js.
+	node := ""
+	if len(plan.HostJobs) > 0 {
+		node = tools.FindNode(s.home, os.Getenv("PATH"))
+	}
 	approved := localRunApproval{
 		RepositoryID: info.ID,
 		ActVersion:   act.Version, Installed: actSource == tools.ActInstalled,
@@ -151,6 +157,7 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 		Spec: &localrun.Spec{
 			ActPath: act.Path, DockerPath: report.DockerCLI.Path, DockerHost: report.Engine.Endpoint,
 			UserHome: s.home, RepositoryPath: info.Path, Plan: plan, CacheDir: s.actCache, GitHubInstance: instance,
+			HostNode: node,
 		},
 	}
 	out := &corev1.PrepareLocalRunResponse{Readiness: readinessMessage(report), Plan: planMessage(approved)}
@@ -601,7 +608,7 @@ func planMessage(approved localRunApproval) *corev1.LocalRunPlan {
 		MaxCpus:        uint32(max(plan.Ceiling.CPUs, 0)), MaxMemoryBytes: plan.Ceiling.MemoryBytes,
 		MaxTimeoutSeconds: uint32(plan.Ceiling.Timeout / time.Second),
 		OwnLimits:         plan.OwnLimits, LimitWarnings: plan.LimitWarnings, LimitNote: plan.LimitNote, Environment: plan.Environment,
-		EnvironmentChoice: plan.EnvironmentChoice, Environments: plan.Environments,
+		EnvironmentChoice: plan.EnvironmentChoice, Environments: plan.Environments, HostJobs: plan.HostJobs,
 		ActVersion: approved.ActVersion, InstalledAct: approved.Installed,
 		EngineName: approved.EngineName, EngineContext: approved.EngineContext,
 	}
@@ -650,6 +657,8 @@ func supportMessage(support localrun.Support) corev1.LocalJobSupport {
 		return corev1.LocalJobSupport_LOCAL_JOB_SUPPORT_UNSUPPORTED
 	case localrun.Unknown:
 		return corev1.LocalJobSupport_LOCAL_JOB_SUPPORT_UNKNOWN
+	case localrun.Host:
+		return corev1.LocalJobSupport_LOCAL_JOB_SUPPORT_HOST
 	default:
 		return corev1.LocalJobSupport_LOCAL_JOB_SUPPORT_UNSPECIFIED
 	}

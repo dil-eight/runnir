@@ -20,12 +20,15 @@ import (
 var fakeDir string
 
 func TestMain(m *testing.M) {
+	// Tests read macOS runners as on Linux unless they say otherwise, so
+	// they pass on every system.
+	hostOS = "linux"
 	dir, err := os.MkdirTemp("", "runnir-fake-")
 	if err != nil {
 		panic(err)
 	}
 	fakeDir = dir
-	for _, name := range []string{"act", "docker"} {
+	for _, name := range []string{"act", "docker", "sandbox-exec"} {
 		out := filepath.Join(dir, name)
 		if runtime.GOOS == "windows" {
 			out += ".exe"
@@ -46,7 +49,7 @@ func TestMain(m *testing.M) {
 func fakeTools(t *testing.T, script map[string]any) (actPath, dockerPath, dir string) {
 	t.Helper()
 	dir = t.TempDir()
-	for _, name := range []string{"act", "docker"} {
+	for _, name := range []string{"act", "docker", "sandbox-exec"} {
 		file := name
 		if runtime.GOOS == "windows" {
 			file += ".exe"
@@ -498,5 +501,65 @@ func TestLanesRunOneAfterAnotherAndAChainNeedsItsSource(t *testing.T) {
 	}
 	if _, ok := byWorkflow[".github/workflows/release.yml/publish"]; ok {
 		t.Fatal("a lane without ticks has jobs")
+	}
+}
+
+func TestMacJobsRunInTheSandboxWithTheShims(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the macOS sandbox is a Mac's")
+	}
+	actPath, dockerPath, dir := fakeTools(t, map[string]any{"copyValueFiles": true})
+	saved := SandboxExec
+	SandboxExec = filepath.Join(dir, "sandbox-exec")
+	defer func() { SandboxExec = saved }()
+	spec := testSpec(t, actPath, dockerPath)
+	spec.HostNode = "/opt/homebrew/bin/node"
+	mac := lane(".github/workflows/app.yml", "push", JobPlan{ID: "build", Support: Host, RunsOn: []string{"macos-26"}})
+	mac.HostLabels = []string{"macos-26"}
+	spec.Plan.Lanes = []Lane{spec.Plan.Lanes[0], mac}
+	runner, _, job := startRun(t, spec)
+	if err := runner.Run(context.Background(), job); err != nil {
+		t.Fatalf("Run = %v", err)
+	}
+	sandboxed := invocations(t, dir, "sandbox-exec")
+	calls := invocations(t, dir, "act")
+	if len(calls) != 2 || len(sandboxed) != 1 {
+		t.Fatalf("act ran %d times, %d in the sandbox", len(calls), len(sandboxed))
+	}
+	// The Linux lane runs act as before; the Mac lane runs it in the sandbox.
+	if slices.Contains(calls[0].Args, "--platform=macos-26=-self-hosted") || !slices.Contains(calls[1].Args, "--platform=macos-26=-self-hosted") {
+		t.Fatalf("platforms = %v / %v", calls[0].Args, calls[1].Args)
+	}
+	if args := sandboxed[0].Args; args[0] != "-f" || filepath.Base(args[1]) != "sandbox.sb" || args[2] != actPath {
+		t.Fatalf("sandbox-exec args = %v", args)
+	}
+	env := strings.Join(calls[1].Env, "\n")
+	for _, want := range []string{"CFFIXED_USER_HOME=", "PATH=" + filepath.Join(filepath.Dir(sandboxed[0].Args[1]), "bin") + ":/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:"} {
+		if !strings.Contains(env, want) {
+			t.Fatalf("act's environment lacks %q: %s", want, env)
+		}
+	}
+	profile, _ := os.ReadFile(filepath.Join(dir, "sandbox.profile"))
+	for _, want := range []string{"(deny file-write*)", "(deny file-read* (subpath ", "com.apple.securityd.xpc", realPath(spec.RepositoryPath), realPath(filepath.Dir(actPath))} {
+		if !strings.Contains(string(profile), want) {
+			t.Fatalf("profile lacks %q:\n%s", want, profile)
+		}
+	}
+}
+
+func TestTheSandboxProfileClosesTheHomeButForWhatTheRunNeeds(t *testing.T) {
+	profile := sandboxProfile(sandboxRoots{Home: "/Users/me", Readable: []string{"/Users/me/code/app", `/Users/me/odd "name"`},
+		Writable: []string{"/private/var/folders/x/T/runnir-act-1/0"}})
+	for _, want := range []string{
+		"(deny file-write*)\n(allow file-write*\n  (subpath \"/private/var/folders/x/T/runnir-act-1/0\")",
+		"(deny file-read* (subpath \"/Users/me\"))",
+		"(subpath \"/Users/me/code/app\")",
+		`(subpath "/Users/me/odd \"name\"")`,
+		"(literal \"/Users/me/code\")", "(literal \"/Users/me\")",
+		"(global-name \"com.apple.SecurityServer\")",
+	} {
+		if !strings.Contains(profile, want) {
+			t.Fatalf("profile lacks %q:\n%s", want, profile)
+		}
 	}
 }

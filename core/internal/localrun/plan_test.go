@@ -359,3 +359,52 @@ jobs:
 		t.Fatalf("both = %q", p.EnvironmentChoice)
 	}
 }
+
+func TestMacJobsRunOnThisMacOnlyWhenTicked(t *testing.T) {
+	defer func(saved string) { hostOS = saved }(hostOS)
+	source := `on: push
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps: [{run: echo}]
+  app:
+    needs: lint
+    runs-on: macos-26
+    steps:
+      - run: sudo xcode-select -s /Applications/Xcode.app
+      - run: xcodebuild build
+  odd:
+    runs-on: [macos-latest, --privileged]
+    steps: [{run: echo}]
+`
+	hostOS = "linux"
+	if p := plan(t, source, "", readyReport(), nil); p.Lanes[0].Jobs[1].Support != Unsupported {
+		t.Fatalf("on Linux, app = %+v", p.Lanes[0].Jobs[1])
+	}
+
+	hostOS = "darwin"
+	p := plan(t, source, "", readyReport(), nil)
+	app := p.Lanes[0].Jobs[1]
+	if app.Support != Host || app.Selected || len(p.HostJobs) != 0 || len(p.Lanes[0].HostLabels) != 0 {
+		t.Fatalf("a Mac job is never ticked by default: %+v %v", app, p.HostJobs)
+	}
+	p = plan(t, source, "app", readyReport(), nil)
+	if !slices.Equal(p.HostJobs, []string{"ci.yml › app"}) || !slices.Equal(p.Lanes[0].HostLabels, []string{"macos-26"}) || !p.Runnable() {
+		t.Fatalf("host jobs = %v labels = %v blockers = %v", p.HostJobs, p.Lanes[0].HostLabels, p.Blockers)
+	}
+	if !slices.ContainsFunc(p.Notes, func(note string) bool { return strings.HasPrefix(note, "app runs sudo.") }) {
+		t.Fatalf("notes = %v", p.Notes)
+	}
+	// A label in another shape never reaches act's command line.
+	p = plan(t, source, "odd", readyReport(), nil)
+	if !slices.Equal(p.Lanes[0].HostLabels, []string{"macos-latest"}) {
+		t.Fatalf("labels = %v", p.Lanes[0].HostLabels)
+	}
+
+	saved := SandboxExec
+	SandboxExec = "/nonexistent/sandbox-exec"
+	defer func() { SandboxExec = saved }()
+	if p := plan(t, source, "app", readyReport(), nil); p.Runnable() {
+		t.Fatal("a Mac job ran without the sandbox")
+	}
+}

@@ -44,6 +44,16 @@ func main() {
 		docker(dir)
 		return
 	}
+	if name == "sandbox-exec" {
+		// sandbox-exec -f PROFILE COMMAND ARGS...: keep the profile, then
+		// become the command, as the real one does.
+		if len(os.Args) > 3 {
+			profile, _ := os.ReadFile(os.Args[2])
+			appendFile(filepath.Join(dir, "sandbox.profile"), string(profile))
+			become(os.Args[3], os.Args[3:])
+		}
+		os.Exit(71)
+	}
 	var s script
 	if data, err := os.ReadFile(filepath.Join(dir, "act.json")); err == nil {
 		_ = json.Unmarshal(data, &s)

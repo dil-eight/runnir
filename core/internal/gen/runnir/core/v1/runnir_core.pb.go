@@ -1031,6 +1031,9 @@ const (
 	LocalJobSupport_LOCAL_JOB_SUPPORT_UNSUPPORTED LocalJobSupport = 2
 	// act decides when the job starts, for example runs-on set by an expression.
 	LocalJobSupport_LOCAL_JOB_SUPPORT_UNKNOWN LocalJobSupport = 3
+	// A macOS runner on a Mac: act runs the job on this Mac itself, without a
+	// container and so without isolation. Never ticked by default.
+	LocalJobSupport_LOCAL_JOB_SUPPORT_HOST LocalJobSupport = 4
 )
 
 // Enum value maps for LocalJobSupport.
@@ -1040,12 +1043,14 @@ var (
 		1: "LOCAL_JOB_SUPPORT_SUPPORTED",
 		2: "LOCAL_JOB_SUPPORT_UNSUPPORTED",
 		3: "LOCAL_JOB_SUPPORT_UNKNOWN",
+		4: "LOCAL_JOB_SUPPORT_HOST",
 	}
 	LocalJobSupport_value = map[string]int32{
 		"LOCAL_JOB_SUPPORT_UNSPECIFIED": 0,
 		"LOCAL_JOB_SUPPORT_SUPPORTED":   1,
 		"LOCAL_JOB_SUPPORT_UNSUPPORTED": 2,
 		"LOCAL_JOB_SUPPORT_UNKNOWN":     3,
+		"LOCAL_JOB_SUPPORT_HOST":        4,
 	}
 )
 
@@ -9376,7 +9381,11 @@ type LocalRunPlan struct {
 	// The environments to choose from (ListEnvironments), when
 	// environment_choice is set. With none known the run takes the
 	// Repository's values, a note says so and environment_choice is empty.
-	Environments  []string `protobuf:"bytes,25,rep,name=environments,proto3" json:"environments,omitempty"`
+	Environments []string `protobuf:"bytes,25,rep,name=environments,proto3" json:"environments,omitempty"`
+	// Ticked jobs that run on this Mac without a container ("CI › build-ios"):
+	// their steps reach the user's files, Keychain and network, and CPU and
+	// memory limits do not apply. The app asks for a confirmation of its own.
+	HostJobs      []string `protobuf:"bytes,26,rep,name=host_jobs,json=hostJobs,proto3" json:"host_jobs,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9582,6 +9591,13 @@ func (x *LocalRunPlan) GetEnvironmentChoice() string {
 func (x *LocalRunPlan) GetEnvironments() []string {
 	if x != nil {
 		return x.Environments
+	}
+	return nil
+}
+
+func (x *LocalRunPlan) GetHostJobs() []string {
+	if x != nil {
+		return x.HostJobs
 	}
 	return nil
 }
@@ -14740,7 +14756,7 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\vparse_error\x18\t \x01(\tR\n" +
 	"parseError\x12/\n" +
 	"\x04jobs\x18\n" +
-	" \x03(\v2\x1b.runnir.core.v1.LocalRunJobR\x04jobs\"\xb7\a\n" +
+	" \x03(\v2\x1b.runnir.core.v1.LocalRunJobR\x04jobs\"\xd4\a\n" +
 	"\fLocalRunPlan\x126\n" +
 	"\tscenarios\x18\x01 \x03(\v2\x18.runnir.core.v1.ScenarioR\tscenarios\x124\n" +
 	"\bscenario\x18\x02 \x01(\v2\x18.runnir.core.v1.ScenarioR\bscenario\x122\n" +
@@ -14771,7 +14787,8 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"limit_note\x18\x16 \x01(\tR\tlimitNote\x12 \n" +
 	"\venvironment\x18\x17 \x01(\tR\venvironment\x12-\n" +
 	"\x12environment_choice\x18\x18 \x01(\tR\x11environmentChoice\x12\"\n" +
-	"\fenvironments\x18\x19 \x03(\tR\fenvironments\"M\n" +
+	"\fenvironments\x18\x19 \x03(\tR\fenvironments\x12\x1b\n" +
+	"\thost_jobs\x18\x1a \x03(\tR\bhostJobs\"M\n" +
 	"\x11LocalRunSelection\x12\x1f\n" +
 	"\vworkflow_id\x18\x01 \x01(\tR\n" +
 	"workflowId\x12\x17\n" +
@@ -15247,12 +15264,13 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\x12TOOL_STATE_MISSING\x10\x02\x12\x16\n" +
 	"\x12TOOL_STATE_STOPPED\x10\x03\x12\x1a\n" +
 	"\x16TOOL_STATE_UNSUPPORTED\x10\x04\x12\x15\n" +
-	"\x11TOOL_STATE_FAILED\x10\x05*\x97\x01\n" +
+	"\x11TOOL_STATE_FAILED\x10\x05*\xb3\x01\n" +
 	"\x0fLocalJobSupport\x12!\n" +
 	"\x1dLOCAL_JOB_SUPPORT_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bLOCAL_JOB_SUPPORT_SUPPORTED\x10\x01\x12!\n" +
 	"\x1dLOCAL_JOB_SUPPORT_UNSUPPORTED\x10\x02\x12\x1d\n" +
-	"\x19LOCAL_JOB_SUPPORT_UNKNOWN\x10\x03*\xb9\x01\n" +
+	"\x19LOCAL_JOB_SUPPORT_UNKNOWN\x10\x03\x12\x1a\n" +
+	"\x16LOCAL_JOB_SUPPORT_HOST\x10\x04*\xb9\x01\n" +
 	"\x10LocalRunLaneKind\x12#\n" +
 	"\x1fLOCAL_RUN_LANE_KIND_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aLOCAL_RUN_LANE_KIND_DIRECT\x10\x01\x12\x1f\n" +

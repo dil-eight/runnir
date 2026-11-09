@@ -52,6 +52,9 @@ type Spec struct {
 	// They reach act through pipes and are dropped when the run ends.
 	Secrets   map[string]string
 	Variables map[string]string
+	// HostNode is Node.js on this Mac, for JavaScript actions in jobs that
+	// run here; empty when none was found.
+	HostNode string
 }
 
 // Runner runs approved plans with act. It implements execution.Runner.
@@ -162,8 +165,18 @@ func (r *Runner) runLane(ctx context.Context, spec *Spec, id, dir string, lane L
 	defer cancel()
 
 	cmd := exec.Command(spec.ActPath, Args(spec, lane, id, dir)...)
-	cmd.Dir = dir // keeps act from reading an .actrc where the Core runs
 	cmd.Env = actEnv(spec, dir)
+	if len(lane.HostLabels) > 0 {
+		// Jobs on this Mac: act and everything it starts run in the macOS
+		// sandbox, with the shims first on the PATH.
+		profile, err := prepareHost(spec, dir)
+		if err != nil {
+			return fmt.Errorf("prepare the macOS sandbox: %w", err)
+		}
+		cmd = exec.Command(SandboxExec, append([]string{"-f", profile, spec.ActPath}, Args(spec, lane, id, dir)...)...)
+		cmd.Env = hostEnv(actEnv(spec, dir), dir, spec.HostNode)
+	}
+	cmd.Dir = dir // keeps act from reading an .actrc where the Core runs
 	setProcessGroup(cmd)
 	var feeds []*valueFeed
 	var err error
@@ -335,6 +348,10 @@ func Args(spec *Spec, lane Lane, executionID, scratch string) []string {
 	for _, label := range labels {
 		args = append(args, "--platform="+label+"="+Platforms[label])
 	}
+	// macOS jobs run on this Mac itself, in the sandbox the lane runs in.
+	for _, label := range lane.HostLabels {
+		args = append(args, "--platform="+label+"=-self-hosted")
+	}
 	if spec.GitHubInstance != "" {
 		args = append(args, "--github-instance="+spec.GitHubInstance)
 	}
@@ -382,6 +399,20 @@ func actEnv(spec *Spec, scratch string) []string {
 		env = append(env, "XDG_CACHE_HOME="+filepath.Join(scratch, "cache"))
 	}
 	return env
+}
+
+// hostEnv is act's environment for a lane with jobs on this Mac: their
+// steps get it, with the shims and tools on the PATH and the scratch home
+// as Foundation's home too, so Xcode's DerivedData and caches stay in it.
+func hostEnv(env []string, dir, node string) []string {
+	out := make([]string, 0, len(env)+1)
+	for _, entry := range env {
+		if strings.HasPrefix(entry, "PATH=") {
+			entry = "PATH=" + hostPath(filepath.Join(dir, "bin"), node)
+		}
+		out = append(out, entry)
+	}
+	return append(out, "CFFIXED_USER_HOME="+filepath.Join(dir, "home"))
 }
 
 func dockerHost(endpoint string) string {

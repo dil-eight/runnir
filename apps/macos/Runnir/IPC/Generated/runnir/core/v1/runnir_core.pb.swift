@@ -949,6 +949,10 @@ nonisolated enum Runnir_Core_V1_LocalJobSupport: SwiftProtobuf.Enum, Swift.CaseI
 
   /// act decides when the job starts, for example runs-on set by an expression.
   case unknown // = 3
+
+  /// A macOS runner on a Mac: act runs the job on this Mac itself, without a
+  /// container and so without isolation. Never ticked by default.
+  case host // = 4
   case UNRECOGNIZED(Int)
 
   init() {
@@ -961,6 +965,7 @@ nonisolated enum Runnir_Core_V1_LocalJobSupport: SwiftProtobuf.Enum, Swift.CaseI
     case 1: self = .supported
     case 2: self = .unsupported
     case 3: self = .unknown
+    case 4: self = .host
     default: self = .UNRECOGNIZED(rawValue)
     }
   }
@@ -971,6 +976,7 @@ nonisolated enum Runnir_Core_V1_LocalJobSupport: SwiftProtobuf.Enum, Swift.CaseI
     case .supported: return 1
     case .unsupported: return 2
     case .unknown: return 3
+    case .host: return 4
     case .UNRECOGNIZED(let i): return i
     }
   }
@@ -981,6 +987,7 @@ nonisolated enum Runnir_Core_V1_LocalJobSupport: SwiftProtobuf.Enum, Swift.CaseI
     .supported,
     .unsupported,
     .unknown,
+    .host,
   ]
 
 }
@@ -4632,6 +4639,14 @@ nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
     set {_uniqueStorage()._environments = newValue}
   }
 
+  /// Ticked jobs that run on this Mac without a container ("CI › build-ios"):
+  /// their steps reach the user's files, Keychain and network, and CPU and
+  /// memory limits do not apply. The app asks for a confirmation of its own.
+  var hostJobs: [String] {
+    get {_storage._hostJobs}
+    set {_uniqueStorage()._hostJobs = newValue}
+  }
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -6291,7 +6306,7 @@ nonisolated extension Runnir_Core_V1_ToolState: SwiftProtobuf._ProtoNameProvidin
 }
 
 nonisolated extension Runnir_Core_V1_LocalJobSupport: SwiftProtobuf._ProtoNameProviding {
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0LOCAL_JOB_SUPPORT_UNSPECIFIED\0\u{1}LOCAL_JOB_SUPPORT_SUPPORTED\0\u{1}LOCAL_JOB_SUPPORT_UNSUPPORTED\0\u{1}LOCAL_JOB_SUPPORT_UNKNOWN\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0LOCAL_JOB_SUPPORT_UNSPECIFIED\0\u{1}LOCAL_JOB_SUPPORT_SUPPORTED\0\u{1}LOCAL_JOB_SUPPORT_UNSUPPORTED\0\u{1}LOCAL_JOB_SUPPORT_UNKNOWN\0\u{1}LOCAL_JOB_SUPPORT_HOST\0")
 }
 
 nonisolated extension Runnir_Core_V1_LocalRunLaneKind: SwiftProtobuf._ProtoNameProviding {
@@ -11380,7 +11395,7 @@ nonisolated extension Runnir_Core_V1_LocalRunLane: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".LocalRunPlan"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}scenarios\0\u{1}scenario\0\u{1}lanes\0\u{1}images\0\u{1}secrets\0\u{1}variables\0\u{3}unnamed_secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0\u{3}max_cpus\0\u{3}max_memory_bytes\0\u{3}max_timeout_seconds\0\u{3}own_limits\0\u{3}limit_warnings\0\u{3}limit_note\0\u{1}environment\0\u{3}environment_choice\0\u{1}environments\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}scenarios\0\u{1}scenario\0\u{1}lanes\0\u{1}images\0\u{1}secrets\0\u{1}variables\0\u{3}unnamed_secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0\u{3}max_cpus\0\u{3}max_memory_bytes\0\u{3}max_timeout_seconds\0\u{3}own_limits\0\u{3}limit_warnings\0\u{3}limit_note\0\u{1}environment\0\u{3}environment_choice\0\u{1}environments\0\u{3}host_jobs\0")
 
   fileprivate class _StorageClass {
     var _scenarios: [Runnir_Core_V1_Scenario] = []
@@ -11408,6 +11423,7 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
     var _environment: String = String()
     var _environmentChoice: String = String()
     var _environments: [String] = []
+    var _hostJobs: [String] = []
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -11443,6 +11459,7 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       _environment = source._environment
       _environmentChoice = source._environmentChoice
       _environments = source._environments
+      _hostJobs = source._hostJobs
     }
   }
 
@@ -11486,6 +11503,7 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         case 23: try { try decoder.decodeSingularStringField(value: &_storage._environment) }()
         case 24: try { try decoder.decodeSingularStringField(value: &_storage._environmentChoice) }()
         case 25: try { try decoder.decodeRepeatedStringField(value: &_storage._environments) }()
+        case 26: try { try decoder.decodeRepeatedStringField(value: &_storage._hostJobs) }()
         default: break
         }
       }
@@ -11573,6 +11591,9 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       if !_storage._environments.isEmpty {
         try visitor.visitRepeatedStringField(value: _storage._environments, fieldNumber: 25)
       }
+      if !_storage._hostJobs.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._hostJobs, fieldNumber: 26)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -11607,6 +11628,7 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         if _storage._environment != rhs_storage._environment {return false}
         if _storage._environmentChoice != rhs_storage._environmentChoice {return false}
         if _storage._environments != rhs_storage._environments {return false}
+        if _storage._hostJobs != rhs_storage._hostJobs {return false}
         return true
       }
       if !storagesAreEqual {return false}

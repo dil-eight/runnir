@@ -1372,6 +1372,9 @@ enum LocalJobSupport {
   LOCAL_JOB_SUPPORT_UNSUPPORTED = 2;
   // act decides when the job starts, for example runs-on set by an expression.
   LOCAL_JOB_SUPPORT_UNKNOWN = 3;
+  // A macOS runner on a Mac: act runs the job on this Mac itself, without a
+  // container and so without isolation. Never ticked by default.
+  LOCAL_JOB_SUPPORT_HOST = 4;
 }
 
 message LocalRunJob {
@@ -1486,6 +1489,10 @@ message LocalRunPlan {
   // environment_choice is set. With none known the run takes the
   // Repository's values, a note says so and environment_choice is empty.
   repeated string environments = 25;
+  // Ticked jobs that run on this Mac without a container ("CI › build-ios"):
+  // their steps reach the user's files, Keychain and network, and CPU and
+  // memory limits do not apply. The app asks for a confirmation of its own.
+  repeated string host_jobs = 26;
 }
 
 // The jobs ticked in one workflow.

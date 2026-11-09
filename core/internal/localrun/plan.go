@@ -10,7 +10,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -47,6 +49,14 @@ var ErrUnknownJob = errors.New("the workflow has no job with this id")
 // command line, so nothing else from a workflow file may reach it there.
 var eventNamePattern = regexp.MustCompile(`^[a-z][a-z_]*$`)
 
+// macOSLabel is a GitHub-hosted macOS runner label act can run on a Mac
+// itself (macos-latest, macos-15, macos-26-xlarge). It reaches act's
+// command line, so only this shape counts.
+var macOSLabel = regexp.MustCompile(`^macos-[a-z0-9][a-z0-9.-]*$`)
+
+// hostOS is the system the Core runs on: on a Mac, macOS jobs run here.
+var hostOS = runtime.GOOS
+
 type Support int
 
 const (
@@ -57,6 +67,9 @@ const (
 	// Unknown: act decides when the job starts, for example when runs-on is
 	// an expression.
 	Unknown
+	// Host: a macOS runner on a Mac. act runs the job on this Mac in the
+	// macOS sandbox, not in a container. Never ticked by default.
+	Host
 )
 
 type JobPlan struct {
@@ -114,7 +127,10 @@ type Lane struct {
 	ParseError string
 	// Dispatchable: GitHub can start the workflow by hand.
 	Dispatchable bool
-	Jobs         []JobPlan
+	// HostLabels are the macOS runner labels of the lane's selected jobs,
+	// which act runs on this Mac.
+	HostLabels []string
+	Jobs       []JobPlan
 	// Digest is the SHA-256 of the file as reviewed; Copy is that file with
 	// only the selected jobs, which act runs; Payload is the event act gets,
 	// written by the server once the scenario's refs are known.
@@ -158,6 +174,9 @@ type Plan struct {
 	Environments      []string
 	Notes             []string
 	Blockers          []string
+	// HostJobs are the selected jobs that run on this Mac in the macOS
+	// sandbox, as "CI › build-ios".
+	HostJobs []string
 	// Limits apply to each lane; the timeout is per workflow.
 	Limits Limits
 	// Ceiling is the most the engine allows; OwnLimits: the limits are the
@@ -224,7 +243,7 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 		imagePresent = nil
 	}
 	images := map[string]bool{}
-	var containerJobs, services, unparsed []string
+	var containerJobs, services, unparsed, sudo []string
 	var copies [][]byte
 	var picks []environmentPick
 	secrets, variables := map[string]bool{}, map[string]bool{}
@@ -265,6 +284,13 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 				continue
 			}
 			runnable++
+			if jp.Support == Host {
+				plan.HostJobs = append(plan.HostJobs, laneTitle(lane)+" › "+jp.ID)
+				if usesSudo(workflow.Jobs[key]) {
+					sudo = append(sudo, jp.ID)
+				}
+				continue
+			}
 			job := workflow.Jobs[key]
 			if jp.Image != "" {
 				images[jp.Image] = true
@@ -284,6 +310,11 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 		}
 		picks = append(picks, environmentPick{workflow: workflow, ids: ids})
 	}
+	if len(plan.HostJobs) > 0 {
+		if _, err := os.Stat(SandboxExec); err != nil {
+			plan.Blockers = append(plan.Blockers, "macOS jobs run in the macOS sandbox, and this Mac has no sandbox-exec.")
+		}
+	}
 	switch {
 	case selected == 0:
 		plan.Blockers = append(plan.Blockers, "Tick at least one job to run.")
@@ -301,7 +332,11 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 	sort.Slice(plan.Images, func(i, j int) bool { return plan.Images[i].Ref < plan.Images[j].Ref })
 	plan.Secrets, plan.Variables = sortedKeys(secrets), sortedKeys(variables)
 	sort.Strings(services)
-	plan.Notes = notes(plan.UnnamedSecrets, report, containerJobs, services, copies)
+	plan.Notes = notes(plan.UnnamedSecrets, runnable > len(plan.HostJobs), report, containerJobs, services, copies)
+	if len(sudo) > 0 {
+		plan.Notes = append(plan.Notes, fmt.Sprintf("%s %s sudo. A job on this Mac gets no root: sudo xcode-select -s selects that Xcode for the next steps, any other sudo fails.",
+			andList(sudo), map[bool]string{true: "runs", false: "run"}[len(sudo) == 1]))
+	}
 	if len(unparsed) > 0 {
 		plan.Notes = append(plan.Notes, fmt.Sprintf("%s cannot run: fix the syntax errors in the Workspace first.", andList(unparsed)))
 	}
@@ -363,15 +398,25 @@ func planLane(in LaneInput, chosen bool) (Lane, *actionlint.Workflow, error) {
 		}
 	} else if in.Kind == Direct || in.Kind == Chained {
 		for _, jp := range lane.Jobs {
-			if jp.Support != Unsupported && jp.Skipped == "" {
+			if jp.Support != Unsupported && jp.Support != Host && jp.Skipped == "" {
 				ticked = append(ticked, strings.ToLower(jp.ID))
 			}
 		}
 	}
 	keep := Closure(workflow, ticked)
+	labels := map[string]bool{}
 	for i := range lane.Jobs {
-		lane.Jobs[i].Selected = keep[strings.ToLower(lane.Jobs[i].ID)]
+		job := &lane.Jobs[i]
+		job.Selected = keep[strings.ToLower(job.ID)]
+		if job.Selected && job.Support == Host {
+			for _, label := range job.RunsOn {
+				if macOSLabel.MatchString(strings.ToLower(label)) {
+					labels[strings.ToLower(label)] = true
+				}
+			}
+		}
 	}
+	lane.HostLabels = sortedKeys(labels)
 	if lane.Selected() {
 		copied, err := Trim(in.Source, keep)
 		if err != nil {
@@ -384,6 +429,21 @@ func planLane(in LaneInput, chosen bool) (Lane, *actionlint.Workflow, error) {
 	}
 	return lane, workflow, nil
 }
+
+// usesSudo reports a job with a run step that calls sudo.
+func usesSudo(job *actionlint.Job) bool {
+	for _, step := range job.Steps {
+		if step == nil {
+			continue
+		}
+		if run, ok := step.Exec.(*actionlint.ExecRun); ok && run.Run != nil && sudoCall.MatchString(run.Run.Value) {
+			return true
+		}
+	}
+	return false
+}
+
+var sudoCall = regexp.MustCompile(`(^|[\s;&|(])sudo\s`)
 
 func skippedReason(skipped map[string]string, id string) string {
 	for key, reason := range skipped {
@@ -559,6 +619,11 @@ func planJob(key string, job *actionlint.Job) JobPlan {
 		}
 	}
 	for _, label := range jp.RunsOn {
+		if hostOS == "darwin" && macOSLabel.MatchString(strings.ToLower(label)) {
+			jp.Support = Host
+			jp.Reason = "Runs on this Mac in the macOS sandbox, not in a container"
+			return jp
+		}
 		if image, ok := Platforms[strings.ToLower(label)]; ok {
 			jp.Image = image
 			jp.Support = Supported
@@ -641,13 +706,13 @@ func dockerSteps(job *actionlint.Job) []string {
 	return images
 }
 
-func notes(unnamedSecrets bool, report tools.Report, containerJobs, services []string, sources [][]byte) []string {
+func notes(unnamedSecrets, contained bool, report tools.Report, containerJobs, services []string, sources [][]byte) []string {
 	var notes []string
 	if unnamedSecrets {
 		notes = append(notes, "A workflow of this run reads secrets it does not name; only the listed ones are passed.")
 	}
-	if arch := strings.ToLower(report.Engine.Architecture); arch == "aarch64" || arch == "arm64" {
-		notes = append(notes, "Jobs run as linux/arm64 on this Mac. Steps that download x64-only tools may fail.")
+	if arch := strings.ToLower(report.Engine.Architecture); contained && (arch == "aarch64" || arch == "arm64") {
+		notes = append(notes, "Jobs in containers run as linux/arm64 on this Mac. Steps that download x64-only tools may fail.")
 	}
 	if len(services) > 0 {
 		notes = append(notes, "act starts service containers: "+strings.Join(services, ", ")+".")
