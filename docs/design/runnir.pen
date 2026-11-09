@@ -265,7 +265,7 @@
                           "type": "text",
                           "id": "rgwZV",
                           "fill": "$text-secondary",
-                          "content": "Local execution review — a scenario, its workflows and jobs ticked, the scenario menu, access summary, consent",
+                          "content": "Local execution review — a scenario, its workflows and jobs ticked, the scenario menu, a macOS job on this Mac in the macOS sandbox, access summary, consent",
                           "fontFamily": "Inter",
                           "fontSize": 12,
                           "fontWeight": "normal"
@@ -552,7 +552,7 @@
           "id": "AEAXe",
           "name": "Canvas map",
           "fill": "#69727E",
-          "content": "CANVAS MAP — five containers, top to bottom\n00 · Index — this card\n01 · Foundations — 3 frames: brand, dark and light tokens\n02 · Components — 7 frames: masters\n03 · Screens — journeys A to G, each a row of frames in flow order, 94 frames:\n   A · Launch and Workspace Manager — 6\n   B · Overview and GitHub connection — 13\n   C · Workflows — 9\n   D · Runs — 20\n   E · Workspace — 22\n   F · Menu bar and notifications — 17\n   G · Settings and support — 7\n04 · Future concepts — 3 frames: Assistant Home, Pipeline, Assistant Chat (not MVP)",
+          "content": "CANVAS MAP — five containers, top to bottom\n00 · Index — this card\n01 · Foundations — 3 frames: brand, dark and light tokens\n02 · Components — 7 frames: masters\n03 · Screens — journeys A to G, each a row of frames in flow order, 95 frames:\n   A · Launch and Workspace Manager — 6\n   B · Overview and GitHub connection — 13\n   C · Workflows — 9\n   D · Runs — 20\n   E · Workspace — 23\n   F · Menu bar and notifications — 17\n   G · Settings and support — 7\n04 · Future concepts — 3 frames: Assistant Home, Pipeline, Assistant Chat (not MVP)",
           "lineHeight": 1.6,
           "fontFamily": "Inter",
           "fontSize": 13,
@@ -89134,6 +89134,1581 @@
                                       "fontWeight": "normal"
                                     }
                                   ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "b9lQlB",
+                      "name": "S10 / Local execution review / A macOS job ticked: runs on this Mac in the macOS sandbox, confirmed apart / Dark / 1280x800",
+                      "theme": {
+                        "Mode": "dark"
+                      },
+                      "clip": true,
+                      "width": 1280,
+                      "height": 800,
+                      "fill": "$surface-window",
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "id": "AFcSR",
+                          "type": "ref",
+                          "ref": "jD4iA",
+                          "name": "Title strip",
+                          "width": "fill_container"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "H9TVS9",
+                          "name": "Body",
+                          "width": "fill_container",
+                          "height": "fill_container",
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            8,
+                            8,
+                            8
+                          ],
+                          "children": [
+                            {
+                              "id": "y9ZxI",
+                              "type": "ref",
+                              "ref": "gAjrQ",
+                              "name": "Sidebar",
+                              "theme": {
+                                "Mode": "dark"
+                              },
+                              "height": "fill_container",
+                              "descendants": {
+                                "zRnyu": {
+                                  "fill": "$surface-selected"
+                                },
+                                "mPi06": {
+                                  "fill": "$accent"
+                                },
+                                "yuSMW": {
+                                  "fill": "$text-primary",
+                                  "fontWeight": "500"
+                                },
+                                "WZnO1": {
+                                  "icon": "account_circle",
+                                  "fill": "$status-success"
+                                },
+                                "pWWSx": {
+                                  "content": "dil-eight"
+                                },
+                                "P2pN8Z": {
+                                  "content": "Connected · github.com"
+                                }
+                              }
+                            },
+                            {
+                              "type": "frame",
+                              "id": "wbU5e",
+                              "name": "Content",
+                              "clip": true,
+                              "width": "fill_container",
+                              "height": "fill_container",
+                              "fill": "$surface-content",
+                              "cornerRadius": 12,
+                              "layout": "vertical",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "W6rIbB",
+                                  "name": "Toolbar",
+                                  "width": "fill_container",
+                                  "height": 52,
+                                  "gap": 10,
+                                  "padding": [
+                                    0,
+                                    20
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "XXCbB",
+                                      "fill": "$text-primary",
+                                      "content": "Workspace",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 15,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "vsmUh",
+                                      "cornerRadius": "$radius-control",
+                                      "stroke": "$border-control",
+                                      "strokeWidth": 1,
+                                      "gap": 6,
+                                      "padding": [
+                                        5,
+                                        10
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "icon",
+                                          "id": "qrTiv",
+                                          "width": 14,
+                                          "height": 14,
+                                          "icon": "description",
+                                          "library": "Material Symbols Rounded",
+                                          "fill": "$text-secondary"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "KmlPz",
+                                          "fill": "$text-primary",
+                                          "content": "ci.yml",
+                                          "fontFamily": "Inter",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "icon",
+                                          "id": "qTqvG",
+                                          "width": 14,
+                                          "height": 14,
+                                          "icon": "keyboard_arrow_down",
+                                          "library": "Material Symbols Rounded",
+                                          "fill": "$text-secondary"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "MY5VH",
+                                      "name": "spacer",
+                                      "width": "fill_container",
+                                      "height": 1
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "u0OcD",
+                                  "name": "divider",
+                                  "width": "fill_container",
+                                  "height": 1,
+                                  "fill": "$divider"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "MOnah",
+                          "layoutPosition": "absolute",
+                          "x": 0,
+                          "y": 0,
+                          "name": "Scrim — background blur",
+                          "width": 1280,
+                          "height": 800,
+                          "fill": "#0A0C1052",
+                          "effect": {
+                            "type": "background_blur",
+                            "radius": 16
+                          }
+                        },
+                        {
+                          "type": "frame",
+                          "id": "mIwrP",
+                          "layoutPosition": "absolute",
+                          "x": 270,
+                          "y": 20,
+                          "name": "Local execution review sheet",
+                          "width": 740,
+                          "fill": "$surface-raised",
+                          "cornerRadius": 12,
+                          "stroke": "$border-control",
+                          "strokeWidth": 1,
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "h9lvku",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 4,
+                              "padding": [
+                                18,
+                                24,
+                                14,
+                                24
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "tKG7Z",
+                                  "fill": "$text-primary",
+                                  "content": "Run locally",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 16,
+                                  "fontWeight": "600"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "V9rjuQ",
+                                  "name": "Scenario line",
+                                  "gap": 10,
+                                  "padding": [
+                                    6,
+                                    0,
+                                    0,
+                                    0
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "jriV5",
+                                      "name": "Scenario picker",
+                                      "height": 26,
+                                      "fill": "$surface-content",
+                                      "cornerRadius": 6,
+                                      "stroke": "$border-control",
+                                      "strokeWidth": 1,
+                                      "gap": 6,
+                                      "padding": [
+                                        0,
+                                        10
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "VBRFA",
+                                          "name": "Scenario",
+                                          "fill": "$text-primary",
+                                          "content": "Pull request → main",
+                                          "fontFamily": "Inter",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "icon",
+                                          "id": "dHjbk",
+                                          "name": "Chevron",
+                                          "width": 14,
+                                          "height": 14,
+                                          "icon": "keyboard_arrow_down",
+                                          "library": "Material Symbols Rounded",
+                                          "fill": "$text-secondary"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "gS5op",
+                                      "name": "Ticked",
+                                      "fill": "$text-secondary",
+                                      "content": "3 workflows · 6 jobs ticked",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "W1kId",
+                              "name": "divider",
+                              "width": "fill_container",
+                              "height": 1,
+                              "fill": "$divider"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "iv8TZ",
+                              "clip": true,
+                              "width": "fill_container",
+                              "height": 560,
+                              "layout": "vertical",
+                              "gap": 14,
+                              "padding": [
+                                14,
+                                24
+                              ],
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "L2owFe",
+                                  "name": "Workflows and jobs",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 8,
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "c7bfAJ",
+                                      "name": "Label",
+                                      "fill": "$text-secondary",
+                                      "content": "WORKFLOWS AND JOBS",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 12,
+                                      "fontWeight": "600",
+                                      "letterSpacing": 0.6
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "NYABf",
+                                      "name": "Caption",
+                                      "fill": "$text-secondary",
+                                      "content": "Ticked workflows run one after another, each with act. A job brings the jobs it needs.",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "hmeUv",
+                                      "name": "Scenario card",
+                                      "clip": true,
+                                      "width": "fill_container",
+                                      "fill": "$surface-content",
+                                      "cornerRadius": 10,
+                                      "stroke": "$border-control",
+                                      "strokeWidth": 1,
+                                      "layout": "vertical",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "a5Mst",
+                                          "name": "Lane ci.yml",
+                                          "width": "fill_container",
+                                          "layout": "vertical",
+                                          "gap": 6,
+                                          "padding": [
+                                            10,
+                                            14
+                                          ],
+                                          "children": [
+                                            {
+                                              "type": "frame",
+                                              "id": "Tcmrv",
+                                              "name": "Workflow",
+                                              "width": "fill_container",
+                                              "gap": 10,
+                                              "children": [
+                                                {
+                                                  "type": "icon",
+                                                  "id": "hdttf",
+                                                  "name": "Checkbox on",
+                                                  "width": 18,
+                                                  "height": 18,
+                                                  "icon": "check_box",
+                                                  "library": "Material Symbols Rounded",
+                                                  "fill": "$accent"
+                                                },
+                                                {
+                                                  "type": "frame",
+                                                  "id": "w0kg94",
+                                                  "name": "Text",
+                                                  "width": "fill_container",
+                                                  "layout": "vertical",
+                                                  "gap": 2,
+                                                  "children": [
+                                                    {
+                                                      "type": "frame",
+                                                      "id": "QDWg5",
+                                                      "name": "Title",
+                                                      "width": "fill_container",
+                                                      "gap": 8,
+                                                      "alignItems": "center",
+                                                      "children": [
+                                                        {
+                                                          "type": "text",
+                                                          "id": "Yofy7",
+                                                          "name": "Name",
+                                                          "fill": "$text-primary",
+                                                          "content": "CI",
+                                                          "fontFamily": "Inter",
+                                                          "fontSize": 13,
+                                                          "fontWeight": "600"
+                                                        },
+                                                        {
+                                                          "type": "text",
+                                                          "id": "rwIfC",
+                                                          "name": "File",
+                                                          "fill": "$text-secondary",
+                                                          "content": "ci.yml",
+                                                          "fontFamily": "JetBrains Mono",
+                                                          "fontSize": 11,
+                                                          "fontWeight": "normal"
+                                                        },
+                                                        {
+                                                          "type": "frame",
+                                                          "id": "xHxjw",
+                                                          "name": "spacer",
+                                                          "width": "fill_container",
+                                                          "height": 1
+                                                        },
+                                                        {
+                                                          "type": "frame",
+                                                          "id": "Y9CFa",
+                                                          "name": "Event",
+                                                          "cornerRadius": 5,
+                                                          "stroke": "$border-control",
+                                                          "strokeWidth": 1,
+                                                          "padding": [
+                                                            1,
+                                                            6
+                                                          ],
+                                                          "children": [
+                                                            {
+                                                              "type": "text",
+                                                              "id": "f50AJX",
+                                                              "name": "Event name",
+                                                              "fill": "$text-secondary",
+                                                              "content": "pull_request",
+                                                              "fontFamily": "JetBrains Mono",
+                                                              "fontSize": 11,
+                                                              "fontWeight": "normal"
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    },
+                                                    {
+                                                      "type": "text",
+                                                      "id": "tj20M",
+                                                      "name": "Why",
+                                                      "fill": "$text-secondary",
+                                                      "content": "pull_request · branches main · paths ✓",
+                                                      "fontFamily": "Inter",
+                                                      "fontSize": 11,
+                                                      "fontWeight": "normal"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "frame",
+                                              "id": "pb1t6",
+                                              "name": "Jobs",
+                                              "width": "fill_container",
+                                              "layout": "vertical",
+                                              "gap": 4,
+                                              "padding": [
+                                                0,
+                                                0,
+                                                0,
+                                                28
+                                              ],
+                                              "children": [
+                                                {
+                                                  "type": "frame",
+                                                  "id": "d8MDv7",
+                                                  "name": "Job lint",
+                                                  "width": "fill_container",
+                                                  "gap": 10,
+                                                  "children": [
+                                                    {
+                                                      "type": "icon",
+                                                      "id": "u0V10G",
+                                                      "name": "Checkbox on",
+                                                      "width": 18,
+                                                      "height": 18,
+                                                      "icon": "check_box",
+                                                      "library": "Material Symbols Rounded",
+                                                      "fill": "$accent"
+                                                    },
+                                                    {
+                                                      "type": "frame",
+                                                      "id": "Apelf",
+                                                      "name": "Text",
+                                                      "width": "fill_container",
+                                                      "layout": "vertical",
+                                                      "gap": 1,
+                                                      "children": [
+                                                        {
+                                                          "type": "frame",
+                                                          "id": "s0dK8X",
+                                                          "name": "Name line",
+                                                          "gap": 6,
+                                                          "alignItems": "center",
+                                                          "children": [
+                                                            {
+                                                              "type": "text",
+                                                              "id": "YhH6H",
+                                                              "name": "Name",
+                                                              "fill": "$text-primary",
+                                                              "content": "lint",
+                                                              "fontFamily": "Inter",
+                                                              "fontSize": 12,
+                                                              "fontWeight": "500"
+                                                            }
+                                                          ]
+                                                        },
+                                                        {
+                                                          "type": "text",
+                                                          "id": "tO4Gl",
+                                                          "name": "Caption",
+                                                          "fill": "$text-secondary",
+                                                          "content": "ubuntu-latest · catthehacker/ubuntu:act-latest",
+                                                          "fontFamily": "Inter",
+                                                          "fontSize": 11,
+                                                          "fontWeight": "normal"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "frame",
+                                                  "id": "ogbT4",
+                                                  "name": "Job unit-tests",
+                                                  "width": "fill_container",
+                                                  "gap": 10,
+                                                  "children": [
+                                                    {
+                                                      "type": "icon",
+                                                      "id": "lc7LW",
+                                                      "name": "Checkbox on",
+                                                      "width": 18,
+                                                      "height": 18,
+                                                      "icon": "check_box",
+                                                      "library": "Material Symbols Rounded",
+                                                      "fill": "$accent"
+                                                    },
+                                                    {
+                                                      "type": "frame",
+                                                      "id": "NdeqA",
+                                                      "name": "Text",
+                                                      "width": "fill_container",
+                                                      "layout": "vertical",
+                                                      "gap": 1,
+                                                      "children": [
+                                                        {
+                                                          "type": "frame",
+                                                          "id": "Etce2",
+                                                          "name": "Name line",
+                                                          "gap": 6,
+                                                          "alignItems": "center",
+                                                          "children": [
+                                                            {
+                                                              "type": "text",
+                                                              "id": "WLZqR",
+                                                              "name": "Name",
+                                                              "fill": "$text-primary",
+                                                              "content": "unit-tests",
+                                                              "fontFamily": "Inter",
+                                                              "fontSize": 12,
+                                                              "fontWeight": "500"
+                                                            },
+                                                            {
+                                                              "type": "text",
+                                                              "id": "NKlg4",
+                                                              "name": "Needs",
+                                                              "fill": "$text-disabled",
+                                                              "content": "needs lint",
+                                                              "fontFamily": "Inter",
+                                                              "fontSize": 11,
+                                                              "fontWeight": "normal"
+                                                            }
+                                                          ]
+                                                        },
+                                                        {
+                                                          "type": "text",
+                                                          "id": "sm3GM",
+                                                          "name": "Caption",
+                                                          "fill": "$text-secondary",
+                                                          "content": "ubuntu-latest · catthehacker/ubuntu:act-latest",
+                                                          "fontFamily": "Inter",
+                                                          "fontSize": 11,
+                                                          "fontWeight": "normal"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "frame",
+                                                  "id": "iAQsZ",
+                                                  "name": "Job build-ios",
+                                                  "width": "fill_container",
+                                                  "gap": 10,
+                                                  "children": [
+                                                    {
+                                                      "type": "icon",
+                                                      "id": "YVkIq",
+                                                      "name": "Checkbox on",
+                                                      "width": 18,
+                                                      "height": 18,
+                                                      "icon": "check_box",
+                                                      "library": "Material Symbols Rounded",
+                                                      "fill": "$accent"
+                                                    },
+                                                    {
+                                                      "type": "frame",
+                                                      "id": "pWIYM",
+                                                      "name": "Text",
+                                                      "width": "fill_container",
+                                                      "layout": "vertical",
+                                                      "gap": 1,
+                                                      "children": [
+                                                        {
+                                                          "type": "frame",
+                                                          "id": "OJg5F",
+                                                          "name": "Name line",
+                                                          "gap": 6,
+                                                          "alignItems": "center",
+                                                          "children": [
+                                                            {
+                                                              "type": "text",
+                                                              "id": "yY3fx",
+                                                              "name": "Name",
+                                                              "fill": "$text-primary",
+                                                              "content": "build-ios",
+                                                              "fontFamily": "Inter",
+                                                              "fontSize": 12,
+                                                              "fontWeight": "500"
+                                                            },
+                                                            {
+                                                              "type": "text",
+                                                              "id": "yXcul",
+                                                              "name": "Needs",
+                                                              "fill": "$text-disabled",
+                                                              "content": "needs unit-tests",
+                                                              "fontFamily": "Inter",
+                                                              "fontSize": 11,
+                                                              "fontWeight": "normal"
+                                                            }
+                                                          ]
+                                                        },
+                                                        {
+                                                          "type": "text",
+                                                          "id": "jFVhY",
+                                                          "name": "Caption",
+                                                          "fill": "$status-warning",
+                                                          "content": "macos-26 · on this Mac, in the macOS sandbox",
+                                                          "fontFamily": "Inter",
+                                                          "fontSize": 11,
+                                                          "fontWeight": "normal"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "IRKFl",
+                                          "name": "divider",
+                                          "width": "fill_container",
+                                          "height": 1,
+                                          "fill": "$divider"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "ejq3x",
+                                          "name": "Lane core.yml",
+                                          "width": "fill_container",
+                                          "layout": "vertical",
+                                          "gap": 6,
+                                          "padding": [
+                                            10,
+                                            14
+                                          ],
+                                          "children": [
+                                            {
+                                              "type": "frame",
+                                              "id": "U1mKN",
+                                              "name": "Workflow",
+                                              "width": "fill_container",
+                                              "gap": 10,
+                                              "children": [
+                                                {
+                                                  "type": "icon",
+                                                  "id": "OZTuU",
+                                                  "name": "Checkbox mixed",
+                                                  "width": 18,
+                                                  "height": 18,
+                                                  "icon": "indeterminate_check_box",
+                                                  "library": "Material Symbols Rounded",
+                                                  "fill": "$accent"
+                                                },
+                                                {
+                                                  "type": "frame",
+                                                  "id": "k11g7",
+                                                  "name": "Text",
+                                                  "width": "fill_container",
+                                                  "layout": "vertical",
+                                                  "gap": 2,
+                                                  "children": [
+                                                    {
+                                                      "type": "frame",
+                                                      "id": "Y0gTib",
+                                                      "name": "Title",
+                                                      "width": "fill_container",
+                                                      "gap": 8,
+                                                      "alignItems": "center",
+                                                      "children": [
+                                                        {
+                                                          "type": "text",
+                                                          "id": "ELd78",
+                                                          "name": "Name",
+                                                          "fill": "$text-primary",
+                                                          "content": "Go Core",
+                                                          "fontFamily": "Inter",
+                                                          "fontSize": 13,
+                                                          "fontWeight": "600"
+                                                        },
+                                                        {
+                                                          "type": "text",
+                                                          "id": "Kfz0t",
+                                                          "name": "File",
+                                                          "fill": "$text-secondary",
+                                                          "content": "core.yml",
+                                                          "fontFamily": "JetBrains Mono",
+                                                          "fontSize": 11,
+                                                          "fontWeight": "normal"
+                                                        },
+                                                        {
+                                                          "type": "frame",
+                                                          "id": "qql1Y",
+                                                          "name": "spacer",
+                                                          "width": "fill_container",
+                                                          "height": 1
+                                                        },
+                                                        {
+                                                          "type": "frame",
+                                                          "id": "oB6kL",
+                                                          "name": "Event",
+                                                          "cornerRadius": 5,
+                                                          "stroke": "$border-control",
+                                                          "strokeWidth": 1,
+                                                          "padding": [
+                                                            1,
+                                                            6
+                                                          ],
+                                                          "children": [
+                                                            {
+                                                              "type": "text",
+                                                              "id": "ljS0K",
+                                                              "name": "Event name",
+                                                              "fill": "$text-secondary",
+                                                              "content": "pull_request",
+                                                              "fontFamily": "JetBrains Mono",
+                                                              "fontSize": 11,
+                                                              "fontWeight": "normal"
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    },
+                                                    {
+                                                      "type": "text",
+                                                      "id": "LjAR0",
+                                                      "name": "Why",
+                                                      "fill": "$text-secondary",
+                                                      "content": "pull_request · paths ✓",
+                                                      "fontFamily": "Inter",
+                                                      "fontSize": 11,
+                                                      "fontWeight": "normal"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "frame",
+                                              "id": "DDXjS",
+                                              "name": "Jobs",
+                                              "width": "fill_container",
+                                              "layout": "vertical",
+                                              "gap": 4,
+                                              "padding": [
+                                                0,
+                                                0,
+                                                0,
+                                                28
+                                              ],
+                                              "children": [
+                                                {
+                                                  "type": "frame",
+                                                  "id": "nWgu1",
+                                                  "name": "Job native-tests",
+                                                  "width": "fill_container",
+                                                  "gap": 10,
+                                                  "children": [
+                                                    {
+                                                      "type": "icon",
+                                                      "id": "Q6F88r",
+                                                      "name": "Checkbox on",
+                                                      "width": 18,
+                                                      "height": 18,
+                                                      "icon": "check_box",
+                                                      "library": "Material Symbols Rounded",
+                                                      "fill": "$accent"
+                                                    },
+                                                    {
+                                                      "type": "frame",
+                                                      "id": "cIXh1",
+                                                      "name": "Text",
+                                                      "width": "fill_container",
+                                                      "layout": "vertical",
+                                                      "gap": 1,
+                                                      "children": [
+                                                        {
+                                                          "type": "frame",
+                                                          "id": "AIxbn",
+                                                          "name": "Name line",
+                                                          "gap": 6,
+                                                          "alignItems": "center",
+                                                          "children": [
+                                                            {
+                                                              "type": "text",
+                                                              "id": "CXWL6",
+                                                              "name": "Name",
+                                                              "fill": "$text-primary",
+                                                              "content": "native-tests",
+                                                              "fontFamily": "Inter",
+                                                              "fontSize": 12,
+                                                              "fontWeight": "500"
+                                                            }
+                                                          ]
+                                                        },
+                                                        {
+                                                          "type": "text",
+                                                          "id": "FH7Hq",
+                                                          "name": "Caption",
+                                                          "fill": "$text-secondary",
+                                                          "content": "ubuntu-latest · catthehacker/ubuntu:act-latest",
+                                                          "fontFamily": "Inter",
+                                                          "fontSize": 11,
+                                                          "fontWeight": "normal"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "frame",
+                                                  "id": "m93Ij",
+                                                  "name": "Job cross-build",
+                                                  "width": "fill_container",
+                                                  "gap": 10,
+                                                  "children": [
+                                                    {
+                                                      "type": "icon",
+                                                      "id": "W882KU",
+                                                      "name": "Checkbox off",
+                                                      "width": 18,
+                                                      "height": 18,
+                                                      "icon": "check_box_outline_blank",
+                                                      "library": "Material Symbols Rounded",
+                                                      "fill": "$text-secondary"
+                                                    },
+                                                    {
+                                                      "type": "frame",
+                                                      "id": "EZAsM",
+                                                      "name": "Text",
+                                                      "width": "fill_container",
+                                                      "layout": "vertical",
+                                                      "gap": 1,
+                                                      "children": [
+                                                        {
+                                                          "type": "frame",
+                                                          "id": "TRHcl",
+                                                          "name": "Name line",
+                                                          "gap": 6,
+                                                          "alignItems": "center",
+                                                          "children": [
+                                                            {
+                                                              "type": "text",
+                                                              "id": "EyIce",
+                                                              "name": "Name",
+                                                              "fill": "$text-primary",
+                                                              "content": "cross-build",
+                                                              "fontFamily": "Inter",
+                                                              "fontSize": 12,
+                                                              "fontWeight": "500"
+                                                            },
+                                                            {
+                                                              "type": "text",
+                                                              "id": "AKL4u",
+                                                              "name": "Needs",
+                                                              "fill": "$text-disabled",
+                                                              "content": "needs native-tests",
+                                                              "fontFamily": "Inter",
+                                                              "fontSize": 11,
+                                                              "fontWeight": "normal"
+                                                            }
+                                                          ]
+                                                        },
+                                                        {
+                                                          "type": "text",
+                                                          "id": "C5QXtJ",
+                                                          "name": "Caption",
+                                                          "fill": "$text-secondary",
+                                                          "content": "ubuntu-latest · catthehacker/ubuntu:act-latest",
+                                                          "fontFamily": "Inter",
+                                                          "fontSize": 11,
+                                                          "fontWeight": "normal"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "byTvH",
+                                          "name": "divider",
+                                          "width": "fill_container",
+                                          "height": 1,
+                                          "fill": "$divider"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "lLJdd",
+                                          "name": "Lane notify.yml",
+                                          "width": "fill_container",
+                                          "layout": "vertical",
+                                          "gap": 6,
+                                          "padding": [
+                                            10,
+                                            14
+                                          ],
+                                          "children": [
+                                            {
+                                              "type": "frame",
+                                              "id": "gtvIE",
+                                              "name": "Workflow",
+                                              "width": "fill_container",
+                                              "gap": 10,
+                                              "children": [
+                                                {
+                                                  "type": "icon",
+                                                  "id": "ctgBm",
+                                                  "name": "Checkbox on",
+                                                  "width": 18,
+                                                  "height": 18,
+                                                  "icon": "check_box",
+                                                  "library": "Material Symbols Rounded",
+                                                  "fill": "$accent"
+                                                },
+                                                {
+                                                  "type": "frame",
+                                                  "id": "i5qx8",
+                                                  "name": "Text",
+                                                  "width": "fill_container",
+                                                  "layout": "vertical",
+                                                  "gap": 2,
+                                                  "children": [
+                                                    {
+                                                      "type": "frame",
+                                                      "id": "BoaZk",
+                                                      "name": "Title",
+                                                      "width": "fill_container",
+                                                      "gap": 8,
+                                                      "alignItems": "center",
+                                                      "children": [
+                                                        {
+                                                          "type": "text",
+                                                          "id": "Z8mI6s",
+                                                          "name": "Name",
+                                                          "fill": "$text-primary",
+                                                          "content": "Notify",
+                                                          "fontFamily": "Inter",
+                                                          "fontSize": 13,
+                                                          "fontWeight": "600"
+                                                        },
+                                                        {
+                                                          "type": "text",
+                                                          "id": "B88ru",
+                                                          "name": "File",
+                                                          "fill": "$text-secondary",
+                                                          "content": "notify.yml",
+                                                          "fontFamily": "JetBrains Mono",
+                                                          "fontSize": 11,
+                                                          "fontWeight": "normal"
+                                                        },
+                                                        {
+                                                          "type": "frame",
+                                                          "id": "P9AZU",
+                                                          "name": "spacer",
+                                                          "width": "fill_container",
+                                                          "height": 1
+                                                        },
+                                                        {
+                                                          "type": "frame",
+                                                          "id": "SQose",
+                                                          "name": "Event",
+                                                          "cornerRadius": 5,
+                                                          "stroke": "$border-control",
+                                                          "strokeWidth": 1,
+                                                          "padding": [
+                                                            1,
+                                                            6
+                                                          ],
+                                                          "children": [
+                                                            {
+                                                              "type": "text",
+                                                              "id": "y78uUC",
+                                                              "name": "Event name",
+                                                              "fill": "$text-secondary",
+                                                              "content": "workflow_run",
+                                                              "fontFamily": "JetBrains Mono",
+                                                              "fontSize": 11,
+                                                              "fontWeight": "normal"
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    },
+                                                    {
+                                                      "type": "text",
+                                                      "id": "z0wJ4",
+                                                      "name": "Why",
+                                                      "fill": "$text-secondary",
+                                                      "content": "After CI succeeds · workflow_run",
+                                                      "fontFamily": "Inter",
+                                                      "fontSize": 11,
+                                                      "fontWeight": "normal"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "frame",
+                                              "id": "TXzMn",
+                                              "name": "Jobs",
+                                              "width": "fill_container",
+                                              "layout": "vertical",
+                                              "gap": 4,
+                                              "padding": [
+                                                0,
+                                                0,
+                                                0,
+                                                28
+                                              ],
+                                              "children": [
+                                                {
+                                                  "type": "frame",
+                                                  "id": "vzSux",
+                                                  "name": "Job tell",
+                                                  "width": "fill_container",
+                                                  "gap": 10,
+                                                  "children": [
+                                                    {
+                                                      "type": "icon",
+                                                      "id": "gzCaG",
+                                                      "name": "Checkbox on",
+                                                      "width": 18,
+                                                      "height": 18,
+                                                      "icon": "check_box",
+                                                      "library": "Material Symbols Rounded",
+                                                      "fill": "$accent"
+                                                    },
+                                                    {
+                                                      "type": "frame",
+                                                      "id": "ifrzY",
+                                                      "name": "Text",
+                                                      "width": "fill_container",
+                                                      "layout": "vertical",
+                                                      "gap": 1,
+                                                      "children": [
+                                                        {
+                                                          "type": "frame",
+                                                          "id": "H7aC3P",
+                                                          "name": "Name line",
+                                                          "gap": 6,
+                                                          "alignItems": "center",
+                                                          "children": [
+                                                            {
+                                                              "type": "text",
+                                                              "id": "OCGUl",
+                                                              "name": "Name",
+                                                              "fill": "$text-primary",
+                                                              "content": "tell",
+                                                              "fontFamily": "Inter",
+                                                              "fontSize": 12,
+                                                              "fontWeight": "500"
+                                                            }
+                                                          ]
+                                                        },
+                                                        {
+                                                          "type": "text",
+                                                          "id": "pNrzU",
+                                                          "name": "Caption",
+                                                          "fill": "$text-secondary",
+                                                          "content": "ubuntu-latest · catthehacker/ubuntu:act-latest",
+                                                          "fontFamily": "Inter",
+                                                          "fontSize": 11,
+                                                          "fontWeight": "normal"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "r8Yf9S",
+                                  "name": "Runs on this Mac",
+                                  "width": "fill_container",
+                                  "fill": "$soft-warning",
+                                  "cornerRadius": 6,
+                                  "layout": "vertical",
+                                  "gap": 8,
+                                  "padding": 14,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "MCaWU",
+                                      "name": "Top",
+                                      "width": "fill_container",
+                                      "gap": 10,
+                                      "children": [
+                                        {
+                                          "type": "icon",
+                                          "id": "FmWDo",
+                                          "name": "Icon",
+                                          "width": 18,
+                                          "height": 18,
+                                          "icon": "laptop_mac",
+                                          "library": "Material Symbols Rounded",
+                                          "fill": "$status-warning"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "h9NZB",
+                                          "name": "Text",
+                                          "width": "fill_container",
+                                          "layout": "vertical",
+                                          "gap": 4,
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "OLV5y",
+                                              "name": "Title",
+                                              "fill": "$text-primary",
+                                              "content": "CI › build-ios runs on this Mac, not in a container",
+                                              "fontFamily": "Inter",
+                                              "fontSize": 13,
+                                              "fontWeight": "600"
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "OqNUV",
+                                              "name": "Body",
+                                              "fill": "$text-secondary",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "macOS jobs cannot run in a container, so act runs them on this Mac in the macOS sandbox. They cannot read your home folder outside this repository, write outside the run's folder or use your Keychain. They do use this Mac's macOS, Xcode and tools and the network, CPU and memory limits do not apply, and processes they leave running keep running. Steps that need root, another Xcode or your signing certificates fail.",
+                                              "lineHeight": 1.4,
+                                              "fontFamily": "Inter",
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "Ozzfy",
+                                      "name": "Confirm",
+                                      "gap": 8,
+                                      "padding": [
+                                        0,
+                                        0,
+                                        0,
+                                        28
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "icon",
+                                          "id": "TtNNA",
+                                          "name": "Checkbox off",
+                                          "width": 16,
+                                          "height": 16,
+                                          "icon": "check_box_outline_blank",
+                                          "library": "Material Symbols Rounded",
+                                          "fill": "$text-secondary"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "nL0Jl",
+                                          "name": "Label",
+                                          "fill": "$text-primary",
+                                          "content": "Run these jobs on this Mac without a container",
+                                          "fontFamily": "Inter",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "ITwTS",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 8,
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "Mczhl",
+                                      "fill": "$text-secondary",
+                                      "content": "ENGINE AND TOOLS",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 12,
+                                      "fontWeight": "600",
+                                      "letterSpacing": 0.6
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "s5gnBM",
+                                      "name": "card",
+                                      "clip": true,
+                                      "width": "fill_container",
+                                      "fill": "$surface-content",
+                                      "cornerRadius": 10,
+                                      "stroke": "$border-control",
+                                      "strokeWidth": 1,
+                                      "layout": "vertical",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "Po38Z",
+                                          "name": "tool Docker CLI",
+                                          "width": "fill_container",
+                                          "height": 42,
+                                          "gap": 12,
+                                          "padding": [
+                                            0,
+                                            14
+                                          ],
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "icon",
+                                              "id": "J6Nfm",
+                                              "name": "status",
+                                              "width": 20,
+                                              "height": 20,
+                                              "icon": "check_circle",
+                                              "library": "Material Symbols Rounded",
+                                              "fill": "$status-success"
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "ue54U",
+                                              "name": "tool",
+                                              "fill": "$text-primary",
+                                              "textGrowth": "fixed-width",
+                                              "width": 150,
+                                              "content": "Docker CLI",
+                                              "fontFamily": "Inter",
+                                              "fontSize": 15,
+                                              "fontWeight": "600"
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "hU08J",
+                                              "name": "detail",
+                                              "fill": "$text-secondary",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "27.3.1 · found",
+                                              "fontFamily": "Inter",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            },
+                                            {
+                                              "id": "xMjut",
+                                              "type": "ref",
+                                              "ref": "xokzI",
+                                              "name": "Recheck",
+                                              "descendants": {
+                                                "ye95Q": {
+                                                  "content": "Recheck"
+                                                }
+                                              }
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "tlTgr",
+                                          "name": "divider",
+                                          "width": "fill_container",
+                                          "height": 1,
+                                          "fill": "$divider"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "Qce9d",
+                                          "name": "tool Container engine",
+                                          "width": "fill_container",
+                                          "height": 42,
+                                          "gap": 12,
+                                          "padding": [
+                                            0,
+                                            14
+                                          ],
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "icon",
+                                              "id": "FPdv0",
+                                              "name": "status",
+                                              "width": 20,
+                                              "height": 20,
+                                              "icon": "check_circle",
+                                              "library": "Material Symbols Rounded",
+                                              "fill": "$status-success"
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "qHALQ",
+                                              "name": "tool",
+                                              "fill": "$text-primary",
+                                              "textGrowth": "fixed-width",
+                                              "width": 150,
+                                              "content": "Container engine",
+                                              "fontFamily": "Inter",
+                                              "fontSize": 15,
+                                              "fontWeight": "600"
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "uGcX3",
+                                              "name": "detail",
+                                              "fill": "$text-secondary",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "OrbStack · context orbstack · local",
+                                              "fontFamily": "Inter",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            },
+                                            {
+                                              "id": "Qu8x5",
+                                              "type": "ref",
+                                              "ref": "xokzI",
+                                              "name": "Recheck",
+                                              "descendants": {
+                                                "ye95Q": {
+                                                  "content": "Recheck"
+                                                }
+                                              }
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "Y5dfW",
+                                          "name": "divider",
+                                          "width": "fill_container",
+                                          "height": 1,
+                                          "fill": "$divider"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "QhIdW",
+                                          "name": "tool act",
+                                          "width": "fill_container",
+                                          "height": 42,
+                                          "gap": 12,
+                                          "padding": [
+                                            0,
+                                            14
+                                          ],
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "icon",
+                                              "id": "sT8BS",
+                                              "name": "status",
+                                              "width": 20,
+                                              "height": 20,
+                                              "icon": "check_circle",
+                                              "library": "Material Symbols Rounded",
+                                              "fill": "$status-success"
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "cq1R6",
+                                              "name": "tool",
+                                              "fill": "$text-primary",
+                                              "textGrowth": "fixed-width",
+                                              "width": 150,
+                                              "content": "act",
+                                              "fontFamily": "Inter",
+                                              "fontSize": 15,
+                                              "fontWeight": "600"
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "rCBih",
+                                              "name": "detail",
+                                              "fill": "$text-secondary",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "0.2.70 · found",
+                                              "fontFamily": "Inter",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            },
+                                            {
+                                              "id": "LZtP0",
+                                              "type": "ref",
+                                              "ref": "xokzI",
+                                              "name": "Recheck",
+                                              "descendants": {
+                                                "ye95Q": {
+                                                  "content": "Recheck"
+                                                }
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "id": "qdVl0",
+                                  "type": "ref",
+                                  "ref": "lfxIe",
+                                  "width": "fill_container",
+                                  "descendants": {
+                                    "KZlgC": {
+                                      "content": "A container is not a security sandbox"
+                                    },
+                                    "Wqm5R": {
+                                      "content": "Only run workflows you trust. Runnir limits mounts and credentials, but cannot guarantee isolation for arbitrary code."
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "faZaj",
+                              "name": "divider",
+                              "width": "fill_container",
+                              "height": 1,
+                              "fill": "$divider"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "F1PRlg",
+                              "width": "fill_container",
+                              "gap": 10,
+                              "padding": [
+                                14,
+                                24
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "R447I",
+                                  "width": 16,
+                                  "height": 16,
+                                  "fill": "$accent",
+                                  "cornerRadius": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "h4bKZE",
+                                      "width": 12,
+                                      "height": 12,
+                                      "icon": "check",
+                                      "library": "Material Symbols Rounded",
+                                      "fill": "$text-on-accent"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "D49vMd",
+                                  "fill": "$text-primary",
+                                  "content": "I trust this workflow and repository",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "AJWwD",
+                                  "name": "spacer",
+                                  "width": "fill_container",
+                                  "height": 1
+                                },
+                                {
+                                  "id": "V06Ea",
+                                  "type": "ref",
+                                  "ref": "xokzI",
+                                  "descendants": {
+                                    "ye95Q": {
+                                      "content": "Cancel"
+                                    }
+                                  }
+                                },
+                                {
+                                  "id": "LF2wL",
+                                  "type": "ref",
+                                  "ref": "C9My2",
+                                  "gap": 5,
+                                  "opacity": 0.45,
+                                  "descendants": {
+                                    "d4opHz": {
+                                      "type": "path",
+                                      "id": "s47Kz",
+                                      "name": "play",
+                                      "geometry": "M2 1.5l9 5.5-9 5.5z",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        13,
+                                        14
+                                      ],
+                                      "fill": "$text-on-accent",
+                                      "width": 10,
+                                      "height": 11,
+                                      "stroke": "$text-on-accent",
+                                      "strokeWidth": 2,
+                                      "strokeLinejoin": "round"
+                                    },
+                                    "ldi4w": {
+                                      "content": "Run Locally"
+                                    }
+                                  }
                                 }
                               ]
                             }

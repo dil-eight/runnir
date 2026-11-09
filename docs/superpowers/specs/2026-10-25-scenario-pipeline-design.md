@@ -143,6 +143,17 @@ Each workflow gets the event its row shows: the one that starts it in the scenar
 - A chained workflow runs after its source only when the source succeeded; otherwise its jobs are "not run" with the reason. A failed workflow stops nothing else.
 - The time limit applies to each workflow. **Stop** stops the current act; the workflows after it do not start.
 
+### macOS Jobs On This Mac
+
+Decided on 2026-11-08. act runs jobs in Linux containers; macOS cannot run in a container, so on a Mac a job on a `macos-*` runner runs on the Mac itself (act's host mode, `-P <label>=-self-hosted`), in the macOS sandbox (Seatbelt, `sandbox-exec`), as Codex and Claude Code sandbox commands. Elsewhere such a job stays "not supported locally".
+
+- **Ticks**: never ticked by default, and a workflow's checkbox leaves them out unless the workflow has nothing else; the user ticks them one by one. The review then names them in a warning ("… run on this Mac, not in a container") and asks for a confirmation of its own, apart from trusting the workflow.
+- **The sandbox**: everything is allowed but writing outside the run's scratch folder, act's cache and the system's temporary folders; reading the home folder outside the repository (and a worktree's git folders), act's own folder, Node.js and the engine's socket; and the Keychain's services. The network is open. Foundation's home (`CFFIXED_USER_HOME`) and `HOME` are the run's scratch home, so Xcode's DerivedData and caches stay in the run.
+- **Tools**: the steps' PATH is the run's shims, Node.js (found on the PATH or nvm's newest, for JavaScript actions), Homebrew and the system's. Xcode, SwiftPM and the Swift compiler sandbox what they run themselves, which cannot start inside a sandbox: the `xcodebuild` shim adds `-IDEPackageSupportDisableManifestSandbox=YES -IDEPackageSupportDisablePluginExecutionSandbox=YES ENABLE_USER_SCRIPT_SANDBOXING=NO SWIFTC_DISABLE_SANDBOX=YES`, the `swift` shim `--disable-sandbox`; the lane's sandbox is the stricter one.
+- **No root**: a `sudo` shim. `sudo xcode-select -s X` writes `DEVELOPER_DIR` for the next steps instead; any other sudo fails with the reason. A plan whose Mac jobs run sudo says so in a note.
+- **What it does not isolate**, said in the review: this Mac's macOS, Xcode and tools are used, CPU and memory limits do not apply, processes a step leaves running keep running, and steps that need root, another Xcode or the user's signing certificates fail.
+- **Contract**: `LOCAL_JOB_SUPPORT_HOST` and the plan's `host_jobs`. A Mac without `sandbox-exec` blocks such a run.
+
 ### Progress (S11)
 
 The Local Run tab lists the run's jobs under their workflows, in run order, each workflow with its state; a job opens its output. The run's record keeps the scenario and its workflows. Run Again reviews the same scenario with the same ticks.
