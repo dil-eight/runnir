@@ -160,7 +160,7 @@ struct GRPCCoreService: CoreServicing {
             pullRequestsMatched: Int(hits.pullRequestsMatched),
             workflows: hits.workflows.map(Self.map), workflowsMatched: Int(hits.workflowsMatched),
             localRuns: hits.localRuns.map {
-                CoreSearchedLocalRun(executionID: $0.executionID, workflowPath: $0.workflowPath, jobID: $0.jobID, state: $0.state,
+                CoreSearchedLocalRun(executionID: $0.executionID, scenario: $0.scenario, workflowPaths: $0.workflowPaths, state: $0.state,
                                      message: $0.message, startedAt: $0.hasStartedAt ? $0.startedAt.date : nil)
             },
             localRunsMatched: Int(hits.localRunsMatched))
@@ -1049,14 +1049,25 @@ struct GRPCCoreService: CoreServicing {
         return Self.map(response.readiness)
     }
 
-    func prepareLocalRun(repositoryID: String, workflowID: String, jobID: String?, event: String?,
+    func prepareLocalRun(repositoryID: String, scenario: CoreScenario?, selection: CoreLocalRunSelection?,
                          useInstalledAct: Bool, limits: CoreLocalRunLimits?, resetLimits: Bool) async throws -> CorePreparedLocalRun {
         let response = try await call {
             try await client.prepareLocalRun(.with {
                 $0.repositoryID = repositoryID
-                $0.workflowID = workflowID
-                $0.jobID = jobID ?? ""
-                $0.event = event ?? ""
+                if let scenario {
+                    $0.scenario = .with {
+                        $0.kind = Self.map(scenario.kind)
+                        $0.target = scenario.target
+                    }
+                }
+                if let selection {
+                    $0.selection = selection.wire.map { workflow, jobs in
+                        .with {
+                            $0.workflowID = workflow
+                            $0.jobIds = jobs
+                        }
+                    }
+                }
                 $0.useInstalledAct = useInstalledAct
                 if let limits {
                     $0.limits = .with {
@@ -1129,7 +1140,7 @@ struct GRPCCoreService: CoreServicing {
         return CoreLocalRunOutput(
             executionID: response.executionID, repositoryID: response.repositoryID,
             state: Self.map(response.state), phase: phase,
-            lines: response.lines.map { CoreLocalRunLine(sequence: $0.sequence, jobID: $0.jobID, text: $0.text, isError: $0.error) },
+            lines: response.lines.map { CoreLocalRunLine(sequence: $0.sequence, workflowID: $0.workflowID, jobID: $0.jobID, text: $0.text, isError: $0.error) },
             discarded: response.discarded, lastSequence: response.lastSequence,
             jobs: response.jobs.map { job in
                 let state: CoreLocalJobState = switch job.state {
@@ -1143,7 +1154,7 @@ struct GRPCCoreService: CoreServicing {
                 case .notRun: .notRun
                 default: .unknown
                 }
-                return CoreLocalRunJobStatus(id: job.id, name: job.name, state: state, reason: job.reason,
+                return CoreLocalRunJobStatus(workflowID: job.workflowID, id: job.id, name: job.name, state: state, reason: job.reason,
                                              startedAt: job.hasStartedAt ? job.startedAt.date : nil,
                                              finishedAt: job.hasFinishedAt ? job.finishedAt.date : nil)
             },
@@ -1191,14 +1202,27 @@ struct GRPCCoreService: CoreServicing {
 
     static func map(_ plan: Runnir_Core_V1_LocalRunPlan) -> CoreLocalRunPlan {
         CoreLocalRunPlan(
-            workflowID: plan.workflowID, workflowName: plan.workflowName, events: plan.events, event: plan.event, jobID: plan.jobID,
-            jobs: plan.jobs.map { job in
-                let support: CoreLocalJobSupport = switch job.support {
-                case .supported: .supported
-                case .unsupported: .unsupported
-                default: .unknown
+            scenarios: plan.scenarios.compactMap(Self.map),
+            scenario: plan.hasScenario ? Self.map(plan.scenario) : nil,
+            lanes: plan.lanes.map { lane in
+                let kind: CoreLocalRunLaneKind = switch lane.kind {
+                case .chained: .chained
+                case .manual: .manual
+                case .outside: .outside
+                default: .direct
                 }
-                return CoreLocalRunJob(id: job.id, name: job.name, runsOn: job.runsOn, image: job.image, support: support, reason: job.reason)
+                return CoreLocalRunLane(
+                    workflowID: lane.workflowID, workflowName: lane.workflowName, kind: kind, event: lane.event, why: lane.why,
+                    skipped: lane.skipped, after: lane.after, selected: lane.selected, parseError: lane.parseError,
+                    jobs: lane.jobs.map { job in
+                        let support: CoreLocalJobSupport = switch job.support {
+                        case .supported: .supported
+                        case .unsupported: .unsupported
+                        default: .unknown
+                        }
+                        return CoreLocalRunJob(id: job.id, name: job.name, runsOn: job.runsOn, image: job.image, support: support,
+                                               reason: job.reason, needs: job.needs, selected: job.selected, skipped: job.skipped)
+                    })
             },
             images: plan.images.map { CoreLocalRunImage(reference: $0.reference, present: $0.present) },
             secrets: plan.secrets, variables: plan.variables, unnamedSecrets: plan.unnamedSecrets,

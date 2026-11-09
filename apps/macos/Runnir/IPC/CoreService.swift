@@ -278,12 +278,13 @@ protocol CoreServicing: Sendable {
     /// act, the Docker CLI and the container engine as found on this Mac.
     /// Read-only; `refresh` checks again instead of reusing the last result.
     func toolReadiness(refresh: Bool) async throws -> CoreToolReadiness
-    /// Checks the tools and the workflow file and returns the plan, with a
-    /// single-use confirmation when nothing blocks it. Starts nothing.
-    /// `limits` asks for limits (nil: the workspace's, else the defaults);
-    /// `resetLimits` plans the defaults and forgets the workspace's once the
-    /// run is confirmed.
-    func prepareLocalRun(repositoryID: String, workflowID: String, jobID: String?, event: String?,
+    /// Plans a local run of a scenario (nil: the branch's default) with the
+    /// jobs ticked in `selection` (nil: what the scenario starts that can run
+    /// here), checks the tools and returns the plan, with a single-use
+    /// confirmation when nothing blocks it. Starts nothing. `limits` asks for
+    /// limits (nil: the workspace's, else the defaults); `resetLimits` plans
+    /// the defaults and forgets the workspace's once the run is confirmed.
+    func prepareLocalRun(repositoryID: String, scenario: CoreScenario?, selection: CoreLocalRunSelection?,
                          useInstalledAct: Bool, limits: CoreLocalRunLimits?, resetLimits: Bool) async throws -> CorePreparedLocalRun
     /// Starts a prepared local run once with the values for the plan's
     /// secrets and variables. Throws `.failedPrecondition` when the

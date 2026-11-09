@@ -1096,18 +1096,17 @@ final class CoreHub {
         case failed(String)
     }
 
-    /// Reviews a local run in the Core. Nothing starts.
-    func prepareLocalRun(workspaceID: UUID, workflowID: String, jobID: String?, event: String?,
+    /// Reviews a local run of a scenario in the Core. Nothing starts.
+    func prepareLocalRun(workspaceID: UUID, scenario: CoreScenario?, selection: CoreLocalRunSelection?,
                          useInstalledAct: Bool, limits: CoreLocalRunLimits? = nil, resetLimits: Bool = false) async -> LocalRunPreparation {
         guard let (service, coreID) = await serviceAndCoreID(workspaceID) else {
             return .failed("Runnir Core is not ready. Local runs are reviewed and started by the Core.")
         }
         do {
-            return .prepared(try await service.prepareLocalRun(repositoryID: coreID, workflowID: workflowID, jobID: jobID,
-                                                               event: event, useInstalledAct: useInstalledAct,
-                                                               limits: limits, resetLimits: resetLimits))
+            return .prepared(try await service.prepareLocalRun(repositoryID: coreID, scenario: scenario, selection: selection,
+                                                               useInstalledAct: useInstalledAct, limits: limits, resetLimits: resetLimits))
         } catch {
-            return .failed(Self.refusal(error, notFound: "This workflow or job is no longer in the working tree. Refresh and review again."))
+            return .failed(Self.refusal(error, notFound: "A ticked workflow or job is no longer in the working tree. Review the run again."))
         }
     }
 
@@ -1164,11 +1163,10 @@ final class CoreHub {
         return run
     }
 
-    /// "ci.yml in mobile-app", for prompts.
+    /// "CI in mobile-app" or "3 workflows in mobile-app", for prompts.
     func describe(_ run: LocalRunModel) -> String {
-        let file = URL(fileURLWithPath: run.plan.workflowID).lastPathComponent
-        guard let path = sessions[run.workspaceID]?.path else { return file }
-        return "\(file) in \(URL(fileURLWithPath: path).lastPathComponent)"
+        guard let path = sessions[run.workspaceID]?.path else { return run.title }
+        return "\(run.title) in \(URL(fileURLWithPath: path).lastPathComponent)"
     }
 
     func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput {

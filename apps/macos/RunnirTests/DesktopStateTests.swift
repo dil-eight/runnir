@@ -460,7 +460,7 @@ struct DesktopCoordinatorTests {
         let other = WorkspaceRecord(id: UUID(), path: fixture.relocated.path, name: "other", bookmark: Data(), lastOpenedAt: Date())
         try fixture.store.save(DesktopSnapshot(workspaces: [fixture.original, other]))
         let provider = FakeProvider()
-        let plan = CoreLocalRunPlan(workflowID: ".github/workflows/probe.yml", event: "push")
+        let plan = CoreLocalRunPlan.oneLane(".github/workflows/probe.yml", jobs: [CoreLocalRunJob(id: "probe", support: .supported, selected: true)])
         provider.core.preparedLocalRun = CorePreparedLocalRun(readiness: FakeCore.readyTools, plan: plan, confirmationID: "local_1", expiresAt: Date())
         provider.core.localOutputs = [CoreLocalRunOutput(
             executionID: "exec_1", repositoryID: "repo", state: .running, phase: .running, lines: [], discarded: false,
@@ -477,7 +477,7 @@ struct DesktopCoordinatorTests {
         coordinator.openRegistered(fixture.original)
         let window = try #require(factory.windows.first)
         _ = await eventually { hub.session(for: fixture.original.id)?.phase == .ready }
-        let review = LocalRunReviewModel(workspaceID: fixture.original.id, workflowID: plan.workflowID, jobs: [], hub: hub)
+        let review = LocalRunReviewModel(workspaceID: fixture.original.id, hub: hub)
         await review.prepare()
         review.trusted = true
         let run = try #require(await review.run())

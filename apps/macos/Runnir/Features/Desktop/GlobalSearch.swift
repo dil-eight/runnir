@@ -367,10 +367,12 @@ final class GlobalSearchModel {
                                      destination: .workflow(path: workflow.path)))
         }
         for run in hits.localRuns {
-            let file = run.workflowPath.split(separator: "/").last.map(String.init) ?? run.workflowPath
+            let files = run.workflowPaths.map { $0.split(separator: "/").last.map(String.init) ?? $0 }
             let when = run.startedAt.map { $0.formatted(.relative(presentation: .numeric, unitsStyle: .narrow)) }
-            rows.append(SearchResult(id: "local-\(id)-\(run.executionID)", kind: .localRun, title: file + (run.jobID.isEmpty ? "" : " · " + run.jobID),
-                                     detail: [run.state.capitalized, run.message.isEmpty ? nil : run.message, when].compactMap { $0 }.joined(separator: " · "),
+            let title = files.count == 1 ? files[0] : files.isEmpty ? "Local run" : "\(files.count) workflows"
+            rows.append(SearchResult(id: "local-\(id)-\(run.executionID)", kind: .localRun, title: title,
+                                     detail: [run.scenario.isEmpty ? nil : run.scenario, run.state.capitalized, run.message.isEmpty ? nil : run.message, when]
+                                        .compactMap { $0 }.joined(separator: " · "),
                                      workspaceID: id, workspaceName: workspaceName, age: age, outcome: Self.outcome(ofLocal: run.state),
                                      destination: .localRuns))
         }

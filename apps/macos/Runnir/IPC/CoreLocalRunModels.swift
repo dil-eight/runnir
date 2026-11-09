@@ -71,7 +71,51 @@ struct CoreLocalRunJob: Equatable, Identifiable, Sendable {
     var runsOn: [String] = []
     var image = ""
     var support: CoreLocalJobSupport
+    /// Why it cannot run here, or what decides it.
     var reason = ""
+    /// The jobs it needs, by id.
+    var needs: [String] = []
+    /// Ticked: it runs.
+    var selected = false
+    /// Why the scenario skips it on GitHub; empty when it runs there.
+    var skipped = ""
+}
+
+/// Why a workflow is in a local run's scenario.
+enum CoreLocalRunLaneKind: Equatable, Sendable {
+    /// The scenario's event starts it.
+    case direct
+    /// workflow_run starts it after another lane.
+    case chained
+    /// It starts only by hand.
+    case manual
+    /// The scenario does not start it.
+    case outside
+}
+
+/// One workflow of a local run: act runs it on its own, after the lanes
+/// before it, with only its ticked jobs and the jobs they need.
+struct CoreLocalRunLane: Equatable, Identifiable, Sendable {
+    /// The workflow's path, as in `Workflow.id`.
+    let workflowID: String
+    var workflowName = ""
+    var kind: CoreLocalRunLaneKind = .direct
+    /// The event act gets for it.
+    var event = ""
+    /// What starts it in the scenario: "pull_request · paths ✓".
+    var why = ""
+    /// Why the scenario does not start it, for an outside lane.
+    var skipped = ""
+    /// The workflow path of the lane a chained lane follows.
+    var after = ""
+    var selected = false
+    /// Why the file does not parse; such a lane cannot be ticked.
+    var parseError = ""
+    var jobs: [CoreLocalRunJob] = []
+
+    var id: String { workflowID }
+    /// The name GitHub shows: the workflow's name, else its file.
+    var title: String { workflowName.isEmpty ? URL(fileURLWithPath: workflowID).lastPathComponent : workflowName }
 }
 
 struct CoreLocalRunImage: Equatable, Sendable {
@@ -81,17 +125,15 @@ struct CoreLocalRunImage: Equatable, Sendable {
 }
 
 struct CoreLocalRunPlan: Equatable, Sendable {
-    var workflowID: String
-    var workflowName = ""
-    var events: [String] = []
-    var event = ""
-    /// The chosen job; empty runs every job.
-    var jobID = ""
-    var jobs: [CoreLocalRunJob] = []
+    /// The branch's scenarios, the default first, and the one planned.
+    var scenarios: [CoreScenario] = []
+    var scenario: CoreScenario?
+    /// Every workflow: the scenario's in run order, then those it leaves out.
+    var lanes: [CoreLocalRunLane] = []
     var images: [CoreLocalRunImage] = []
     var secrets: [String] = []
     var variables: [String] = []
-    /// The workflow reads secrets it does not name; only listed ones are passed.
+    /// A workflow reads secrets it does not name; only listed ones are passed.
     var unnamedSecrets = false
     var notes: [String] = []
     /// Why the run cannot start now.
@@ -124,6 +166,23 @@ struct CoreLocalRunPlan: Equatable, Sendable {
     var environments: [String] = []
 
     var limits: CoreLocalRunLimits { CoreLocalRunLimits(cpus: cpus, memoryBytes: memoryBytes, timeoutSeconds: timeoutSeconds) }
+
+    /// The lanes that run, in run order.
+    var selectedLanes: [CoreLocalRunLane] { lanes.filter(\.selected) }
+}
+
+/// The jobs ticked in a local run, by workflow path. An empty selection
+/// ticks nothing, which the Core refuses with a blocker.
+struct CoreLocalRunSelection: Equatable, Sendable {
+    var jobs: [String: Set<String>] = [:]
+
+    /// What goes on the wire: every workflow with its ticked jobs, sorted; a
+    /// selection of nothing still says so with an empty entry.
+    var wire: [(String, [String])] {
+        let ticked = jobs.filter { !$0.value.isEmpty }.map { ($0.key, $0.value.sorted()) }.sorted { $0.0 < $1.0 }
+        if ticked.isEmpty, let first = jobs.keys.sorted().first { return [(first, [])] }
+        return ticked
+    }
 }
 
 /// CPUs, memory and timeout of a local run, as the Core plans them.
@@ -178,16 +237,34 @@ enum CoreLocalJobState: Equatable, Sendable {
 }
 
 struct CoreLocalRunJobStatus: Equatable, Identifiable, Sendable {
-    let id: String
+    /// The workflow the job is in.
+    var workflowID = ""
+    let jobID: String
     var name = ""
     var state: CoreLocalJobState
     var reason = ""
     var startedAt: Date?
     var finishedAt: Date?
+
+    /// Unique in a run: jobs of two workflows may share an id.
+    var id: String { workflowID + "\u{0}" + jobID }
+
+    init(workflowID: String = "", id: String, name: String = "", state: CoreLocalJobState, reason: String = "",
+         startedAt: Date? = nil, finishedAt: Date? = nil) {
+        self.workflowID = workflowID
+        self.jobID = id
+        self.name = name
+        self.state = state
+        self.reason = reason
+        self.startedAt = startedAt
+        self.finishedAt = finishedAt
+    }
 }
 
 struct CoreLocalRunLine: Equatable, Identifiable, Sendable {
     let sequence: UInt64
+    /// The workflow that was running; empty before the first.
+    var workflowID = ""
     /// Empty for act's own messages.
     let jobID: String
     let text: String
