@@ -1,6 +1,6 @@
 # MCP Architecture
 
-Status: two tools built on 2026-11-08, the rest planned. `runnir-core mcp --data-dir PATH` serves `runnir_list_value_sets` and `runnir_set_values` over stdio ([design](../superpowers/specs/2026-11-08-mcp-value-sets-design.md)); every other tool of the catalog is a design artifact. `runnir rpc` (version handshake) and `runnir serve` (the app's [gRPC API](grpc-api.md)) are desktop IPC endpoints, not MCP servers.
+Status: two tools built on 2026-11-08, the rest planned. `runnir-core mcp [--data-dir PATH]` serves `runnir_list_value_sets` and `runnir_set_values` over stdio ([design](../superpowers/specs/2026-11-08-mcp-value-sets-design.md)); the Runnir plugin installs them in Claude Code and Codex ([below](#installing)); every other tool of the catalog is a design artifact. `runnir rpc` (version handshake) and `runnir serve` (the app's [gRPC API](grpc-api.md)) are desktop IPC endpoints, not MCP servers.
 
 The rest of MCP is deferred to the optional v0.3 direction; see the [current roadmap](../product/roadmap.md). The value tools came first, for the first alpha (B52).
 
@@ -31,6 +31,15 @@ Added on 2026-11-05: a client saves the secrets and variables local runs use int
 - Confirmation: the Core prepares the change and the workspace's window shows it: the set, each name, a variable's value, a secret masked with Show, and which names replace a saved value. Only Confirm in the app writes Keychain, under the accounts Secrets and Variables uses (`secret:NAME`, `environment:production:secret:NAME`). The client gets the saved names or the refusal.
 - Refused before the app asks: a set the workspace does not have, a name GitHub would not take (letters, digits and `_`, not starting with a digit or `GITHUB_`, except `GITHUB_TOKEN`, which a local run may be given), an empty value, a value over 48 KiB (GitHub's limit for a secret), more than 100 names.
 - Not part of it: clearing a value (Secrets and Variables does that), GitHub's own secrets and variables (these sets are local), organization secrets.
+
+## Installing
+
+The Runnir plugin ([plugins/runnir](../../plugins/runnir/README.md), [design](../superpowers/specs/2026-11-08-mcp-plugins-design.md)) installs the server and a skill on using it, with the same commands for every user:
+
+- Claude Code: `claude plugin marketplace add dil-eight/runnir`, then `claude plugin install runnir@runnir`.
+- Codex: `codex plugin marketplace add dil-eight/runnir`, then `codex plugin add runnir@runnir`.
+
+The repository is the marketplace: `.claude-plugin/marketplace.json` for Claude Code, `.agents/plugins/marketplace.json` for Codex. The plugin runs `/Applications/Runnir.app/Contents/Helpers/runnir-core mcp`; without `--data-dir` the Core uses its own build's folder in Application Support, which the build passes in as `RUNNIR_BUILD`. Codex gets `tool_timeout_sec = 300` from the plugin. Runnir Dev, Runnir Local and an app outside `/Applications` use Settings › MCP's command instead.
 
 ## Enforcement
 

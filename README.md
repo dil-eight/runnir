@@ -32,7 +32,8 @@ Status: native SwiftUI + Go Core foundation. MVP v0.1 is specified but not compl
 - Go CLI (`version`, `serve`) and a version-only JSON-RPC stdio endpoint (`rpc`).
 - Swift 6 with strict concurrency, unit tests for the app and Core, macOS CI for build, tests and static analysis, Go tests on three platforms, six cross-compilation targets, a check that generated code matches the contract, formatting, vet and vulnerability checks.
 - Tagged builds signed with Developer ID and notarized by the release workflow: Runnir.app with its helpers and its provisioning profile, and the macOS Core binaries (B48). Keychain items live in the data protection keychain, so a signed build never asks for the login password item by item. Checked on a Mac with a local build (Runnir Local) on 2026-11-04; not yet run from a tag.
-- MVP specification and future AI/MCP design documents (no AI runtime or MCP server).
+- MCP tools for the values of local runs: Claude Code, Codex and other MCP clients list the secrets and variables a workspace's local runs read and save values into one of its sets after you confirm the change in Runnir; secret values never come back. The [Runnir plugin](plugins/runnir/README.md) installs them: `claude plugin marketplace add dil-eight/runnir` and `claude plugin install runnir@runnir`, or `codex plugin marketplace add dil-eight/runnir` and `codex plugin add runnir@runnir`. Covered by tests; not yet tried by hand with both clients. See [MCP](docs/architecture/mcp.md).
+- MVP specification and future AI design documents (no AI runtime).
 
 ## Planned
 
@@ -89,7 +90,7 @@ The app targets macOS 15+ for modern SwiftUI and Observation APIs and the grpc-s
 
 Core checks (from `core/`): `go test ./...`, `go vet ./...`, `go build ./...`.
 Run `go run ./cmd/runnir version` for product/IPC version metadata.
-`runnir rpc` and `runnir serve` are desktop IPC; an MCP server is planned and is not implemented. See [Core gRPC API](docs/architecture/grpc-api.md).
+`runnir rpc` and `runnir serve` are desktop IPC; `runnir mcp` is the MCP server for the values of local runs. See [Core gRPC API](docs/architecture/grpc-api.md) and [MCP](docs/architecture/mcp.md).
 
 Build:
 
