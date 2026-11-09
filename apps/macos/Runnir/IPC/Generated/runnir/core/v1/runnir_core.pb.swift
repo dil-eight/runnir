@@ -985,6 +985,60 @@ nonisolated enum Runnir_Core_V1_LocalJobSupport: SwiftProtobuf.Enum, Swift.CaseI
 
 }
 
+nonisolated enum Runnir_Core_V1_LocalRunLaneKind: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case unspecified // = 0
+
+  /// The scenario's event starts it.
+  case direct // = 1
+
+  /// workflow_run starts it after another lane.
+  case chained // = 2
+
+  /// It starts only by hand.
+  case manual // = 3
+
+  /// The scenario does not start it; `skipped` says why.
+  case outside // = 4
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .unspecified
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .direct
+    case 2: self = .chained
+    case 3: self = .manual
+    case 4: self = .outside
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .direct: return 1
+    case .chained: return 2
+    case .manual: return 3
+    case .outside: return 4
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [Runnir_Core_V1_LocalRunLaneKind] = [
+    .unspecified,
+    .direct,
+    .chained,
+    .manual,
+    .outside,
+  ]
+
+}
+
 nonisolated enum Runnir_Core_V1_LocalRunPhase: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
   case unspecified // = 0
@@ -4344,7 +4398,18 @@ nonisolated struct Runnir_Core_V1_LocalRunJob: Sendable {
 
   var support: Runnir_Core_V1_LocalJobSupport = .unspecified
 
+  /// Why it cannot run here, or what decides it.
   var reason: String = String()
+
+  /// The jobs it needs, by id.
+  var needs: [String] = []
+
+  /// Ticked: it runs.
+  var selected: Bool = false
+
+  /// Why the scenario skips it on GitHub (an if: that is false); empty when
+  /// it runs there.
+  var skipped: String = String()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -4366,44 +4431,73 @@ nonisolated struct Runnir_Core_V1_LocalRunImage: Sendable {
   init() {}
 }
 
-nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
+/// One workflow of a local run: act runs it on its own, after the lanes
+/// before it, with only its ticked jobs and the jobs they need.
+nonisolated struct Runnir_Core_V1_LocalRunLane: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
   /// Path relative to the repository root, as in Workflow.id.
-  var workflowID: String {
-    get {_storage._workflowID}
-    set {_uniqueStorage()._workflowID = newValue}
+  var workflowID: String = String()
+
+  var workflowName: String = String()
+
+  var kind: Runnir_Core_V1_LocalRunLaneKind = .unspecified
+
+  /// The event act gets for it.
+  var event: String = String()
+
+  /// What starts it in the scenario: "pull_request · paths ✓".
+  var why: String = String()
+
+  /// Why the scenario does not start it, for an OUTSIDE lane.
+  var skipped: String = String()
+
+  /// The workflow path of the lane a CHAINED lane follows.
+  var after: String = String()
+
+  /// Some of its jobs are ticked.
+  var selected: Bool = false
+
+  /// Why the file does not parse; such a lane cannot be ticked.
+  var parseError: String = String()
+
+  var jobs: [Runnir_Core_V1_LocalRunJob] = []
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// The scenarios of the branch, the default first, and the one planned.
+  var scenarios: [Runnir_Core_V1_Scenario] {
+    get {_storage._scenarios}
+    set {_uniqueStorage()._scenarios = newValue}
   }
 
-  var workflowName: String {
-    get {_storage._workflowName}
-    set {_uniqueStorage()._workflowName = newValue}
+  var scenario: Runnir_Core_V1_Scenario {
+    get {_storage._scenario ?? Runnir_Core_V1_Scenario()}
+    set {_uniqueStorage()._scenario = newValue}
+  }
+  /// Returns true if `scenario` has been explicitly set.
+  var hasScenario: Bool {_storage._scenario != nil}
+  /// Clears the value of `scenario`. Subsequent reads from it will return its default value.
+  mutating func clearScenario() {_uniqueStorage()._scenario = nil}
+
+  /// Every workflow of the repository: the scenario's in run order, then
+  /// those it does not start.
+  var lanes: [Runnir_Core_V1_LocalRunLane] {
+    get {_storage._lanes}
+    set {_uniqueStorage()._lanes = newValue}
   }
 
-  /// The workflow's triggers; `event` is the one the run uses.
-  var events: [String] {
-    get {_storage._events}
-    set {_uniqueStorage()._events = newValue}
-  }
-
-  var event: String {
-    get {_storage._event}
-    set {_uniqueStorage()._event = newValue}
-  }
-
-  /// The chosen job, empty for every job; a chosen job brings the jobs it needs.
-  var jobID: String {
-    get {_storage._jobID}
-    set {_uniqueStorage()._jobID = newValue}
-  }
-
-  var jobs: [Runnir_Core_V1_LocalRunJob] {
-    get {_storage._jobs}
-    set {_uniqueStorage()._jobs = newValue}
-  }
-
+  /// Over the ticked jobs.
   var images: [Runnir_Core_V1_LocalRunImage] {
     get {_storage._images}
     set {_uniqueStorage()._images = newValue}
@@ -4413,6 +4507,19 @@ nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
   var secrets: [String] {
     get {_storage._secrets}
     set {_uniqueStorage()._secrets = newValue}
+  }
+
+  /// Variables (vars.X) the run reads, upper-cased.
+  var variables: [String] {
+    get {_storage._variables}
+    set {_uniqueStorage()._variables = newValue}
+  }
+
+  /// A workflow reads secrets it does not name (toJSON(secrets), secrets:
+  /// inherit); only the listed ones can be passed.
+  var unnamedSecrets: Bool {
+    get {_storage._unnamedSecrets}
+    set {_uniqueStorage()._unnamedSecrets = newValue}
   }
 
   /// Differences from a GitHub run worth knowing before starting.
@@ -4427,6 +4534,7 @@ nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
     set {_uniqueStorage()._blockers = newValue}
   }
 
+  /// Each workflow's limits; the timeout is per workflow.
   var cpus: UInt32 {
     get {_storage._cpus}
     set {_uniqueStorage()._cpus = newValue}
@@ -4461,19 +4569,6 @@ nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
   var engineContext: String {
     get {_storage._engineContext}
     set {_uniqueStorage()._engineContext = newValue}
-  }
-
-  /// Variables (vars.X) the run reads, upper-cased.
-  var variables: [String] {
-    get {_storage._variables}
-    set {_uniqueStorage()._variables = newValue}
-  }
-
-  /// The workflow reads secrets it does not name (toJSON(secrets), secrets:
-  /// inherit); only the listed ones can be passed.
-  var unnamedSecrets: Bool {
-    get {_storage._unnamedSecrets}
-    set {_uniqueStorage()._unnamedSecrets = newValue}
   }
 
   /// The most a run gets here: the engine's CPUs and memory (0 when it did
@@ -4520,10 +4615,10 @@ nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
     set {_uniqueStorage()._environment = newValue}
   }
 
-  /// Why the user chooses whose values the run takes, when the workflow does
-  /// not settle it: act gives every job of a run the same values, so a run
-  /// of jobs in several environments, or in one an expression picks, could
-  /// take any of them. Empty otherwise.
+  /// Why the user chooses whose values the run takes, when the jobs do not
+  /// settle it: act gives every job the same values, so a run of jobs in
+  /// several environments, or in one an expression picks, could take any of
+  /// them. Empty otherwise.
   var environmentChoice: String {
     get {_storage._environmentChoice}
     set {_uniqueStorage()._environmentChoice = newValue}
@@ -4544,6 +4639,21 @@ nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
   fileprivate var _storage = _StorageClass.defaultInstance
 }
 
+/// The jobs ticked in one workflow.
+nonisolated struct Runnir_Core_V1_LocalRunSelection: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var workflowID: String = String()
+
+  var jobIds: [String] = []
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
 nonisolated struct Runnir_Core_V1_PrepareLocalRunRequest: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -4551,14 +4661,19 @@ nonisolated struct Runnir_Core_V1_PrepareLocalRunRequest: Sendable {
 
   var repositoryID: String = String()
 
-  var workflowID: String = String()
+  /// Unset: the branch's default scenario.
+  var scenario: Runnir_Core_V1_Scenario {
+    get {_scenario ?? Runnir_Core_V1_Scenario()}
+    set {_scenario = newValue}
+  }
+  /// Returns true if `scenario` has been explicitly set.
+  var hasScenario: Bool {self._scenario != nil}
+  /// Clears the value of `scenario`. Subsequent reads from it will return its default value.
+  mutating func clearScenario() {self._scenario = nil}
 
-  /// Empty runs every job of the workflow.
-  var jobID: String = String()
-
-  /// One of the workflow's triggers; empty picks push, pull_request or
-  /// workflow_dispatch, in that order.
-  var event: String = String()
+  /// The ticked jobs by workflow; a job brings the jobs it needs. Empty: what
+  /// the scenario starts that can run here.
+  var selection: [Runnir_Core_V1_LocalRunSelection] = []
 
   /// Experimental: run with the act installed on this computer when one is
   /// usable, instead of the bundled act.
@@ -4582,6 +4697,7 @@ nonisolated struct Runnir_Core_V1_PrepareLocalRunRequest: Sendable {
 
   init() {}
 
+  fileprivate var _scenario: Runnir_Core_V1_Scenario? = nil
   fileprivate var _limits: Runnir_Core_V1_LocalRunLimits? = nil
 }
 
@@ -4692,6 +4808,9 @@ nonisolated struct Runnir_Core_V1_LocalRunJobStatus: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
+  /// The workflow the job is in.
+  var workflowID: String = String()
+
   var id: String = String()
 
   var name: String = String()
@@ -4735,6 +4854,9 @@ nonisolated struct Runnir_Core_V1_LocalRunLine: Sendable {
 
   /// Empty for act's own messages.
   var jobID: String = String()
+
+  /// The workflow of the job; empty for act's own messages.
+  var workflowID: String = String()
 
   var text: String = String()
 
@@ -5633,11 +5755,11 @@ nonisolated struct Runnir_Core_V1_SearchedLocalRun: Sendable {
 
   var executionID: String = String()
 
-  var workflowPath: String = String()
+  /// The scenario's title: "Pull request → main".
+  var scenario: String = String()
 
-  var jobID: String = String()
-
-  var event: String = String()
+  /// The workflows it ran, in run order.
+  var workflowPaths: [String] = []
 
   /// "queued", "running", "succeeded", "failed", "cancelled" or "interrupted".
   var state: String = String()
@@ -6170,6 +6292,10 @@ nonisolated extension Runnir_Core_V1_ToolState: SwiftProtobuf._ProtoNameProvidin
 
 nonisolated extension Runnir_Core_V1_LocalJobSupport: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0LOCAL_JOB_SUPPORT_UNSPECIFIED\0\u{1}LOCAL_JOB_SUPPORT_SUPPORTED\0\u{1}LOCAL_JOB_SUPPORT_UNSUPPORTED\0\u{1}LOCAL_JOB_SUPPORT_UNKNOWN\0")
+}
+
+nonisolated extension Runnir_Core_V1_LocalRunLaneKind: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0LOCAL_RUN_LANE_KIND_UNSPECIFIED\0\u{1}LOCAL_RUN_LANE_KIND_DIRECT\0\u{1}LOCAL_RUN_LANE_KIND_CHAINED\0\u{1}LOCAL_RUN_LANE_KIND_MANUAL\0\u{1}LOCAL_RUN_LANE_KIND_OUTSIDE\0")
 }
 
 nonisolated extension Runnir_Core_V1_LocalRunPhase: SwiftProtobuf._ProtoNameProviding {
@@ -11074,7 +11200,7 @@ nonisolated extension Runnir_Core_V1_GetToolReadinessResponse: SwiftProtobuf.Mes
 
 nonisolated extension Runnir_Core_V1_LocalRunJob: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".LocalRunJob"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{3}runs_on\0\u{1}image\0\u{1}support\0\u{1}reason\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{3}runs_on\0\u{1}image\0\u{1}support\0\u{1}reason\0\u{1}needs\0\u{1}selected\0\u{1}skipped\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -11088,6 +11214,9 @@ nonisolated extension Runnir_Core_V1_LocalRunJob: SwiftProtobuf.Message, SwiftPr
       case 4: try { try decoder.decodeSingularStringField(value: &self.image) }()
       case 5: try { try decoder.decodeSingularEnumField(value: &self.support) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.reason) }()
+      case 7: try { try decoder.decodeRepeatedStringField(value: &self.needs) }()
+      case 8: try { try decoder.decodeSingularBoolField(value: &self.selected) }()
+      case 9: try { try decoder.decodeSingularStringField(value: &self.skipped) }()
       default: break
       }
     }
@@ -11112,6 +11241,15 @@ nonisolated extension Runnir_Core_V1_LocalRunJob: SwiftProtobuf.Message, SwiftPr
     if !self.reason.isEmpty {
       try visitor.visitSingularStringField(value: self.reason, fieldNumber: 6)
     }
+    if !self.needs.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.needs, fieldNumber: 7)
+    }
+    if self.selected != false {
+      try visitor.visitSingularBoolField(value: self.selected, fieldNumber: 8)
+    }
+    if !self.skipped.isEmpty {
+      try visitor.visitSingularStringField(value: self.skipped, fieldNumber: 9)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -11122,6 +11260,9 @@ nonisolated extension Runnir_Core_V1_LocalRunJob: SwiftProtobuf.Message, SwiftPr
     if lhs.image != rhs.image {return false}
     if lhs.support != rhs.support {return false}
     if lhs.reason != rhs.reason {return false}
+    if lhs.needs != rhs.needs {return false}
+    if lhs.selected != rhs.selected {return false}
+    if lhs.skipped != rhs.skipped {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -11162,19 +11303,93 @@ nonisolated extension Runnir_Core_V1_LocalRunImage: SwiftProtobuf.Message, Swift
   }
 }
 
+nonisolated extension Runnir_Core_V1_LocalRunLane: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".LocalRunLane"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}workflow_name\0\u{1}kind\0\u{1}event\0\u{1}why\0\u{1}skipped\0\u{1}after\0\u{1}selected\0\u{3}parse_error\0\u{1}jobs\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.workflowID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.workflowName) }()
+      case 3: try { try decoder.decodeSingularEnumField(value: &self.kind) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.event) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.why) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.skipped) }()
+      case 7: try { try decoder.decodeSingularStringField(value: &self.after) }()
+      case 8: try { try decoder.decodeSingularBoolField(value: &self.selected) }()
+      case 9: try { try decoder.decodeSingularStringField(value: &self.parseError) }()
+      case 10: try { try decoder.decodeRepeatedMessageField(value: &self.jobs) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.workflowID.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowID, fieldNumber: 1)
+    }
+    if !self.workflowName.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowName, fieldNumber: 2)
+    }
+    if self.kind != .unspecified {
+      try visitor.visitSingularEnumField(value: self.kind, fieldNumber: 3)
+    }
+    if !self.event.isEmpty {
+      try visitor.visitSingularStringField(value: self.event, fieldNumber: 4)
+    }
+    if !self.why.isEmpty {
+      try visitor.visitSingularStringField(value: self.why, fieldNumber: 5)
+    }
+    if !self.skipped.isEmpty {
+      try visitor.visitSingularStringField(value: self.skipped, fieldNumber: 6)
+    }
+    if !self.after.isEmpty {
+      try visitor.visitSingularStringField(value: self.after, fieldNumber: 7)
+    }
+    if self.selected != false {
+      try visitor.visitSingularBoolField(value: self.selected, fieldNumber: 8)
+    }
+    if !self.parseError.isEmpty {
+      try visitor.visitSingularStringField(value: self.parseError, fieldNumber: 9)
+    }
+    if !self.jobs.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.jobs, fieldNumber: 10)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_LocalRunLane, rhs: Runnir_Core_V1_LocalRunLane) -> Bool {
+    if lhs.workflowID != rhs.workflowID {return false}
+    if lhs.workflowName != rhs.workflowName {return false}
+    if lhs.kind != rhs.kind {return false}
+    if lhs.event != rhs.event {return false}
+    if lhs.why != rhs.why {return false}
+    if lhs.skipped != rhs.skipped {return false}
+    if lhs.after != rhs.after {return false}
+    if lhs.selected != rhs.selected {return false}
+    if lhs.parseError != rhs.parseError {return false}
+    if lhs.jobs != rhs.jobs {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
 nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".LocalRunPlan"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}workflow_name\0\u{1}events\0\u{1}event\0\u{3}job_id\0\u{1}jobs\0\u{1}images\0\u{1}secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0\u{1}variables\0\u{3}unnamed_secrets\0\u{3}max_cpus\0\u{3}max_memory_bytes\0\u{3}max_timeout_seconds\0\u{3}own_limits\0\u{3}limit_warnings\0\u{3}limit_note\0\u{1}environment\0\u{3}environment_choice\0\u{1}environments\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}scenarios\0\u{1}scenario\0\u{1}lanes\0\u{1}images\0\u{1}secrets\0\u{1}variables\0\u{3}unnamed_secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0\u{3}max_cpus\0\u{3}max_memory_bytes\0\u{3}max_timeout_seconds\0\u{3}own_limits\0\u{3}limit_warnings\0\u{3}limit_note\0\u{1}environment\0\u{3}environment_choice\0\u{1}environments\0")
 
   fileprivate class _StorageClass {
-    var _workflowID: String = String()
-    var _workflowName: String = String()
-    var _events: [String] = []
-    var _event: String = String()
-    var _jobID: String = String()
-    var _jobs: [Runnir_Core_V1_LocalRunJob] = []
+    var _scenarios: [Runnir_Core_V1_Scenario] = []
+    var _scenario: Runnir_Core_V1_Scenario? = nil
+    var _lanes: [Runnir_Core_V1_LocalRunLane] = []
     var _images: [Runnir_Core_V1_LocalRunImage] = []
     var _secrets: [String] = []
+    var _variables: [String] = []
+    var _unnamedSecrets: Bool = false
     var _notes: [String] = []
     var _blockers: [String] = []
     var _cpus: UInt32 = 0
@@ -11184,8 +11399,6 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
     var _installedAct: Bool = false
     var _engineName: String = String()
     var _engineContext: String = String()
-    var _variables: [String] = []
-    var _unnamedSecrets: Bool = false
     var _maxCpus: UInt32 = 0
     var _maxMemoryBytes: UInt64 = 0
     var _maxTimeoutSeconds: UInt32 = 0
@@ -11205,14 +11418,13 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
     private init() {}
 
     init(copying source: _StorageClass) {
-      _workflowID = source._workflowID
-      _workflowName = source._workflowName
-      _events = source._events
-      _event = source._event
-      _jobID = source._jobID
-      _jobs = source._jobs
+      _scenarios = source._scenarios
+      _scenario = source._scenario
+      _lanes = source._lanes
       _images = source._images
       _secrets = source._secrets
+      _variables = source._variables
+      _unnamedSecrets = source._unnamedSecrets
       _notes = source._notes
       _blockers = source._blockers
       _cpus = source._cpus
@@ -11222,8 +11434,6 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       _installedAct = source._installedAct
       _engineName = source._engineName
       _engineContext = source._engineContext
-      _variables = source._variables
-      _unnamedSecrets = source._unnamedSecrets
       _maxCpus = source._maxCpus
       _maxMemoryBytes = source._maxMemoryBytes
       _maxTimeoutSeconds = source._maxTimeoutSeconds
@@ -11251,34 +11461,31 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         // allocates stack space for every case branch when no optimizations are
         // enabled. https://github.com/apple/swift-protobuf/issues/1034
         switch fieldNumber {
-        case 1: try { try decoder.decodeSingularStringField(value: &_storage._workflowID) }()
-        case 2: try { try decoder.decodeSingularStringField(value: &_storage._workflowName) }()
-        case 3: try { try decoder.decodeRepeatedStringField(value: &_storage._events) }()
-        case 4: try { try decoder.decodeSingularStringField(value: &_storage._event) }()
-        case 5: try { try decoder.decodeSingularStringField(value: &_storage._jobID) }()
-        case 6: try { try decoder.decodeRepeatedMessageField(value: &_storage._jobs) }()
-        case 7: try { try decoder.decodeRepeatedMessageField(value: &_storage._images) }()
-        case 8: try { try decoder.decodeRepeatedStringField(value: &_storage._secrets) }()
-        case 9: try { try decoder.decodeRepeatedStringField(value: &_storage._notes) }()
-        case 10: try { try decoder.decodeRepeatedStringField(value: &_storage._blockers) }()
-        case 11: try { try decoder.decodeSingularUInt32Field(value: &_storage._cpus) }()
-        case 12: try { try decoder.decodeSingularUInt64Field(value: &_storage._memoryBytes) }()
-        case 13: try { try decoder.decodeSingularUInt32Field(value: &_storage._timeoutSeconds) }()
-        case 14: try { try decoder.decodeSingularStringField(value: &_storage._actVersion) }()
-        case 15: try { try decoder.decodeSingularBoolField(value: &_storage._installedAct) }()
-        case 16: try { try decoder.decodeSingularStringField(value: &_storage._engineName) }()
-        case 17: try { try decoder.decodeSingularStringField(value: &_storage._engineContext) }()
-        case 18: try { try decoder.decodeRepeatedStringField(value: &_storage._variables) }()
-        case 19: try { try decoder.decodeSingularBoolField(value: &_storage._unnamedSecrets) }()
-        case 20: try { try decoder.decodeSingularUInt32Field(value: &_storage._maxCpus) }()
-        case 21: try { try decoder.decodeSingularUInt64Field(value: &_storage._maxMemoryBytes) }()
-        case 22: try { try decoder.decodeSingularUInt32Field(value: &_storage._maxTimeoutSeconds) }()
-        case 23: try { try decoder.decodeSingularBoolField(value: &_storage._ownLimits) }()
-        case 24: try { try decoder.decodeRepeatedStringField(value: &_storage._limitWarnings) }()
-        case 25: try { try decoder.decodeSingularStringField(value: &_storage._limitNote) }()
-        case 26: try { try decoder.decodeSingularStringField(value: &_storage._environment) }()
-        case 27: try { try decoder.decodeSingularStringField(value: &_storage._environmentChoice) }()
-        case 28: try { try decoder.decodeRepeatedStringField(value: &_storage._environments) }()
+        case 1: try { try decoder.decodeRepeatedMessageField(value: &_storage._scenarios) }()
+        case 2: try { try decoder.decodeSingularMessageField(value: &_storage._scenario) }()
+        case 3: try { try decoder.decodeRepeatedMessageField(value: &_storage._lanes) }()
+        case 4: try { try decoder.decodeRepeatedMessageField(value: &_storage._images) }()
+        case 5: try { try decoder.decodeRepeatedStringField(value: &_storage._secrets) }()
+        case 6: try { try decoder.decodeRepeatedStringField(value: &_storage._variables) }()
+        case 7: try { try decoder.decodeSingularBoolField(value: &_storage._unnamedSecrets) }()
+        case 8: try { try decoder.decodeRepeatedStringField(value: &_storage._notes) }()
+        case 9: try { try decoder.decodeRepeatedStringField(value: &_storage._blockers) }()
+        case 10: try { try decoder.decodeSingularUInt32Field(value: &_storage._cpus) }()
+        case 11: try { try decoder.decodeSingularUInt64Field(value: &_storage._memoryBytes) }()
+        case 12: try { try decoder.decodeSingularUInt32Field(value: &_storage._timeoutSeconds) }()
+        case 13: try { try decoder.decodeSingularStringField(value: &_storage._actVersion) }()
+        case 14: try { try decoder.decodeSingularBoolField(value: &_storage._installedAct) }()
+        case 15: try { try decoder.decodeSingularStringField(value: &_storage._engineName) }()
+        case 16: try { try decoder.decodeSingularStringField(value: &_storage._engineContext) }()
+        case 17: try { try decoder.decodeSingularUInt32Field(value: &_storage._maxCpus) }()
+        case 18: try { try decoder.decodeSingularUInt64Field(value: &_storage._maxMemoryBytes) }()
+        case 19: try { try decoder.decodeSingularUInt32Field(value: &_storage._maxTimeoutSeconds) }()
+        case 20: try { try decoder.decodeSingularBoolField(value: &_storage._ownLimits) }()
+        case 21: try { try decoder.decodeRepeatedStringField(value: &_storage._limitWarnings) }()
+        case 22: try { try decoder.decodeSingularStringField(value: &_storage._limitNote) }()
+        case 23: try { try decoder.decodeSingularStringField(value: &_storage._environment) }()
+        case 24: try { try decoder.decodeSingularStringField(value: &_storage._environmentChoice) }()
+        case 25: try { try decoder.decodeRepeatedStringField(value: &_storage._environments) }()
         default: break
         }
       }
@@ -11287,89 +11494,84 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
     try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
-      if !_storage._workflowID.isEmpty {
-        try visitor.visitSingularStringField(value: _storage._workflowID, fieldNumber: 1)
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every if/case branch local when no optimizations
+      // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+      // https://github.com/apple/swift-protobuf/issues/1182
+      if !_storage._scenarios.isEmpty {
+        try visitor.visitRepeatedMessageField(value: _storage._scenarios, fieldNumber: 1)
       }
-      if !_storage._workflowName.isEmpty {
-        try visitor.visitSingularStringField(value: _storage._workflowName, fieldNumber: 2)
-      }
-      if !_storage._events.isEmpty {
-        try visitor.visitRepeatedStringField(value: _storage._events, fieldNumber: 3)
-      }
-      if !_storage._event.isEmpty {
-        try visitor.visitSingularStringField(value: _storage._event, fieldNumber: 4)
-      }
-      if !_storage._jobID.isEmpty {
-        try visitor.visitSingularStringField(value: _storage._jobID, fieldNumber: 5)
-      }
-      if !_storage._jobs.isEmpty {
-        try visitor.visitRepeatedMessageField(value: _storage._jobs, fieldNumber: 6)
+      try { if let v = _storage._scenario {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+      } }()
+      if !_storage._lanes.isEmpty {
+        try visitor.visitRepeatedMessageField(value: _storage._lanes, fieldNumber: 3)
       }
       if !_storage._images.isEmpty {
-        try visitor.visitRepeatedMessageField(value: _storage._images, fieldNumber: 7)
+        try visitor.visitRepeatedMessageField(value: _storage._images, fieldNumber: 4)
       }
       if !_storage._secrets.isEmpty {
-        try visitor.visitRepeatedStringField(value: _storage._secrets, fieldNumber: 8)
-      }
-      if !_storage._notes.isEmpty {
-        try visitor.visitRepeatedStringField(value: _storage._notes, fieldNumber: 9)
-      }
-      if !_storage._blockers.isEmpty {
-        try visitor.visitRepeatedStringField(value: _storage._blockers, fieldNumber: 10)
-      }
-      if _storage._cpus != 0 {
-        try visitor.visitSingularUInt32Field(value: _storage._cpus, fieldNumber: 11)
-      }
-      if _storage._memoryBytes != 0 {
-        try visitor.visitSingularUInt64Field(value: _storage._memoryBytes, fieldNumber: 12)
-      }
-      if _storage._timeoutSeconds != 0 {
-        try visitor.visitSingularUInt32Field(value: _storage._timeoutSeconds, fieldNumber: 13)
-      }
-      if !_storage._actVersion.isEmpty {
-        try visitor.visitSingularStringField(value: _storage._actVersion, fieldNumber: 14)
-      }
-      if _storage._installedAct != false {
-        try visitor.visitSingularBoolField(value: _storage._installedAct, fieldNumber: 15)
-      }
-      if !_storage._engineName.isEmpty {
-        try visitor.visitSingularStringField(value: _storage._engineName, fieldNumber: 16)
-      }
-      if !_storage._engineContext.isEmpty {
-        try visitor.visitSingularStringField(value: _storage._engineContext, fieldNumber: 17)
+        try visitor.visitRepeatedStringField(value: _storage._secrets, fieldNumber: 5)
       }
       if !_storage._variables.isEmpty {
-        try visitor.visitRepeatedStringField(value: _storage._variables, fieldNumber: 18)
+        try visitor.visitRepeatedStringField(value: _storage._variables, fieldNumber: 6)
       }
       if _storage._unnamedSecrets != false {
-        try visitor.visitSingularBoolField(value: _storage._unnamedSecrets, fieldNumber: 19)
+        try visitor.visitSingularBoolField(value: _storage._unnamedSecrets, fieldNumber: 7)
+      }
+      if !_storage._notes.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._notes, fieldNumber: 8)
+      }
+      if !_storage._blockers.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._blockers, fieldNumber: 9)
+      }
+      if _storage._cpus != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._cpus, fieldNumber: 10)
+      }
+      if _storage._memoryBytes != 0 {
+        try visitor.visitSingularUInt64Field(value: _storage._memoryBytes, fieldNumber: 11)
+      }
+      if _storage._timeoutSeconds != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._timeoutSeconds, fieldNumber: 12)
+      }
+      if !_storage._actVersion.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._actVersion, fieldNumber: 13)
+      }
+      if _storage._installedAct != false {
+        try visitor.visitSingularBoolField(value: _storage._installedAct, fieldNumber: 14)
+      }
+      if !_storage._engineName.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._engineName, fieldNumber: 15)
+      }
+      if !_storage._engineContext.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._engineContext, fieldNumber: 16)
       }
       if _storage._maxCpus != 0 {
-        try visitor.visitSingularUInt32Field(value: _storage._maxCpus, fieldNumber: 20)
+        try visitor.visitSingularUInt32Field(value: _storage._maxCpus, fieldNumber: 17)
       }
       if _storage._maxMemoryBytes != 0 {
-        try visitor.visitSingularUInt64Field(value: _storage._maxMemoryBytes, fieldNumber: 21)
+        try visitor.visitSingularUInt64Field(value: _storage._maxMemoryBytes, fieldNumber: 18)
       }
       if _storage._maxTimeoutSeconds != 0 {
-        try visitor.visitSingularUInt32Field(value: _storage._maxTimeoutSeconds, fieldNumber: 22)
+        try visitor.visitSingularUInt32Field(value: _storage._maxTimeoutSeconds, fieldNumber: 19)
       }
       if _storage._ownLimits != false {
-        try visitor.visitSingularBoolField(value: _storage._ownLimits, fieldNumber: 23)
+        try visitor.visitSingularBoolField(value: _storage._ownLimits, fieldNumber: 20)
       }
       if !_storage._limitWarnings.isEmpty {
-        try visitor.visitRepeatedStringField(value: _storage._limitWarnings, fieldNumber: 24)
+        try visitor.visitRepeatedStringField(value: _storage._limitWarnings, fieldNumber: 21)
       }
       if !_storage._limitNote.isEmpty {
-        try visitor.visitSingularStringField(value: _storage._limitNote, fieldNumber: 25)
+        try visitor.visitSingularStringField(value: _storage._limitNote, fieldNumber: 22)
       }
       if !_storage._environment.isEmpty {
-        try visitor.visitSingularStringField(value: _storage._environment, fieldNumber: 26)
+        try visitor.visitSingularStringField(value: _storage._environment, fieldNumber: 23)
       }
       if !_storage._environmentChoice.isEmpty {
-        try visitor.visitSingularStringField(value: _storage._environmentChoice, fieldNumber: 27)
+        try visitor.visitSingularStringField(value: _storage._environmentChoice, fieldNumber: 24)
       }
       if !_storage._environments.isEmpty {
-        try visitor.visitRepeatedStringField(value: _storage._environments, fieldNumber: 28)
+        try visitor.visitRepeatedStringField(value: _storage._environments, fieldNumber: 25)
       }
     }
     try unknownFields.traverse(visitor: &visitor)
@@ -11380,14 +11582,13 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
         let _storage = _args.0
         let rhs_storage = _args.1
-        if _storage._workflowID != rhs_storage._workflowID {return false}
-        if _storage._workflowName != rhs_storage._workflowName {return false}
-        if _storage._events != rhs_storage._events {return false}
-        if _storage._event != rhs_storage._event {return false}
-        if _storage._jobID != rhs_storage._jobID {return false}
-        if _storage._jobs != rhs_storage._jobs {return false}
+        if _storage._scenarios != rhs_storage._scenarios {return false}
+        if _storage._scenario != rhs_storage._scenario {return false}
+        if _storage._lanes != rhs_storage._lanes {return false}
         if _storage._images != rhs_storage._images {return false}
         if _storage._secrets != rhs_storage._secrets {return false}
+        if _storage._variables != rhs_storage._variables {return false}
+        if _storage._unnamedSecrets != rhs_storage._unnamedSecrets {return false}
         if _storage._notes != rhs_storage._notes {return false}
         if _storage._blockers != rhs_storage._blockers {return false}
         if _storage._cpus != rhs_storage._cpus {return false}
@@ -11397,8 +11598,6 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         if _storage._installedAct != rhs_storage._installedAct {return false}
         if _storage._engineName != rhs_storage._engineName {return false}
         if _storage._engineContext != rhs_storage._engineContext {return false}
-        if _storage._variables != rhs_storage._variables {return false}
-        if _storage._unnamedSecrets != rhs_storage._unnamedSecrets {return false}
         if _storage._maxCpus != rhs_storage._maxCpus {return false}
         if _storage._maxMemoryBytes != rhs_storage._maxMemoryBytes {return false}
         if _storage._maxTimeoutSeconds != rhs_storage._maxTimeoutSeconds {return false}
@@ -11417,9 +11616,44 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
   }
 }
 
+nonisolated extension Runnir_Core_V1_LocalRunSelection: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".LocalRunSelection"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}job_ids\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.workflowID) }()
+      case 2: try { try decoder.decodeRepeatedStringField(value: &self.jobIds) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.workflowID.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowID, fieldNumber: 1)
+    }
+    if !self.jobIds.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.jobIds, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_LocalRunSelection, rhs: Runnir_Core_V1_LocalRunSelection) -> Bool {
+    if lhs.workflowID != rhs.workflowID {return false}
+    if lhs.jobIds != rhs.jobIds {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
 nonisolated extension Runnir_Core_V1_PrepareLocalRunRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".PrepareLocalRunRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{3}workflow_id\0\u{3}job_id\0\u{1}event\0\u{3}use_installed_act\0\u{1}limits\0\u{3}reset_limits\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{1}scenario\0\u{1}selection\0\u{3}use_installed_act\0\u{1}limits\0\u{3}reset_limits\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -11428,12 +11662,11 @@ nonisolated extension Runnir_Core_V1_PrepareLocalRunRequest: SwiftProtobuf.Messa
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.repositoryID) }()
-      case 2: try { try decoder.decodeSingularStringField(value: &self.workflowID) }()
-      case 3: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
-      case 4: try { try decoder.decodeSingularStringField(value: &self.event) }()
-      case 5: try { try decoder.decodeSingularBoolField(value: &self.useInstalledAct) }()
-      case 6: try { try decoder.decodeSingularMessageField(value: &self._limits) }()
-      case 7: try { try decoder.decodeSingularBoolField(value: &self.resetLimits) }()
+      case 2: try { try decoder.decodeSingularMessageField(value: &self._scenario) }()
+      case 3: try { try decoder.decodeRepeatedMessageField(value: &self.selection) }()
+      case 4: try { try decoder.decodeSingularBoolField(value: &self.useInstalledAct) }()
+      case 5: try { try decoder.decodeSingularMessageField(value: &self._limits) }()
+      case 6: try { try decoder.decodeSingularBoolField(value: &self.resetLimits) }()
       default: break
       }
     }
@@ -11447,32 +11680,28 @@ nonisolated extension Runnir_Core_V1_PrepareLocalRunRequest: SwiftProtobuf.Messa
     if !self.repositoryID.isEmpty {
       try visitor.visitSingularStringField(value: self.repositoryID, fieldNumber: 1)
     }
-    if !self.workflowID.isEmpty {
-      try visitor.visitSingularStringField(value: self.workflowID, fieldNumber: 2)
-    }
-    if !self.jobID.isEmpty {
-      try visitor.visitSingularStringField(value: self.jobID, fieldNumber: 3)
-    }
-    if !self.event.isEmpty {
-      try visitor.visitSingularStringField(value: self.event, fieldNumber: 4)
+    try { if let v = self._scenario {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+    } }()
+    if !self.selection.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.selection, fieldNumber: 3)
     }
     if self.useInstalledAct != false {
-      try visitor.visitSingularBoolField(value: self.useInstalledAct, fieldNumber: 5)
+      try visitor.visitSingularBoolField(value: self.useInstalledAct, fieldNumber: 4)
     }
     try { if let v = self._limits {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
     } }()
     if self.resetLimits != false {
-      try visitor.visitSingularBoolField(value: self.resetLimits, fieldNumber: 7)
+      try visitor.visitSingularBoolField(value: self.resetLimits, fieldNumber: 6)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_PrepareLocalRunRequest, rhs: Runnir_Core_V1_PrepareLocalRunRequest) -> Bool {
     if lhs.repositoryID != rhs.repositoryID {return false}
-    if lhs.workflowID != rhs.workflowID {return false}
-    if lhs.jobID != rhs.jobID {return false}
-    if lhs.event != rhs.event {return false}
+    if lhs._scenario != rhs._scenario {return false}
+    if lhs.selection != rhs.selection {return false}
     if lhs.useInstalledAct != rhs.useInstalledAct {return false}
     if lhs._limits != rhs._limits {return false}
     if lhs.resetLimits != rhs.resetLimits {return false}
@@ -11646,7 +11875,7 @@ nonisolated extension Runnir_Core_V1_ConfirmLocalRunResponse: SwiftProtobuf.Mess
 
 nonisolated extension Runnir_Core_V1_LocalRunJobStatus: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".LocalRunJobStatus"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}state\0\u{1}reason\0\u{3}started_at\0\u{3}finished_at\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}state\0\u{1}reason\0\u{3}started_at\0\u{3}finished_at\0\u{3}workflow_id\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -11660,6 +11889,7 @@ nonisolated extension Runnir_Core_V1_LocalRunJobStatus: SwiftProtobuf.Message, S
       case 4: try { try decoder.decodeSingularStringField(value: &self.reason) }()
       case 5: try { try decoder.decodeSingularMessageField(value: &self._startedAt) }()
       case 6: try { try decoder.decodeSingularMessageField(value: &self._finishedAt) }()
+      case 7: try { try decoder.decodeSingularStringField(value: &self.workflowID) }()
       default: break
       }
     }
@@ -11688,10 +11918,14 @@ nonisolated extension Runnir_Core_V1_LocalRunJobStatus: SwiftProtobuf.Message, S
     try { if let v = self._finishedAt {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
     } }()
+    if !self.workflowID.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowID, fieldNumber: 7)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_LocalRunJobStatus, rhs: Runnir_Core_V1_LocalRunJobStatus) -> Bool {
+    if lhs.workflowID != rhs.workflowID {return false}
     if lhs.id != rhs.id {return false}
     if lhs.name != rhs.name {return false}
     if lhs.state != rhs.state {return false}
@@ -11705,7 +11939,7 @@ nonisolated extension Runnir_Core_V1_LocalRunJobStatus: SwiftProtobuf.Message, S
 
 nonisolated extension Runnir_Core_V1_LocalRunLine: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".LocalRunLine"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}sequence\0\u{3}job_id\0\u{1}text\0\u{1}error\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}sequence\0\u{3}job_id\0\u{1}text\0\u{1}error\0\u{3}workflow_id\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -11717,6 +11951,7 @@ nonisolated extension Runnir_Core_V1_LocalRunLine: SwiftProtobuf.Message, SwiftP
       case 2: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.text) }()
       case 4: try { try decoder.decodeSingularBoolField(value: &self.error) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.workflowID) }()
       default: break
       }
     }
@@ -11735,12 +11970,16 @@ nonisolated extension Runnir_Core_V1_LocalRunLine: SwiftProtobuf.Message, SwiftP
     if self.error != false {
       try visitor.visitSingularBoolField(value: self.error, fieldNumber: 4)
     }
+    if !self.workflowID.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowID, fieldNumber: 5)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_LocalRunLine, rhs: Runnir_Core_V1_LocalRunLine) -> Bool {
     if lhs.sequence != rhs.sequence {return false}
     if lhs.jobID != rhs.jobID {return false}
+    if lhs.workflowID != rhs.workflowID {return false}
     if lhs.text != rhs.text {return false}
     if lhs.error != rhs.error {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
@@ -13378,7 +13617,7 @@ nonisolated extension Runnir_Core_V1_SearchedPullRequest: SwiftProtobuf.Message,
 
 nonisolated extension Runnir_Core_V1_SearchedLocalRun: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".SearchedLocalRun"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}execution_id\0\u{3}workflow_path\0\u{3}job_id\0\u{1}event\0\u{1}state\0\u{1}message\0\u{3}started_at\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}execution_id\0\u{1}scenario\0\u{3}workflow_paths\0\u{2}\u{2}state\0\u{1}message\0\u{3}started_at\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -13387,9 +13626,8 @@ nonisolated extension Runnir_Core_V1_SearchedLocalRun: SwiftProtobuf.Message, Sw
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.executionID) }()
-      case 2: try { try decoder.decodeSingularStringField(value: &self.workflowPath) }()
-      case 3: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
-      case 4: try { try decoder.decodeSingularStringField(value: &self.event) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.scenario) }()
+      case 3: try { try decoder.decodeRepeatedStringField(value: &self.workflowPaths) }()
       case 5: try { try decoder.decodeSingularStringField(value: &self.state) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.message) }()
       case 7: try { try decoder.decodeSingularMessageField(value: &self._startedAt) }()
@@ -13406,14 +13644,11 @@ nonisolated extension Runnir_Core_V1_SearchedLocalRun: SwiftProtobuf.Message, Sw
     if !self.executionID.isEmpty {
       try visitor.visitSingularStringField(value: self.executionID, fieldNumber: 1)
     }
-    if !self.workflowPath.isEmpty {
-      try visitor.visitSingularStringField(value: self.workflowPath, fieldNumber: 2)
+    if !self.scenario.isEmpty {
+      try visitor.visitSingularStringField(value: self.scenario, fieldNumber: 2)
     }
-    if !self.jobID.isEmpty {
-      try visitor.visitSingularStringField(value: self.jobID, fieldNumber: 3)
-    }
-    if !self.event.isEmpty {
-      try visitor.visitSingularStringField(value: self.event, fieldNumber: 4)
+    if !self.workflowPaths.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.workflowPaths, fieldNumber: 3)
     }
     if !self.state.isEmpty {
       try visitor.visitSingularStringField(value: self.state, fieldNumber: 5)
@@ -13429,9 +13664,8 @@ nonisolated extension Runnir_Core_V1_SearchedLocalRun: SwiftProtobuf.Message, Sw
 
   static func ==(lhs: Runnir_Core_V1_SearchedLocalRun, rhs: Runnir_Core_V1_SearchedLocalRun) -> Bool {
     if lhs.executionID != rhs.executionID {return false}
-    if lhs.workflowPath != rhs.workflowPath {return false}
-    if lhs.jobID != rhs.jobID {return false}
-    if lhs.event != rhs.event {return false}
+    if lhs.scenario != rhs.scenario {return false}
+    if lhs.workflowPaths != rhs.workflowPaths {return false}
     if lhs.state != rhs.state {return false}
     if lhs.message != rhs.message {return false}
     if lhs._startedAt != rhs._startedAt {return false}

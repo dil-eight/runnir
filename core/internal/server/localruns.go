@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"path"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +18,7 @@ import (
 
 	"runnir/core/internal/approval"
 	"runnir/core/internal/execution"
+	"runnir/core/internal/flow"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/localrun"
 	"runnir/core/internal/repository"
@@ -33,7 +36,6 @@ type toolChecker interface {
 // localRunApproval is a reviewed plan waiting for confirmation.
 type localRunApproval struct {
 	RepositoryID  string
-	Workflow      repository.Workflow
 	Spec          *localrun.Spec
 	ActVersion    string
 	Installed     bool
@@ -54,13 +56,27 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	workflow, err := s.workflow(info.ID, request.GetWorkflowId())
+	setup, err := s.planScenario(ctx, info, request.GetScenario())
 	if err != nil {
 		return nil, err
 	}
-	source, err := scanner.ReadWorkflowFile(info.Path, workflow.ID)
+	if !setup.planned {
+		return nil, status.Error(codes.FailedPrecondition, "no workflow of this repository reacts to a push, a pull request, a tag, a manual start or the schedule")
+	}
+	known := map[string]bool{}
+	for _, w := range setup.workflows {
+		known[w.Path] = true
+	}
+	selection := map[string][]string{}
+	for _, chosen := range request.GetSelection() {
+		if !known[chosen.GetWorkflowId()] {
+			return nil, status.Error(codes.NotFound, "workflow not found")
+		}
+		selection[chosen.GetWorkflowId()] = append(selection[chosen.GetWorkflowId()], chosen.GetJobIds()...)
+	}
+	lanes, err := laneInputs(info.Path, setup, selection)
 	if err != nil {
-		return nil, status.Error(codes.FailedPrecondition, "the workflow file cannot be read; refresh the repository")
+		return nil, err
 	}
 
 	// A review always looks at the tools as they are now.
@@ -80,15 +96,29 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 	asked, own := s.askedLimits(ctx, info.ID, request)
 	limits := localrun.Choose(asked, ceiling)
 	plan, err := localrun.NewPlan(localrun.Request{
-		WorkflowID: workflow.ID, Source: source, JobID: request.GetJobId(), Event: request.GetEvent(),
+		Scenarios: setup.scenarios, Scenario: setup.chosen, Lanes: lanes, Chosen: len(selection) > 0,
 	}, report, useInstalled, imagePresent, limits)
 	switch {
 	case errors.Is(err, localrun.ErrUnknownJob):
-		return nil, status.Error(codes.NotFound, "the workflow has no job with this id")
-	case errors.Is(err, localrun.ErrUnknownEvent):
-		return nil, status.Error(codes.InvalidArgument, "the workflow is not triggered by this event")
+		return nil, status.Error(codes.NotFound, "a ticked job is not in its workflow; review the run again")
 	case err != nil:
 		return nil, status.Error(codes.Internal, "the run could not be planned")
+	}
+	names := map[string]string{}
+	for _, lane := range plan.Lanes {
+		names[lane.WorkflowID] = lane.WorkflowName
+	}
+	upstream := ""
+	if setup.chosen.Kind == flow.Push && setup.chosen.Target == setup.repo.CurrentBranch {
+		upstream = setup.git.UpstreamHead(ctx)
+	}
+	for i := range plan.Lanes {
+		if !plan.Lanes[i].Selected() {
+			continue
+		}
+		if plan.Lanes[i].Payload, err = localrun.Payload(eventContext(setup, plan.Lanes[i], names, upstream)); err != nil {
+			return nil, status.Error(codes.Internal, "the run could not be planned")
+		}
 	}
 
 	if plan.EnvironmentChoice != "" {
@@ -115,8 +145,8 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 		instance = account.Server.WebHost
 	}
 	approved := localRunApproval{
-		RepositoryID: info.ID, Workflow: workflow,
-		ActVersion: act.Version, Installed: actSource == tools.ActInstalled,
+		RepositoryID: info.ID,
+		ActVersion:   act.Version, Installed: actSource == tools.ActInstalled,
 		EngineName: report.Engine.Name, EngineContext: report.Engine.Context,
 		Spec: &localrun.Spec{
 			ActPath: act.Path, DockerPath: report.DockerCLI.Path, DockerHost: report.Engine.Endpoint,
@@ -136,6 +166,144 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 	out.ConfirmationId = pending.ID
 	out.ExpiresAt = timestamppb.New(pending.ExpiresAt)
 	return out, nil
+}
+
+// laneInputs turns the scenario's plan into the lanes of a local run: its
+// lanes in order, then every workflow it does not start, each with the jobs
+// ticked in selection.
+func laneInputs(root string, setup scenarioSetup, selection map[string][]string) ([]localrun.LaneInput, error) {
+	sources := map[string][]byte{}
+	events := map[string]map[string]flow.Event{}
+	for _, w := range setup.workflows {
+		source, err := scanner.ReadWorkflowFile(root, w.Path)
+		if err != nil {
+			return nil, status.Error(codes.FailedPrecondition, "the workflow file "+w.Path+" cannot be read; refresh the repository")
+		}
+		sources[w.Path], events[w.Path] = source, w.Events
+	}
+	var lanes []localrun.LaneInput
+	in := map[string]bool{}
+	for _, lane := range setup.plan.Lanes {
+		input := localrun.LaneInput{
+			WorkflowID: lane.Path, Source: sources[lane.Path], Kind: localrun.Direct, Event: lane.Event(), Why: lane.Why,
+			ParseError: lane.ParseError, JobSkipped: map[string]string{}, Selected: selection[lane.Path],
+		}
+		switch lane.Kind {
+		case flow.Chained:
+			input.Kind, input.After = localrun.Chained, lane.AfterPath
+		case flow.ByHand:
+			input.Kind = localrun.Manual
+		}
+		jobs := append([]flow.PlannedJob(nil), lane.Jobs...)
+		sort.SliceStable(jobs, func(i, j int) bool { return jobs[i].Column < jobs[j].Column })
+		for _, job := range jobs {
+			input.Order = append(input.Order, job.ID)
+			if job.Skipped != "" {
+				input.JobSkipped[job.ID] = job.Skipped
+			}
+		}
+		in[lane.Path] = true
+		lanes = append(lanes, input)
+	}
+	reasons := map[string]string{}
+	for _, skipped := range setup.plan.Skipped {
+		reasons[skipped.Path] = skipped.Reason
+	}
+	for _, w := range setup.workflows {
+		if in[w.Path] {
+			continue
+		}
+		lanes = append(lanes, localrun.LaneInput{
+			WorkflowID: w.Path, Source: sources[w.Path], Kind: localrun.Outside, Event: outsideEvent(setup.chosen, events[w.Path]),
+			Skipped: reasons[w.Path], ParseError: w.ParseError, Selected: selection[w.Path],
+		})
+	}
+	return lanes, nil
+}
+
+// scenarioEvent is the event a scenario sends.
+func scenarioEvent(sc flow.Scenario) string {
+	switch sc.Kind {
+	case flow.PullRequest:
+		return "pull_request"
+	case flow.Manual:
+		return "workflow_dispatch"
+	case flow.Schedule:
+		return "schedule"
+	default:
+		return "push"
+	}
+}
+
+// outsideEvent is the event a workflow the scenario does not start runs
+// with when ticked: the scenario's when it reacts to it, else its own first
+// of push, pull_request and workflow_dispatch, else its first trigger.
+func outsideEvent(sc flow.Scenario, events map[string]flow.Event) string {
+	if _, ok := events[scenarioEvent(sc)]; ok {
+		return scenarioEvent(sc)
+	}
+	for _, name := range []string{"push", "pull_request", "workflow_dispatch"} {
+		if _, ok := events[name]; ok {
+			return name
+		}
+	}
+	names := make([]string, 0, len(events))
+	for name := range events {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if len(names) > 0 {
+		return names[0]
+	}
+	return ""
+}
+
+// eventContext is what a lane's payload says: the scenario's refs as GitHub
+// would send them for the lane's event.
+func eventContext(setup scenarioSetup, lane localrun.Lane, names map[string]string, upstream string) localrun.EventContext {
+	repo, sc := setup.repo, setup.chosen
+	c := localrun.EventContext{Event: lane.Event, Branch: repo.CurrentBranch, HeadSHA: setup.head, DefaultBranch: repo.DefaultBranch}
+	if setup.hasPullRequest {
+		c.PullRequest, c.Draft = setup.pullRequest.Number, setup.pullRequest.Draft
+	}
+	switch lane.Event {
+	case "pull_request", "pull_request_target":
+		switch {
+		case sc.Kind == flow.PullRequest:
+			c.Base = sc.Target
+		case repo.PullRequestBase != "":
+			c.Base = repo.PullRequestBase
+		default:
+			c.Base = repo.DefaultBranch
+		}
+	case "push":
+		switch sc.Kind {
+		case flow.Push, flow.Merge:
+			c.Ref = "refs/heads/" + sc.Target
+		case flow.Tag:
+			c.Ref = "refs/tags/" + tagName(sc.Target)
+		default:
+			c.Ref = "refs/heads/" + repo.CurrentBranch
+		}
+		c.Before = upstream
+	case "release":
+		if sc.Kind == flow.Tag {
+			c.Tag = tagName(sc.Target)
+		}
+	case "workflow_dispatch":
+		c.Ref = "refs/heads/" + repo.CurrentBranch
+	case "workflow_run":
+		c.Source, c.SourceEvent = names[lane.After], scenarioEvent(sc)
+		if c.Source == "" {
+			c.Source = path.Base(lane.After)
+		}
+	}
+	return c
+}
+
+// tagName stands in for a tag pattern such as v*.*.* with a name it matches.
+func tagName(target string) string {
+	return strings.NewReplacer("**", "1", "*", "1", "?", "1").Replace(target)
 }
 
 // askedLimits are the limits a review asks for: those of the request, the
@@ -210,18 +378,23 @@ func (s *service) ConfirmLocalRun(_ context.Context, request *corev1.ConfirmLoca
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	// act reads the file when it starts, so it must still be the file the
-	// user reviewed.
-	source, err := scanner.ReadWorkflowFile(info.Path, approved.Workflow.ID)
-	digest := sha256.Sum256(source)
-	if err != nil || hex.EncodeToString(digest[:]) != approved.Spec.Plan.Digest {
-		return nil, status.Error(codes.FailedPrecondition, "the workflow file changed after the review; review the run again")
+	// act runs copies of the files made at the review, so each must still be
+	// the file the user reviewed.
+	plan := approved.Spec.Plan
+	var workflows []string
+	for _, lane := range plan.Selected() {
+		source, err := scanner.ReadWorkflowFile(info.Path, lane.WorkflowID)
+		digest := sha256.Sum256(source)
+		if err != nil || hex.EncodeToString(digest[:]) != lane.Digest {
+			return nil, status.Error(codes.FailedPrecondition, lane.WorkflowID+" changed after the review; review the run again")
+		}
+		workflows = append(workflows, lane.WorkflowID)
 	}
-	secrets, err := runValues("secret", request.GetSecrets(), approved.Spec.Plan.Secrets)
+	secrets, err := runValues("secret", request.GetSecrets(), plan.Secrets)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error()+"; review the run again")
 	}
-	variables, err := runValues("variable", request.GetVariables(), approved.Spec.Plan.Variables)
+	variables, err := runValues("variable", request.GetVariables(), plan.Variables)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error()+"; review the run again")
 	}
@@ -234,20 +407,19 @@ func (s *service) ConfirmLocalRun(_ context.Context, request *corev1.ConfirmLoca
 	}
 	// Recorded before it starts, so the run's events are written after it.
 	s.workspaces.RecordLocalRun(info.ID, store.LocalRun{
-		ExecutionID: id, WorkflowPath: approved.Workflow.ID, JobID: approved.Spec.Plan.JobID, Event: approved.Spec.Plan.Event,
+		ExecutionID: id, Scenario: plan.Scenario.Title(), Workflows: workflows,
 		StartedAt: time.Now(), State: store.LocalQueued, ActVersion: approved.ActVersion, Engine: approved.EngineName,
 	})
-	s.localOutputs.Create(id, info.ID, approved.Spec.Plan, approved.ActVersion, approved.Installed, approved.EngineName)
+	s.localOutputs.Create(id, info.ID, plan, approved.ActVersion, approved.Installed, approved.EngineName)
 	// The limits of a confirmed run are the workspace's from now on; a run
 	// with the defaults forgets them.
 	var keep *store.RunLimits
-	if p := approved.Spec.Plan; p.OwnLimits {
-		keep = &store.RunLimits{CPUs: p.Limits.CPUs, MemoryBytes: p.Limits.MemoryBytes, Timeout: p.Limits.Timeout}
+	if plan.OwnLimits {
+		keep = &store.RunLimits{CPUs: plan.Limits.CPUs, MemoryBytes: plan.Limits.MemoryBytes, Timeout: plan.Limits.Timeout}
 	}
 	_ = s.workspaces.SetLocalRunLimits(context.Background(), info.ID, keep)
 	started, err := s.executions.StartJob(execution.Job{
-		ExecutionID: id, RepositoryID: info.ID, RepositoryPath: info.Path,
-		Workflow: approved.Workflow, Spec: &spec,
+		ExecutionID: id, RepositoryID: info.ID, RepositoryPath: info.Path, Spec: &spec,
 	})
 	if err != nil {
 		s.localOutputs.Remove(id)
@@ -274,11 +446,11 @@ func (s *service) GetLocalRunOutput(_ context.Context, request *corev1.GetLocalR
 		ExitCode: int32(snap.ExitCode), Message: snap.Message, CleanupProblem: snap.CleanupProblem,
 	}
 	for _, line := range snap.Lines {
-		out.Lines = append(out.Lines, &corev1.LocalRunLine{Sequence: line.Sequence, JobId: line.JobID, Text: line.Text, Error: line.Error})
+		out.Lines = append(out.Lines, &corev1.LocalRunLine{Sequence: line.Sequence, WorkflowId: line.Workflow, JobId: line.JobID, Text: line.Text, Error: line.Error})
 	}
 	for _, job := range snap.Jobs {
 		out.Jobs = append(out.Jobs, &corev1.LocalRunJobStatus{
-			Id: job.ID, Name: job.Name, State: jobStateMessage(job.State), Reason: job.Reason,
+			WorkflowId: job.Workflow, Id: job.ID, Name: job.Name, State: jobStateMessage(job.State), Reason: job.Reason,
 			StartedAt: timestamp(job.StartedAt), FinishedAt: timestamp(job.FinishedAt),
 		})
 	}
@@ -422,8 +594,7 @@ func toolStateMessage(state tools.State) corev1.ToolState {
 func planMessage(approved localRunApproval) *corev1.LocalRunPlan {
 	plan := approved.Spec.Plan
 	out := &corev1.LocalRunPlan{
-		WorkflowId: plan.WorkflowID, WorkflowName: plan.WorkflowName, Events: plan.Events, Event: plan.Event,
-		JobId: plan.JobID, Secrets: plan.Secrets, Variables: plan.Variables, UnnamedSecrets: plan.UnnamedSecrets,
+		Scenario: scenarioMessage(plan.Scenario), Secrets: plan.Secrets, Variables: plan.Variables, UnnamedSecrets: plan.UnnamedSecrets,
 		Notes: plan.Notes, Blockers: plan.Blockers,
 		Cpus: uint32(max(plan.Limits.CPUs, 0)), MemoryBytes: plan.Limits.MemoryBytes,
 		TimeoutSeconds: uint32(plan.Limits.Timeout / time.Second),
@@ -434,16 +605,41 @@ func planMessage(approved localRunApproval) *corev1.LocalRunPlan {
 		ActVersion: approved.ActVersion, InstalledAct: approved.Installed,
 		EngineName: approved.EngineName, EngineContext: approved.EngineContext,
 	}
-	for _, job := range plan.Jobs {
-		out.Jobs = append(out.Jobs, &corev1.LocalRunJob{
-			Id: job.ID, Name: job.Name, RunsOn: job.RunsOn, Image: job.Image,
-			Support: supportMessage(job.Support), Reason: job.Reason,
-		})
+	for _, sc := range plan.Scenarios {
+		out.Scenarios = append(out.Scenarios, scenarioMessage(sc))
+	}
+	for _, lane := range plan.Lanes {
+		message := &corev1.LocalRunLane{
+			WorkflowId: lane.WorkflowID, WorkflowName: lane.WorkflowName, Kind: localLaneKindMessage(lane.Kind), Event: lane.Event,
+			Why: lane.Why, Skipped: lane.Skipped, After: lane.After, Selected: lane.Selected(), ParseError: lane.ParseError,
+		}
+		for _, job := range lane.Jobs {
+			message.Jobs = append(message.Jobs, &corev1.LocalRunJob{
+				Id: job.ID, Name: job.Name, RunsOn: job.RunsOn, Image: job.Image,
+				Support: supportMessage(job.Support), Reason: job.Reason, Needs: job.Needs, Selected: job.Selected, Skipped: job.Skipped,
+			})
+		}
+		out.Lanes = append(out.Lanes, message)
 	}
 	for _, image := range plan.Images {
 		out.Images = append(out.Images, &corev1.LocalRunImage{Reference: image.Ref, Present: image.Present})
 	}
 	return out
+}
+
+func localLaneKindMessage(kind localrun.LaneKind) corev1.LocalRunLaneKind {
+	switch kind {
+	case localrun.Direct:
+		return corev1.LocalRunLaneKind_LOCAL_RUN_LANE_KIND_DIRECT
+	case localrun.Chained:
+		return corev1.LocalRunLaneKind_LOCAL_RUN_LANE_KIND_CHAINED
+	case localrun.Manual:
+		return corev1.LocalRunLaneKind_LOCAL_RUN_LANE_KIND_MANUAL
+	case localrun.Outside:
+		return corev1.LocalRunLaneKind_LOCAL_RUN_LANE_KIND_OUTSIDE
+	default:
+		return corev1.LocalRunLaneKind_LOCAL_RUN_LANE_KIND_UNSPECIFIED
+	}
 }
 
 func supportMessage(support localrun.Support) corev1.LocalJobSupport {

@@ -46,7 +46,7 @@ func saveClosedWorkspace(t *testing.T, data, id string) {
 		t.Fatal(err)
 	}
 	if err := st.RecordLocalRun(context.Background(), store.LocalRun{
-		ExecutionID: "exec_1", WorkflowPath: ".github/workflows/deploy.yml", Event: "push", State: store.LocalFailed,
+		ExecutionID: "exec_1", Scenario: "Push to main", Workflows: []string{".github/workflows/deploy.yml"}, State: store.LocalFailed,
 		StartedAt: at, Message: "Docker is not running",
 	}); err != nil {
 		t.Fatal(err)

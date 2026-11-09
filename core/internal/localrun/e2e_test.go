@@ -83,7 +83,12 @@ func e2eSpec(t *testing.T, jobID string) (*Spec, *Outputs, execution.Job) {
 		}
 	}
 
-	plan, err := NewPlan(Request{WorkflowID: ".github/workflows/e2e.yml", Source: []byte(e2eWorkflow), JobID: jobID}, report, false, nil, Choose(nil, CeilingFor(report.Engine)))
+	request := Request{Chosen: true, Lanes: []LaneInput{{WorkflowID: ".github/workflows/e2e.yml", Source: []byte(e2eWorkflow),
+		Kind: Direct, Event: "push", Selected: []string{jobID}}}}
+	plan, err := NewPlan(request, report, false, nil, Choose(nil, CeilingFor(report.Engine)))
+	if err == nil {
+		plan.Lanes[0].Payload, err = Payload(EventContext{Event: "push", Ref: "refs/heads/main", DefaultBranch: "main"})
+	}
 	if err != nil || !plan.Runnable() {
 		t.Fatalf("plan = %+v, %v", plan, err)
 	}
@@ -208,12 +213,9 @@ func TestE2EJobContainersCarryTheLabelAndLimits(t *testing.T) {
 	defer func() { Platforms["ubuntu-latest"] = saved }()
 
 	spec, outputs, job := e2eSpec(t, "hello")
-	spec.Plan.JobID = "plain"
 	spec.Plan.Limits = Limits{CPUs: 2, MemoryBytes: 512 << 20, Timeout: 5 * time.Minute}
-	workflow := "name: E2E\non: push\njobs:\n  plain:\n    runs-on: ubuntu-latest\n    steps:\n      - shell: sh\n        run: echo waiting; sleep 300\n"
-	if err := os.WriteFile(filepath.Join(spec.RepositoryPath, ".github", "workflows", "e2e.yml"), []byte(workflow), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	// act runs the lane's copy of the workflow, here one plain job.
+	spec.Plan.Lanes[0].Copy = []byte("name: E2E\non: push\njobs:\n  plain:\n    runs-on: ubuntu-latest\n    steps:\n      - shell: sh\n        run: echo waiting; sleep 300\n")
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- NewRunner(outputs).Run(ctx, job) }()

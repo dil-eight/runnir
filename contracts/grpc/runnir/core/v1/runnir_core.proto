@@ -1381,7 +1381,15 @@ message LocalRunJob {
   // The image the job runs in.
   string image = 4;
   LocalJobSupport support = 5;
+  // Why it cannot run here, or what decides it.
   string reason = 6;
+  // The jobs it needs, by id.
+  repeated string needs = 7;
+  // Ticked: it runs.
+  bool selected = 8;
+  // Why the scenario skips it on GitHub (an if: that is false); empty when
+  // it runs there.
+  string skipped = 9;
 }
 
 message LocalRunImage {
@@ -1390,79 +1398,117 @@ message LocalRunImage {
   bool present = 2;
 }
 
-message LocalRunPlan {
+enum LocalRunLaneKind {
+  LOCAL_RUN_LANE_KIND_UNSPECIFIED = 0;
+  // The scenario's event starts it.
+  LOCAL_RUN_LANE_KIND_DIRECT = 1;
+  // workflow_run starts it after another lane.
+  LOCAL_RUN_LANE_KIND_CHAINED = 2;
+  // It starts only by hand.
+  LOCAL_RUN_LANE_KIND_MANUAL = 3;
+  // The scenario does not start it; `skipped` says why.
+  LOCAL_RUN_LANE_KIND_OUTSIDE = 4;
+}
+
+// One workflow of a local run: act runs it on its own, after the lanes
+// before it, with only its ticked jobs and the jobs they need.
+message LocalRunLane {
   // Path relative to the repository root, as in Workflow.id.
   string workflow_id = 1;
   string workflow_name = 2;
-  // The workflow's triggers; `event` is the one the run uses.
-  repeated string events = 3;
+  LocalRunLaneKind kind = 3;
+  // The event act gets for it.
   string event = 4;
-  // The chosen job, empty for every job; a chosen job brings the jobs it needs.
-  string job_id = 5;
-  repeated LocalRunJob jobs = 6;
-  repeated LocalRunImage images = 7;
+  // What starts it in the scenario: "pull_request · paths ✓".
+  string why = 5;
+  // Why the scenario does not start it, for an OUTSIDE lane.
+  string skipped = 6;
+  // The workflow path of the lane a CHAINED lane follows.
+  string after = 7;
+  // Some of its jobs are ticked.
+  bool selected = 8;
+  // Why the file does not parse; such a lane cannot be ticked.
+  string parse_error = 9;
+  repeated LocalRunJob jobs = 10;
+}
+
+message LocalRunPlan {
+  // The scenarios of the branch, the default first, and the one planned.
+  repeated Scenario scenarios = 1;
+  Scenario scenario = 2;
+  // Every workflow of the repository: the scenario's in run order, then
+  // those it does not start.
+  repeated LocalRunLane lanes = 3;
+  // Over the ticked jobs.
+  repeated LocalRunImage images = 4;
   // Secrets the run reads, upper-cased; the values the user sets are passed.
-  repeated string secrets = 8;
-  // Differences from a GitHub run worth knowing before starting.
-  repeated string notes = 9;
-  // Why the run cannot start now. A plan with blockers has no confirmation.
-  repeated string blockers = 10;
-  uint32 cpus = 11;
-  uint64 memory_bytes = 12;
-  uint32 timeout_seconds = 13;
-  // The act that runs it.
-  string act_version = 14;
-  bool installed_act = 15;
-  string engine_name = 16;
-  string engine_context = 17;
+  repeated string secrets = 5;
   // Variables (vars.X) the run reads, upper-cased.
-  repeated string variables = 18;
-  // The workflow reads secrets it does not name (toJSON(secrets), secrets:
+  repeated string variables = 6;
+  // A workflow reads secrets it does not name (toJSON(secrets), secrets:
   // inherit); only the listed ones can be passed.
-  bool unnamed_secrets = 19;
+  bool unnamed_secrets = 7;
+  // Differences from a GitHub run worth knowing before starting.
+  repeated string notes = 8;
+  // Why the run cannot start now. A plan with blockers has no confirmation.
+  repeated string blockers = 9;
+  // Each workflow's limits; the timeout is per workflow.
+  uint32 cpus = 10;
+  uint64 memory_bytes = 11;
+  uint32 timeout_seconds = 12;
+  // The act that runs it.
+  string act_version = 13;
+  bool installed_act = 14;
+  string engine_name = 15;
+  string engine_context = 16;
   // The most a run gets here: the engine's CPUs and memory (0 when it did
   // not say) and 6 hours.
-  uint32 max_cpus = 20;
-  uint64 max_memory_bytes = 21;
-  uint32 max_timeout_seconds = 22;
+  uint32 max_cpus = 17;
+  uint64 max_memory_bytes = 18;
+  uint32 max_timeout_seconds = 19;
   // The limits are the workspace's own, not the defaults; confirming the run
   // keeps them for the workspace.
-  bool own_limits = 23;
+  bool own_limits = 20;
   // What these limits risk on this engine; they never block the run.
-  repeated string limit_warnings = 24;
+  repeated string limit_warnings = 21;
   // A line worth reading without opening the limits: an engine smaller than
   // a default, or one that does not say what it has.
-  string limit_note = 25;
+  string limit_note = 22;
   // The environment whose values the run takes before the Repository's;
   // empty for the Repository's alone or when the user chooses.
-  string environment = 26;
-  // Why the user chooses whose values the run takes, when the workflow does
-  // not settle it: act gives every job of a run the same values, so a run
-  // of jobs in several environments, or in one an expression picks, could
-  // take any of them. Empty otherwise.
-  string environment_choice = 27;
+  string environment = 23;
+  // Why the user chooses whose values the run takes, when the jobs do not
+  // settle it: act gives every job the same values, so a run of jobs in
+  // several environments, or in one an expression picks, could take any of
+  // them. Empty otherwise.
+  string environment_choice = 24;
   // The environments to choose from (ListEnvironments), when
   // environment_choice is set. With none known the run takes the
   // Repository's values, a note says so and environment_choice is empty.
-  repeated string environments = 28;
+  repeated string environments = 25;
+}
+
+// The jobs ticked in one workflow.
+message LocalRunSelection {
+  string workflow_id = 1;
+  repeated string job_ids = 2;
 }
 
 message PrepareLocalRunRequest {
   string repository_id = 1;
-  string workflow_id = 2;
-  // Empty runs every job of the workflow.
-  string job_id = 3;
-  // One of the workflow's triggers; empty picks push, pull_request or
-  // workflow_dispatch, in that order.
-  string event = 4;
+  // Unset: the branch's default scenario.
+  Scenario scenario = 2;
+  // The ticked jobs by workflow; a job brings the jobs it needs. Empty: what
+  // the scenario starts that can run here.
+  repeated LocalRunSelection selection = 3;
   // Experimental: run with the act installed on this computer when one is
   // usable, instead of the bundled act.
-  bool use_installed_act = 5;
+  bool use_installed_act = 4;
   // Limits asked for; unset: the workspace's, else the defaults. The Core
   // caps them at the engine and rounds them to their steps.
-  LocalRunLimits limits = 6;
+  LocalRunLimits limits = 5;
   // Plan with the defaults; confirming the run forgets the workspace's limits.
-  bool reset_limits = 7;
+  bool reset_limits = 6;
 }
 
 // CPUs, memory and timeout of a local run.
@@ -1516,6 +1562,8 @@ enum LocalJobState {
 }
 
 message LocalRunJobStatus {
+  // The workflow the job is in.
+  string workflow_id = 7;
   string id = 1;
   string name = 2;
   LocalJobState state = 3;
@@ -1528,6 +1576,8 @@ message LocalRunLine {
   uint64 sequence = 1;
   // Empty for act's own messages.
   string job_id = 2;
+  // The workflow of the job; empty for act's own messages.
+  string workflow_id = 5;
   string text = 3;
   bool error = 4;
 }
@@ -1895,9 +1945,10 @@ message SearchedPullRequest {
 // A local run as the workspace's history keeps it; its output is not kept.
 message SearchedLocalRun {
   string execution_id = 1;
-  string workflow_path = 2;
-  string job_id = 3;
-  string event = 4;
+  // The scenario's title: "Pull request → main".
+  string scenario = 2;
+  // The workflows it ran, in run order.
+  repeated string workflow_paths = 3;
   // "queued", "running", "succeeded", "failed", "cancelled" or "interrupted".
   string state = 5;
   string message = 6;

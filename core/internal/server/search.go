@@ -114,7 +114,7 @@ func (s *service) SearchWorkspaces(ctx context.Context, request *corev1.SearchWo
 		}
 		for _, r := range w.LocalRuns {
 			hits.LocalRuns = append(hits.LocalRuns, &corev1.SearchedLocalRun{
-				ExecutionId: r.ExecutionID, WorkflowPath: r.WorkflowPath, JobId: r.JobID, Event: r.Event, State: r.State,
+				ExecutionId: r.ExecutionID, Scenario: r.Scenario, WorkflowPaths: r.Workflows, State: r.State,
 				Message: r.Message, StartedAt: timestamp(r.StartedAt),
 			})
 		}

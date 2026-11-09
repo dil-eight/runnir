@@ -66,30 +66,93 @@ func NewRunner(outputs *Outputs) *Runner {
 	return &Runner{outputs: outputs, now: time.Now, grace: stopGrace}
 }
 
-// Run starts act and waits for it. Cancelling ctx interrupts act's process
-// group, kills it after a grace period and still removes the containers.
+// Run runs the plan's selected lanes one after another, one act each.
+// Cancelling ctx interrupts the current act's process group, kills it after
+// a grace period, still removes the containers and starts no other lane. A
+// chained lane runs only when the lane it follows succeeded; a failed lane
+// stops nothing else.
 func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 	spec, ok := job.Spec.(*Spec)
 	if !ok || spec == nil {
 		return execution.ErrEngineUnavailable
 	}
 	id := job.ExecutionID
-	scratch, err := os.MkdirTemp("", "runnir-act-")
+	root, err := os.MkdirTemp("", "runnir-act-")
 	if err != nil {
 		return fmt.Errorf("prepare the run: %w", err)
 	}
-	defer os.RemoveAll(scratch)
+	defer os.RemoveAll(root)
 	defer func() { spec.Secrets, spec.Variables = nil, nil }()
 	r.outputs.update(id, func(run *run) { run.masks = masksFor(spec.Secrets) })
 	defer r.outputs.update(id, func(run *run) { run.masks = nil })
-	if err := prepareScratch(scratch); err != nil {
-		return fmt.Errorf("prepare the run: %w", err)
-	}
 	if spec.CacheDir != "" {
 		if err := os.MkdirAll(spec.CacheDir, 0o700); err != nil {
 			return fmt.Errorf("prepare act's cache: %w", err)
 		}
 	}
+
+	lanes := spec.Plan.Selected()
+	selected := map[string]string{}
+	for _, lane := range lanes {
+		selected[lane.WorkflowID] = laneTitle(lane)
+	}
+	succeeded := map[string]bool{}
+	var failures []error
+	for i, lane := range lanes {
+		if ctx.Err() != nil {
+			break
+		}
+		if source, waits := selected[lane.After]; lane.Kind == Chained && waits && !succeeded[lane.After] {
+			r.outputs.skipLane(id, lane.WorkflowID, "Not run: "+source+" did not succeed")
+			continue
+		}
+		dir := filepath.Join(root, strconv.Itoa(i))
+		err := r.runLane(ctx, spec, id, dir, lane)
+		r.outputs.finishLane(id, lane.WorkflowID, r.now())
+		switch {
+		case err == nil:
+			succeeded[lane.WorkflowID] = true
+		case ctx.Err() != nil:
+			return ctx.Err()
+		default:
+			failures = append(failures, err)
+		}
+	}
+	switch {
+	case ctx.Err() != nil:
+		return ctx.Err()
+	case len(failures) == 0:
+		return nil
+	case len(lanes) == 1:
+		return failures[0]
+	default:
+		return fmt.Errorf("%d of %d workflows failed", len(failures), len(lanes))
+	}
+}
+
+func laneTitle(lane Lane) string {
+	if lane.WorkflowName != "" {
+		return lane.WorkflowName
+	}
+	return filepath.Base(lane.WorkflowID)
+}
+
+// runLane runs act once for a lane, in its own scratch folder, within the
+// time limit, and removes the lane's containers afterwards.
+func (r *Runner) runLane(ctx context.Context, spec *Spec, id, dir string, lane Lane) error {
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		return fmt.Errorf("prepare the run: %w", err)
+	}
+	if err := prepareScratch(dir); err != nil {
+		return fmt.Errorf("prepare the run: %w", err)
+	}
+	if err := os.WriteFile(workflowCopy(dir, lane), lane.Copy, 0o600); err != nil {
+		return fmt.Errorf("prepare the run: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "event.json"), lane.Payload, 0o600); err != nil {
+		return fmt.Errorf("prepare the run: %w", err)
+	}
+	r.outputs.startLane(id, lane.WorkflowID, r.now())
 
 	timeout := spec.Plan.Limits.Timeout
 	if timeout <= 0 {
@@ -98,13 +161,14 @@ func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.Command(spec.ActPath, Args(spec, id, scratch)...)
-	cmd.Dir = scratch // keeps act from reading an .actrc where the Core runs
-	cmd.Env = actEnv(spec, scratch)
+	cmd := exec.Command(spec.ActPath, Args(spec, lane, id, dir)...)
+	cmd.Dir = dir // keeps act from reading an .actrc where the Core runs
+	cmd.Env = actEnv(spec, dir)
 	setProcessGroup(cmd)
 	var feeds []*valueFeed
+	var err error
 	if PassesValues {
-		if feeds, err = attachValues(cmd, scratch, spec); err != nil {
+		if feeds, err = attachValues(cmd, dir, spec); err != nil {
 			return fmt.Errorf("prepare the run: %w", err)
 		}
 	}
@@ -142,7 +206,9 @@ func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 	case waitErr = <-waited:
 	case <-runCtx.Done():
 		stopped = true
-		r.outputs.update(id, func(run *run) { run.snap.Phase = PhaseStopping })
+		if ctx.Err() != nil {
+			r.outputs.update(id, func(run *run) { run.snap.Phase = PhaseStopping })
+		}
 		_ = interruptGroup(cmd)
 		select {
 		case waitErr = <-waited:
@@ -168,7 +234,9 @@ func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 	}
 	r.outputs.update(id, func(run *run) {
 		run.snap.ExitCode = exitCode
-		run.snap.Phase = PhaseCleaningUp
+		if run.snap.Phase != PhaseStopping {
+			run.snap.Phase = PhaseCleaningUp
+		}
 	})
 	problem := r.cleanup(spec, id)
 	if problem == "" && killed {
@@ -176,9 +244,14 @@ func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 		// act removes the others itself unless it is killed.
 		problem = "act had to be force-stopped. Containers it started for services or jobs with their own container image may remain; their names start with act-."
 	}
-	if problem != "" {
-		r.outputs.update(id, func(run *run) { run.snap.CleanupProblem = problem })
-	}
+	r.outputs.update(id, func(run *run) {
+		if problem != "" {
+			run.snap.CleanupProblem = problem
+		}
+		if run.snap.Phase == PhaseCleaningUp {
+			run.snap.Phase = PhaseRunning
+		}
+	})
 
 	switch {
 	case stopped && errors.Is(runCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil:
@@ -192,6 +265,12 @@ func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 	default:
 		return errors.New("act stopped unexpectedly")
 	}
+}
+
+// workflowCopy is where a lane's copy of its workflow file goes: its own
+// name, so act names the workflow as the repository does.
+func workflowCopy(dir string, lane Lane) string {
+	return filepath.Join(dir, "workflows", filepath.Base(lane.WorkflowID))
 }
 
 func (r *Runner) read(wg *sync.WaitGroup, id string, stream io.Reader, stderr bool) {
@@ -208,7 +287,7 @@ func (r *Runner) read(wg *sync.WaitGroup, id string, stream io.Reader, stderr bo
 }
 
 func prepareScratch(dir string) error {
-	for _, sub := range []string{"home", "config"} {
+	for _, sub := range []string{"home", "config", "workflows"} {
 		if err := os.Mkdir(filepath.Join(dir, sub), 0o700); err != nil {
 			return err
 		}
@@ -218,14 +297,15 @@ func prepareScratch(dir string) error {
 
 // Args is act's full command line. Every value is fixed by Runnir or comes
 // from the approved plan; nothing from the repository adds flags.
-func Args(spec *Spec, executionID, scratch string) []string {
+func Args(spec *Spec, lane Lane, executionID, scratch string) []string {
 	plan := spec.Plan
 	empty := filepath.Join(scratch, "empty")
 	// Values are joined to their flags and the event follows "--", so no
 	// value can be read as a flag of its own.
 	args := []string{
-		"--workflows=" + filepath.Join(spec.RepositoryPath, filepath.FromSlash(plan.WorkflowID)),
+		"--workflows=" + workflowCopy(scratch, lane),
 		"--directory=" + spec.RepositoryPath,
+		"--eventpath=" + filepath.Join(scratch, "event.json"),
 		"--json",
 		// Remove containers and volumes even when a job fails.
 		"--rm",
@@ -247,9 +327,6 @@ func Args(spec *Spec, executionID, scratch string) []string {
 		"--input-file=" + empty,
 		"--container-options=" + containerOptions(plan.Limits, executionID),
 	}
-	if plan.JobID != "" {
-		args = append(args, "--job="+plan.JobID)
-	}
 	labels := make([]string, 0, len(Platforms))
 	for label := range Platforms {
 		labels = append(labels, label)
@@ -261,7 +338,7 @@ func Args(spec *Spec, executionID, scratch string) []string {
 	if spec.GitHubInstance != "" {
 		args = append(args, "--github-instance="+spec.GitHubInstance)
 	}
-	args = append(args, "--", plan.Event)
+	args = append(args, "--", lane.Event)
 	return args
 }
 

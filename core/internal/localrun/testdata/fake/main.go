@@ -14,13 +14,15 @@ import (
 )
 
 type script struct {
-	Lines           []string `json:"lines"`
-	Stderr          []string `json:"stderr"`
-	Exit            int      `json:"exit"`
-	WaitForSignal   bool     `json:"waitForSignal"`
-	IgnoreInterrupt bool     `json:"ignoreInterrupt"`
-	// CopyValueFiles records what the --secret-file and --var-file paths
-	// hold, in act.files.
+	Lines  []string `json:"lines"`
+	Stderr []string `json:"stderr"`
+	Exit   int      `json:"exit"`
+	// Exits, when set, is the exit code of each run of act in turn.
+	Exits           []int `json:"exits"`
+	WaitForSignal   bool  `json:"waitForSignal"`
+	IgnoreInterrupt bool  `json:"ignoreInterrupt"`
+	// CopyValueFiles records what the --secret-file, --var-file,
+	// --workflows and --eventpath paths hold, in act.files, a line per run.
 	CopyValueFiles bool `json:"copyValueFiles"`
 }
 
@@ -49,7 +51,7 @@ func main() {
 	if s.CopyValueFiles {
 		files := map[string]string{}
 		for _, arg := range os.Args[1:] {
-			for _, flag := range []string{"--secret-file=", "--var-file="} {
+			for _, flag := range []string{"--secret-file=", "--var-file=", "--workflows=", "--eventpath="} {
 				if path, ok := strings.CutPrefix(arg, flag); ok {
 					data, err := os.ReadFile(path)
 					if err != nil {
@@ -60,7 +62,7 @@ func main() {
 			}
 		}
 		encoded, _ := json.Marshal(files)
-		appendFile(filepath.Join(dir, "act.files"), string(encoded))
+		appendFile(filepath.Join(dir, "act.files"), string(encoded)+"\n")
 	}
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
@@ -80,7 +82,15 @@ func main() {
 			time.Sleep(time.Millisecond)
 		}
 	}
+	if runs := countLines(filepath.Join(dir, name+".invocations")); runs > 0 && runs <= len(s.Exits) {
+		os.Exit(s.Exits[runs-1])
+	}
 	os.Exit(s.Exit)
+}
+
+func countLines(path string) int {
+	data, _ := os.ReadFile(path)
+	return strings.Count(string(data), "\n")
 }
 
 func docker(dir string) {

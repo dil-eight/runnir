@@ -49,10 +49,28 @@ func localRunCounts(ctx context.Context, st *store.Store, s localrun.Summary, st
 	}
 	if saved {
 		c[analytics.LocalRuns], c[analytics.LocalBilledMinutes] = 1, billed
-		if !s.Dispatchable {
+		dispatchable := len(s.Lanes) > 0
+		for _, lane := range s.Lanes {
+			dispatchable = dispatchable && lane.Dispatchable
+		}
+		if !dispatchable {
 			c[analytics.LocalRunsWithoutDispatch], c[analytics.LocalBilledMinutesWithoutDispatch] = 1, billed
 		}
 	}
+	for _, lane := range s.Lanes {
+		laneCounts(ctx, st, lane, state, c)
+	}
+	for name, value := range c {
+		if value == 0 {
+			delete(c, name)
+		}
+	}
+	return c
+}
+
+// laneCounts adds one lane's jobs and, for a whole workflow, its span, with
+// GitHub's for the same jobs and workflow when they are known.
+func laneCounts(ctx context.Context, st *store.Store, s localrun.LaneSummary, state string, c analytics.Counts) {
 	var ended []localrun.JobStatus
 	var names []string
 	for _, job := range s.Jobs {
@@ -94,10 +112,4 @@ func localRunCounts(ctx context.Context, st *store.Store, s localrun.Summary, st
 			c[analytics.GHRefRunWallSeconds] += int64(wall / time.Second)
 		}
 	}
-	for name, value := range c {
-		if value == 0 {
-			delete(c, name)
-		}
-	}
-	return c
 }

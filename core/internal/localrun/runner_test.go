@@ -105,11 +105,24 @@ func testSpec(t *testing.T, actPath, dockerPath string) *Spec {
 		ActPath: actPath, DockerPath: dockerPath, DockerHost: "unix:///tmp/engine.sock",
 		UserHome: t.TempDir(), RepositoryPath: repo, CacheDir: filepath.Join(t.TempDir(), "cache"),
 		Plan: Plan{
-			WorkflowID: ".github/workflows/ci.yml", Event: "push", JobID: "lint",
-			Jobs:   []JobPlan{{ID: "lint", Support: Supported}, {ID: "build-ios", Support: Unsupported, Reason: "Not supported locally: macOS runner"}},
+			Lanes: []Lane{lane(".github/workflows/ci.yml", "push",
+				JobPlan{ID: "lint", Support: Supported},
+				JobPlan{ID: "build-ios", Support: Unsupported, Reason: "Not supported locally: macOS runner"})},
 			Limits: Limits{CPUs: 2, MemoryBytes: 1 << 30, Timeout: time.Minute},
 		},
 	}
+}
+
+// lane is a direct lane of a workflow with every job given ticked, its copy
+// naming them and a payload naming its event.
+func lane(workflow, event string, jobs ...JobPlan) Lane {
+	copied := "on: " + event + "\njobs:\n"
+	for i := range jobs {
+		jobs[i].Selected = true
+		copied += "  " + jobs[i].ID + ":\n    runs-on: ubuntu-latest\n    steps: [{run: echo}]\n"
+	}
+	return Lane{WorkflowID: workflow, WorkflowName: strings.TrimSuffix(filepath.Base(workflow), ".yml"), Kind: Direct, Event: event,
+		Jobs: jobs, Copy: []byte(copied), Payload: []byte(`{"event":"` + event + `"}`)}
 }
 
 func startRun(t *testing.T, spec *Spec) (*Runner, *Outputs, execution.Job) {
@@ -163,9 +176,8 @@ func TestSuccessfulRunRecordsOutputAndJobs(t *testing.T) {
 	}
 	call := calls[0]
 	for _, want := range []string{
-		"--workflows=" + filepath.Join(spec.RepositoryPath, ".github", "workflows", "ci.yml"),
 		"--directory=" + spec.RepositoryPath, "--json", "--rm", "--pull=false", "--network=bridge",
-		"--no-cache-server", "--container-daemon-socket=-", "--job=lint",
+		"--no-cache-server", "--container-daemon-socket=-",
 		"--container-options=--label=com.runnir.execution=exec_test --cpus=2 --memory=1073741824",
 		"--platform=ubuntu-latest=catthehacker/ubuntu:act-latest",
 	} {
@@ -175,6 +187,19 @@ func TestSuccessfulRunRecordsOutputAndJobs(t *testing.T) {
 	}
 	if n := len(call.Args); n < 2 || call.Args[n-2] != "--" || call.Args[n-1] != "push" {
 		t.Fatalf("the event does not follow --: %v", call.Args)
+	}
+	for _, arg := range call.Args {
+		if strings.HasPrefix(arg, "--job") {
+			t.Fatalf("a lane runs its copy, not a chosen job: %v", call.Args)
+		}
+	}
+	// act runs the lane's copy of the workflow with the scenario's event,
+	// both in the lane's scratch directory.
+	for flag, file := range map[string]string{"--workflows=": filepath.Join("workflows", "ci.yml"), "--eventpath=": "event.json"} {
+		at := slices.IndexFunc(call.Args, func(arg string) bool { return strings.HasPrefix(arg, flag) })
+		if at < 0 || !strings.HasSuffix(call.Args[at], string(filepath.Separator)+filepath.Base(call.Dir)+string(filepath.Separator)+file) {
+			t.Fatalf("%s is not the lane's %s: %v", flag, file, call.Args)
+		}
 	}
 	for _, flag := range []string{"--env-file=", "--secret-file=", "--var-file=", "--input-file="} {
 		value := ""
@@ -333,14 +358,15 @@ func sameDir(a, b string) bool {
 }
 
 func TestArgsNameTheEnterpriseInstance(t *testing.T) {
-	spec := &Spec{RepositoryPath: "/repo", Plan: Plan{WorkflowID: ".github/workflows/ci.yml", Event: "push"}}
-	for _, arg := range Args(spec, "e1", "/scratch") {
+	spec := &Spec{RepositoryPath: "/repo"}
+	ci := lane(".github/workflows/ci.yml", "push")
+	for _, arg := range Args(spec, ci, "e1", "/scratch") {
 		if strings.HasPrefix(arg, "--github-instance") {
 			t.Fatalf("a github.com run has %q", arg)
 		}
 	}
 	spec.GitHubInstance = "github.company.com"
-	args := Args(spec, "e1", "/scratch")
+	args := Args(spec, ci, "e1", "/scratch")
 	at := slices.Index(args, "--github-instance=github.company.com")
 	if at < 0 {
 		t.Fatalf("args = %v", args)
@@ -419,5 +445,58 @@ func TestRunWithoutValuesStillPassesGitHubToken(t *testing.T) {
 	_ = json.Unmarshal(data, &files)
 	if files["--secret-file="] != `{"GITHUB_TOKEN":""}` || files["--var-file="] != `{}` {
 		t.Fatalf("files = %v", files)
+	}
+}
+
+func TestLanesRunOneAfterAnotherAndAChainNeedsItsSource(t *testing.T) {
+	if !PassesValues {
+		t.Skip("act's files are recorded on macOS and Linux")
+	}
+	// ci.yml succeeds, core.yml fails, so notify.yml after it does not run
+	// while docs.yml, independent, still does.
+	actPath, dockerPath, dir := fakeTools(t, map[string]any{"copyValueFiles": true, "exits": []int{0, 1, 0}})
+	spec := testSpec(t, actPath, dockerPath)
+	notify := lane(".github/workflows/notify.yml", "workflow_run", JobPlan{ID: "tell", Support: Supported})
+	notify.Kind, notify.After = Chained, ".github/workflows/core.yml"
+	skipped := lane(".github/workflows/release.yml", "push", JobPlan{ID: "publish", Support: Supported})
+	skipped.Jobs[0].Selected = false
+	spec.Plan.Lanes = append(spec.Plan.Lanes,
+		lane(".github/workflows/core.yml", "pull_request", JobPlan{ID: "lint", Support: Supported}),
+		notify, skipped,
+		lane(".github/workflows/docs.yml", "push", JobPlan{ID: "build", Support: Supported}))
+	runner, outputs, job := startRun(t, spec)
+	err := runner.Run(context.Background(), job)
+	if err == nil || err.Error() != "1 of 4 workflows failed" {
+		t.Fatalf("Run = %v", err)
+	}
+	calls := invocations(t, dir, "act")
+	if len(calls) != 3 {
+		t.Fatalf("act ran %d times", len(calls))
+	}
+	for i, want := range []string{"push", "pull_request", "push"} {
+		if args := calls[i].Args; args[len(args)-1] != want {
+			t.Fatalf("run %d event = %v", i, args)
+		}
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "act.files"))
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	var core map[string]string
+	if len(lines) != 3 || json.Unmarshal([]byte(lines[1]), &core) != nil {
+		t.Fatalf("files = %s", data)
+	}
+	if core["--eventpath="] != `{"event":"pull_request"}` || !strings.Contains(core["--workflows="], "lint:") {
+		t.Fatalf("core.yml got %v", core)
+	}
+	snap, _ := outputs.Since(job.ExecutionID, 0)
+	byWorkflow := map[string]JobStatus{}
+	for _, status := range snap.Jobs {
+		byWorkflow[status.Workflow+"/"+status.ID] = status
+	}
+	if len(snap.Jobs) != 5 || byWorkflow[".github/workflows/notify.yml/tell"].State != JobNotRun ||
+		byWorkflow[".github/workflows/notify.yml/tell"].Reason != "Not run: core did not succeed" {
+		t.Fatalf("jobs = %+v", snap.Jobs)
+	}
+	if _, ok := byWorkflow[".github/workflows/release.yml/publish"]; ok {
+		t.Fatal("a lane without ticks has jobs")
 	}
 }

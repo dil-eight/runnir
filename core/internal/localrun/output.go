@@ -3,7 +3,6 @@ package localrun
 import (
 	"encoding/json"
 	"regexp"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +33,8 @@ const (
 )
 
 type JobStatus struct {
+	// Workflow is the lane the job is in.
+	Workflow   string
 	ID         string
 	Name       string
 	State      JobState
@@ -44,6 +45,9 @@ type JobStatus struct {
 
 type Line struct {
 	Sequence uint64
+	// Workflow is the lane that was running; JobID is empty for act's own
+	// messages.
+	Workflow string
 	JobID    string
 	Text     string
 	Error    bool
@@ -80,8 +84,16 @@ type Snapshot struct {
 	LastSequence   uint64
 }
 
+// laneTimes is when a lane's act started and ended.
+type laneTimes struct {
+	started, finished time.Time
+}
+
 type run struct {
-	snap  Snapshot
+	snap Snapshot
+	// lane is the workflow of the lane running; lanes their times.
+	lane  string
+	lanes map[string]laneTimes
 	lines []Line // ring of at most MaxLines
 	head  int
 	next  uint64
@@ -108,12 +120,18 @@ func (o *Outputs) Create(executionID, repositoryID string, plan Plan, actVersion
 	r := &run{snap: Snapshot{ExecutionID: executionID, RepositoryID: repositoryID, Plan: plan,
 		State: corev1.ExecutionState_EXECUTION_STATE_QUEUED, Phase: PhaseQueued, ExitCode: -1,
 		ActVersion: actVersion, ActInstalled: actInstalled, EngineName: engineName}}
-	for _, job := range plan.Jobs {
-		status := JobStatus{ID: job.ID, Name: job.Name, State: JobWaiting}
-		if job.Support == Unsupported {
-			status.State, status.Reason = JobUnsupported, job.Reason
+	r.lanes = map[string]laneTimes{}
+	for _, lane := range plan.Selected() {
+		for _, job := range lane.Jobs {
+			if !job.Selected {
+				continue
+			}
+			status := JobStatus{Workflow: lane.WorkflowID, ID: job.ID, Name: job.Name, State: JobWaiting}
+			if job.Support == Unsupported {
+				status.State, status.Reason = JobUnsupported, job.Reason
+			}
+			r.snap.Jobs = append(r.snap.Jobs, status)
 		}
-		r.snap.Jobs = append(r.snap.Jobs, status)
 	}
 	o.runs[executionID] = r
 	o.order = append(o.order, executionID)
@@ -201,9 +219,9 @@ func (o *Outputs) BilledMinutes(executionID string) int64 {
 	return billedMinutes(r.snap.Jobs)
 }
 
-// Summary is a finished run, for analytics: its workflow, whether every job
-// of it was asked for, its span and its jobs.
-type Summary struct {
+// LaneSummary is one finished lane, for analytics: its workflow, whether
+// every job of it ran, its span and its jobs.
+type LaneSummary struct {
 	WorkflowID    string
 	WholeWorkflow bool
 	// Dispatchable: the workflow has a workflow_dispatch trigger, so GitHub
@@ -212,6 +230,11 @@ type Summary struct {
 	StartedAt    time.Time
 	FinishedAt   time.Time
 	Jobs         []JobStatus
+}
+
+// Summary is a finished run, for analytics: the lanes that ran.
+type Summary struct {
+	Lanes []LaneSummary
 }
 
 // Summary returns a finished run's summary; false while it runs or once it
@@ -223,9 +246,74 @@ func (o *Outputs) Summary(executionID string) (Summary, bool) {
 	if r == nil || r.snap.Phase != PhaseFinished {
 		return Summary{}, false
 	}
-	return Summary{WorkflowID: r.snap.Plan.WorkflowID, WholeWorkflow: r.snap.Plan.JobID == "",
-		Dispatchable: slices.Contains(r.snap.Plan.Events, "workflow_dispatch"),
-		StartedAt:    r.snap.StartedAt, FinishedAt: r.snap.FinishedAt, Jobs: append([]JobStatus(nil), r.snap.Jobs...)}, true
+	var summary Summary
+	for _, lane := range r.snap.Plan.Selected() {
+		times, ran := r.lanes[lane.WorkflowID]
+		if !ran {
+			continue
+		}
+		whole := true
+		for _, job := range lane.Jobs {
+			whole = whole && job.Selected
+		}
+		ls := LaneSummary{WorkflowID: lane.WorkflowID, WholeWorkflow: whole, Dispatchable: lane.Dispatchable,
+			StartedAt: times.started, FinishedAt: times.finished}
+		for _, job := range r.snap.Jobs {
+			if job.Workflow == lane.WorkflowID {
+				ls.Jobs = append(ls.Jobs, job)
+			}
+		}
+		summary.Lanes = append(summary.Lanes, ls)
+	}
+	return summary, true
+}
+
+// startLane records that act started on a lane: its output and jobs are
+// the lane's from now on.
+func (o *Outputs) startLane(executionID, workflow string, now time.Time) {
+	o.update(executionID, func(r *run) {
+		r.lane = workflow
+		r.lanes[workflow] = laneTimes{started: now}
+	})
+}
+
+// finishLane records that a lane's act exited. Jobs that never reported a
+// result did not run.
+func (o *Outputs) finishLane(executionID, workflow string, now time.Time) {
+	o.update(executionID, func(r *run) {
+		if times, ok := r.lanes[workflow]; ok {
+			times.finished = now
+			r.lanes[workflow] = times
+		}
+		for i := range r.snap.Jobs {
+			job := &r.snap.Jobs[i]
+			if job.Workflow != workflow {
+				continue
+			}
+			switch job.State {
+			case JobRunning:
+				job.FinishedAt = now
+				if r.snap.Phase == PhaseStopping {
+					job.State = JobCancelled
+				} else {
+					job.State, job.Reason = JobNotRun, "act ended before the job reported a result"
+				}
+			case JobWaiting:
+				job.State = JobNotRun
+			}
+		}
+	})
+}
+
+// skipLane records a lane that does not run, with the reason.
+func (o *Outputs) skipLane(executionID, workflow, reason string) {
+	o.update(executionID, func(r *run) {
+		for i := range r.snap.Jobs {
+			if job := &r.snap.Jobs[i]; job.Workflow == workflow && job.State == JobWaiting {
+				job.State, job.Reason = JobNotRun, reason
+			}
+		}
+	})
 }
 
 // BilledJobMinutes is how GitHub bills a job on a hosted runner: its time
@@ -284,6 +372,7 @@ func (o *Outputs) update(executionID string, change func(*run)) {
 }
 
 func (r *run) append(jobID, text string, isError bool) {
+	workflow := r.lane
 	text = mask(text, r.masks)
 	if len(text) > MaxLineBytes {
 		cut := MaxLineBytes
@@ -293,7 +382,7 @@ func (r *run) append(jobID, text string, isError bool) {
 		text = text[:cut] + " …"
 	}
 	r.next++
-	line := Line{Sequence: r.next, JobID: jobID, Text: text, Error: isError}
+	line := Line{Sequence: r.next, Workflow: workflow, JobID: jobID, Text: text, Error: isError}
 	if len(r.lines) < MaxLines {
 		r.lines = append(r.lines, line)
 		return
@@ -304,13 +393,15 @@ func (r *run) append(jobID, text string, isError bool) {
 
 func utf8Start(b byte) bool { return b&0xC0 != 0x80 }
 
+// job is the running lane's job with this id, added when act reports one
+// the plan did not list.
 func (r *run) job(id string) *JobStatus {
 	for i := range r.snap.Jobs {
-		if strings.EqualFold(r.snap.Jobs[i].ID, id) {
+		if r.snap.Jobs[i].Workflow == r.lane && strings.EqualFold(r.snap.Jobs[i].ID, id) {
 			return &r.snap.Jobs[i]
 		}
 	}
-	r.snap.Jobs = append(r.snap.Jobs, JobStatus{ID: id, State: JobWaiting})
+	r.snap.Jobs = append(r.snap.Jobs, JobStatus{Workflow: r.lane, ID: id, State: JobWaiting})
 	return &r.snap.Jobs[len(r.snap.Jobs)-1]
 }
 

@@ -133,12 +133,12 @@ CREATE TABLE blobs (
 	last_used_at INTEGER NOT NULL
 );
 CREATE INDEX blobs_used ON blobs (last_used_at);
--- local: one summary per local act run; its output is never stored.
+-- local: one summary per local run of a scenario: its title and its workflows,
+-- one path a line; its output is never stored.
 CREATE TABLE local_runs (
 	execution_id TEXT PRIMARY KEY,
-	workflow_path TEXT NOT NULL DEFAULT '',
-	job_id TEXT NOT NULL DEFAULT '',
-	event TEXT NOT NULL DEFAULT '',
+	scenario TEXT NOT NULL DEFAULT '',
+	workflows TEXT NOT NULL DEFAULT '',
 	started_at INTEGER NOT NULL DEFAULT 0,
 	finished_at INTEGER NOT NULL DEFAULT 0,
 	state TEXT NOT NULL,
