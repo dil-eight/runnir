@@ -16,11 +16,12 @@ Settings › MCP shows a command and a Codex block built from this Mac's paths: 
 | Builds | The plugin serves Runnir, Runnir Alpha and Runnir Beta (one app, `Runnir.app`) installed in `/Applications`. Runnir Dev, Runnir Local and an app elsewhere keep Settings › MCP's command |
 | `--data-dir` | Optional: without it `runnir-core mcp` uses its own build's folder in Application Support, as the app's `RunnirBuild.folderName` names it (Runnir Dev, Runnir Local, Runnir). The build passes `RUNNIR_BUILD` to the Core with `-ldflags`; an empty or unknown value reads as dev, as in the app |
 | Skill | `local-run-values`: when to use the tools (secrets or variables of Runnir's local runs), `repository` as the agent's working folder, list first, values only from the user or files they name, never echoing a secret, one call per set, what each refusal asks of the user |
+| Settings › MCP | In Runnir, Runnir Alpha or Runnir Beta at `/Applications/Runnir.app` it shows the plugin's commands; elsewhere, and in Runnir Dev and Runnir Local, `claude mcp add --scope user <name> -- <helper> mcp` and a Codex block with `args = ["mcp"]`, no data folder in either |
 | Versions | The plugin carries the app's version (0.1.0). The tools come from the Core at run time, so a new tool needs no new plugin; only the skill's text does |
 
 ## Not In This Change
 
-Settings › MCP (it keeps its command; `--scope user` and the plugin commands follow); a deep link that opens a client's install screen (neither client documents one); Claude Desktop's `.mcpb`; finding Runnir outside `/Applications`.
+A deep link that opens a client's install screen (neither client documents one); Claude Desktop's `.mcpb`; finding Runnir outside `/Applications`.
 
 ## Tests
 

@@ -17,18 +17,32 @@ enum McpSettings {
 
     static var helper: URL { Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/runnir-core") }
 
-    /// `claude mcp add` for Claude Code, paths quoted for the shell.
-    static func claudeCommand(name: String, helper: String, dataDir: String) -> String {
-        "claude mcp add \(name) -- \(shellQuoted(helper)) mcp --data-dir \(shellQuoted(dataDir))"
+    /// Where the Runnir plugin (plugins/runnir) starts the server: the same
+    /// for every user, so only Runnir in /Applications is reached by it.
+    static let pluginHelper = "/Applications/Runnir.app/Contents/Helpers/runnir-core"
+
+    /// The plugin serves the builds of a tag, one app, in /Applications.
+    static func pluginReaches(build: RunnirBuild, helper: String) -> Bool {
+        [.alpha, .beta, .release].contains(build) && helper == pluginHelper
+    }
+
+    /// The Runnir plugin from its marketplace, this repository on GitHub.
+    static let claudePluginCommands = "claude plugin marketplace add dil-eight/runnir\nclaude plugin install runnir@runnir"
+    static let codexPluginCommands = "codex plugin marketplace add dil-eight/runnir\ncodex plugin add runnir@runnir"
+
+    /// `claude mcp add` for Claude Code in every project, the path quoted
+    /// for the shell. The Core finds this build's data folder itself.
+    static func claudeCommand(name: String, helper: String) -> String {
+        "claude mcp add --scope user \(name) -- \(shellQuoted(helper)) mcp"
     }
 
     /// The block for Codex's ~/.codex/config.toml. Codex waits 60 seconds
     /// for a tool by default, less than a person may take to confirm.
-    static func codexBlock(name: String, helper: String, dataDir: String) -> String {
+    static func codexBlock(name: String, helper: String) -> String {
         """
         [mcp_servers.\(name)]
         command = \(tomlQuoted(helper))
-        args = ["mcp", "--data-dir", \(tomlQuoted(dataDir))]
+        args = ["mcp"]
         tool_timeout_sec = 300
         """
     }
@@ -58,13 +72,22 @@ struct McpSettingsSection: View {
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        if let dataDir {
+        if McpSettings.pluginReaches(build: .current, helper: McpSettings.helper.path) {
             Section("Claude Code") {
-                snippet(McpSettings.claudeCommand(name: name, helper: McpSettings.helper.path, dataDir: dataDir), id: "claude",
-                        caption: "Run in a terminal; add --scope user to use it in every project.")
+                snippet(McpSettings.claudePluginCommands, id: "claude",
+                        caption: "Run in a terminal. Installs the Runnir plugin in every project: these tools and a skill on using them.")
             }
             Section("Codex") {
-                snippet(McpSettings.codexBlock(name: name, helper: McpSettings.helper.path, dataDir: dataDir), id: "codex",
+                snippet(McpSettings.codexPluginCommands, id: "codex",
+                        caption: "Run in a terminal with the Codex CLI. Installs the Runnir plugin.")
+            }
+        } else {
+            Section("Claude Code") {
+                snippet(McpSettings.claudeCommand(name: name, helper: McpSettings.helper.path), id: "claude",
+                        caption: "Run in a terminal. Adds these tools in every project.")
+            }
+            Section("Codex") {
+                snippet(McpSettings.codexBlock(name: name, helper: McpSettings.helper.path), id: "codex",
                         caption: "Add to ~/.codex/config.toml.")
             }
         }

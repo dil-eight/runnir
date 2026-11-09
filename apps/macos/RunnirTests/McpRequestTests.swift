@@ -212,18 +212,27 @@ private final class FakeMcpDesktop: McpDesktop {
 
 @Suite struct McpSettingsTests {
     @Test func theClaudeCommandQuotesPathsForTheShell() {
-        let command = McpSettings.claudeCommand(name: "runnir", helper: "/Applications/Runnir.app/Contents/Helpers/runnir-core",
-                                                dataDir: "/Users/me/Library/Application Support/Runnir")
-        #expect(command == "claude mcp add runnir -- '/Applications/Runnir.app/Contents/Helpers/runnir-core' mcp --data-dir '/Users/me/Library/Application Support/Runnir'")
+        let command = McpSettings.claudeCommand(name: "runnir-local", helper: "/Users/me/Applications/Runnir Local.app/Contents/Helpers/runnir-core")
+        #expect(command == "claude mcp add --scope user runnir-local -- '/Users/me/Applications/Runnir Local.app/Contents/Helpers/runnir-core' mcp")
         #expect(McpSettings.shellQuoted("it's") == "'it'\\''s'")
     }
 
     @Test func theCodexBlockWaitsLongEnoughForAConfirmation() {
-        let block = McpSettings.codexBlock(name: "runnir-dev", helper: "/A \"B\"/runnir-core", dataDir: "/Users/me/Library/Application Support/Runnir Dev")
+        let block = McpSettings.codexBlock(name: "runnir-dev", helper: "/A \"B\"/runnir-core")
         #expect(block.contains("[mcp_servers.runnir-dev]"))
         #expect(block.contains(#"command = "/A \"B\"/runnir-core""#))
-        #expect(block.contains(#"args = ["mcp", "--data-dir", "/Users/me/Library/Application Support/Runnir Dev"]"#))
+        #expect(block.contains(#"args = ["mcp"]"#))
         #expect(block.contains("tool_timeout_sec = 300"))
+    }
+
+    @Test func thePluginReachesOnlyABuildOfATagInApplications() {
+        let applications = "/Applications/Runnir.app/Contents/Helpers/runnir-core"
+        #expect(McpSettings.pluginReaches(build: .release, helper: applications))
+        #expect(McpSettings.pluginReaches(build: .alpha, helper: applications))
+        #expect(!McpSettings.pluginReaches(build: .local, helper: applications))
+        #expect(!McpSettings.pluginReaches(build: .release, helper: "/Users/me/Applications/Runnir.app/Contents/Helpers/runnir-core"))
+        #expect(McpSettings.claudePluginCommands.contains("claude plugin install runnir@runnir"))
+        #expect(McpSettings.codexPluginCommands.contains("codex plugin add runnir@runnir"))
     }
 
     @Test func eachBuildHasItsOwnServerName() {

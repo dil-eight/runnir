@@ -39,7 +39,7 @@ The Runnir plugin ([plugins/runnir](../../plugins/runnir/README.md), [design](..
 - Claude Code: `claude plugin marketplace add dil-eight/runnir`, then `claude plugin install runnir@runnir`.
 - Codex: `codex plugin marketplace add dil-eight/runnir`, then `codex plugin add runnir@runnir`.
 
-The repository is the marketplace: `.claude-plugin/marketplace.json` for Claude Code, `.agents/plugins/marketplace.json` for Codex. The plugin runs `/Applications/Runnir.app/Contents/Helpers/runnir-core mcp`; without `--data-dir` the Core uses its own build's folder in Application Support, which the build passes in as `RUNNIR_BUILD`. Codex gets `tool_timeout_sec = 300` from the plugin. Runnir Dev, Runnir Local and an app outside `/Applications` use Settings › MCP's command instead.
+The repository is the marketplace: `.claude-plugin/marketplace.json` for Claude Code, `.agents/plugins/marketplace.json` for Codex. The plugin runs `/Applications/Runnir.app/Contents/Helpers/runnir-core mcp`; without `--data-dir` the Core uses its own build's folder in Application Support, which the build passes in as `RUNNIR_BUILD`. Codex gets `tool_timeout_sec = 300` from the plugin. Settings › MCP shows these commands in a build the plugin reaches; Runnir Dev, Runnir Local and an app outside `/Applications` show `claude mcp add --scope user` and a Codex block for their own app instead.
 
 ## Enforcement
 
