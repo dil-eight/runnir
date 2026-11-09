@@ -50,6 +50,7 @@ case "${RUNNIR_BUILD:-}" in
         ;;
 esac
 buildinfo=runnir/core/internal/buildinfo
+# The build (RUNNIR_BUILD) tells `runnir-core mcp` its app's data folder.
 
 for arch in $ARCHS; do
     case "$arch" in
@@ -57,7 +58,7 @@ for arch in $ARCHS; do
         x86_64) export GOARCH=amd64 ;;
         *) echo "Unsupported macOS architecture" >&2; exit 1 ;;
     esac
-    go build -trimpath -ldflags "-X ${buildinfo}.Version=${MARKETING_VERSION} -X ${buildinfo}.PostHogProjectToken=${posthog_token} -X ${buildinfo}.PostHogHost=${posthog_host}" \
+    go build -trimpath -ldflags "-X ${buildinfo}.Version=${MARKETING_VERSION} -X ${buildinfo}.Build=${RUNNIR_BUILD:-} -X ${buildinfo}.PostHogProjectToken=${posthog_token} -X ${buildinfo}.PostHogHost=${posthog_host}" \
         -o "${DERIVED_FILE_DIR}/core/runnir-${arch}" ./cmd/runnir
 done
 

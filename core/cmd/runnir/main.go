@@ -56,28 +56,44 @@ func run(args []string, input io.Reader, output, diagnostics io.Writer) int {
 	return 0
 }
 
-const usage = "usage: runnir version | licenses | rpc | serve --socket PATH [--data-dir PATH] [--cache-dir PATH] | mcp --data-dir PATH"
+const usage = "usage: runnir version | licenses | rpc | serve --socket PATH [--data-dir PATH] [--cache-dir PATH] | mcp [--data-dir PATH]"
 
 // serveMcp serves Runnir's MCP tools over stdin and stdout for an MCP
 // client (Claude Code, Codex). --data-dir is the folder of the Runnir app
-// whose Core answers, as Settings › MCP shows it; the Core listens on
-// mcp.sock there while the app runs.
+// whose Core answers; without it, this build's own folder, so the Runnir
+// plugin's command is the same for every user. The Core listens on mcp.sock
+// there while the app runs.
 func serveMcp(args []string, input io.Reader, output, diagnostics io.Writer) int {
 	flags := flag.NewFlagSet("mcp", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	dataDir := flags.String("data-dir", "", "the Runnir app's support folder")
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || *dataDir == "" || !filepath.IsAbs(*dataDir) {
-		fmt.Fprintln(diagnostics, "usage: runnir mcp --data-dir PATH")
+	given := flags.String("data-dir", "", "the Runnir app's support folder")
+	err := flags.Parse(args)
+	dataDir, folderErr := mcpDataDir(*given)
+	if err != nil || flags.NArg() != 0 || folderErr != nil || (*given != "" && !filepath.IsAbs(*given)) {
+		fmt.Fprintln(diagnostics, "usage: runnir mcp [--data-dir PATH]")
 		return 2
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	bridge := mcp.DialBridge(filepath.Join(*dataDir, server.McpSocketName))
+	bridge := mcp.DialBridge(filepath.Join(dataDir, server.McpSocketName))
 	if err := mcp.Serve(ctx, input, output, bridge); err != nil {
 		fmt.Fprintln(diagnostics, "runnir: mcp input failed")
 		return 1
 	}
 	return 0
+}
+
+// mcpDataDir is the folder given, or this build's folder in Application
+// Support (~/Library/Application Support/Runnir on a Mac).
+func mcpDataDir(given string) (string, error) {
+	if given != "" {
+		return given, nil
+	}
+	config, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(config, buildinfo.SupportFolder()), nil
 }
 
 func handle(method string, params json.RawMessage) (any, *ipc.Error) {

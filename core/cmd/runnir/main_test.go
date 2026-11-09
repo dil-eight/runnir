@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"runnir/core/internal/buildinfo"
 )
 
 func TestVersion(t *testing.T) {
@@ -111,11 +113,30 @@ func TestUnknownCommand(t *testing.T) {
 }
 
 func TestMcpUsage(t *testing.T) {
-	for _, args := range [][]string{{"mcp"}, {"mcp", "--data-dir"}, {"mcp", "--data-dir", "relative"}, {"mcp", "--data-dir", "/tmp/x", "extra"}} {
+	for _, args := range [][]string{{"mcp", "--data-dir"}, {"mcp", "--data-dir", "relative"}, {"mcp", "--data-dir", "/tmp/x", "extra"}, {"mcp", "extra"}} {
 		var out, diagnostics bytes.Buffer
 		if code := run(args, strings.NewReader(""), &out, &diagnostics); code != 2 || out.Len() != 0 {
 			t.Fatalf("%v: code=%d out=%q", args, code, out.String())
 		}
+	}
+}
+
+func TestMcpWithoutADataFolderUsesItsBuilds(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	config, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := mcpDataDir(""); err != nil || got != filepath.Join(config, buildinfo.SupportFolder()) {
+		t.Fatalf("default = %q, %v", got, err)
+	}
+	if got, err := mcpDataDir("/some/folder"); err != nil || got != "/some/folder" {
+		t.Fatalf("given = %q, %v", got, err)
+	}
+	var out, diagnostics bytes.Buffer
+	input := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"runnir_list_value_sets","arguments":{"repository":"/r"}}}` + "\n"
+	if code := run([]string{"mcp"}, strings.NewReader(input), &out, &diagnostics); code != 0 || !strings.Contains(out.String(), "Runnir is not running") {
+		t.Fatalf("code=%d out=%s %q", code, out.String(), diagnostics.String())
 	}
 }
 
