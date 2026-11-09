@@ -412,4 +412,17 @@ jobs:
 	if p := plan(t, source, "app", readyReport(), nil); p.Runnable() {
 		t.Fatal("a Mac job ran without the sandbox")
 	}
+
+	// Asked to run without the sandbox, the plan needs none and its tests
+	// are no longer refused.
+	withTests := strings.Replace(source, "      - run: xcodebuild build\n", "      - run: xcodebuild build\n      - run: xcodebuild test\n", 1)
+	request := Request{Chosen: true, HostUnsandboxed: true, Lanes: []LaneInput{{WorkflowID: "ci.yml", Source: []byte(withTests), Kind: Direct, Event: "push", Selected: []string{"app"}}}}
+	p, err := NewPlan(request, readyReport(), false, nil, Limits{})
+	if err != nil || !p.HostUnsandboxed || !p.Runnable() || slices.ContainsFunc(p.Notes, func(note string) bool { return strings.Contains(note, "xcodebuild test") }) {
+		t.Fatalf("unsandboxed = %v runnable = %v notes = %v, %v", p.HostUnsandboxed, p.Runnable(), p.Notes, err)
+	}
+	request.Lanes[0].Selected = []string{"lint"}
+	if p, _ := NewPlan(request, readyReport(), false, nil, Limits{}); p.HostUnsandboxed {
+		t.Fatal("a run without Mac jobs says it runs them without the sandbox")
+	}
 }

@@ -80,7 +80,7 @@ struct CoreProcessIntegrationTests {
         // as a syntax error: the workflow cannot be ticked, so the plan is
         // blocked and has no confirmation.
         let repository = try await service.openRepository(path: try Self.tempRepository())
-        let prepared = try await service.prepareLocalRun(repositoryID: repository.id, scenario: nil, selection: nil,
+        let prepared = try await service.prepareLocalRun(repositoryID: repository.id, scenario: nil, selection: nil, hostUnsandboxed: false,
                                                          useInstalledAct: false, limits: nil, resetLimits: false)
         #expect(prepared.confirmationID == nil)
         #expect(prepared.plan.blockers.contains("Tick at least one job to run."))

@@ -607,8 +607,8 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     var readinessRefreshes: Int { lock.withLock { _readinessRefreshes } }
     /// What PrepareLocalRun answers; nil throws `.unavailable`.
     var preparedLocalRun: CorePreparedLocalRun?
-    private var _localRunRequests: [(scenario: CoreScenario?, selection: CoreLocalRunSelection?, installed: Bool)] = []
-    var localRunRequests: [(scenario: CoreScenario?, selection: CoreLocalRunSelection?, installed: Bool)] { lock.withLock { _localRunRequests } }
+    private var _localRunRequests: [(scenario: CoreScenario?, selection: CoreLocalRunSelection?, installed: Bool, unsandboxed: Bool)] = []
+    var localRunRequests: [(scenario: CoreScenario?, selection: CoreLocalRunSelection?, installed: Bool, unsandboxed: Bool)] { lock.withLock { _localRunRequests } }
     var confirmLocalRunError: CoreServiceError?
     private var _confirmedLocalRuns: [String] = []
     var confirmedLocalRuns: [String] { lock.withLock { _confirmedLocalRuns } }
@@ -636,10 +636,10 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     private var _localRunLimits: [(limits: CoreLocalRunLimits?, reset: Bool)] = []
     /// The limits each review asked for.
     var localRunLimits: [(limits: CoreLocalRunLimits?, reset: Bool)] { lock.withLock { _localRunLimits } }
-    func prepareLocalRun(repositoryID: String, scenario: CoreScenario?, selection: CoreLocalRunSelection?,
+    func prepareLocalRun(repositoryID: String, scenario: CoreScenario?, selection: CoreLocalRunSelection?, hostUnsandboxed: Bool,
                          useInstalledAct: Bool, limits: CoreLocalRunLimits?, resetLimits: Bool) async throws -> CorePreparedLocalRun {
         try lock.withLock {
-            _localRunRequests.append((scenario, selection, useInstalledAct))
+            _localRunRequests.append((scenario, selection, useInstalledAct, hostUnsandboxed))
             _localRunLimits.append((limits, resetLimits))
             guard let preparedLocalRun else { throw CoreServiceError.unavailable }
             return preparedLocalRun

@@ -1049,7 +1049,7 @@ struct GRPCCoreService: CoreServicing {
         return Self.map(response.readiness)
     }
 
-    func prepareLocalRun(repositoryID: String, scenario: CoreScenario?, selection: CoreLocalRunSelection?,
+    func prepareLocalRun(repositoryID: String, scenario: CoreScenario?, selection: CoreLocalRunSelection?, hostUnsandboxed: Bool,
                          useInstalledAct: Bool, limits: CoreLocalRunLimits?, resetLimits: Bool) async throws -> CorePreparedLocalRun {
         let response = try await call {
             try await client.prepareLocalRun(.with {
@@ -1068,6 +1068,7 @@ struct GRPCCoreService: CoreServicing {
                         }
                     }
                 }
+                $0.hostUnsandboxed = hostUnsandboxed
                 $0.useInstalledAct = useInstalledAct
                 if let limits {
                     $0.limits = .with {
@@ -1233,7 +1234,7 @@ struct GRPCCoreService: CoreServicing {
             maxCPUs: Int(plan.maxCpus), maxMemoryBytes: plan.maxMemoryBytes, maxTimeoutSeconds: Int(plan.maxTimeoutSeconds),
             ownLimits: plan.ownLimits, limitWarnings: plan.limitWarnings, limitNote: plan.limitNote,
             environment: plan.environment, environmentChoice: plan.environmentChoice, environments: plan.environments,
-            hostJobs: plan.hostJobs
+            hostJobs: plan.hostJobs, hostUnsandboxed: plan.hostUnsandboxed
         )
     }
 

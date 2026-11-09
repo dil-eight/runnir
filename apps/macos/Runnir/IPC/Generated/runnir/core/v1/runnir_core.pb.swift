@@ -4647,6 +4647,13 @@ nonisolated struct Runnir_Core_V1_LocalRunPlan: @unchecked Sendable {
     set {_uniqueStorage()._hostJobs = newValue}
   }
 
+  /// host_jobs run without the macOS sandbox, as asked: their steps reach
+  /// everything the user can.
+  var hostUnsandboxed: Bool {
+    get {_storage._hostUnsandboxed}
+    set {_uniqueStorage()._hostUnsandboxed = newValue}
+  }
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -4707,6 +4714,10 @@ nonisolated struct Runnir_Core_V1_PrepareLocalRunRequest: Sendable {
 
   /// Plan with the defaults; confirming the run forgets the workspace's limits.
   var resetLimits: Bool = false
+
+  /// Run the ticked macOS jobs on this Mac without the macOS sandbox, for this
+  /// run only: they can then reach everything the user can.
+  var hostUnsandboxed: Bool = false
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -11395,7 +11406,7 @@ nonisolated extension Runnir_Core_V1_LocalRunLane: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".LocalRunPlan"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}scenarios\0\u{1}scenario\0\u{1}lanes\0\u{1}images\0\u{1}secrets\0\u{1}variables\0\u{3}unnamed_secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0\u{3}max_cpus\0\u{3}max_memory_bytes\0\u{3}max_timeout_seconds\0\u{3}own_limits\0\u{3}limit_warnings\0\u{3}limit_note\0\u{1}environment\0\u{3}environment_choice\0\u{1}environments\0\u{3}host_jobs\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}scenarios\0\u{1}scenario\0\u{1}lanes\0\u{1}images\0\u{1}secrets\0\u{1}variables\0\u{3}unnamed_secrets\0\u{1}notes\0\u{1}blockers\0\u{1}cpus\0\u{3}memory_bytes\0\u{3}timeout_seconds\0\u{3}act_version\0\u{3}installed_act\0\u{3}engine_name\0\u{3}engine_context\0\u{3}max_cpus\0\u{3}max_memory_bytes\0\u{3}max_timeout_seconds\0\u{3}own_limits\0\u{3}limit_warnings\0\u{3}limit_note\0\u{1}environment\0\u{3}environment_choice\0\u{1}environments\0\u{3}host_jobs\0\u{3}host_unsandboxed\0")
 
   fileprivate class _StorageClass {
     var _scenarios: [Runnir_Core_V1_Scenario] = []
@@ -11424,6 +11435,7 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
     var _environmentChoice: String = String()
     var _environments: [String] = []
     var _hostJobs: [String] = []
+    var _hostUnsandboxed: Bool = false
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -11460,6 +11472,7 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       _environmentChoice = source._environmentChoice
       _environments = source._environments
       _hostJobs = source._hostJobs
+      _hostUnsandboxed = source._hostUnsandboxed
     }
   }
 
@@ -11504,6 +11517,7 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         case 24: try { try decoder.decodeSingularStringField(value: &_storage._environmentChoice) }()
         case 25: try { try decoder.decodeRepeatedStringField(value: &_storage._environments) }()
         case 26: try { try decoder.decodeRepeatedStringField(value: &_storage._hostJobs) }()
+        case 27: try { try decoder.decodeSingularBoolField(value: &_storage._hostUnsandboxed) }()
         default: break
         }
       }
@@ -11594,6 +11608,9 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
       if !_storage._hostJobs.isEmpty {
         try visitor.visitRepeatedStringField(value: _storage._hostJobs, fieldNumber: 26)
       }
+      if _storage._hostUnsandboxed != false {
+        try visitor.visitSingularBoolField(value: _storage._hostUnsandboxed, fieldNumber: 27)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -11629,6 +11646,7 @@ nonisolated extension Runnir_Core_V1_LocalRunPlan: SwiftProtobuf.Message, SwiftP
         if _storage._environmentChoice != rhs_storage._environmentChoice {return false}
         if _storage._environments != rhs_storage._environments {return false}
         if _storage._hostJobs != rhs_storage._hostJobs {return false}
+        if _storage._hostUnsandboxed != rhs_storage._hostUnsandboxed {return false}
         return true
       }
       if !storagesAreEqual {return false}
@@ -11675,7 +11693,7 @@ nonisolated extension Runnir_Core_V1_LocalRunSelection: SwiftProtobuf.Message, S
 
 nonisolated extension Runnir_Core_V1_PrepareLocalRunRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".PrepareLocalRunRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{1}scenario\0\u{1}selection\0\u{3}use_installed_act\0\u{1}limits\0\u{3}reset_limits\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}repository_id\0\u{1}scenario\0\u{1}selection\0\u{3}use_installed_act\0\u{1}limits\0\u{3}reset_limits\0\u{3}host_unsandboxed\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -11689,6 +11707,7 @@ nonisolated extension Runnir_Core_V1_PrepareLocalRunRequest: SwiftProtobuf.Messa
       case 4: try { try decoder.decodeSingularBoolField(value: &self.useInstalledAct) }()
       case 5: try { try decoder.decodeSingularMessageField(value: &self._limits) }()
       case 6: try { try decoder.decodeSingularBoolField(value: &self.resetLimits) }()
+      case 7: try { try decoder.decodeSingularBoolField(value: &self.hostUnsandboxed) }()
       default: break
       }
     }
@@ -11717,6 +11736,9 @@ nonisolated extension Runnir_Core_V1_PrepareLocalRunRequest: SwiftProtobuf.Messa
     if self.resetLimits != false {
       try visitor.visitSingularBoolField(value: self.resetLimits, fieldNumber: 6)
     }
+    if self.hostUnsandboxed != false {
+      try visitor.visitSingularBoolField(value: self.hostUnsandboxed, fieldNumber: 7)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -11727,6 +11749,7 @@ nonisolated extension Runnir_Core_V1_PrepareLocalRunRequest: SwiftProtobuf.Messa
     if lhs.useInstalledAct != rhs.useInstalledAct {return false}
     if lhs._limits != rhs._limits {return false}
     if lhs.resetLimits != rhs.resetLimits {return false}
+    if lhs.hostUnsandboxed != rhs.hostUnsandboxed {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

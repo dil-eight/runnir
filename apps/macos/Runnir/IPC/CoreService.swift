@@ -284,7 +284,9 @@ protocol CoreServicing: Sendable {
     /// confirmation when nothing blocks it. Starts nothing. `limits` asks for
     /// limits (nil: the workspace's, else the defaults); `resetLimits` plans
     /// the defaults and forgets the workspace's once the run is confirmed.
-    func prepareLocalRun(repositoryID: String, scenario: CoreScenario?, selection: CoreLocalRunSelection?,
+    /// `hostUnsandboxed` runs the ticked macOS jobs without the macOS
+    /// sandbox, for this run only.
+    func prepareLocalRun(repositoryID: String, scenario: CoreScenario?, selection: CoreLocalRunSelection?, hostUnsandboxed: Bool,
                          useInstalledAct: Bool, limits: CoreLocalRunLimits?, resetLimits: Bool) async throws -> CorePreparedLocalRun
     /// Starts a prepared local run once with the values for the plan's
     /// secrets and variables. Throws `.failedPrecondition` when the

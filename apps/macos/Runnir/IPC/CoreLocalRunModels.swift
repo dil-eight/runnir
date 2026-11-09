@@ -169,6 +169,8 @@ struct CoreLocalRunPlan: Equatable, Sendable {
     var environments: [String] = []
     /// Ticked jobs that run on this Mac, not in a container ("CI › build").
     var hostJobs: [String] = []
+    /// They run without the macOS sandbox, as asked for this run.
+    var hostUnsandboxed = false
 
     var limits: CoreLocalRunLimits { CoreLocalRunLimits(cpus: cpus, memoryBytes: memoryBytes, timeoutSeconds: timeoutSeconds) }
 

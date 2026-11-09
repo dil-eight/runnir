@@ -1097,14 +1097,15 @@ final class CoreHub {
     }
 
     /// Reviews a local run of a scenario in the Core. Nothing starts.
-    func prepareLocalRun(workspaceID: UUID, scenario: CoreScenario?, selection: CoreLocalRunSelection?,
+    func prepareLocalRun(workspaceID: UUID, scenario: CoreScenario?, selection: CoreLocalRunSelection?, hostUnsandboxed: Bool = false,
                          useInstalledAct: Bool, limits: CoreLocalRunLimits? = nil, resetLimits: Bool = false) async -> LocalRunPreparation {
         guard let (service, coreID) = await serviceAndCoreID(workspaceID) else {
             return .failed("Runnir Core is not ready. Local runs are reviewed and started by the Core.")
         }
         do {
             return .prepared(try await service.prepareLocalRun(repositoryID: coreID, scenario: scenario, selection: selection,
-                                                               useInstalledAct: useInstalledAct, limits: limits, resetLimits: resetLimits))
+                                                               hostUnsandboxed: hostUnsandboxed, useInstalledAct: useInstalledAct,
+                                                               limits: limits, resetLimits: resetLimits))
         } catch {
             return .failed(Self.refusal(error, notFound: "A ticked workflow or job is no longer in the working tree. Review the run again."))
         }

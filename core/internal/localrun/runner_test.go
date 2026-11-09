@@ -563,3 +563,36 @@ func TestTheSandboxProfileClosesTheHomeButForWhatTheRunNeeds(t *testing.T) {
 		}
 	}
 }
+
+func TestMacJobsAskedToRunWithoutTheSandboxRunAsActAlone(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("macOS jobs run on a Mac")
+	}
+	actPath, dockerPath, dir := fakeTools(t, map[string]any{})
+	saved := SandboxExec
+	SandboxExec = filepath.Join(dir, "sandbox-exec")
+	defer func() { SandboxExec = saved }()
+	spec := testSpec(t, actPath, dockerPath)
+	mac := lane(".github/workflows/app.yml", "push", JobPlan{ID: "build", Support: Host, RunsOn: []string{"macos-26"}})
+	mac.HostLabels = []string{"macos-26"}
+	spec.Plan.Lanes = []Lane{mac}
+	spec.Plan.HostUnsandboxed = true
+	runner, _, job := startRun(t, spec)
+	if err := runner.Run(context.Background(), job); err != nil {
+		t.Fatalf("Run = %v", err)
+	}
+	calls := invocations(t, dir, "act")
+	if len(invocations(t, dir, "sandbox-exec")) != 0 || len(calls) != 1 || !slices.Contains(calls[0].Args, "--platform=macos-26=-self-hosted") {
+		t.Fatalf("act calls = %+v", calls)
+	}
+	path := ""
+	for _, entry := range calls[0].Env {
+		if v, ok := strings.CutPrefix(entry, "PATH="); ok {
+			path = v
+		}
+	}
+	shims := strings.SplitN(path, ":", 2)[0]
+	if filepath.Base(shims) != "bin" || !strings.Contains(path, "/opt/homebrew/bin") {
+		t.Fatalf("PATH = %s", path)
+	}
+}

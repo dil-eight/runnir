@@ -163,17 +163,24 @@ func hostPath(shims, node string) string {
 	return strings.Join(unique, ":")
 }
 
-// prepareHost writes a lane's shims and sandbox profile into its scratch
-// folder and returns the profile's path.
-func prepareHost(spec *Spec, dir string) (string, error) {
+// prepareHost writes a lane's shims and, in the sandbox, its profile into
+// its scratch folder and returns the profile's path. Without the sandbox
+// only the sudo shim is written: Xcode's and SwiftPM's own sandboxes work.
+func prepareHost(spec *Spec, dir string, sandboxed bool) (string, error) {
 	shims := filepath.Join(dir, "bin")
 	if err := os.Mkdir(shims, 0o700); err != nil {
 		return "", err
 	}
 	for name, script := range hostShims {
+		if !sandboxed && name != "sudo" {
+			continue
+		}
 		if err := os.WriteFile(filepath.Join(shims, name), []byte(script), 0o700); err != nil {
 			return "", err
 		}
+	}
+	if !sandboxed {
+		return "", nil
 	}
 	home := spec.UserHome
 	if home == "" {

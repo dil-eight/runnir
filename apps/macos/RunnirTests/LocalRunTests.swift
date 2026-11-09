@@ -154,6 +154,25 @@ struct LocalRunTests {
         #expect(review.hostConfirmed)
     }
 
+    @Test func runningMacJobsWithoutTheSandboxIsAskedForAndConfirmedAgain() async {
+        var plan = prepared().plan
+        plan.hostJobs = ["CI › app"]
+        let sandboxed = CorePreparedLocalRun(readiness: FakeCore.readyTools, plan: plan, confirmationID: "local_1", expiresAt: Date())
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = sandboxed }
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub)
+        await review.prepare()
+        review.trusted = true
+        review.hostConfirmed = true
+        #expect(!review.runsUnsandboxed && fake.localRunRequests.last?.unsandboxed == false)
+        plan.hostUnsandboxed = true
+        fake.preparedLocalRun = CorePreparedLocalRun(readiness: FakeCore.readyTools, plan: plan, confirmationID: "local_2", expiresAt: Date())
+        await review.setUnsandboxed(true)
+        #expect(fake.localRunRequests.last?.unsandboxed == true && review.runsUnsandboxed)
+        #expect(!review.hostConfirmed && !review.canRun, "the choice is confirmed again")
+        review.hostConfirmed = true
+        #expect(review.canRun)
+    }
+
     @Test func changedLimitsPlanTheRunAgainAndAskForTheConfirmationAgain() async {
         let (hub, workspace, fake) = await hub { $0.preparedLocalRun = prepared() }
         let review = LocalRunReviewModel(workspaceID: workspace, hub: hub)

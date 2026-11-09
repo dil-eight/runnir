@@ -168,12 +168,16 @@ func (r *Runner) runLane(ctx context.Context, spec *Spec, id, dir string, lane L
 	cmd.Env = actEnv(spec, dir)
 	if len(lane.HostLabels) > 0 {
 		// Jobs on this Mac: act and everything it starts run in the macOS
-		// sandbox, with the shims first on the PATH.
-		profile, err := prepareHost(spec, dir)
+		// sandbox, with the shims first on the PATH; without it, as the
+		// user asked, only the sudo shim is there.
+		sandboxed := !spec.Plan.HostUnsandboxed
+		profile, err := prepareHost(spec, dir, sandboxed)
 		if err != nil {
-			return fmt.Errorf("prepare the macOS sandbox: %w", err)
+			return fmt.Errorf("prepare the jobs on this Mac: %w", err)
 		}
-		cmd = exec.Command(SandboxExec, append([]string{"-f", profile, spec.ActPath}, Args(spec, lane, id, dir)...)...)
+		if sandboxed {
+			cmd = exec.Command(SandboxExec, append([]string{"-f", profile, spec.ActPath}, Args(spec, lane, id, dir)...)...)
+		}
 		cmd.Env = hostEnv(actEnv(spec, dir), dir, spec.HostNode)
 	}
 	cmd.Dir = dir // keeps act from reading an .actrc where the Core runs

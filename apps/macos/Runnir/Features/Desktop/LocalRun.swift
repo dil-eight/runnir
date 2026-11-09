@@ -299,8 +299,10 @@ final class LocalRunReviewModel {
     private(set) var selection: CoreLocalRunSelection?
     var trusted = false
     /// The user agreed that the ticked macOS jobs run on this Mac, not in a
-    /// container; asked again when they change.
+    /// container; asked again when they or the sandbox choice change.
     var hostConfirmed = false
+    /// The macOS jobs run without the macOS sandbox, for this run only.
+    private(set) var hostUnsandboxed = false
     /// Values typed for this run, by name.
     var entered: [LocalRunValueKey: String] = [:]
     /// Save the typed values to the workspace when the run starts.
@@ -435,6 +437,18 @@ final class LocalRunReviewModel {
     /// Ticked jobs that run on this Mac, not in a container.
     var hostJobs: [String] { prepared?.plan.hostJobs ?? [] }
 
+    /// The planned run takes the macOS jobs out of the sandbox.
+    var runsUnsandboxed: Bool { prepared?.plan.hostUnsandboxed ?? false }
+
+    /// Runs the macOS jobs without the sandbox, or in it again: planned
+    /// again and confirmed again.
+    func setUnsandboxed(_ on: Bool) async {
+        guard on != hostUnsandboxed else { return }
+        hostUnsandboxed = on
+        hostConfirmed = false
+        await prepare()
+    }
+
     /// The lanes as the review shows them: the plan's, with the ticks asked for.
     var lanes: [CoreLocalRunLane] { prepared?.plan.lanes ?? [] }
 
@@ -485,12 +499,14 @@ final class LocalRunReviewModel {
         let current = generation
         isPreparing = true
         let result = await hub.prepareLocalRun(workspaceID: workspaceID, scenario: scenario, selection: selection,
-                                               useInstalledAct: useInstalledAct(),
+                                               hostUnsandboxed: hostUnsandboxed, useInstalledAct: useInstalledAct(),
                                                limits: askedLimits, resetLimits: resettingLimits)
         guard current == generation else { return }
         switch result {
         case .prepared(let prepared):
-            if prepared.plan.hostJobs != self.prepared?.plan.hostJobs { hostConfirmed = false }
+            if prepared.plan.hostJobs != self.prepared?.plan.hostJobs || prepared.plan.hostUnsandboxed != self.prepared?.plan.hostUnsandboxed {
+                hostConfirmed = false
+            }
             self.prepared = prepared
             error = nil
             if scenario == nil { scenario = prepared.plan.scenario }

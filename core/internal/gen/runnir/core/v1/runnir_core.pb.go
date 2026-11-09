@@ -9385,9 +9385,12 @@ type LocalRunPlan struct {
 	// Ticked jobs that run on this Mac without a container ("CI › build-ios"):
 	// their steps reach the user's files, Keychain and network, and CPU and
 	// memory limits do not apply. The app asks for a confirmation of its own.
-	HostJobs      []string `protobuf:"bytes,26,rep,name=host_jobs,json=hostJobs,proto3" json:"host_jobs,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HostJobs []string `protobuf:"bytes,26,rep,name=host_jobs,json=hostJobs,proto3" json:"host_jobs,omitempty"`
+	// host_jobs run without the macOS sandbox, as asked: their steps reach
+	// everything the user can.
+	HostUnsandboxed bool `protobuf:"varint,27,opt,name=host_unsandboxed,json=hostUnsandboxed,proto3" json:"host_unsandboxed,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *LocalRunPlan) Reset() {
@@ -9602,6 +9605,13 @@ func (x *LocalRunPlan) GetHostJobs() []string {
 	return nil
 }
 
+func (x *LocalRunPlan) GetHostUnsandboxed() bool {
+	if x != nil {
+		return x.HostUnsandboxed
+	}
+	return false
+}
+
 // The jobs ticked in one workflow.
 type LocalRunSelection struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -9670,9 +9680,12 @@ type PrepareLocalRunRequest struct {
 	// caps them at the engine and rounds them to their steps.
 	Limits *LocalRunLimits `protobuf:"bytes,5,opt,name=limits,proto3" json:"limits,omitempty"`
 	// Plan with the defaults; confirming the run forgets the workspace's limits.
-	ResetLimits   bool `protobuf:"varint,6,opt,name=reset_limits,json=resetLimits,proto3" json:"reset_limits,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ResetLimits bool `protobuf:"varint,6,opt,name=reset_limits,json=resetLimits,proto3" json:"reset_limits,omitempty"`
+	// Run the ticked macOS jobs on this Mac without the macOS sandbox, for this
+	// run only: they can then reach everything the user can.
+	HostUnsandboxed bool `protobuf:"varint,7,opt,name=host_unsandboxed,json=hostUnsandboxed,proto3" json:"host_unsandboxed,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *PrepareLocalRunRequest) Reset() {
@@ -9743,6 +9756,13 @@ func (x *PrepareLocalRunRequest) GetLimits() *LocalRunLimits {
 func (x *PrepareLocalRunRequest) GetResetLimits() bool {
 	if x != nil {
 		return x.ResetLimits
+	}
+	return false
+}
+
+func (x *PrepareLocalRunRequest) GetHostUnsandboxed() bool {
+	if x != nil {
+		return x.HostUnsandboxed
 	}
 	return false
 }
@@ -14756,7 +14776,7 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\vparse_error\x18\t \x01(\tR\n" +
 	"parseError\x12/\n" +
 	"\x04jobs\x18\n" +
-	" \x03(\v2\x1b.runnir.core.v1.LocalRunJobR\x04jobs\"\xd4\a\n" +
+	" \x03(\v2\x1b.runnir.core.v1.LocalRunJobR\x04jobs\"\xff\a\n" +
 	"\fLocalRunPlan\x126\n" +
 	"\tscenarios\x18\x01 \x03(\v2\x18.runnir.core.v1.ScenarioR\tscenarios\x124\n" +
 	"\bscenario\x18\x02 \x01(\v2\x18.runnir.core.v1.ScenarioR\bscenario\x122\n" +
@@ -14788,18 +14808,20 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\venvironment\x18\x17 \x01(\tR\venvironment\x12-\n" +
 	"\x12environment_choice\x18\x18 \x01(\tR\x11environmentChoice\x12\"\n" +
 	"\fenvironments\x18\x19 \x03(\tR\fenvironments\x12\x1b\n" +
-	"\thost_jobs\x18\x1a \x03(\tR\bhostJobs\"M\n" +
+	"\thost_jobs\x18\x1a \x03(\tR\bhostJobs\x12)\n" +
+	"\x10host_unsandboxed\x18\x1b \x01(\bR\x0fhostUnsandboxed\"M\n" +
 	"\x11LocalRunSelection\x12\x1f\n" +
 	"\vworkflow_id\x18\x01 \x01(\tR\n" +
 	"workflowId\x12\x17\n" +
-	"\ajob_ids\x18\x02 \x03(\tR\x06jobIds\"\xbb\x02\n" +
+	"\ajob_ids\x18\x02 \x03(\tR\x06jobIds\"\xe6\x02\n" +
 	"\x16PrepareLocalRunRequest\x12#\n" +
 	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\x124\n" +
 	"\bscenario\x18\x02 \x01(\v2\x18.runnir.core.v1.ScenarioR\bscenario\x12?\n" +
 	"\tselection\x18\x03 \x03(\v2!.runnir.core.v1.LocalRunSelectionR\tselection\x12*\n" +
 	"\x11use_installed_act\x18\x04 \x01(\bR\x0fuseInstalledAct\x126\n" +
 	"\x06limits\x18\x05 \x01(\v2\x1e.runnir.core.v1.LocalRunLimitsR\x06limits\x12!\n" +
-	"\freset_limits\x18\x06 \x01(\bR\vresetLimits\"p\n" +
+	"\freset_limits\x18\x06 \x01(\bR\vresetLimits\x12)\n" +
+	"\x10host_unsandboxed\x18\a \x01(\bR\x0fhostUnsandboxed\"p\n" +
 	"\x0eLocalRunLimits\x12\x12\n" +
 	"\x04cpus\x18\x01 \x01(\rR\x04cpus\x12!\n" +
 	"\fmemory_bytes\x18\x02 \x01(\x04R\vmemoryBytes\x12'\n" +

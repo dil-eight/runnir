@@ -98,6 +98,7 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 	limits := localrun.Choose(asked, ceiling)
 	plan, err := localrun.NewPlan(localrun.Request{
 		Scenarios: setup.scenarios, Scenario: setup.chosen, Lanes: lanes, Chosen: len(selection) > 0,
+		HostUnsandboxed: request.GetHostUnsandboxed(),
 	}, report, useInstalled, imagePresent, limits)
 	switch {
 	case errors.Is(err, localrun.ErrUnknownJob):
@@ -608,7 +609,7 @@ func planMessage(approved localRunApproval) *corev1.LocalRunPlan {
 		MaxCpus:        uint32(max(plan.Ceiling.CPUs, 0)), MaxMemoryBytes: plan.Ceiling.MemoryBytes,
 		MaxTimeoutSeconds: uint32(plan.Ceiling.Timeout / time.Second),
 		OwnLimits:         plan.OwnLimits, LimitWarnings: plan.LimitWarnings, LimitNote: plan.LimitNote, Environment: plan.Environment,
-		EnvironmentChoice: plan.EnvironmentChoice, Environments: plan.Environments, HostJobs: plan.HostJobs,
+		EnvironmentChoice: plan.EnvironmentChoice, Environments: plan.Environments, HostJobs: plan.HostJobs, HostUnsandboxed: plan.HostUnsandboxed,
 		ActVersion: approved.ActVersion, InstalledAct: approved.Installed,
 		EngineName: approved.EngineName, EngineContext: approved.EngineContext,
 	}

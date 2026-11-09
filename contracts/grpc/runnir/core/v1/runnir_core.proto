@@ -1493,6 +1493,9 @@ message LocalRunPlan {
   // their steps reach the user's files, Keychain and network, and CPU and
   // memory limits do not apply. The app asks for a confirmation of its own.
   repeated string host_jobs = 26;
+  // host_jobs run without the macOS sandbox, as asked: their steps reach
+  // everything the user can.
+  bool host_unsandboxed = 27;
 }
 
 // The jobs ticked in one workflow.
@@ -1516,6 +1519,9 @@ message PrepareLocalRunRequest {
   LocalRunLimits limits = 5;
   // Plan with the defaults; confirming the run forgets the workspace's limits.
   bool reset_limits = 6;
+  // Run the ticked macOS jobs on this Mac without the macOS sandbox, for this
+  // run only: they can then reach everything the user can.
+  bool host_unsandboxed = 7;
 }
 
 // CPUs, memory and timeout of a local run.

@@ -385,30 +385,52 @@ struct LocalRunSheet: View {
     }
 
     /// macOS jobs run on this Mac in the macOS sandbox, not in a container:
-    /// said in full, and confirmed apart from trusting the workflow.
+    /// said in full, and confirmed apart from trusting the workflow. Without
+    /// the sandbox, asked for this run only, the warning says what is at stake.
     @ViewBuilder private var hostWarning: some View {
         if !model.hostJobs.isEmpty {
+            let unsandboxed = model.runsUnsandboxed
+            let jobs = ListFormatter.localizedString(byJoining: model.hostJobs)
+            let verb = model.hostJobs.count == 1 ? "runs" : "run"
+            let tint = unsandboxed ? RunnirTheme.destructive : RunnirTheme.warning
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "laptopcomputer.trianglebadge.exclamationmark").foregroundStyle(RunnirTheme.warning)
+                    Image(systemName: unsandboxed ? "exclamationmark.octagon.fill" : "laptopcomputer.trianglebadge.exclamationmark")
+                        .foregroundStyle(tint)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("\(ListFormatter.localizedString(byJoining: model.hostJobs)) \(model.hostJobs.count == 1 ? "runs" : "run") on this Mac, not in a container")
+                        Text(unsandboxed ? "\(jobs) \(verb) on this Mac without any isolation" : "\(jobs) \(verb) on this Mac, not in a container")
                             .font(.system(size: 13, weight: .semibold))
-                        Text("macOS jobs cannot run in a container, so act runs them on this Mac in the macOS sandbox. "
-                             + "They cannot read your home folder outside this repository, write outside the run's folder or use your Keychain. "
-                             + "They do use this Mac's macOS, Xcode and tools and the network, CPU and memory limits do not apply, "
-                             + "and processes they leave running keep running. Steps that need root, another Xcode or your signing certificates fail, "
-                             + "and so does xcodebuild test: Xcode's tests cannot reach Xcode from inside the sandbox. swift test works.")
-                            .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        Text(unsandboxed ? Self.unsandboxedWarning : Self.sandboxedWarning)
+                            .font(.system(size: 12)).foregroundStyle(unsandboxed ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                Toggle("Run these jobs on this Mac without a container", isOn: $model.hostConfirmed)
-                    .toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12)).padding(.leading, 26)
+                Toggle(isOn: Binding(get: { model.hostUnsandboxed }, set: { on in Task { await model.setUnsandboxed(on) } })) {
+                    Text("Run them without the sandbox, for this run only (xcodebuild test needs it)")
+                }
+                .toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12)).padding(.leading, 26)
+                .disabled(model.isPreparing)
+                Toggle(unsandboxed ? "I understand: run these jobs on this Mac without the sandbox" : "Run these jobs on this Mac without a container",
+                       isOn: $model.hostConfirmed)
+                    .toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12, weight: unsandboxed ? .semibold : .regular))
+                    .padding(.leading, 26)
             }
-            .padding(14).background(RunnirTheme.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+            .padding(14).background(tint.opacity(unsandboxed ? 0.16 : 0.12), in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(unsandboxed ? tint.opacity(0.6) : .clear))
         }
     }
+
+    static let sandboxedWarning = "macOS jobs cannot run in a container, so act runs them on this Mac in the macOS sandbox. "
+        + "They cannot read your home folder outside this repository, write outside the run's folder or use your Keychain. "
+        + "They do use this Mac's macOS, Xcode and tools and the network, CPU and memory limits do not apply, "
+        + "and processes they leave running keep running. Steps that need root, another Xcode or your signing certificates fail, "
+        + "and so does xcodebuild test: Xcode's tests cannot reach Xcode from inside the sandbox. swift test works."
+
+    static let unsandboxedWarning = "Nothing stands between these jobs and your Mac. Their steps, and every action and script they pull in, run as you: "
+        + "they can read, change and delete any file you can, including your SSH keys, cloud credentials, browser data and other repositories, "
+        + "use your Keychain (macOS may ask you first), install software, keep processes running after the run, and send any of it over the network. "
+        + "A careless or malicious workflow or action can do lasting damage. Only use this for workflows you wrote or reviewed, from this repository. "
+        + "Root stays out of reach: sudo still does not run."
 
     private func laneCard(_ lanes: [CoreLocalRunLane]) -> some View {
         VStack(spacing: 0) {
@@ -507,7 +529,9 @@ struct LocalRunSheet: View {
                 accessRow(model.runKeys.isEmpty ? "key.slash" : "key", "Secrets", model.accessSummary)
                 limitsRow(plan)
                 if !model.hostJobs.isEmpty {
-                    accessRow("laptopcomputer", "This Mac", "macOS jobs run here in the macOS sandbox: a copy of the repository, the run's folder and the network; not your home folder or Keychain")
+                    accessRow("laptopcomputer", "This Mac", model.runsUnsandboxed
+                              ? "macOS jobs run here without the sandbox: everything your user can reach, the network and your Keychain"
+                              : "macOS jobs run here in the macOS sandbox: a copy of the repository, the run's folder and the network; not your home folder or Keychain")
                 }
                 accessRow("nosign", "Never mounted", "Docker socket · home directory")
             }
@@ -641,7 +665,8 @@ struct LocalRunSheet: View {
             .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction).disabled(!model.canRun)
             .help(model.prepared?.confirmationID == nil ? "Resolve the problems above first"
                   : !model.trusted ? "Confirm that you trust this workflow"
-                  : !model.hostJobs.isEmpty && !model.hostConfirmed ? "Confirm that the macOS jobs run on this Mac without a container"
+                  : !model.hostJobs.isEmpty && !model.hostConfirmed
+                    ? (model.runsUnsandboxed ? "Confirm that the macOS jobs run on this Mac without the sandbox" : "Confirm that the macOS jobs run on this Mac without a container")
                   : "Start act with this plan")
         }.buttonStyle(DesignButtonStyle())
     }

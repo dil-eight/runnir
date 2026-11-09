@@ -317,7 +317,8 @@ jobs:
 
 // A repository's own macOS job on this Mac, in the sandbox, as Run Locally
 // would run it: RUNNIR_E2E_MAC_REPO, RUNNIR_E2E_MAC_WORKFLOW (its path in
-// the repository) and RUNNIR_E2E_MAC_JOB name it.
+// the repository) and RUNNIR_E2E_MAC_JOB name it; RUNNIR_E2E_MAC_UNSANDBOXED=1
+// runs it without the sandbox, as the user may ask.
 func TestE2EMacJobOfARepository(t *testing.T) {
 	act, repo := os.Getenv("RUNNIR_E2E_ACT"), os.Getenv("RUNNIR_E2E_MAC_REPO")
 	workflowID, jobID := os.Getenv("RUNNIR_E2E_MAC_WORKFLOW"), os.Getenv("RUNNIR_E2E_MAC_JOB")
@@ -331,7 +332,8 @@ func TestE2EMacJobOfARepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := Request{Chosen: true, Lanes: []LaneInput{{WorkflowID: workflowID, Source: source, Kind: Direct, Event: "push", Selected: []string{jobID}}}}
+	request := Request{Chosen: true, Lanes: []LaneInput{{WorkflowID: workflowID, Source: source, Kind: Direct, Event: "push", Selected: []string{jobID}}},
+		HostUnsandboxed: os.Getenv("RUNNIR_E2E_MAC_UNSANDBOXED") == "1"}
 	report := tools.NewDetector(home, act, "").Check(context.Background(), true)
 	plan, err := NewPlan(request, report, false, nil, Limits{Timeout: 45 * time.Minute})
 	if err != nil || len(plan.HostJobs) == 0 {

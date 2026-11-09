@@ -174,9 +174,10 @@ type Plan struct {
 	Environments      []string
 	Notes             []string
 	Blockers          []string
-	// HostJobs are the selected jobs that run on this Mac in the macOS
-	// sandbox, as "CI › build-ios".
-	HostJobs []string
+	// HostJobs are the selected jobs that run on this Mac, as "CI ›
+	// build-ios": in the macOS sandbox, or without it when HostUnsandboxed.
+	HostJobs        []string
+	HostUnsandboxed bool
 	// Limits apply to each lane; the timeout is per workflow.
 	Limits Limits
 	// Ceiling is the most the engine allows; OwnLimits: the limits are the
@@ -230,6 +231,9 @@ type Request struct {
 	// Chosen: the lanes' Selected are the user's ticks; otherwise the run
 	// takes what the scenario starts that can run here.
 	Chosen bool
+	// HostUnsandboxed runs the selected macOS jobs without the macOS
+	// sandbox, as the user asked for this run.
+	HostUnsandboxed bool
 }
 
 // NewPlan reads the workflows and decides what a run would do with limits
@@ -313,7 +317,8 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 		}
 		picks = append(picks, environmentPick{workflow: workflow, ids: ids})
 	}
-	if len(plan.HostJobs) > 0 {
+	plan.HostUnsandboxed = request.HostUnsandboxed && len(plan.HostJobs) > 0
+	if len(plan.HostJobs) > 0 && !plan.HostUnsandboxed {
 		if _, err := os.Stat(SandboxExec); err != nil {
 			plan.Blockers = append(plan.Blockers, "macOS jobs run in the macOS sandbox, and this Mac has no sandbox-exec.")
 		}
@@ -340,7 +345,7 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 		plan.Notes = append(plan.Notes, fmt.Sprintf("%s %s sudo. A job on this Mac gets no root: sudo xcode-select -s selects that Xcode for the next steps, any other sudo fails.",
 			andList(sudo), map[bool]string{true: "runs", false: "run"}[len(sudo) == 1]))
 	}
-	if len(xcodeTests) > 0 {
+	if len(xcodeTests) > 0 && !plan.HostUnsandboxed {
 		plan.Notes = append(plan.Notes, fmt.Sprintf("%s %s xcodebuild test, which cannot run in the macOS sandbox: Xcode's tests cannot reach Xcode from inside it, so that step fails. swift test works.",
 			andList(xcodeTests), map[bool]string{true: "runs", false: "run"}[len(xcodeTests) == 1]))
 	}
