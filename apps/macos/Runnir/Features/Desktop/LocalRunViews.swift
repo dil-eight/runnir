@@ -292,6 +292,7 @@ struct LocalRunSheet: View {
                             .font(.system(size: 12)).foregroundStyle(RunnirTheme.warning)
                     }
                     workflows
+                    hostWarning
                     tools
                     compatibility
                     values
@@ -380,6 +381,31 @@ struct LocalRunSheet: View {
                     laneCard(outside)
                 }
             }
+        }
+    }
+
+    /// macOS jobs run on this Mac in the macOS sandbox, not in a container:
+    /// said in full, and confirmed apart from trusting the workflow.
+    @ViewBuilder private var hostWarning: some View {
+        if !model.hostJobs.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "laptopcomputer.trianglebadge.exclamationmark").foregroundStyle(RunnirTheme.warning)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(ListFormatter.localizedString(byJoining: model.hostJobs)) \(model.hostJobs.count == 1 ? "runs" : "run") on this Mac, not in a container")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("macOS jobs cannot run in a container, so act runs them on this Mac in the macOS sandbox. "
+                             + "They cannot read your home folder outside this repository, write outside the run's folder or use your Keychain. "
+                             + "They do use this Mac's macOS, Xcode and tools and the network, CPU and memory limits do not apply, "
+                             + "and processes they leave running keep running. Steps that need root, another Xcode or your signing certificates fail.")
+                            .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Toggle("Run these jobs on this Mac without a container", isOn: $model.hostConfirmed)
+                    .toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12)).padding(.leading, 26)
+            }
+            .padding(14).background(RunnirTheme.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
         }
     }
 
@@ -479,6 +505,9 @@ struct LocalRunSheet: View {
                 accessRow("globe", "Network", "On (bridge network): downloads images and actions; workflow steps may send data")
                 accessRow(model.runKeys.isEmpty ? "key.slash" : "key", "Secrets", model.accessSummary)
                 limitsRow(plan)
+                if !model.hostJobs.isEmpty {
+                    accessRow("laptopcomputer", "This Mac", "macOS jobs run here in the macOS sandbox: a copy of the repository, the run's folder and the network; not your home folder or Keychain")
+                }
                 accessRow("nosign", "Never mounted", "Docker socket · home directory")
             }
         }
@@ -609,7 +638,10 @@ struct LocalRunSheet: View {
                 if model.isStarting { ProgressView().controlSize(.small) } else { Label("Run Locally", systemImage: "play.fill") }
             }
             .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction).disabled(!model.canRun)
-            .help(model.prepared?.confirmationID == nil ? "Resolve the problems above first" : model.trusted ? "Start act with this plan" : "Confirm that you trust this workflow")
+            .help(model.prepared?.confirmationID == nil ? "Resolve the problems above first"
+                  : !model.trusted ? "Confirm that you trust this workflow"
+                  : !model.hostJobs.isEmpty && !model.hostConfirmed ? "Confirm that the macOS jobs run on this Mac without a container"
+                  : "Start act with this plan")
         }.buttonStyle(DesignButtonStyle())
     }
 
@@ -1065,6 +1097,7 @@ struct LocalRunLaneRow: View {
         let caption: String = switch job.support {
         case .unsupported: job.reason
         case .unknown: job.reason
+        case .host: job.skipped.isEmpty ? "\(job.runsOn.joined(separator: ", ")) · on this Mac, in the macOS sandbox" : "Skipped on GitHub: \(job.skipped)"
         case .supported: job.skipped.isEmpty ? "\(job.runsOn.joined(separator: ", ")) · \(job.image)" : "Skipped on GitHub: \(job.skipped)"
         }
         return HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -1079,7 +1112,7 @@ struct LocalRunLaneRow: View {
                     }
                 }
                 Text(caption).font(.system(size: 11))
-                    .foregroundStyle(job.support == .unsupported ? RunnirTheme.mutedForeground : RunnirTheme.secondaryForeground)
+                    .foregroundStyle(job.support == .unsupported ? RunnirTheme.mutedForeground : job.support == .host ? RunnirTheme.warning : RunnirTheme.secondaryForeground)
                     .lineLimit(2)
             }
         }

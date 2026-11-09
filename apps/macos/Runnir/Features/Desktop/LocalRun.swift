@@ -24,8 +24,15 @@ struct LocalRunRequest: Identifiable, Equatable {
 enum LocalRunTicks {
     enum State: Equatable { case on, mixed, off }
 
-    /// A job that can be ticked: one a local image can run.
+    /// A job that can be ticked: one a local image or this Mac can run.
     static func tickable(_ job: CoreLocalRunJob) -> Bool { job.support != .unsupported }
+
+    /// The jobs a workflow's checkbox ticks: those in a container, or, in a
+    /// workflow with none, those that run on this Mac.
+    static func boxed(_ lane: CoreLocalRunLane) -> [CoreLocalRunJob] {
+        let contained = lane.jobs.filter { $0.support == .supported || $0.support == .unknown }
+        return contained.isEmpty ? lane.jobs.filter { $0.support == .host } : contained
+    }
 
     /// A lane that can be ticked: its file parses and a job can run here.
     static func tickable(_ lane: CoreLocalRunLane) -> Bool {
@@ -56,7 +63,7 @@ enum LocalRunTicks {
     }
 
     static func state(of lane: CoreLocalRunLane, _ ticks: Set<String>) -> State {
-        let tickable = lane.jobs.filter(tickable).map(\.id)
+        let tickable = boxed(lane).map(\.id)
         let on = tickable.filter(ticks.contains).count
         if on == 0 { return ticks.isEmpty ? .off : .mixed }
         return on == tickable.count ? .on : .mixed
@@ -65,7 +72,7 @@ enum LocalRunTicks {
     /// The lane's checkbox: every job that can run here, or none.
     static func toggle(_ lane: CoreLocalRunLane, _ ticks: Set<String>) -> Set<String> {
         guard state(of: lane, ticks) == .off else { return [] }
-        return lane.jobs.filter(tickable).reduce(into: Set<String>()) { out, job in out = tick(job.id, in: lane, out) }
+        return boxed(lane).reduce(into: Set<String>()) { out, job in out = tick(job.id, in: lane, out) }
     }
 
     /// The plan's ticks as a selection for the Core.
@@ -291,6 +298,9 @@ final class LocalRunReviewModel {
     /// The ticks the next plan is asked for; nil takes the scenario's.
     private(set) var selection: CoreLocalRunSelection?
     var trusted = false
+    /// The user agreed that the ticked macOS jobs run on this Mac, not in a
+    /// container; asked again when they change.
+    var hostConfirmed = false
     /// Values typed for this run, by name.
     var entered: [LocalRunValueKey: String] = [:]
     /// Save the typed values to the workspace when the run starts.
@@ -418,7 +428,12 @@ final class LocalRunReviewModel {
         refused = refusedNow
     }
 
-    var canRun: Bool { prepared?.confirmationID != nil && trusted && !isPreparing && !isStarting }
+    var canRun: Bool {
+        prepared?.confirmationID != nil && trusted && (hostJobs.isEmpty || hostConfirmed) && !isPreparing && !isStarting
+    }
+
+    /// Ticked jobs that run on this Mac, not in a container.
+    var hostJobs: [String] { prepared?.plan.hostJobs ?? [] }
 
     /// The lanes as the review shows them: the plan's, with the ticks asked for.
     var lanes: [CoreLocalRunLane] { prepared?.plan.lanes ?? [] }
@@ -475,6 +490,7 @@ final class LocalRunReviewModel {
         guard current == generation else { return }
         switch result {
         case .prepared(let prepared):
+            if prepared.plan.hostJobs != self.prepared?.plan.hostJobs { hostConfirmed = false }
             self.prepared = prepared
             error = nil
             if scenario == nil { scenario = prepared.plan.scenario }

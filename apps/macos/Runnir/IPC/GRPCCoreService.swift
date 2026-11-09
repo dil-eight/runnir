@@ -1218,6 +1218,7 @@ struct GRPCCoreService: CoreServicing {
                         let support: CoreLocalJobSupport = switch job.support {
                         case .supported: .supported
                         case .unsupported: .unsupported
+                        case .host: .host
                         default: .unknown
                         }
                         return CoreLocalRunJob(id: job.id, name: job.name, runsOn: job.runsOn, image: job.image, support: support,
@@ -1231,7 +1232,8 @@ struct GRPCCoreService: CoreServicing {
             actVersion: plan.actVersion, installedAct: plan.installedAct, engineName: plan.engineName, engineContext: plan.engineContext,
             maxCPUs: Int(plan.maxCpus), maxMemoryBytes: plan.maxMemoryBytes, maxTimeoutSeconds: Int(plan.maxTimeoutSeconds),
             ownLimits: plan.ownLimits, limitWarnings: plan.limitWarnings, limitNote: plan.limitNote,
-            environment: plan.environment, environmentChoice: plan.environmentChoice, environments: plan.environments
+            environment: plan.environment, environmentChoice: plan.environmentChoice, environments: plan.environments,
+            hostJobs: plan.hostJobs
         )
     }
 

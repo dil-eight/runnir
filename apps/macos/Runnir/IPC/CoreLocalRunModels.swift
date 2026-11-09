@@ -63,6 +63,9 @@ enum CoreLocalJobSupport: Equatable, Sendable {
     case unsupported
     /// act decides when the job starts.
     case unknown
+    /// A macOS runner on a Mac: the job runs on this Mac in the macOS
+    /// sandbox, not in a container. Never ticked by default.
+    case host
 }
 
 struct CoreLocalRunJob: Equatable, Identifiable, Sendable {
@@ -164,6 +167,8 @@ struct CoreLocalRunPlan: Equatable, Sendable {
     var environmentChoice = ""
     /// The environments to choose from when `environmentChoice` is set.
     var environments: [String] = []
+    /// Ticked jobs that run on this Mac, not in a container ("CI › build").
+    var hostJobs: [String] = []
 
     var limits: CoreLocalRunLimits { CoreLocalRunLimits(cpus: cpus, memoryBytes: memoryBytes, timeoutSeconds: timeoutSeconds) }
 

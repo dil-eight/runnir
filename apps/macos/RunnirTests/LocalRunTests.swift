@@ -137,6 +137,23 @@ struct LocalRunTests {
         #expect(run.lines.count == 2)
     }
 
+    @Test func jobsOnThisMacAreConfirmedApartFromTrust() async {
+        var withMac = prepared()
+        var plan = withMac.plan
+        plan.hostJobs = ["CI › app"]
+        withMac = CorePreparedLocalRun(readiness: withMac.readiness, plan: plan, confirmationID: "local_1", expiresAt: Date())
+        let (hub, workspace, _) = await hub { $0.preparedLocalRun = withMac }
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub)
+        await review.prepare()
+        review.trusted = true
+        #expect(review.hostJobs == ["CI › app"] && !review.canRun)
+        review.hostConfirmed = true
+        #expect(review.canRun)
+        // The same jobs planned again keep the answer.
+        await review.prepare()
+        #expect(review.hostConfirmed)
+    }
+
     @Test func changedLimitsPlanTheRunAgainAndAskForTheConfirmationAgain() async {
         let (hub, workspace, fake) = await hub { $0.preparedLocalRun = prepared() }
         let review = LocalRunReviewModel(workspaceID: workspace, hub: hub)
@@ -653,6 +670,18 @@ extension CoreLocalRunPlan {
         #expect(LocalRunTicks.toggle(lane, all).isEmpty)
         #expect(LocalRunTicks.toggle(lane, ["lint"]).isEmpty, "a partly ticked workflow is unticked")
         #expect(!LocalRunTicks.tickable(CoreLocalRunLane(workflowID: "x.yml", parseError: "The file has 1 syntax error.")))
+    }
+
+    @Test func aWorkflowsCheckboxLeavesJobsOnThisMacToTheirOwnTicks() {
+        let mixed = CoreLocalRunLane(workflowID: "ci.yml", jobs: [
+            CoreLocalRunJob(id: "lint", support: .supported),
+            CoreLocalRunJob(id: "app", support: .host),
+        ])
+        #expect(LocalRunTicks.toggle(mixed, []) == ["lint"])
+        #expect(LocalRunTicks.state(of: mixed, ["lint"]) == .on)
+        #expect(LocalRunTicks.tickable(mixed.jobs[1]), "a job on this Mac is ticked by hand")
+        let macOnly = CoreLocalRunLane(workflowID: "release.yml", jobs: [CoreLocalRunJob(id: "sign", support: .host)])
+        #expect(LocalRunTicks.toggle(macOnly, []) == ["sign"])
     }
 
     @Test func aSelectionOfNothingStillSaysSo() {
