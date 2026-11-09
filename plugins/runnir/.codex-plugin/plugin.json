@@ -1,0 +1,31 @@
+{
+  "name": "runnir",
+  "version": "0.1.0",
+  "description": "Fill in the secrets and variables of Runnir's local GitHub Actions runs from Codex. You confirm every change in Runnir; values stay in your Mac's Keychain.",
+  "author": {
+    "name": "Runnir",
+    "url": "https://runnir.com"
+  },
+  "homepage": "https://runnir.com",
+  "repository": "https://github.com/dil-eight/runnir",
+  "license": "Apache-2.0",
+  "keywords": ["github-actions", "act", "local-runs", "secrets", "macos"],
+  "skills": "./skills/",
+  "mcpServers": "./codex.mcp.json",
+  "interface": {
+    "displayName": "Runnir",
+    "shortDescription": "Fill in the values of local GitHub Actions runs",
+    "longDescription": "Runnir runs GitHub Actions workflows on your Mac. With this plugin Codex lists the secrets and variables a workspace's local runs read and which are missing, and saves values into the Repository's set or an environment's after you confirm the change in Runnir. Needs Runnir in /Applications.",
+    "developerName": "Runnir",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://runnir.com",
+    "privacyPolicyURL": "https://runnir.com/privacy",
+    "termsOfServiceURL": "https://runnir.com/terms",
+    "defaultPrompt": [
+      "Set up the secrets and variables Runnir's local runs of this repository need."
+    ],
+    "logo": "./assets/runnir.png",
+    "screenshots": []
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "runnir": {
+      "command": "/Applications/Runnir.app/Contents/Helpers/runnir-core",
+      "args": ["mcp"],
+      "tool_timeout_sec": 300
+    }
+  }
+}

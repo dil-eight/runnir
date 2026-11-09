@@ -1,0 +1,19 @@
+{
+  "name": "runnir",
+  "version": "0.1.0",
+  "description": "Fill in the secrets and variables of Runnir's local GitHub Actions runs from Claude Code. You confirm every change in Runnir; values stay in your Mac's Keychain.",
+  "author": {
+    "name": "Runnir",
+    "url": "https://runnir.com"
+  },
+  "homepage": "https://runnir.com",
+  "repository": "https://github.com/dil-eight/runnir",
+  "license": "Apache-2.0",
+  "keywords": ["github-actions", "act", "local-runs", "secrets", "macos"],
+  "mcpServers": {
+    "runnir": {
+      "command": "/Applications/Runnir.app/Contents/Helpers/runnir-core",
+      "args": ["mcp"]
+    }
+  }
+}
