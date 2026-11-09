@@ -397,7 +397,8 @@ struct LocalRunSheet: View {
                         Text("macOS jobs cannot run in a container, so act runs them on this Mac in the macOS sandbox. "
                              + "They cannot read your home folder outside this repository, write outside the run's folder or use your Keychain. "
                              + "They do use this Mac's macOS, Xcode and tools and the network, CPU and memory limits do not apply, "
-                             + "and processes they leave running keep running. Steps that need root, another Xcode or your signing certificates fail.")
+                             + "and processes they leave running keep running. Steps that need root, another Xcode or your signing certificates fail, "
+                             + "and so does xcodebuild test: Xcode's tests cannot reach Xcode from inside the sandbox. swift test works.")
                             .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                             .fixedSize(horizontal: false, vertical: true)
                     }

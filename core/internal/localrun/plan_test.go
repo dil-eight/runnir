@@ -392,7 +392,12 @@ jobs:
 	if !slices.Equal(p.HostJobs, []string{"ci.yml › app"}) || !slices.Equal(p.Lanes[0].HostLabels, []string{"macos-26"}) || !p.Runnable() {
 		t.Fatalf("host jobs = %v labels = %v blockers = %v", p.HostJobs, p.Lanes[0].HostLabels, p.Blockers)
 	}
-	if !slices.ContainsFunc(p.Notes, func(note string) bool { return strings.HasPrefix(note, "app runs sudo.") }) {
+	if !slices.ContainsFunc(p.Notes, func(note string) bool { return strings.HasPrefix(note, "app runs sudo.") }) ||
+		slices.ContainsFunc(p.Notes, func(note string) bool { return strings.Contains(note, "xcodebuild test") }) {
+		t.Fatalf("notes = %v", p.Notes)
+	}
+	tested := strings.Replace(source, "      - run: xcodebuild build\n", "      - run: xcodebuild build\n      - run: xcodebuild -scheme App -destination 'platform=macOS' test -only-testing:AppTests\n", 1)
+	if p := plan(t, tested, "app", readyReport(), nil); !slices.ContainsFunc(p.Notes, func(note string) bool { return strings.HasPrefix(note, "app runs xcodebuild test,") }) {
 		t.Fatalf("notes = %v", p.Notes)
 	}
 	// A label in another shape never reaches act's command line.

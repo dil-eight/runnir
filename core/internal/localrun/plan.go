@@ -243,7 +243,7 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 		imagePresent = nil
 	}
 	images := map[string]bool{}
-	var containerJobs, services, unparsed, sudo []string
+	var containerJobs, services, unparsed, sudo, xcodeTests []string
 	var copies [][]byte
 	var picks []environmentPick
 	secrets, variables := map[string]bool{}, map[string]bool{}
@@ -288,6 +288,9 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 				plan.HostJobs = append(plan.HostJobs, laneTitle(lane)+" › "+jp.ID)
 				if usesSudo(workflow.Jobs[key]) {
 					sudo = append(sudo, jp.ID)
+				}
+				if runsXcodeTests(workflow.Jobs[key]) {
+					xcodeTests = append(xcodeTests, jp.ID)
 				}
 				continue
 			}
@@ -336,6 +339,10 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 	if len(sudo) > 0 {
 		plan.Notes = append(plan.Notes, fmt.Sprintf("%s %s sudo. A job on this Mac gets no root: sudo xcode-select -s selects that Xcode for the next steps, any other sudo fails.",
 			andList(sudo), map[bool]string{true: "runs", false: "run"}[len(sudo) == 1]))
+	}
+	if len(xcodeTests) > 0 {
+		plan.Notes = append(plan.Notes, fmt.Sprintf("%s %s xcodebuild test, which cannot run in the macOS sandbox: Xcode's tests cannot reach Xcode from inside it, so that step fails. swift test works.",
+			andList(xcodeTests), map[bool]string{true: "runs", false: "run"}[len(xcodeTests) == 1]))
 	}
 	if len(unparsed) > 0 {
 		plan.Notes = append(plan.Notes, fmt.Sprintf("%s cannot run: fix the syntax errors in the Workspace first.", andList(unparsed)))
@@ -444,6 +451,21 @@ func usesSudo(job *actionlint.Job) bool {
 }
 
 var sudoCall = regexp.MustCompile(`(^|[\s;&|(])sudo\s`)
+
+// runsXcodeTests reports a job with a run step that runs xcodebuild's tests.
+func runsXcodeTests(job *actionlint.Job) bool {
+	for _, step := range job.Steps {
+		if step == nil {
+			continue
+		}
+		if run, ok := step.Exec.(*actionlint.ExecRun); ok && run.Run != nil && xcodeTestCall.MatchString(run.Run.Value) {
+			return true
+		}
+	}
+	return false
+}
+
+var xcodeTestCall = regexp.MustCompile(`xcodebuild\b[^\n;&|]*\s(test|test-without-building)(\s|$)`)
 
 func skippedReason(skipped map[string]string, id string) string {
 	for key, reason := range skipped {

@@ -107,7 +107,16 @@ func gitFolders(repository string) []string {
 // that Xcode for the later steps instead, and any other sudo fails.
 var hostShims = map[string]string{
 	"xcodebuild": `#!/bin/sh
-# Runnir: Xcode's own sandboxes cannot start inside the macOS sandbox this job runs in.
+# Runnir: Xcode's own sandboxes cannot start inside the macOS sandbox this job runs in,
+# and Xcode's tests cannot reach Xcode from inside it, so they would hang.
+for argument in "$@"; do
+    case "$argument" in
+    test|test-without-building)
+        echo "Runnir: xcodebuild $argument cannot run in the macOS sandbox: the tests cannot reach Xcode from inside it. swift test can." >&2
+        exit 1
+        ;;
+    esac
+done
 exec /usr/bin/xcodebuild "$@" -IDEPackageSupportDisableManifestSandbox=YES -IDEPackageSupportDisablePluginExecutionSandbox=YES ENABLE_USER_SCRIPT_SANDBOXING=NO SWIFTC_DISABLE_SANDBOX=YES
 `,
 	"swift": `#!/bin/sh
