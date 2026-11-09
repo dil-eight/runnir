@@ -164,7 +164,7 @@ From the design above, not built yet: gates that wait for a click (jobs with `en
 
 ## Design
 
-`docs/design/runnir.pen`: the S03 frames are redrawn (the one with CHECK/BUILD/ARCHIVE/DEPLOY stages and GitLab-style manual jobs goes): Pull request → main (default), Merge into main, Manual section, skipped workflows and conditions, offline with saved statuses, and a local scenario run in progress with a gate waiting; S10 for a scenario with tool preparation and a gate. New frames go into the journey rows A–F (settings last).
+`docs/design/runnir.pen`: the S03 frames are redrawn (the one with CHECK/BUILD/ARCHIVE/DEPLOY stages and GitLab-style manual jobs goes): Pull request → main (default), Merge into main, Manual section, skipped workflows and conditions, offline with saved statuses, and a local scenario run in progress with a gate waiting; S10 for a scenario with tool preparation and a gate. New frames go into the journey rows A–F (settings last). Drawn on 2026-11-08 for local runs as built, in journey E: S10 with the scenario, its workflows and jobs ticked and those it leaves out, S10 with the scenario menu open, S11 with a scenario's workflows one after another; the single-workflow review and run frames they replace were removed, and the other S10 frames got the scenario line in place of the workflow, job and event.
 
 ## Error Handling
 
