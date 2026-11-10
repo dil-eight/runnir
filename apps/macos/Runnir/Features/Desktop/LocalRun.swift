@@ -179,6 +179,9 @@ final class LocalRunModel {
     private(set) var lostMessage: String?
     private(set) var stopRequested = false
     private(set) var stopError: String?
+    /// Set while reading the run from the Core keeps failing: what is shown
+    /// may be out of date.
+    private(set) var readProblem: String?
     /// The job whose output is shown; nil shows everything.
     var selectedJobID: String?
 
@@ -188,6 +191,9 @@ final class LocalRunModel {
     @ObservationIgnored var onFinish: (@MainActor (LocalRunModel) -> Void)?
     @ObservationIgnored private var reportedFinish = false
     @ObservationIgnored var pollInterval: Duration = .milliseconds(500)
+    /// Failed reads in a row; a few are a Core restarting or busy.
+    @ObservationIgnored private var failedReads = 0
+    static let failedReadsShown = 10
 
     init(executionID: String, workspaceID: UUID, plan: CoreLocalRunPlan) {
         self.executionID = executionID
@@ -208,6 +214,9 @@ final class LocalRunModel {
         guard let selectedJobID, let job = job(selectedJobID) else { return lines }
         return lines.filter { $0.jobID == job.jobID && $0.workflowID == job.workflowID }
     }
+
+    /// The output shown, as Copy puts it on the pasteboard.
+    var visibleText: String { visibleLines.map(\.text).joined(separator: "\n") }
 
     /// The run's jobs under their workflows, in run order.
     var lanes: [(lane: CoreLocalRunLane, jobs: [CoreLocalRunJobStatus])] {
@@ -246,7 +255,9 @@ final class LocalRunModel {
             reportedFinish = true
             onFinish?(self)
         }
-        if selectedJobID == nil || job(selectedJobID ?? "") == nil {
+        // nil is All output and stays; a job the run no longer has gives way
+        // to the running one.
+        if let selected = selectedJobID, job(selected) == nil {
             selectedJobID = jobs.first { $0.state == .running }?.id ?? jobs.first { $0.state != .unsupported }?.id
         }
     }
@@ -258,15 +269,31 @@ final class LocalRunModel {
             while let self, let hub, !Task.isCancelled, !self.isFinished {
                 do {
                     self.apply(try await hub.localRunOutput(executionID: self.executionID, after: self.lastSequence))
+                    self.failedReads = 0
+                    self.readProblem = nil
                 } catch CoreServiceError.notFound {
                     self.lostMessage = "Runnir Core stopped during this run, so its result is unknown. Runnir does not resume runs."
                 } catch {
-                    // The Core is restarting or busy; try again.
+                    // The Core is restarting or busy; try again, and say so
+                    // when it lasts.
+                    self.failedReads += 1
+                    if self.failedReads >= Self.failedReadsShown {
+                        self.readProblem = Self.readProblem(error)
+                    }
                 }
                 if self.isFinished { break }
                 try? await Task.sleep(for: self.pollInterval)
             }
         }
+    }
+
+    /// What the run view says while the Core does not answer for the run.
+    static func readProblem(_ error: any Error) -> String {
+        let reason = switch error {
+        case CoreServiceError.remote(_, let message) where !message.isEmpty: message
+        default: CoreHub.describe(error)
+        }
+        return "Runnir can't read this run from Runnir Core, so what is shown may be out of date. Still trying. Reason: \(reason)"
     }
 
     func stopFollowing() {

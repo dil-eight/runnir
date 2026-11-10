@@ -59,6 +59,25 @@ struct LocalRunTests {
         #expect(run.discarded)
     }
 
+    @Test func allOutputStaysChosenWhileTheRunReports() {
+        let run = LocalRunModel(executionID: "exec_1", workspaceID: UUID(), plan: plan())
+        run.selectedJobID = nil
+        run.apply(output(lines: 1...3, jobs: [CoreLocalRunJobStatus(workflowID: Self.ci, id: "lint", state: .running)]))
+        run.apply(output(lines: 4...4, phase: .finished, state: .succeeded,
+                         jobs: [CoreLocalRunJobStatus(workflowID: Self.ci, id: "lint", state: .succeeded)]))
+        #expect(run.selectedJobID == nil)
+        #expect(run.visibleText == "line 1\nline 2\nline 3\nline 4")
+        run.selectedJobID = run.jobs.first?.id
+        #expect(run.visibleText == "line 2\nline 4")
+    }
+
+    @Test func aJobTheRunNoLongerHasGivesWayToTheRunningOne() {
+        let run = LocalRunModel(executionID: "exec_1", workspaceID: UUID(), plan: plan())
+        run.selectedJobID = "gone"
+        run.apply(output(lines: 1...2, jobs: [CoreLocalRunJobStatus(workflowID: Self.ci, id: "lint", state: .running)]))
+        #expect(run.selectedJobID.flatMap(run.job)?.jobID == "lint")
+    }
+
     @Test func coreReportedDiscardIsShown() {
         let run = LocalRunModel(executionID: "exec_1", workspaceID: UUID(), plan: plan())
         run.apply(output(lines: 900...905, discarded: true))
@@ -457,6 +476,19 @@ struct LocalRunTests {
         let run = try #require(await review.run())
         #expect(await eventually { run.lostMessage != nil })
         #expect(run.isFinished)
+    }
+
+    @Test func readsThatKeepFailingAreShownWithTheReason() async throws {
+        let (hub, workspace, _) = await hub {
+            $0.localOutputError = .remote(code: 13, message: "grpc: error while marshaling: string field contains invalid UTF-8")
+        }
+        let run = LocalRunModel(executionID: "exec_1", workspaceID: workspace, plan: plan())
+        run.pollInterval = .milliseconds(1)
+        run.follow(hub: hub)
+        #expect(await eventually { run.readProblem != nil })
+        #expect(run.readProblem?.hasSuffix("Reason: grpc: error while marshaling: string field contains invalid UTF-8") == true)
+        #expect(!run.isFinished)
+        run.stopFollowing()
     }
 
     @Test func stopAsksTheCoreOnce() async throws {

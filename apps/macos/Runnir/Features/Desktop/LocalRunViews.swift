@@ -717,6 +717,7 @@ struct LocalRunSheet: View {
 struct LocalRunView: View {
     @Bindable var run: LocalRunModel
     @State private var follow = true
+    @State private var copied = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -757,6 +758,9 @@ struct LocalRunView: View {
     @ViewBuilder private var banners: some View {
         if let lost = run.lostMessage {
             banner(lost, symbol: "questionmark.circle", tint: RunnirTheme.warning)
+        }
+        if let problem = run.readProblem {
+            banner(problem, symbol: "exclamationmark.triangle", tint: RunnirTheme.warning)
         }
         if let problem = run.cleanupProblem {
             banner(problem, symbol: "trash.slash", tint: RunnirTheme.destructive)
@@ -831,6 +835,11 @@ struct LocalRunView: View {
                     .font(.system(size: 13, weight: .semibold))
                 statusChip
                 Spacer()
+                Button { copyOutput() } label: {
+                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                }
+                .buttonStyle(DesignButtonStyle(compact: true)).disabled(run.visibleLines.isEmpty)
+                .help("Copy all of this output")
                 Toggle("Follow output", isOn: $follow).toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12))
             }.padding(.horizontal, 16).frame(height: 40)
             DesignDivider()
@@ -850,27 +859,24 @@ struct LocalRunView: View {
 
     private var lines: some View {
         let visible = run.visibleLines
-        return ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(visible.enumerated()), id: \.element.id) { index, line in
-                        HStack(alignment: .top, spacing: 12) {
-                            Text("\(index + 1)").foregroundStyle(RunnirTheme.mutedForeground).frame(width: 40, alignment: .trailing)
-                            Text(line.text).foregroundStyle(line.isError ? RunnirTheme.destructive : RunnirTheme.foreground)
-                                .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }.font(.system(size: 12, design: .monospaced)).padding(.horizontal, 12).padding(.vertical, 1).id(line.id)
-                    }
-                    if visible.isEmpty {
-                        Text(run.isFinished ? "No output for this job." : "Waiting for output...")
-                            .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(16)
-                    }
-                }.padding(.vertical, 8)
+        return ZStack(alignment: .topLeading) {
+            LocalRunOutputText(lines: visible, follow: follow)
+            if visible.isEmpty {
+                Text(run.isFinished ? "No output for this job." : "Waiting for output...")
+                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(16)
+                    .allowsHitTesting(false)
             }
-            .background(RunnirTheme.editor)
-            .onChange(of: visible.last?.id) { _, last in
-                if follow, let last { proxy.scrollTo(last, anchor: .bottom) }
-            }
+        }
+    }
+
+    /// Puts the output shown on the pasteboard, whatever is selected.
+    private func copyOutput() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(run.visibleText, forType: .string)
+        copied = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            copied = false
         }
     }
 
@@ -896,6 +902,95 @@ struct LocalRunView: View {
                 if run.plan.selectedLanes.count > 1, let failure = run.failure { return ("Failed · \(failure)", RunnirTheme.destructive) }
                 return (run.exitCode.map { "Failed · exit code \($0)" } ?? "Failed", RunnirTheme.destructive)
             }
+        }
+    }
+}
+
+/// A local run's output as one read-only text, so a selection runs across
+/// lines, Command-A selects all of it, Command-C copies the selection and
+/// Command-F finds in it. New lines are added at the end and the first ones
+/// dropped when the output is bounded, so a selection survives both.
+struct LocalRunOutputText: NSViewRepresentable {
+    let lines: [CoreLocalRunLine]
+    let follow: Bool
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = NSTextView.scrollableTextView()
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.drawsBackground = true
+        scroll.backgroundColor = RunnirColorToken.editor.nsColor
+        if let textView = scroll.documentView as? NSTextView {
+            textView.isEditable = false
+            textView.isSelectable = true
+            textView.isRichText = false
+            textView.importsGraphics = false
+            textView.usesFindBar = true
+            textView.isIncrementalSearchingEnabled = true
+            textView.isAutomaticLinkDetectionEnabled = false
+            textView.isAutomaticDataDetectionEnabled = false
+            textView.drawsBackground = true
+            textView.backgroundColor = RunnirColorToken.editor.nsColor
+            textView.textContainerInset = NSSize(width: 10, height: 8)
+            textView.setAccessibilityLabel("Output")
+            context.coordinator.textView = textView
+        }
+        return scroll
+    }
+
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        context.coordinator.show(lines, follow: follow)
+    }
+
+    @MainActor
+    final class Coordinator {
+        static let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        weak var textView: NSTextView?
+        /// The lines shown, by sequence, and each one's length in the text.
+        private var shown: [UInt64] = []
+        private var lengths: [Int] = []
+        private var followed = false
+
+        func show(_ lines: [CoreLocalRunLine], follow: Bool) {
+            guard let textView, let storage = textView.textStorage else { return }
+            let ids = lines.map(\.sequence)
+            let changed = ids != shown
+            if changed {
+                storage.beginEditing()
+                if let first = ids.first, let start = shown.firstIndex(of: first),
+                   ids.count >= shown.count - start, ids[shown.count - start - 1] == shown.last {
+                    // The same lines, maybe fewer at the top and more below.
+                    if start > 0 {
+                        storage.deleteCharacters(in: NSRange(location: 0, length: lengths[..<start].reduce(0, +)))
+                        shown.removeFirst(start)
+                        lengths.removeFirst(start)
+                    }
+                    append(lines[shown.count...], to: storage)
+                } else {
+                    storage.setAttributedString(NSAttributedString())
+                    shown = []
+                    lengths = []
+                    append(lines[...], to: storage)
+                }
+                storage.endEditing()
+            }
+            if follow, changed || !followed { textView.scrollToEndOfDocument(nil) }
+            followed = follow
+        }
+
+        private func append(_ lines: ArraySlice<CoreLocalRunLine>, to storage: NSTextStorage) {
+            guard !lines.isEmpty else { return }
+            let text = NSMutableAttributedString()
+            for line in lines {
+                let piece = line.text + "\n"
+                let color = (line.isError ? RunnirColorToken.destructive : RunnirColorToken.foreground).nsColor
+                text.append(NSAttributedString(string: piece, attributes: [.font: Self.font, .foregroundColor: color]))
+                shown.append(line.sequence)
+                lengths.append((piece as NSString).length)
+            }
+            storage.append(text)
         }
     }
 }
