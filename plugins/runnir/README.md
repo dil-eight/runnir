@@ -1,11 +1,15 @@
 # Runnir Plugin For Claude Code And Codex
 
-Runnir runs GitHub Actions workflows on your Mac. This plugin lets Claude Code or Codex fill in the secrets and variables those local runs read:
+Runnir is a macOS app for GitHub Actions. This plugin lets Claude Code or Codex drive it for the repositories you opened in Runnir:
 
-- `runnir_list_value_sets` lists a workspace's sets (the Repository and its environments), the names its jobs read and which are missing. Secret values never come back.
-- `runnir_set_values` saves values into one set after you press Save in Runnir. Runnir keeps them in your Mac's Keychain.
+- Read: workspaces, workflows with actionlint's problems, what a pull request, push, merge or tag starts (`runnir_plan_scenario`), runs on GitHub with their jobs and logs, pull requests, and local runs with their output.
+- Run locally: `runnir_start_local_run` runs a scenario's workflows on your Mac with act, as Run Locally does, and `runnir_get_local_run` follows it.
+- Act on GitHub: start a workflow (`runnir_dispatch_workflow`), cancel or re-run a run.
+- Values: `runnir_list_value_sets` and `runnir_set_values` fill in the secrets and variables local runs read. Secret values never come back.
 
-The plugin also brings the `local-run-values` skill, which tells the agent when and how to use the two tools.
+Agents act without a click. Runnir asks you in its window only before saving values and before running macOS jobs without the macOS sandbox. Settings › MCP › Allow actions turns every action off; reading keeps working.
+
+The plugin brings two skills: `github-actions` (why a run failed, running locally before a push, acting on GitHub) and `local-run-values`.
 
 ## Install
 
@@ -27,7 +31,7 @@ codex plugin marketplace add dil-eight/runnir
 codex plugin add runnir@runnir
 ```
 
-Then ask the agent, in a repository you opened in Runnir, to set up the secrets and variables of its local runs.
+Then ask the agent, in a repository you opened in Runnir, why its last CI run failed, or to run its pull request workflows locally.
 
 ## Other Builds And Places
 

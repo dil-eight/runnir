@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "runnir",
-      "description": "Fill in the secrets and variables of Runnir's local GitHub Actions runs. You confirm every change in Runnir.",
+      "description": "Drive Runnir from Claude Code: GitHub Actions runs and logs, scenario plans, local runs with act, and the values of local runs.",
       "category": "development",
       "source": "./plugins/runnir",
       "homepage": "https://runnir.com"

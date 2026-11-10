@@ -1,6 +1,6 @@
 # MCP: Driving Runnir From An Agent
 
-Status: design approved on 2026-11-09 (branch dilbarov/mcp-values, with the scenario local runs of dilbarov/scenario-local-runs merged in). It extends [MCP Tools For The Values Of Local Runs](2026-11-08-mcp-value-sets-design.md) from two tools to the whole app, as the user asked: "сделай полное управление приложением через mcp".
+Status: design approved and built on 2026-11-09 (branch dilbarov/mcp-values, with the scenario local runs of dilbarov/scenario-local-runs merged in); covered by Core and app tests and tried through the stdio server against Runnir Local. It extends [MCP Tools For The Values Of Local Runs](2026-11-08-mcp-value-sets-design.md) from two tools to the whole app, as the user asked: "сделай полное управление приложением через mcp".
 
 ## Problem
 

@@ -22,52 +22,52 @@
 
 **Files:** `contracts/grpc/runnir/core/v1/runnir_core.proto`, generated Go and Swift.
 
-- [ ] `McpBridge`: replace `ListValueSets` and `SetValues` with `CallTool(McpToolCall) returns (McpToolResult)`; `McpToolCall {client, tool, arguments_json}`, `McpToolResult {text, structured_json, is_error}`.
-- [ ] `McpTool`: add `LIST_WORKSPACES`, `OPEN_WORKSPACE`, `START_LOCAL_RUN`. `McpRequest`: add `action`, `McpLocalRunStart start`. Answers: add `McpWorkspaces workspaces`, `McpOpenedWorkspace workspace`, `McpLocalRunStarted started`.
-- [ ] `ConfirmLocalRunRequest.started_by`, `GetLocalRunOutputResponse.started_by`.
-- [ ] Regenerate with `scripts/generate-contracts.sh`; delete `McpBridgeListValueSetsRequest` and `McpBridgeSetValuesRequest`.
+- [x] `McpBridge`: replace `ListValueSets` and `SetValues` with `CallTool(McpToolCall) returns (McpToolResult)`; `McpToolCall {client, tool, arguments_json}`, `McpToolResult {text, structured_json, is_error}`.
+- [x] `McpTool`: add `LIST_WORKSPACES`, `OPEN_WORKSPACE`, `START_LOCAL_RUN`. `McpRequest`: add `action`, `McpLocalRunStart start`. Answers: add `McpWorkspaces workspaces`, `McpOpenedWorkspace workspace`, `McpLocalRunStarted started`.
+- [x] `ConfirmLocalRunRequest.started_by`, `GetLocalRunOutputResponse.started_by`.
+- [x] Regenerate with `scripts/generate-contracts.sh`; delete `McpBridgeListValueSetsRequest` and `McpBridgeSetValuesRequest`.
 
 ### Task 2: Core keeps who started a local run
 
 **Files:** `core/internal/localrun/output.go`, `core/internal/server/localruns.go`, tests.
 
-- [ ] `Outputs.Create(..., startedBy string)`; `Snapshot.StartedBy`; `ConfirmLocalRun` passes it; `GetLocalRunOutput` returns it. Test in `output_test.go`.
+- [x] `Outputs.Create(..., startedBy string)`; `Snapshot.StartedBy`; `ConfirmLocalRun` passes it; `GetLocalRunOutput` returns it. Test in `output_test.go`.
 
 ### Task 3: Broker questions
 
 **Files:** `core/internal/mcpbridge/broker.go`, `broker_test.go`.
 
-- [ ] `Workspaces(ctx, client)`, `Open(ctx, client, repository, action bool)`, `Start(ctx, client, start)`; `List` and `Set` stay. One start with the sandbox off waits at a time, like a set. Log lines move to `mcptools`.
+- [x] `Workspaces(ctx, client)`, `Open(ctx, client, repository, action bool)`, `Start(ctx, client, start)`; `List` and `Set` stay. One start with the sandbox off waits at a time, like a set. Log lines move to `mcptools`.
 
 ### Task 4: `internal/mcptools`
 
 **Files:** `catalog.go`, `tools.go` (dispatch, decode, results), `read.go`, `act.go`, `format.go`, tests with fake `Core` and `App`.
 
-- [ ] `type Core interface` with the service methods used; `type App interface` with the broker's questions.
-- [ ] `Tools.Call(ctx, client, name, args) Result`; one handler per tool; bounds; GitHub status in words; log line per call.
+- [x] `type Core interface` with the service methods used; `type App interface` with the broker's questions.
+- [x] `Tools.Call(ctx, client, name, args) Result`; one handler per tool; bounds; GitHub status in words; log line per call.
 
 ### Task 5: Server and stdio
 
 **Files:** `core/internal/server/mcp.go`, `core/internal/mcp/server.go`, `tools.go`, tests, `mcp/runnir-tools.json`.
 
-- [ ] `mcpBridge.CallTool` runs `mcptools` with the service; the stdio server lists `mcptools.Catalog` and forwards calls; catalog file regenerated and compared by the test.
+- [x] `mcpBridge.CallTool` runs `mcptools` with the service; the stdio server lists `mcptools.Catalog` and forwards calls; catalog file regenerated and compared by the test.
 
 ### Task 6: App contract mapping
 
 **Files:** `CoreMcpModels.swift`, `GRPCCoreService.swift`, `CoreService.swift`, `CoreHub.swift`, tests.
 
-- [ ] New tools, `action`, the start's arguments; answers for workspaces, opened workspace, started run; `startedBy` on `confirmLocalRun` and the output.
+- [x] New tools, `action`, the start's arguments; answers for workspaces, opened workspace, started run; `startedBy` on `confirmLocalRun` and the output.
 
 ### Task 7: App answers
 
 **Files:** `McpRequests.swift`, `LocalRun.swift`, `LocalRunViews.swift`, `DesktopCoordinator.swift`, `DesktopViews.swift`, `McpSettings.swift`, new `McpRunPanel.swift`, tests.
 
-- [ ] Workspaces; opening one (Allow actions checked for actions); starting a run (selection, environment, missing values, blockers, one run per workspace, sandbox panel); the window shows the run; header "Started by …"; Settings › MCP Allow actions and description.
+- [x] Workspaces; opening one (Allow actions checked for actions); starting a run (selection, environment, missing values, blockers, one run per workspace, sandbox panel); the window shows the run; header "Started by …"; Settings › MCP Allow actions and description.
 
 ### Task 8: Docs and plugin
 
-- [ ] `docs/architecture/mcp.md`, `docs/architecture/grpc-api.md`, the checklist, the plugin's skill and README, plugin version.
+- [x] `docs/architecture/mcp.md`, `docs/architecture/grpc-api.md`, the checklist, the plugin's skill and README, plugin version.
 
 ### Task 9: Verify
 
-- [ ] Core tests, vet, build; app build and unit tests; the stdio server against an installed Runnir Local.
+- [x] Core tests, vet, build; app build and unit tests; the stdio server against an installed Runnir Local.

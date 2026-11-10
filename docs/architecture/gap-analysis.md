@@ -28,7 +28,7 @@ No requirement is accepted yet: each still lacks the controlled real-GitHub or s
 - **Contract:** `runnir.core.v1` over a Unix socket with 60 RPCs ([gRPC API](grpc-api.md), [ADR 0004](../decisions/0004-single-core-process-grpc.md)); protobuf sources in `contracts/`, generated Go and Swift committed and compared in CI.
 - **Persistence:** Application Support registry and session; one SQLite database per workspace; credentials only in Keychain.
 - **CI:** workflows `CI`, `Go Core`, `App Build` and `Release Build`.
-- **Not present:** an MCP server (`mcp/runnir-tools.json` is a design-only catalog), AI features, a signed build from the release workflow.
+- **Not present:** AI features, a signed build from the release workflow. (The MCP server, `runnir-core mcp` with the catalog of `mcp/runnir-tools.json`, was built on 2026-11-08 and 2026-11-09; see [MCP](mcp.md).)
 
 ## Open Gaps
 
