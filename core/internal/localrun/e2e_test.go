@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -83,7 +84,12 @@ func e2eSpec(t *testing.T, jobID string) (*Spec, *Outputs, execution.Job) {
 		}
 	}
 
-	plan, err := NewPlan(Request{WorkflowID: ".github/workflows/e2e.yml", Source: []byte(e2eWorkflow), JobID: jobID}, report, false, nil, Choose(nil, CeilingFor(report.Engine)))
+	request := Request{Chosen: true, Lanes: []LaneInput{{WorkflowID: ".github/workflows/e2e.yml", Source: []byte(e2eWorkflow),
+		Kind: Direct, Event: "push", Selected: []string{jobID}}}}
+	plan, err := NewPlan(request, report, false, nil, Choose(nil, CeilingFor(report.Engine)))
+	if err == nil {
+		plan.Lanes[0].Payload, err = Payload(EventContext{Event: "push", Ref: "refs/heads/main", DefaultBranch: "main"})
+	}
 	if err != nil || !plan.Runnable() {
 		t.Fatalf("plan = %+v, %v", plan, err)
 	}
@@ -208,12 +214,9 @@ func TestE2EJobContainersCarryTheLabelAndLimits(t *testing.T) {
 	defer func() { Platforms["ubuntu-latest"] = saved }()
 
 	spec, outputs, job := e2eSpec(t, "hello")
-	spec.Plan.JobID = "plain"
 	spec.Plan.Limits = Limits{CPUs: 2, MemoryBytes: 512 << 20, Timeout: 5 * time.Minute}
-	workflow := "name: E2E\non: push\njobs:\n  plain:\n    runs-on: ubuntu-latest\n    steps:\n      - shell: sh\n        run: echo waiting; sleep 300\n"
-	if err := os.WriteFile(filepath.Join(spec.RepositoryPath, ".github", "workflows", "e2e.yml"), []byte(workflow), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	// act runs the lane's copy of the workflow, here one plain job.
+	spec.Plan.Lanes[0].Copy = []byte("name: E2E\non: push\njobs:\n  plain:\n    runs-on: ubuntu-latest\n    steps:\n      - shell: sh\n        run: echo waiting; sleep 300\n")
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- NewRunner(outputs).Run(ctx, job) }()
@@ -245,4 +248,111 @@ func TestE2EJobContainersCarryTheLabelAndLimits(t *testing.T) {
 		t.Fatalf("limits/network = %q", out)
 	}
 	assertNoContainers(t, spec)
+}
+
+// A macOS job runs on this Mac in the macOS sandbox: the repository is
+// there, the home folder and the Keychain are not, and sudo gives no root.
+func TestE2EMacJobRunsInTheSandbox(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("macOS jobs run on a Mac")
+	}
+	act := os.Getenv("RUNNIR_E2E_ACT")
+	if act == "" {
+		t.Skip("RUNNIR_E2E_ACT is not set")
+	}
+	defer func(saved string) { hostOS = saved }(hostOS)
+	hostOS = "darwin"
+	home, _ := os.UserHomeDir()
+	workflow := strings.ReplaceAll(`name: Mac
+on: push
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report
+        run: |
+          echo "readme=$(cat README.md)"
+          if ls "HOME_DIR/.ssh" >/dev/null 2>&1; then echo "ssh=readable"; else echo "ssh=closed"; fi
+          if touch "HOME_DIR/runnir-e2e-probe" 2>/dev/null; then echo "home-write=open"; rm -f "HOME_DIR/runnir-e2e-probe"; else echo "home-write=closed"; fi
+          if security list-keychains >/dev/null 2>&1; then echo "keychain=open"; else echo "keychain=closed"; fi
+          echo "swift=$(swift --version 2>&1 | head -1 | cut -c1-12)"
+          sudo xcode-select -s /Applications/Xcode.app
+          if sudo whoami >/dev/null 2>&1; then echo "root=yes"; else echo "root=no"; fi
+      - name: After
+        run: echo "developer=$DEVELOPER_DIR"
+`, "HOME_DIR", home)
+	repo, _ := filepath.EvalSymlinks(t.TempDir())
+	_ = os.MkdirAll(filepath.Join(repo, ".github", "workflows"), 0o755)
+	_ = os.WriteFile(filepath.Join(repo, ".github", "workflows", "mac.yml"), []byte(workflow), 0o644)
+	_ = os.WriteFile(filepath.Join(repo, "README.md"), []byte("fixture"), 0o644)
+	request := Request{Chosen: true, Lanes: []LaneInput{{WorkflowID: ".github/workflows/mac.yml", Source: []byte(workflow),
+		Kind: Direct, Event: "push", Selected: []string{"mac"}}}}
+	report := tools.NewDetector(home, act, "").Check(context.Background(), true)
+	plan, err := NewPlan(request, report, false, nil, Choose(nil, CeilingFor(report.Engine)))
+	if err != nil || len(plan.HostJobs) != 1 {
+		t.Fatalf("plan = %+v, %v", plan, err)
+	}
+	plan.Lanes[0].Payload, _ = Payload(EventContext{Event: "push", Ref: "refs/heads/main", DefaultBranch: "main"})
+	spec := &Spec{ActPath: act, DockerPath: report.DockerCLI.Path, DockerHost: report.Engine.Endpoint, UserHome: home,
+		RepositoryPath: repo, Plan: plan, CacheDir: filepath.Join(t.TempDir(), "cache"), HostNode: tools.FindNode(home, os.Getenv("PATH"))}
+	outputs := NewOutputs()
+	id, _ := execution.NewID()
+	outputs.Create(id, "repo", plan, "e2e", false, "none")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	err = NewRunner(outputs).Run(ctx, execution.Job{ExecutionID: id, RepositoryID: "repo", RepositoryPath: repo, Spec: spec})
+	out := text(outputs, id)
+	t.Logf("output:\n%s", out)
+	if err != nil {
+		t.Fatalf("Run = %v", err)
+	}
+	for _, want := range []string{"readme=fixture", "ssh=closed", "home-write=closed", "keychain=closed", "swift=", "root=no",
+		"developer=/Applications/Xcode.app/Contents/Developer"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q", want)
+		}
+	}
+}
+
+// A repository's own macOS job on this Mac, in the sandbox, as Run Locally
+// would run it: RUNNIR_E2E_MAC_REPO, RUNNIR_E2E_MAC_WORKFLOW (its path in
+// the repository) and RUNNIR_E2E_MAC_JOB name it; RUNNIR_E2E_MAC_UNSANDBOXED=1
+// runs it without the sandbox, as the user may ask.
+func TestE2EMacJobOfARepository(t *testing.T) {
+	act, repo := os.Getenv("RUNNIR_E2E_ACT"), os.Getenv("RUNNIR_E2E_MAC_REPO")
+	workflowID, jobID := os.Getenv("RUNNIR_E2E_MAC_WORKFLOW"), os.Getenv("RUNNIR_E2E_MAC_JOB")
+	if runtime.GOOS != "darwin" || act == "" || repo == "" || workflowID == "" || jobID == "" {
+		t.Skip("RUNNIR_E2E_ACT, RUNNIR_E2E_MAC_REPO, RUNNIR_E2E_MAC_WORKFLOW and RUNNIR_E2E_MAC_JOB are not set")
+	}
+	defer func(saved string) { hostOS = saved }(hostOS)
+	hostOS = "darwin"
+	home, _ := os.UserHomeDir()
+	source, err := os.ReadFile(filepath.Join(repo, workflowID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := Request{Chosen: true, Lanes: []LaneInput{{WorkflowID: workflowID, Source: source, Kind: Direct, Event: "push", Selected: []string{jobID}}},
+		HostUnsandboxed: os.Getenv("RUNNIR_E2E_MAC_UNSANDBOXED") == "1"}
+	report := tools.NewDetector(home, act, "").Check(context.Background(), true)
+	plan, err := NewPlan(request, report, false, nil, Limits{Timeout: 45 * time.Minute})
+	if err != nil || len(plan.HostJobs) == 0 {
+		t.Fatalf("plan = %+v, %v", plan, err)
+	}
+	t.Logf("notes: %v", plan.Notes)
+	plan.Lanes[0].Payload, _ = Payload(EventContext{Event: "push", Ref: "refs/heads/main", DefaultBranch: "main"})
+	spec := &Spec{ActPath: act, DockerPath: report.DockerCLI.Path, DockerHost: report.Engine.Endpoint, UserHome: home,
+		RepositoryPath: repo, Plan: plan, CacheDir: filepath.Join(t.TempDir(), "cache"), HostNode: tools.FindNode(home, os.Getenv("PATH"))}
+	outputs := NewOutputs()
+	id, _ := execution.NewID()
+	outputs.Create(id, "repo", plan, "e2e", false, "none")
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Minute)
+	defer cancel()
+	err = NewRunner(outputs).Run(ctx, execution.Job{ExecutionID: id, RepositoryID: "repo", RepositoryPath: repo, Spec: spec})
+	t.Logf("output:\n%s", text(outputs, id))
+	snap, _ := outputs.Since(id, ^uint64(0))
+	t.Logf("jobs: %+v", snap.Jobs)
+	if err != nil {
+		t.Fatalf("Run = %v", err)
+	}
 }

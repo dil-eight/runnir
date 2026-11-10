@@ -260,11 +260,17 @@ struct EngineSetupButton: View {
 
 // MARK: S10 Local execution review
 
+/// A workflow file the editor holds changes of that are not saved.
+struct UnsavedWorkflow: Equatable {
+    let path: String
+    let name: String
+}
+
 struct LocalRunSheet: View {
     @Bindable var model: LocalRunReviewModel
     let repositoryPath: String
-    /// The workflow's name when the editor holds changes that are not saved.
-    var unsavedFile: String?
+    /// The file the editor holds unsaved changes of, if any.
+    var unsavedFile: UnsavedWorkflow?
     /// Opens Secrets and Variables for this workspace.
     var manageValues: () -> Void = {}
     let onStarted: (LocalRunModel) -> Void
@@ -281,10 +287,12 @@ struct LocalRunSheet: View {
                     if let error = model.error {
                         Label(error, systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(RunnirTheme.warning)
                     }
-                    if let unsavedFile {
-                        Label("\(unsavedFile) has unsaved changes. act runs the file as it is saved on disk.", systemImage: "pencil")
+                    if let unsavedFile, model.lanes.contains(where: { $0.workflowID == unsavedFile.path && !model.ticks($0).isEmpty }) {
+                        Label("\(unsavedFile.name) has unsaved changes. act runs the file as it is saved on disk.", systemImage: "pencil")
                             .font(.system(size: 12)).foregroundStyle(RunnirTheme.warning)
                     }
+                    workflows
+                    hostWarning
                     tools
                     compatibility
                     values
@@ -336,45 +344,105 @@ struct LocalRunSheet: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Run locally").font(.system(size: 17, weight: .semibold))
-            HStack(spacing: 8) {
-                Text(URL(fileURLWithPath: model.workflowID).lastPathComponent)
-                Image(systemName: "chevron.right").font(.system(size: 9)).foregroundStyle(RunnirTheme.mutedForeground)
-                DropdownMenu {
-                    DropdownItem("All jobs", checked: model.jobID == nil) { choose(job: nil) }
-                    DropdownDivider()
-                    ForEach(model.jobs, id: \.id) { job in
-                        DropdownItem(job.id, checked: model.jobID == job.id) { choose(job: job.id) }
-                    }
-                } label: { _ in Text("job: \(model.jobID ?? "all")") }
-                    .buttonStyle(.hit).fixedSize()
-                Image(systemName: "chevron.right").font(.system(size: 9)).foregroundStyle(RunnirTheme.mutedForeground)
-                DropdownMenu {
-                    ForEach(model.prepared?.plan.events ?? [], id: \.self) { event in
-                        DropdownItem(event, checked: event == (model.event ?? model.prepared?.plan.event)) { choose(event: event) }
-                    }
-                } label: { _ in Text("event: \(model.event ?? model.prepared?.plan.event ?? "—")") }
-                    .buttonStyle(.hit).fixedSize()
-                    .disabled((model.prepared?.plan.events.count ?? 0) < 2)
-                if let environment = model.environment {
-                    Image(systemName: "chevron.right").font(.system(size: 9)).foregroundStyle(RunnirTheme.mutedForeground)
-                    Text("environment: \(environment)").foregroundStyle(RunnirTheme.foreground)
+            HStack(spacing: 10) {
+                if let scenarios = model.prepared?.plan.scenarios, !scenarios.isEmpty {
+                    DropdownPicker("Scenario", selection: Binding(
+                        get: { model.scenario ?? scenarios[0] },
+                        set: { scenario in Task { await model.choose(scenario: scenario) } }
+                    ), options: scenarios.map { .init(value: $0, title: $0.title) })
+                    .help("What happens to the branch's change: the workflows GitHub would start for it are ticked")
+                }
+                let summary = model.tickedSummary
+                if model.prepared != nil {
+                    Text("\(summary.workflows) \(summary.workflows == 1 ? "workflow" : "workflows") · \(summary.jobs) \(summary.jobs == 1 ? "job" : "jobs") ticked")
+                        .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
                 if model.isPreparing { ProgressView().controlSize(.small) }
             }
-            .font(.system(size: 12, design: .monospaced)).foregroundStyle(RunnirTheme.secondaryForeground)
         }
     }
 
-    private func choose(job: String?) {
-        model.jobID = job
-        Task { await model.prepare() }
+    /// The scenario's workflows, then those it does not start, each with
+    /// its jobs and a checkbox for every one that can run here.
+    @ViewBuilder private var workflows: some View {
+        let lanes = model.lanes
+        if !lanes.isEmpty {
+            let inScenario = lanes.filter { $0.kind != .outside }
+            let outside = lanes.filter { $0.kind == .outside }
+            VStack(alignment: .leading, spacing: 8) {
+                SectionLabel(title: "WORKFLOWS AND JOBS", large: true)
+                Text("Ticked workflows run one after another, each with act. A job brings the jobs it needs.")
+                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                laneCard(inScenario)
+                if !outside.isEmpty {
+                    SectionLabel(title: "NOT IN THIS SCENARIO").padding(.top, 6)
+                    laneCard(outside)
+                }
+            }
+        }
     }
 
-    private func choose(event: String) {
-        model.event = event
-        Task { await model.prepare() }
+    /// macOS jobs run on this Mac in the macOS sandbox, not in a container:
+    /// said in full, and confirmed apart from trusting the workflow. Without
+    /// the sandbox, asked for this run only, the warning says what is at stake.
+    @ViewBuilder private var hostWarning: some View {
+        if !model.hostJobs.isEmpty {
+            let unsandboxed = model.runsUnsandboxed
+            let jobs = ListFormatter.localizedString(byJoining: model.hostJobs)
+            let verb = model.hostJobs.count == 1 ? "runs" : "run"
+            let tint = unsandboxed ? RunnirTheme.destructive : RunnirTheme.warning
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: unsandboxed ? "exclamationmark.octagon.fill" : "laptopcomputer.trianglebadge.exclamationmark")
+                        .foregroundStyle(tint)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(unsandboxed ? "\(jobs) \(verb) on this Mac without any isolation" : "\(jobs) \(verb) on this Mac, not in a container")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(unsandboxed ? Self.unsandboxedWarning : Self.sandboxedWarning)
+                            .font(.system(size: 12)).foregroundStyle(unsandboxed ? RunnirTheme.foreground : RunnirTheme.secondaryForeground)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Toggle(isOn: Binding(get: { model.hostUnsandboxed }, set: { on in Task { await model.setUnsandboxed(on) } })) {
+                    Text("Run them without the sandbox, for this run only (xcodebuild test needs it)")
+                }
+                .toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12)).padding(.leading, 26)
+                .disabled(model.isPreparing)
+                Toggle(unsandboxed ? "I understand: run these jobs on this Mac without the sandbox" : "Run these jobs on this Mac without a container",
+                       isOn: $model.hostConfirmed)
+                    .toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12, weight: unsandboxed ? .semibold : .regular))
+                    .padding(.leading, 26)
+            }
+            .padding(14).background(tint.opacity(unsandboxed ? 0.16 : 0.12), in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(unsandboxed ? tint.opacity(0.6) : .clear))
+        }
+    }
+
+    static let sandboxedWarning = "macOS jobs cannot run in a container, so act runs them on this Mac in the macOS sandbox. "
+        + "They cannot read your home folder outside this repository, write outside the run's folder or use your Keychain. "
+        + "They do use this Mac's macOS, Xcode and tools and the network, CPU and memory limits do not apply, "
+        + "and processes they leave running keep running. Steps that need root, another Xcode or your signing certificates fail, "
+        + "and so does xcodebuild test: Xcode's tests cannot reach Xcode from inside the sandbox. swift test works."
+
+    static let unsandboxedWarning = "Nothing stands between these jobs and your Mac. Their steps, and every action and script they pull in, run as you: "
+        + "they can read, change and delete any file you can, including your SSH keys, cloud credentials, browser data and other repositories, "
+        + "use your Keychain (macOS may ask you first), install software, keep processes running after the run, and send any of it over the network. "
+        + "A careless or malicious workflow or action can do lasting damage. Only use this for workflows you wrote or reviewed, from this repository. "
+        + "Root stays out of reach: sudo still does not run."
+
+    private func laneCard(_ lanes: [CoreLocalRunLane]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(lanes.enumerated()), id: \.element.id) { index, lane in
+                if index > 0 { DesignDivider() }
+                LocalRunLaneRow(lane: lane, ticks: model.ticks(lane), afterTitle: model.lanes.first { $0.workflowID == lane.after }?.title,
+                                toggleLane: { Task { await model.toggle(lane: lane) } },
+                                toggleJob: { job in Task { await model.toggle(job: job, in: lane) } })
+            }
+        }
+        .background(RunnirTheme.background, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(RunnirTheme.border))
     }
 
     private func recheck() { Task { await model.prepare() } }
@@ -424,8 +492,9 @@ struct LocalRunSheet: View {
         }
     }
 
-    /// What the card lists: what stops the run, then every job with the verdict
-    /// on it, the images that have to be downloaded, and the plan's notes.
+    /// What the card lists: what stops the run, the ticked jobs act may not
+    /// start as expected, the images that have to be downloaded, and the
+    /// plan's notes. Each job's runner is in the workflows above.
     private func compatibilityRows(_ plan: CoreLocalRunPlan) -> [CompatibilityRow] {
         var rows: [CompatibilityRow] = []
         for blocker in plan.blockers {
@@ -435,15 +504,8 @@ struct LocalRunSheet: View {
             rows.append(CompatibilityRow(symbol: "info.circle", tint: RunnirTheme.secondaryForeground, title: "Static validation",
                                          detail: "Still works without an engine.", verdict: "No engine needed"))
         }
-        for job in plan.jobs {
-            switch job.support {
-            case .supported:
-                rows.append(CompatibilityRow(symbol: "checkmark.circle", tint: RunnirTheme.success, title: job.id,
-                                             detail: "Runs on \(job.runsOn.joined(separator: ", ")) in \(job.image)", verdict: "Supported"))
-            case .unsupported:
-                rows.append(CompatibilityRow(symbol: "minus.circle", tint: RunnirTheme.mutedForeground, title: job.id,
-                                             detail: job.reason, verdict: "act skips it"))
-            case .unknown:
+        for lane in plan.selectedLanes {
+            for job in lane.jobs where job.selected && job.support == .unknown {
                 rows.append(CompatibilityRow(symbol: "questionmark.circle", tint: RunnirTheme.warning, title: job.id,
                                              detail: job.reason, verdict: "Unclear"))
             }
@@ -466,6 +528,11 @@ struct LocalRunSheet: View {
                 accessRow("globe", "Network", "On (bridge network): downloads images and actions; workflow steps may send data")
                 accessRow(model.runKeys.isEmpty ? "key.slash" : "key", "Secrets", model.accessSummary)
                 limitsRow(plan)
+                if !model.hostJobs.isEmpty {
+                    accessRow("laptopcomputer", "This Mac", model.runsUnsandboxed
+                              ? "macOS jobs run here without the sandbox: everything your user can reach, the network and your Keychain"
+                              : "macOS jobs run here in the macOS sandbox: a copy of the repository, the run's folder and the network; not your home folder or Keychain")
+                }
                 accessRow("nosign", "Never mounted", "Docker socket · home directory")
             }
         }
@@ -596,7 +663,11 @@ struct LocalRunSheet: View {
                 if model.isStarting { ProgressView().controlSize(.small) } else { Label("Run Locally", systemImage: "play.fill") }
             }
             .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction).disabled(!model.canRun)
-            .help(model.prepared?.confirmationID == nil ? "Resolve the problems above first" : model.trusted ? "Start act with this plan" : "Confirm that you trust this workflow")
+            .help(model.prepared?.confirmationID == nil ? "Resolve the problems above first"
+                  : !model.trusted ? "Confirm that you trust this workflow"
+                  : !model.hostJobs.isEmpty && !model.hostConfirmed
+                    ? (model.runsUnsandboxed ? "Confirm that the macOS jobs run on this Mac without the sandbox" : "Confirm that the macOS jobs run on this Mac without a container")
+                  : "Start act with this plan")
         }.buttonStyle(DesignButtonStyle())
     }
 
@@ -646,6 +717,7 @@ struct LocalRunSheet: View {
 struct LocalRunView: View {
     @Bindable var run: LocalRunModel
     @State private var follow = true
+    @State private var copied = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -662,7 +734,8 @@ struct LocalRunView: View {
 
     private var summary: some View {
         HStack(spacing: 22) {
-            Text("Local · not a GitHub run")
+            Text(run.plan.scenario.map { "Local · \($0.title)" } ?? "Local · not a GitHub run")
+                .help("Runs on this Mac with act, not on GitHub")
             Text("\(run.plan.engineName.isEmpty ? "Container engine" : run.plan.engineName) · act \(run.plan.actVersion)\(run.plan.installedAct ? " (installed)" : "")")
                 .font(.system(size: 12, design: .monospaced)).foregroundStyle(RunnirTheme.secondaryForeground)
             Text("No GitHub token injected")
@@ -686,6 +759,9 @@ struct LocalRunView: View {
         if let lost = run.lostMessage {
             banner(lost, symbol: "questionmark.circle", tint: RunnirTheme.warning)
         }
+        if let problem = run.readProblem {
+            banner(problem, symbol: "exclamationmark.triangle", tint: RunnirTheme.warning)
+        }
         if let problem = run.cleanupProblem {
             banner(problem, symbol: "trash.slash", tint: RunnirTheme.destructive)
         }
@@ -708,12 +784,37 @@ struct LocalRunView: View {
     private var jobList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(run.jobs) { job in
+                ForEach(run.lanes, id: \.lane.id) { group in
+                    laneHeader(group.lane, jobs: group.jobs)
+                    ForEach(group.jobs) { job in jobButton(job) }
+                }
+                Button { run.selectedJobID = nil } label: {
+                    Label("All output", systemImage: "text.alignleft").font(.system(size: 12))
+                        .padding(.horizontal, 12).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                        .background(run.selectedJobID == nil ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
+                }.buttonStyle(.hit).foregroundStyle(RunnirTheme.secondaryForeground)
+            }.padding(8)
+        }
+    }
+
+    /// A workflow of the run: its name and file, above its jobs.
+    private func laneHeader(_ lane: CoreLocalRunLane, jobs: [CoreLocalRunJobStatus]) -> some View {
+        HStack(spacing: 6) {
+            Text(lane.title).font(.system(size: 11, weight: .semibold)).foregroundStyle(RunnirTheme.secondaryForeground)
+            Text(lane.event).font(.system(size: 10, design: .monospaced)).foregroundStyle(RunnirTheme.mutedForeground)
+            Spacer(minLength: 0)
+        }
+        .textCase(.uppercase)
+        .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 2)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    private func jobButton(_ job: CoreLocalRunJobStatus) -> some View {
                     Button { run.selectedJobID = job.id } label: {
                         HStack(alignment: .top, spacing: 10) {
                             LocalJobIcon(state: job.state).padding(.top, 2)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(job.name.isEmpty ? job.id : job.name).font(.system(size: 13, weight: .medium))
+                                Text(job.name.isEmpty ? job.jobID : job.name).font(.system(size: 13, weight: .medium))
                                     .foregroundStyle(job.state == .unsupported ? RunnirTheme.secondaryForeground : RunnirTheme.foreground)
                                 // A running job's time keeps counting between reports.
                                 TimelineView(.periodic(from: .now, by: job.state == .running ? 1 : 3600)) { context in
@@ -725,22 +826,20 @@ struct LocalRunView: View {
                         .padding(.horizontal, 12).padding(.vertical, 8).contentShape(Rectangle())
                         .background(run.selectedJobID == job.id ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
                     }.buttonStyle(.hit)
-                }
-                Button { run.selectedJobID = nil } label: {
-                    Label("All output", systemImage: "text.alignleft").font(.system(size: 12))
-                        .padding(.horizontal, 12).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                        .background(run.selectedJobID == nil ? RunnirTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 6))
-                }.buttonStyle(.hit).foregroundStyle(RunnirTheme.secondaryForeground)
-            }.padding(8)
-        }
     }
 
     private var output: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Text("\(run.selectedJobID ?? "All") · output").font(.system(size: 13, weight: .semibold))
+                Text("\(run.selectedJobID.flatMap(run.job).map { $0.name.isEmpty ? $0.jobID : $0.name } ?? "All") · output")
+                    .font(.system(size: 13, weight: .semibold))
                 statusChip
                 Spacer()
+                Button { copyOutput() } label: {
+                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                }
+                .buttonStyle(DesignButtonStyle(compact: true)).disabled(run.visibleLines.isEmpty)
+                .help("Copy all of this output")
                 Toggle("Follow output", isOn: $follow).toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12))
             }.padding(.horizontal, 16).frame(height: 40)
             DesignDivider()
@@ -760,27 +859,24 @@ struct LocalRunView: View {
 
     private var lines: some View {
         let visible = run.visibleLines
-        return ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(visible.enumerated()), id: \.element.id) { index, line in
-                        HStack(alignment: .top, spacing: 12) {
-                            Text("\(index + 1)").foregroundStyle(RunnirTheme.mutedForeground).frame(width: 40, alignment: .trailing)
-                            Text(line.text).foregroundStyle(line.isError ? RunnirTheme.destructive : RunnirTheme.foreground)
-                                .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }.font(.system(size: 12, design: .monospaced)).padding(.horizontal, 12).padding(.vertical, 1).id(line.id)
-                    }
-                    if visible.isEmpty {
-                        Text(run.isFinished ? "No output for this job." : "Waiting for output...")
-                            .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(16)
-                    }
-                }.padding(.vertical, 8)
+        return ZStack(alignment: .topLeading) {
+            LocalRunOutputText(lines: visible, follow: follow)
+            if visible.isEmpty {
+                Text(run.isFinished ? "No output for this job." : "Waiting for output...")
+                    .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground).padding(16)
+                    .allowsHitTesting(false)
             }
-            .background(RunnirTheme.editor)
-            .onChange(of: visible.last?.id) { _, last in
-                if follow, let last { proxy.scrollTo(last, anchor: .bottom) }
-            }
+        }
+    }
+
+    /// Puts the output shown on the pasteboard, whatever is selected.
+    private func copyOutput() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(run.visibleText, forType: .string)
+        copied = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            copied = false
         }
     }
 
@@ -802,8 +898,99 @@ struct LocalRunView: View {
             switch run.state {
             case .succeeded: return ("Succeeded", RunnirTheme.success)
             case .cancelled: return ("Cancelled", RunnirTheme.secondaryForeground)
-            default: return (run.exitCode.map { "Failed · exit code \($0)" } ?? "Failed", RunnirTheme.destructive)
+            default:
+                if run.plan.selectedLanes.count > 1, let failure = run.failure { return ("Failed · \(failure)", RunnirTheme.destructive) }
+                return (run.exitCode.map { "Failed · exit code \($0)" } ?? "Failed", RunnirTheme.destructive)
             }
+        }
+    }
+}
+
+/// A local run's output as one read-only text, so a selection runs across
+/// lines, Command-A selects all of it, Command-C copies the selection and
+/// Command-F finds in it. New lines are added at the end and the first ones
+/// dropped when the output is bounded, so a selection survives both.
+struct LocalRunOutputText: NSViewRepresentable {
+    let lines: [CoreLocalRunLine]
+    let follow: Bool
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = NSTextView.scrollableTextView()
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.drawsBackground = true
+        scroll.backgroundColor = RunnirColorToken.editor.nsColor
+        if let textView = scroll.documentView as? NSTextView {
+            textView.isEditable = false
+            textView.isSelectable = true
+            textView.isRichText = false
+            textView.importsGraphics = false
+            textView.usesFindBar = true
+            textView.isIncrementalSearchingEnabled = true
+            textView.isAutomaticLinkDetectionEnabled = false
+            textView.isAutomaticDataDetectionEnabled = false
+            textView.drawsBackground = true
+            textView.backgroundColor = RunnirColorToken.editor.nsColor
+            textView.textContainerInset = NSSize(width: 10, height: 8)
+            textView.setAccessibilityLabel("Output")
+            context.coordinator.textView = textView
+        }
+        return scroll
+    }
+
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        context.coordinator.show(lines, follow: follow)
+    }
+
+    @MainActor
+    final class Coordinator {
+        static let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        weak var textView: NSTextView?
+        /// The lines shown, by sequence, and each one's length in the text.
+        private var shown: [UInt64] = []
+        private var lengths: [Int] = []
+        private var followed = false
+
+        func show(_ lines: [CoreLocalRunLine], follow: Bool) {
+            guard let textView, let storage = textView.textStorage else { return }
+            let ids = lines.map(\.sequence)
+            let changed = ids != shown
+            if changed {
+                storage.beginEditing()
+                if let first = ids.first, let start = shown.firstIndex(of: first),
+                   ids.count >= shown.count - start, ids[shown.count - start - 1] == shown.last {
+                    // The same lines, maybe fewer at the top and more below.
+                    if start > 0 {
+                        storage.deleteCharacters(in: NSRange(location: 0, length: lengths[..<start].reduce(0, +)))
+                        shown.removeFirst(start)
+                        lengths.removeFirst(start)
+                    }
+                    append(lines[shown.count...], to: storage)
+                } else {
+                    storage.setAttributedString(NSAttributedString())
+                    shown = []
+                    lengths = []
+                    append(lines[...], to: storage)
+                }
+                storage.endEditing()
+            }
+            if follow, changed || !followed { textView.scrollToEndOfDocument(nil) }
+            followed = follow
+        }
+
+        private func append(_ lines: ArraySlice<CoreLocalRunLine>, to storage: NSTextStorage) {
+            guard !lines.isEmpty else { return }
+            let text = NSMutableAttributedString()
+            for line in lines {
+                let piece = line.text + "\n"
+                let color = (line.isError ? RunnirColorToken.destructive : RunnirColorToken.foreground).nsColor
+                text.append(NSAttributedString(string: piece, attributes: [.font: Self.font, .foregroundColor: color]))
+                shown.append(line.sequence)
+                lengths.append((piece as NSString).length)
+            }
+            storage.append(text)
         }
     }
 }
@@ -968,5 +1155,118 @@ struct LocalRunLimitsPanel: View {
     private func stopWatching() {
         if let escape { NSEvent.removeMonitor(escape) }
         escape = nil
+    }
+}
+
+/// One workflow of the review: its checkbox, name, file and what starts it,
+/// then its jobs with theirs.
+struct LocalRunLaneRow: View {
+    let lane: CoreLocalRunLane
+    let ticks: Set<String>
+    /// The workflow a chained one follows.
+    let afterTitle: String?
+    let toggleLane: () -> Void
+    let toggleJob: (CoreLocalRunJob) -> Void
+
+    var body: some View {
+        let state = LocalRunTicks.state(of: lane, ticks)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                TickBox(state: state, label: lane.title, action: toggleLane)
+                    .disabled(!LocalRunTicks.tickable(lane))
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        Text(lane.title).font(.system(size: 13, weight: .semibold))
+                        Text(URL(fileURLWithPath: lane.workflowID).lastPathComponent)
+                            .font(.system(size: 11, design: .monospaced)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        Spacer(minLength: 8)
+                        if !lane.event.isEmpty {
+                            Text(lane.event).font(.system(size: 11, design: .monospaced)).foregroundStyle(RunnirTheme.secondaryForeground)
+                                .padding(.horizontal, 6).padding(.vertical, 1)
+                                .overlay(RoundedRectangle(cornerRadius: 5).stroke(RunnirTheme.border))
+                                .help("The event act gets for this workflow")
+                        }
+                    }
+                    Text(detail).font(.system(size: 11))
+                        .foregroundStyle(lane.parseError.isEmpty ? RunnirTheme.secondaryForeground : RunnirTheme.destructive)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            if lane.parseError.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(lane.jobs) { job in jobRow(job) }
+                }
+                .padding(.leading, 28)
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .opacity(state == .off && lane.kind != .direct && lane.kind != .chained ? 0.75 : 1)
+    }
+
+    private var detail: String {
+        if !lane.parseError.isEmpty { return lane.parseError }
+        switch lane.kind {
+        case .outside: return lane.skipped.isEmpty ? "Not started in this scenario" : "Not started in this scenario: \(lane.skipped)"
+        case .manual: return "Started by hand on GitHub"
+        case .chained: return [afterTitle.map { "After \($0) succeeds" }, lane.why.isEmpty ? nil : lane.why].compactMap { $0 }.joined(separator: " · ")
+        case .direct: return lane.why
+        }
+    }
+
+    private func jobRow(_ job: CoreLocalRunJob) -> some View {
+        let ticked = ticks.contains(job.id)
+        let caption: String = switch job.support {
+        case .unsupported: job.reason
+        case .unknown: job.reason
+        case .host: job.skipped.isEmpty ? "\(job.runsOn.joined(separator: ", ")) · on this Mac, in the macOS sandbox" : "Skipped on GitHub: \(job.skipped)"
+        case .supported: job.skipped.isEmpty ? "\(job.runsOn.joined(separator: ", ")) · \(job.image)" : "Skipped on GitHub: \(job.skipped)"
+        }
+        return HStack(alignment: .firstTextBaseline, spacing: 10) {
+            TickBox(state: ticked ? .on : .off, label: job.name.isEmpty ? job.id : job.name) { toggleJob(job) }
+                .disabled(!LocalRunTicks.tickable(job))
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
+                    Text(job.name.isEmpty ? job.id : job.name).font(.system(size: 12, weight: .medium))
+                    if !job.needs.isEmpty {
+                        Text("needs \(job.needs.joined(separator: ", "))").font(.system(size: 11))
+                            .foregroundStyle(RunnirTheme.mutedForeground)
+                    }
+                }
+                Text(caption).font(.system(size: 11))
+                    .foregroundStyle(job.support == .unsupported ? RunnirTheme.mutedForeground : job.support == .host ? RunnirTheme.warning : RunnirTheme.secondaryForeground)
+                    .lineLimit(2)
+            }
+        }
+        .opacity(LocalRunTicks.tickable(job) ? 1 : 0.6)
+    }
+}
+
+/// A checkbox that can be half on: ticked, a dash for some of a group, or
+/// empty.
+struct TickBox: View {
+    let state: LocalRunTicks.State
+    let label: String
+    let action: () -> Void
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 14))
+                .foregroundStyle(state == .off ? RunnirTheme.secondaryForeground : RunnirTheme.primary)
+                .frame(width: 18, height: 18)
+        }
+        .buttonStyle(.hit)
+        .accessibilityLabel(label)
+        .accessibilityValue(state == .on ? "ticked" : state == .mixed ? "partly ticked" : "not ticked")
+        .help(isEnabled ? (state == .off ? "Tick to run" : "Untick") : "Can't run on this Mac")
+    }
+
+    private var symbol: String {
+        switch state {
+        case .on: "checkmark.square.fill"
+        case .mixed: "minus.square.fill"
+        case .off: "square"
+        }
     }
 }

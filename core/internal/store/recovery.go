@@ -216,8 +216,8 @@ func (s *Store) restoreLocal(ctx context.Context, salvaged localData) (int, erro
 		return 0, err
 	}
 	for _, r := range byID {
-		if _, err := tx.ExecContext(ctx, "INSERT OR REPLACE INTO local_runs ("+localColumns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			r.ExecutionID, r.WorkflowPath, r.JobID, r.Event, millis(r.StartedAt), millis(r.FinishedAt), r.State, r.Message, r.ActVersion, r.Engine); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT OR REPLACE INTO local_runs ("+localColumns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			r.ExecutionID, r.Scenario, joinWorkflows(r.Workflows), millis(r.StartedAt), millis(r.FinishedAt), r.State, r.Message, r.ActVersion, r.Engine); err != nil {
 			_ = tx.Rollback()
 			return 0, err
 		}

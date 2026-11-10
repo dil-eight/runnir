@@ -8,10 +8,22 @@ import (
 
 	"runnir/core/internal/events"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
+
+	"google.golang.org/protobuf/proto"
 )
 
+// onePlan is a run of one lane, ci.yml, with every job given ticked.
+func onePlan(jobs ...JobPlan) Plan {
+	for i := range jobs {
+		jobs[i].Selected = true
+	}
+	return Plan{Lanes: []Lane{{WorkflowID: "ci.yml", Kind: Direct, Event: "push", Dispatchable: true, Jobs: jobs}}}
+}
+
+// newRun creates a run of ci.yml's lint and test, its lane started.
 func newRun(o *Outputs, id string) {
-	o.Create(id, "repo", Plan{Jobs: []JobPlan{{ID: "lint", Support: Supported}, {ID: "test", Support: Supported}}}, "0.2.89", false, "OrbStack")
+	o.Create(id, "repo", onePlan(JobPlan{ID: "lint", Support: Supported}, JobPlan{ID: "test", Support: Supported}), "0.2.89", false, "OrbStack")
+	o.startLane(id, "ci.yml", time.Now())
 }
 
 func TestOutputKeepsTheNewestLines(t *testing.T) {
@@ -46,6 +58,22 @@ func TestLongLinesAreCutOnACharacterBoundary(t *testing.T) {
 	}
 	if !strings.Contains(text, "é …") {
 		t.Fatal("cut inside a character")
+	}
+}
+
+// A line or a message that is not UTF-8 would make every later read of the
+// run fail to marshal, so the app could never learn that it finished.
+func TestOutputIsAlwaysValidUTF8(t *testing.T) {
+	o := NewOutputs()
+	newRun(o, "e1")
+	o.update("e1", func(r *run) { r.consume("act \xe2\x9c said", time.Now(), true) })
+	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_FAILED, Message: "failed \xff"})
+	snap, _ := o.Since("e1", 0)
+	if snap.Lines[0].Text != "act � said" || snap.Message != "failed �" {
+		t.Fatalf("line = %q, message = %q", snap.Lines[0].Text, snap.Message)
+	}
+	if _, err := proto.Marshal(&corev1.LocalRunLine{Text: snap.Lines[0].Text}); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -131,8 +159,9 @@ func TestOnlyErrorLinesOnStandardErrorAreErrors(t *testing.T) {
 
 func TestBilledMinutesRoundEachJobUp(t *testing.T) {
 	o := NewOutputs()
-	o.Create("e1", "repo", Plan{Jobs: []JobPlan{{ID: "lint", Support: Supported}, {ID: "test", Support: Supported},
-		{ID: "quick", Support: Supported}, {ID: "macos", Support: Unsupported}, {ID: "never", Support: Supported}}}, "0.2.89", false, "OrbStack")
+	o.Create("e1", "repo", onePlan(JobPlan{ID: "lint", Support: Supported}, JobPlan{ID: "test", Support: Supported},
+		JobPlan{ID: "quick", Support: Supported}, JobPlan{ID: "macos", Support: Unsupported}, JobPlan{ID: "never", Support: Supported}), "0.2.89", false, "OrbStack")
+	o.startLane("e1", "ci.yml", time.Now())
 	start := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
 	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_RUNNING})
 	o.update("e1", func(r *run) {
@@ -158,21 +187,49 @@ func TestBilledMinutesRoundEachJobUp(t *testing.T) {
 
 func TestSummaryOfAFinishedRun(t *testing.T) {
 	o := NewOutputs()
-	o.Create("e1", "repo", Plan{WorkflowID: ".github/workflows/ci.yml", Events: []string{"push", "workflow_dispatch"},
-		Jobs: []JobPlan{{ID: "lint", Name: "Lint", Support: Supported}}}, "0.2.89", false, "OrbStack")
+	plan := onePlan(JobPlan{ID: "lint", Name: "Lint", Support: Supported})
+	plan.Lanes = append(plan.Lanes,
+		Lane{WorkflowID: "core.yml", Kind: Direct, Event: "push", Jobs: []JobPlan{{ID: "lint", Name: "Lint", Support: Supported, Selected: true}, {ID: "slow", Support: Supported}}},
+		Lane{WorkflowID: "notify.yml", Kind: Chained, Event: "workflow_run", After: "core.yml", Jobs: []JobPlan{{ID: "tell", Support: Supported, Selected: true}}})
+	o.Create("e1", "repo", plan, "0.2.89", false, "OrbStack")
 	start := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
 	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_RUNNING})
+	o.startLane("e1", "ci.yml", start)
 	o.update("e1", func(r *run) {
 		r.consume(`{"jobID":"lint","msg":"start"}`, start, false)
 		r.consume(`{"jobID":"lint","jobResult":"success","msg":"done"}`, start.Add(90*time.Second), false)
 	})
+	o.finishLane("e1", "ci.yml", start.Add(95*time.Second))
+	o.startLane("e1", "core.yml", start.Add(100*time.Second))
+	o.update("e1", func(r *run) {
+		r.consume(`{"jobID":"lint","msg":"start"}`, start.Add(100*time.Second), false)
+		r.consume(`{"jobID":"lint","jobResult":"failure","msg":"done"}`, start.Add(130*time.Second), false)
+	})
+	o.finishLane("e1", "core.yml", start.Add(130*time.Second))
+	o.skipLane("e1", "notify.yml", "Not run: core.yml did not succeed")
 	if _, ok := o.Summary("e1"); ok {
 		t.Fatal("a run still going has a summary")
 	}
-	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_SUCCEEDED})
+	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_FAILED})
 	s, ok := o.Summary("e1")
-	if !ok || s.WorkflowID != ".github/workflows/ci.yml" || !s.WholeWorkflow || !s.Dispatchable || len(s.Jobs) != 1 || s.Jobs[0].State != JobSucceeded {
+	if !ok || len(s.Lanes) != 2 {
 		t.Fatalf("summary = %+v, %v", s, ok)
+	}
+	ci, core := s.Lanes[0], s.Lanes[1]
+	if ci.WorkflowID != "ci.yml" || !ci.WholeWorkflow || !ci.Dispatchable || len(ci.Jobs) != 1 || ci.Jobs[0].State != JobSucceeded ||
+		ci.FinishedAt.Sub(ci.StartedAt) != 95*time.Second {
+		t.Fatalf("ci = %+v", ci)
+	}
+	// Jobs of the same id in two workflows are told apart.
+	if core.WorkflowID != "core.yml" || core.WholeWorkflow || core.Jobs[0].State != JobFailed {
+		t.Fatalf("core = %+v", core)
+	}
+	snap, _ := o.Since("e1", 0)
+	if snap.Jobs[2].Workflow != "notify.yml" || snap.Jobs[2].State != JobNotRun || snap.Jobs[2].Reason != "Not run: core.yml did not succeed" {
+		t.Fatalf("notify = %+v", snap.Jobs[2])
+	}
+	if snap.Lines[0].Workflow != "ci.yml" || snap.Lines[2].Workflow != "core.yml" {
+		t.Fatalf("lines = %+v", snap.Lines)
 	}
 	if BilledJobMinutes(90*time.Second) != 2 || BilledJobMinutes(0) != 1 || BilledJobMinutes(time.Minute) != 1 {
 		t.Fatal("billed job minutes do not round up to at least one")

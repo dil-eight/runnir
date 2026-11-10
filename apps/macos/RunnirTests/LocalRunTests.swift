@@ -6,13 +6,21 @@ import Testing
 @MainActor
 @Suite(.timeLimit(.minutes(1)))
 struct LocalRunTests {
+    static let ci = ".github/workflows/ci.yml"
+
     private func plan(blockers: [String] = []) -> CoreLocalRunPlan {
-        CoreLocalRunPlan(workflowID: ".github/workflows/ci.yml", workflowName: "CI", events: ["push", "workflow_dispatch"], event: "push",
-                         jobID: "lint",
-                         jobs: [CoreLocalRunJob(id: "lint", runsOn: ["ubuntu-latest"], image: "catthehacker/ubuntu:act-latest", support: .supported),
-                                CoreLocalRunJob(id: "ios", runsOn: ["macos-latest"], support: .unsupported, reason: "Not supported locally: macOS runner")],
-                         blockers: blockers, cpus: 4, memoryBytes: 8 << 30, timeoutSeconds: 1800,
-                         actVersion: "0.2.89", engineName: "OrbStack", engineContext: "orbstack")
+        var plan = CoreLocalRunPlan.oneLane(Self.ci, name: "CI", jobs: [
+            CoreLocalRunJob(id: "lint", runsOn: ["ubuntu-latest"], image: "catthehacker/ubuntu:act-latest", support: .supported, selected: true),
+            CoreLocalRunJob(id: "ios", runsOn: ["macos-latest"], support: .unsupported, reason: "Not supported locally: macOS runner", selected: true),
+        ])
+        plan.blockers = blockers
+        plan.cpus = 4
+        plan.memoryBytes = 8 << 30
+        plan.timeoutSeconds = 1800
+        plan.actVersion = "0.2.89"
+        plan.engineName = "OrbStack"
+        plan.engineContext = "orbstack"
+        return plan
     }
 
     private func prepared(confirmation: String? = "local_1", blockers: [String] = []) -> CorePreparedLocalRun {
@@ -21,7 +29,7 @@ struct LocalRunTests {
 
     private func output(lines: ClosedRange<UInt64>?, phase: CoreLocalRunPhase = .running, state: CoreExecutionState = .running,
                         discarded: Bool = false, jobs: [CoreLocalRunJobStatus] = [], cleanup: String? = nil) -> CoreLocalRunOutput {
-        let made = lines.map { range in range.map { CoreLocalRunLine(sequence: $0, jobID: $0 % 2 == 0 ? "lint" : "", text: "line \($0)", isError: false) } } ?? []
+        let made = lines.map { range in range.map { CoreLocalRunLine(sequence: $0, workflowID: Self.ci, jobID: $0 % 2 == 0 ? "lint" : "", text: "line \($0)", isError: false) } } ?? []
         return CoreLocalRunOutput(executionID: "exec_1", repositoryID: "repo", state: state, phase: phase, lines: made,
                                   discarded: discarded, lastSequence: lines?.upperBound ?? 0, jobs: jobs, plan: plan(),
                                   startedAt: Date(), finishedAt: phase == .finished ? Date() : nil,
@@ -31,7 +39,7 @@ struct LocalRunTests {
     @Test func newRunListsJobsFromThePlan() {
         let run = LocalRunModel(executionID: "exec_1", workspaceID: UUID(), plan: plan())
         #expect(run.jobs.map(\.state) == [.waiting, .unsupported])
-        #expect(run.selectedJobID == "lint")
+        #expect(run.selectedJobID.flatMap(run.job)?.jobID == "lint")
         #expect(!run.isFinished)
     }
 
@@ -51,6 +59,25 @@ struct LocalRunTests {
         #expect(run.discarded)
     }
 
+    @Test func allOutputStaysChosenWhileTheRunReports() {
+        let run = LocalRunModel(executionID: "exec_1", workspaceID: UUID(), plan: plan())
+        run.selectedJobID = nil
+        run.apply(output(lines: 1...3, jobs: [CoreLocalRunJobStatus(workflowID: Self.ci, id: "lint", state: .running)]))
+        run.apply(output(lines: 4...4, phase: .finished, state: .succeeded,
+                         jobs: [CoreLocalRunJobStatus(workflowID: Self.ci, id: "lint", state: .succeeded)]))
+        #expect(run.selectedJobID == nil)
+        #expect(run.visibleText == "line 1\nline 2\nline 3\nline 4")
+        run.selectedJobID = run.jobs.first?.id
+        #expect(run.visibleText == "line 2\nline 4")
+    }
+
+    @Test func aJobTheRunNoLongerHasGivesWayToTheRunningOne() {
+        let run = LocalRunModel(executionID: "exec_1", workspaceID: UUID(), plan: plan())
+        run.selectedJobID = "gone"
+        run.apply(output(lines: 1...2, jobs: [CoreLocalRunJobStatus(workflowID: Self.ci, id: "lint", state: .running)]))
+        #expect(run.selectedJobID.flatMap(run.job)?.jobID == "lint")
+    }
+
     @Test func coreReportedDiscardIsShown() {
         let run = LocalRunModel(executionID: "exec_1", workspaceID: UUID(), plan: plan())
         run.apply(output(lines: 900...905, discarded: true))
@@ -60,13 +87,15 @@ struct LocalRunTests {
     @Test func finishedOutputEndsTheRun() {
         let run = LocalRunModel(executionID: "exec_1", workspaceID: UUID(), plan: plan())
         run.apply(output(lines: nil, phase: .finished, state: .succeeded,
-                         jobs: [CoreLocalRunJobStatus(id: "lint", state: .succeeded), CoreLocalRunJobStatus(id: "ios", state: .unsupported)],
+                         jobs: [CoreLocalRunJobStatus(workflowID: Self.ci, id: "lint", state: .succeeded),
+                                CoreLocalRunJobStatus(workflowID: Self.ci, id: "ios", state: .unsupported)],
                          cleanup: "Cleanup failed"))
         #expect(run.isFinished)
         #expect(run.state == .succeeded)
         #expect(run.exitCode == 0)
         #expect(run.cleanupProblem == "Cleanup failed")
-        #expect(run.job("lint")?.state == .succeeded)
+        #expect(run.jobs.first { $0.jobID == "lint" }?.state == .succeeded)
+        #expect(run.lanes.map(\.lane.workflowID) == [Self.ci] && run.lanes.first?.jobs.count == 2)
     }
 
     @Test func installedActIsUsedOnlyWhenOptedInAndFound() {
@@ -109,14 +138,12 @@ struct LocalRunTests {
 
     @Test func reviewNeedsTrustAndStartsOnce() async throws {
         let (hub, workspace, fake) = await hub { $0.preparedLocalRun = prepared() }
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml",
-                                         jobs: [CoreJob(id: "lint", name: "lint", needs: [])], jobID: "lint", hub: hub,
-                                         useInstalledAct: { true })
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub, useInstalledAct: { true })
         await review.prepare()
         #expect(review.prepared?.confirmationID == "local_1")
-        #expect(review.event == "push")
+        #expect(review.scenario?.title == "Merge into main", "the Core's default scenario is kept")
         #expect(fake.localRunRequests.first?.installed == true)
-        #expect(fake.localRunRequests.first?.jobID == "lint")
+        #expect(fake.localRunRequests.first?.scenario == nil && fake.localRunRequests.first?.selection == nil)
         #expect(!review.canRun)
 
         review.trusted = true
@@ -129,9 +156,45 @@ struct LocalRunTests {
         #expect(run.lines.count == 2)
     }
 
+    @Test func jobsOnThisMacAreConfirmedApartFromTrust() async {
+        var withMac = prepared()
+        var plan = withMac.plan
+        plan.hostJobs = ["CI › app"]
+        withMac = CorePreparedLocalRun(readiness: withMac.readiness, plan: plan, confirmationID: "local_1", expiresAt: Date())
+        let (hub, workspace, _) = await hub { $0.preparedLocalRun = withMac }
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub)
+        await review.prepare()
+        review.trusted = true
+        #expect(review.hostJobs == ["CI › app"] && !review.canRun)
+        review.hostConfirmed = true
+        #expect(review.canRun)
+        // The same jobs planned again keep the answer.
+        await review.prepare()
+        #expect(review.hostConfirmed)
+    }
+
+    @Test func runningMacJobsWithoutTheSandboxIsAskedForAndConfirmedAgain() async {
+        var plan = prepared().plan
+        plan.hostJobs = ["CI › app"]
+        let sandboxed = CorePreparedLocalRun(readiness: FakeCore.readyTools, plan: plan, confirmationID: "local_1", expiresAt: Date())
+        let (hub, workspace, fake) = await hub { $0.preparedLocalRun = sandboxed }
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub)
+        await review.prepare()
+        review.trusted = true
+        review.hostConfirmed = true
+        #expect(!review.runsUnsandboxed && fake.localRunRequests.last?.unsandboxed == false)
+        plan.hostUnsandboxed = true
+        fake.preparedLocalRun = CorePreparedLocalRun(readiness: FakeCore.readyTools, plan: plan, confirmationID: "local_2", expiresAt: Date())
+        await review.setUnsandboxed(true)
+        #expect(fake.localRunRequests.last?.unsandboxed == true && review.runsUnsandboxed)
+        #expect(!review.hostConfirmed && !review.canRun, "the choice is confirmed again")
+        review.hostConfirmed = true
+        #expect(review.canRun)
+    }
+
     @Test func changedLimitsPlanTheRunAgainAndAskForTheConfirmationAgain() async {
         let (hub, workspace, fake) = await hub { $0.preparedLocalRun = prepared() }
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub)
         await review.prepare()
         review.trusted = true
         let asked = CoreLocalRunLimits(cpus: 6, memoryBytes: 6 << 30, timeoutSeconds: 3600)
@@ -150,7 +213,7 @@ struct LocalRunTests {
         #expect(LocalRunText.duration(seconds: 1800) == "30 min")
         #expect(LocalRunText.duration(seconds: 3600) == "1 h")
         #expect(LocalRunText.duration(seconds: 5400) == "1 h 30 min")
-        var plan = CoreLocalRunPlan(workflowID: "ci.yml")
+        var plan = CoreLocalRunPlan()
         plan.cpus = 1
         plan.memoryBytes = 2 << 30
         plan.timeoutSeconds = 7200
@@ -229,7 +292,7 @@ struct LocalRunTests {
         let region = LocalRunValueKey(kind: .variable, name: "REGION")
         let store = InMemoryLocalRunValueStore(values: [workspace: [token: "saved", region: "eu",
                                                                      LocalRunValueKey(kind: .secret, name: "UNRELATED"): "x"]])
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub, values: store)
         await review.prepare()
         #expect(review.saved == [token, region])
         #expect(review.missing == [LocalRunValueKey(kind: .secret, name: "OTHER")])
@@ -253,7 +316,7 @@ struct LocalRunTests {
         let other = LocalRunValueKey(kind: .secret, name: "OTHER")
         let store = InMemoryLocalRunValueStore(values: [workspace: [token: "repository", token.in("production"): "production",
                                                                      region: "eu", region.in("staging"): "staging"]])
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub, values: store)
         await review.prepare()
         #expect(review.saved == [token, region])
         #expect(review.fromEnvironment == [token])
@@ -279,7 +342,7 @@ struct LocalRunTests {
         let region = LocalRunValueKey(kind: .variable, name: "REGION")
         let other = LocalRunValueKey(kind: .secret, name: "OTHER")
         let store = InMemoryLocalRunValueStore(values: [workspace: [token.in("production"): "production", region: "eu"]])
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub, values: store)
         await review.prepare()
         // The Repository's values until the user chooses.
         #expect(review.choosesEnvironment && review.environment == nil)
@@ -301,7 +364,7 @@ struct LocalRunTests {
     @Test func enteredValuesAreSavedWhenAsked() async throws {
         let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
         let store = InMemoryLocalRunValueStore()
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub, values: store)
         await review.prepare()
         let other = LocalRunValueKey(kind: .secret, name: "OTHER")
         review.entered[other] = "typed"
@@ -317,7 +380,7 @@ struct LocalRunTests {
         let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
         let store = InMemoryLocalRunValueStore()
         await store.setFailSaves(true)
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub, values: store)
         await review.prepare()
         review.entered[LocalRunValueKey(kind: .secret, name: "OTHER")] = "typed"
         review.saveEntered = true
@@ -330,7 +393,7 @@ struct LocalRunTests {
     @Test func runWaitsForSavedValuesToBeRead() async throws {
         let (hub, workspace, fake) = await hub { $0.preparedLocalRun = valuesPlan() }
         let store = GatedValueStore(values: [LocalRunValueKey(kind: .secret, name: "NPM_TOKEN"): "saved"])
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub, values: store)
         review.trusted = true
         let preparing = Task { await review.prepare() }
         #expect(await eventually { review.prepared != nil })
@@ -348,7 +411,7 @@ struct LocalRunTests {
         let token = LocalRunValueKey(kind: .secret, name: "NPM_TOKEN")
         let store = InMemoryLocalRunValueStore(values: [workspace: [token: "saved"]])
         await store.setFailReads(true)
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub, values: store)
         await review.prepare()
         #expect(review.refused == [token])
         #expect(review.missing.contains(token))
@@ -359,7 +422,7 @@ struct LocalRunTests {
         let token = LocalRunValueKey(kind: .secret, name: "NPM_TOKEN")
         let region = LocalRunValueKey(kind: .variable, name: "REGION")
         let store = InMemoryLocalRunValueStore(values: [workspace: [token: "saved", region: "eu"]])
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub, values: store)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub, values: store)
         await review.prepare()
         await review.prepare()
         review.trusted = true
@@ -372,15 +435,15 @@ struct LocalRunTests {
 
     @Test func runWithoutNamesSaysNothingIsRead() async {
         let (hub, workspace, _) = await hub { $0.preparedLocalRun = prepared() }
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub)
         await review.prepare()
         #expect(review.runKeys.isEmpty)
-        #expect(review.accessSummary == "None read by this workflow. GitHub token and host environment are not passed")
+        #expect(review.accessSummary == "None read by the ticked jobs. GitHub token and host environment are not passed")
     }
 
     @Test func blockedPlanCannotRun() async {
         let (hub, workspace, fake) = await hub { $0.preparedLocalRun = prepared(confirmation: nil, blockers: ["OrbStack is not running or does not answer."]) }
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub)
         await review.prepare()
         review.trusted = true
         #expect(!review.canRun)
@@ -393,7 +456,7 @@ struct LocalRunTests {
             $0.preparedLocalRun = prepared()
             $0.confirmLocalRunError = .failedPrecondition("the workflow file changed after the review; review the run again")
         }
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub)
         await review.prepare()
         review.trusted = true
         #expect(await review.run() == nil)
@@ -407,7 +470,7 @@ struct LocalRunTests {
             $0.preparedLocalRun = prepared()
             $0.localOutputError = .notFound
         }
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub)
         await review.prepare()
         review.trusted = true
         let run = try #require(await review.run())
@@ -415,12 +478,25 @@ struct LocalRunTests {
         #expect(run.isFinished)
     }
 
+    @Test func readsThatKeepFailingAreShownWithTheReason() async throws {
+        let (hub, workspace, _) = await hub {
+            $0.localOutputError = .remote(code: 13, message: "grpc: error while marshaling: string field contains invalid UTF-8")
+        }
+        let run = LocalRunModel(executionID: "exec_1", workspaceID: workspace, plan: plan())
+        run.pollInterval = .milliseconds(1)
+        run.follow(hub: hub)
+        #expect(await eventually { run.readProblem != nil })
+        #expect(run.readProblem?.hasSuffix("Reason: grpc: error while marshaling: string field contains invalid UTF-8") == true)
+        #expect(!run.isFinished)
+        run.stopFollowing()
+    }
+
     @Test func stopAsksTheCoreOnce() async throws {
         let (hub, workspace, fake) = await hub {
             $0.preparedLocalRun = prepared()
             $0.localOutputs = [output(lines: 1...1)]
         }
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub)
         await review.prepare()
         review.trusted = true
         let run = try #require(await review.run())
@@ -449,8 +525,8 @@ struct LocalRunTests {
             $0.preparedLocalRun = prepared()
             $0.localOutputs = [output(lines: 1...1)]
         }
-        let first = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
-        let second = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        let first = LocalRunReviewModel(workspaceID: workspace, hub: hub)
+        let second = LocalRunReviewModel(workspaceID: workspace, hub: hub)
         await first.prepare()
         await second.prepare()
         first.trusted = true
@@ -470,15 +546,15 @@ struct LocalRunTests {
         #expect(one.title == "Quit Runnir and stop the local run?")
         #expect(one.detail == "ci.yml in mobile-app is still going. Quitting stops it and removes its containers. Runnir does not resume runs.")
         #expect(one.confirmTitle == "Stop and Quit")
-        let two = LocalRunStopPrompt(action: .quit, runs: ["ci.yml in a", "release.yml in b"])
+        let two = LocalRunStopPrompt(action: .quit, runs: ["CI in a", "release.yml in b"])
         #expect(two.title == "Quit Runnir and stop 2 local runs?")
         #expect(two.detail.contains("are still going. Quitting stops them and removes their containers."))
-        #expect(LocalRunStopPrompt(action: .closeWindow, runs: ["ci.yml in a"]).confirmTitle == "Stop Run and Close")
-        #expect(LocalRunStopPrompt(action: .switchWorkspace, runs: ["ci.yml in a"]).title == "Switch workspaces and stop the local run?")
+        #expect(LocalRunStopPrompt(action: .closeWindow, runs: ["CI in a"]).confirmTitle == "Stop Run and Close")
+        #expect(LocalRunStopPrompt(action: .switchWorkspace, runs: ["CI in a"]).title == "Switch workspaces and stop the local run?")
     }
 
     @Test func stopAlertKeepsTheRunOnEscapeAndSpace() {
-        let alert = LocalRunStopPrompt.alert(for: LocalRunStopPrompt(action: .quit, runs: ["ci.yml in a"]))
+        let alert = LocalRunStopPrompt.alert(for: LocalRunStopPrompt(action: .quit, runs: ["CI in a"]))
         #expect(alert.buttons.map(\.title) == ["Stop and Quit", "Cancel"])
         #expect(alert.buttons[0].hasDestructiveAction)
         #expect(alert.buttons[1].keyEquivalent == "\u{1b}")
@@ -504,7 +580,7 @@ struct LocalRunTests {
         let workspace = UUID()
         hub.attach(windowID: window, workspaceID: workspace, path: "/repo/a")
         _ = await eventually { hub.session(for: workspace)?.phase == .ready }
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub)
         await review.prepare()
         review.trusted = true
         let run = try #require(await review.run())
@@ -516,7 +592,7 @@ struct LocalRunTests {
         let (hub, workspace, run) = try await runningHub(window: first)
         #expect(hub.localRunEnding(withWindow: first) === run)
         #expect(hub.activeLocalRuns.count == 1)
-        #expect(hub.describe(run) == "ci.yml in a")
+        #expect(hub.describe(run) == "CI in a")
 
         let second = UUID()
         hub.attach(windowID: second, workspaceID: workspace, path: "/repo/a")
@@ -535,8 +611,8 @@ struct LocalRunTests {
 
         #expect(!desktop.confirmQuitStopsLocalRuns())
         #expect(!desktop.shouldClose(window))
-        #expect(asked == [LocalRunStopPrompt(action: .quit, runs: ["ci.yml in a"]),
-                          LocalRunStopPrompt(action: .closeWindow, runs: ["ci.yml in a"])])
+        #expect(asked == [LocalRunStopPrompt(action: .quit, runs: ["CI in a"]),
+                          LocalRunStopPrompt(action: .closeWindow, runs: ["CI in a"])])
 
         desktop.confirmStoppingLocalRuns = { _ in true }
         #expect(desktop.confirmQuitStopsLocalRuns())
@@ -555,7 +631,7 @@ struct LocalRunTests {
         let workspace = UUID()
         hub.attach(windowID: window, workspaceID: workspace, path: "/repo/a")
         _ = await eventually { hub.session(for: workspace)?.phase == .ready }
-        let review = LocalRunReviewModel(workspaceID: workspace, workflowID: ".github/workflows/ci.yml", jobs: [], hub: hub)
+        let review = LocalRunReviewModel(workspaceID: workspace, hub: hub)
         await review.prepare()
         review.trusted = true
         let run = try #require(await review.run())
@@ -603,4 +679,72 @@ private actor GatedValueStore: LocalRunValueStoring {
     func save(workspaceID: UUID, key: LocalRunValueKey, value: String) async throws {}
     func remove(workspaceID: UUID, key: LocalRunValueKey) async throws {}
     func removeAll(workspaceID: UUID) async throws {}
+}
+
+extension CoreLocalRunPlan {
+    /// A plan of one workflow in the "Merge into main" scenario.
+    static func oneLane(_ workflowID: String, name: String = "", event: String = "push", jobs: [CoreLocalRunJob]) -> CoreLocalRunPlan {
+        let scenario = CoreScenario(kind: .merge, target: "main", title: "Merge into main")
+        return CoreLocalRunPlan(scenarios: [scenario], scenario: scenario, lanes: [
+            CoreLocalRunLane(workflowID: workflowID, workflowName: name, kind: .direct, event: event, why: event,
+                             selected: jobs.contains(where: \.selected), jobs: jobs),
+        ])
+    }
+}
+
+/// Ticking jobs: a job brings what it needs, unticking takes what needs it.
+@Suite struct LocalRunTicksTests {
+    private let lane = CoreLocalRunLane(workflowID: "ci.yml", jobs: [
+        CoreLocalRunJob(id: "lint", support: .supported),
+        CoreLocalRunJob(id: "test", support: .supported, needs: ["lint"]),
+        CoreLocalRunJob(id: "deploy", support: .supported, needs: ["test"]),
+        CoreLocalRunJob(id: "docs", support: .supported),
+        CoreLocalRunJob(id: "ios", support: .unsupported, needs: ["lint"]),
+    ])
+
+    @Test func tickingAJobTicksWhatItNeeds() {
+        #expect(LocalRunTicks.tick("deploy", in: lane, []) == ["deploy", "test", "lint"])
+        #expect(LocalRunTicks.tick("docs", in: lane, ["lint"]) == ["docs", "lint"])
+    }
+
+    @Test func untickingAJobUnticksWhatNeedsIt() {
+        #expect(LocalRunTicks.untick("lint", in: lane, ["lint", "test", "deploy", "docs"]) == ["docs"])
+        #expect(LocalRunTicks.untick("deploy", in: lane, ["lint", "test", "deploy"]) == ["lint", "test"])
+    }
+
+    @Test func aWorkflowsCheckboxTicksAllThatCanRunOrNone() {
+        #expect(LocalRunTicks.state(of: lane, []) == .off)
+        #expect(LocalRunTicks.state(of: lane, ["lint"]) == .mixed)
+        let all = LocalRunTicks.toggle(lane, [])
+        #expect(all == ["lint", "test", "deploy", "docs"], "a job no local image runs is left out")
+        #expect(LocalRunTicks.state(of: lane, all) == .on)
+        #expect(LocalRunTicks.toggle(lane, all).isEmpty)
+        #expect(LocalRunTicks.toggle(lane, ["lint"]).isEmpty, "a partly ticked workflow is unticked")
+        #expect(!LocalRunTicks.tickable(CoreLocalRunLane(workflowID: "x.yml", parseError: "The file has 1 syntax error.")))
+    }
+
+    @Test func aWorkflowsCheckboxLeavesJobsOnThisMacToTheirOwnTicks() {
+        let mixed = CoreLocalRunLane(workflowID: "ci.yml", jobs: [
+            CoreLocalRunJob(id: "lint", support: .supported),
+            CoreLocalRunJob(id: "app", support: .host),
+        ])
+        #expect(LocalRunTicks.toggle(mixed, []) == ["lint"])
+        #expect(LocalRunTicks.state(of: mixed, ["lint"]) == .on)
+        #expect(LocalRunTicks.tickable(mixed.jobs[1]), "a job on this Mac is ticked by hand")
+        let macOnly = CoreLocalRunLane(workflowID: "release.yml", jobs: [CoreLocalRunJob(id: "sign", support: .host)])
+        #expect(LocalRunTicks.toggle(macOnly, []) == ["sign"])
+    }
+
+    @Test func aSelectionOfNothingStillSaysSo() {
+        #expect(CoreLocalRunSelection(jobs: ["b.yml": [], "a.yml": []]).wire.map(\.0) == ["a.yml"])
+        let wire = CoreLocalRunSelection(jobs: ["b.yml": ["z", "a"], "a.yml": []]).wire
+        #expect(wire.count == 1 && wire[0].0 == "b.yml" && wire[0].1 == ["a", "z"])
+    }
+
+    @Test func runAgainAsksForTheRunsScenarioAndTicks() {
+        let plan = CoreLocalRunPlan.oneLane("ci.yml", jobs: [CoreLocalRunJob(id: "lint", support: .supported, selected: true),
+                                                             CoreLocalRunJob(id: "docs", support: .supported)])
+        let again = LocalRunRequest.again(plan)
+        #expect(again.scenario?.kind == .merge && again.selection?.jobs["ci.yml"] == ["lint"])
+    }
 }

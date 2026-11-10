@@ -742,11 +742,10 @@ struct DesktopWorkspaceView: View {
         }
         .sheet(item: Binding(get: { state.localRunRequest }, set: { state.localRunRequest = $0 })) { request in
             if let session, let hub = desktop.core {
-                LocalRunSheet(model: LocalRunReviewModel(workspaceID: workspace.id, workflowID: request.workflowID,
-                                                         jobs: session.workflows.first { $0.id == request.workflowID }?.jobs ?? [],
-                                                         jobID: request.jobID, hub: hub, values: desktop.localRunValues),
+                LocalRunSheet(model: LocalRunReviewModel(workspaceID: workspace.id, scenario: request.scenario, selection: request.selection,
+                                                         hub: hub, values: desktop.localRunValues),
                               repositoryPath: session.path,
-                              unsavedFile: files.isDirty && files.selected?.relativePath == request.workflowID ? files.selected?.name : nil,
+                              unsavedFile: files.isDirty ? files.selected.map { UnsavedWorkflow(path: $0.relativePath, name: $0.name) } : nil,
                               manageValues: { state.selectedSection = .secrets }) { _ in
                     state.selectedSection = .workspace
                     state.workspaceTab = .localRun
@@ -1047,7 +1046,7 @@ struct DesktopWorkspaceView: View {
     @ViewBuilder private var localRunButtons: some View {
         if state.workspaceTab == .localRun, let run = localRun {
             if run.isFinished {
-                Button { state.localRunRequest = LocalRunRequest(workflowID: run.plan.workflowID, jobID: run.plan.jobID.isEmpty ? nil : run.plan.jobID) } label: {
+                Button { state.localRunRequest = .again(run.plan) } label: {
                     Label("Run Again...", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(DesignButtonStyle(primary: true)).disabled(!canValidate)
@@ -1060,11 +1059,9 @@ struct DesktopWorkspaceView: View {
                 .help("Stop act and remove this run's containers")
             }
         } else {
-            Button {
-                if let file = files.selected { state.localRunRequest = LocalRunRequest(workflowID: file.relativePath, jobID: nil) }
-            } label: { Label("Run Locally...", systemImage: "play.fill") }
+            Button { state.localRunRequest = LocalRunRequest() } label: { Label("Run Locally...", systemImage: "play.fill") }
                 .buttonStyle(DesignButtonStyle(primary: true))
-                .disabled(!canValidate || files.selected == nil || localRun.map { !$0.isFinished } == true)
+                .disabled(!canValidate || localRun.map { !$0.isFinished } == true)
                 .help(runLocallyHelp)
         }
     }
@@ -1072,8 +1069,7 @@ struct DesktopWorkspaceView: View {
     private var runLocallyHelp: String {
         if localRun.map({ !$0.isFinished }) == true { return "A local run of this workspace is in progress" }
         if !canValidate { return "Local runs start in Runnir Core, which has not opened this repository yet" }
-        if files.selected == nil { return "Choose a workflow file first" }
-        return "Review tools, compatibility and access, then run this workflow with act"
+        return "Review what a push, a pull request or another scenario starts, then run it with act"
     }
 
     /// Editor and Local run tabs of the Workspace section.

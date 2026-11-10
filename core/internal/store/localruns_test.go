@@ -17,8 +17,8 @@ func TestLocalRunsAreRecordedInAnyOrderAndBounded(t *testing.T) {
 	if err := s.UpdateLocalRun(ctx, "exec_1", LocalRunning, at, ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.RecordLocalRun(ctx, LocalRun{ExecutionID: "exec_1", WorkflowPath: ".github/workflows/ci.yml", JobID: "build",
-		Event: "push", StartedAt: at, State: LocalQueued, ActVersion: "0.2.89", Engine: "OrbStack"}); err != nil {
+	if err := s.RecordLocalRun(ctx, LocalRun{ExecutionID: "exec_1", Scenario: "Pull request → main",
+		Workflows: []string{".github/workflows/ci.yml", ".github/workflows/core.yml"}, StartedAt: at, State: LocalQueued, ActVersion: "0.2.89", Engine: "OrbStack"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.UpdateLocalRun(ctx, "exec_1", LocalSucceeded, at.Add(time.Minute), ""); err != nil {
@@ -29,7 +29,8 @@ func TestLocalRunsAreRecordedInAnyOrderAndBounded(t *testing.T) {
 		t.Fatalf("runs = %v, %v", runs, err)
 	}
 	got := runs[0]
-	if got.State != LocalSucceeded || got.WorkflowPath != ".github/workflows/ci.yml" || got.Engine != "OrbStack" ||
+	if got.State != LocalSucceeded || got.Scenario != "Pull request → main" || len(got.Workflows) != 2 ||
+		got.Workflows[1] != ".github/workflows/core.yml" || got.Engine != "OrbStack" ||
 		!got.FinishedAt.Equal(at.Add(time.Minute)) || !got.StartedAt.Equal(at) {
 		t.Fatalf("run = %+v", got)
 	}

@@ -77,13 +77,14 @@ struct CoreProcessIntegrationTests {
         }
 
         // "jobs: build: {}" has no runs-on, which actionlint's parser reports
-        // as a syntax error: the plan is blocked and has no confirmation.
+        // as a syntax error: the workflow cannot be ticked, so the plan is
+        // blocked and has no confirmation.
         let repository = try await service.openRepository(path: try Self.tempRepository())
-        let prepared = try await service.prepareLocalRun(repositoryID: repository.id, workflowID: ".github/workflows/ci.yml",
-                                                         jobID: nil, event: nil, useInstalledAct: false, limits: nil, resetLimits: false)
+        let prepared = try await service.prepareLocalRun(repositoryID: repository.id, scenario: nil, selection: nil, hostUnsandboxed: false,
+                                                         useInstalledAct: false, limits: nil, resetLimits: false)
         #expect(prepared.confirmationID == nil)
-        #expect(!prepared.plan.blockers.isEmpty)
-        #expect(prepared.plan.blockers.contains { $0.contains("syntax error") })
+        #expect(prepared.plan.blockers.contains("Tick at least one job to run."))
+        #expect(prepared.plan.lanes.first?.parseError.contains("syntax error") == true)
         #expect(prepared.plan.actVersion == readiness.bundledAct.version)
         await supervisor.stop()
     }

@@ -134,7 +134,7 @@ func searchStore(ctx context.Context, st *store.Store, q runsearch.Query, perKin
 		return err
 	}
 	for _, r := range local {
-		if q.MatchFields(0, r.WorkflowPath, r.JobID, r.Event, r.State, strings.TrimSpace(r.Message)) {
+		if q.MatchFields(0, r.Scenario, strings.Join(r.Workflows, " "), r.State, strings.TrimSpace(r.Message)) {
 			hits.LocalRunsMatched++
 			if len(hits.LocalRuns) < perKind {
 				hits.LocalRuns = append(hits.LocalRuns, r)

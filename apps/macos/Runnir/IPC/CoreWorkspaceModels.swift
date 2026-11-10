@@ -264,8 +264,10 @@ struct CoreSearchedPullRequest: Equatable, Identifiable, Sendable {
 struct CoreSearchedLocalRun: Equatable, Identifiable, Sendable {
     let executionID: String
     var id: String { executionID }
-    let workflowPath: String
-    let jobID: String
+    /// The scenario's title: "Pull request → main".
+    let scenario: String
+    /// The workflows it ran, in run order.
+    let workflowPaths: [String]
     /// "queued", "running", "succeeded", "failed", "cancelled" or "interrupted".
     let state: String
     let message: String

@@ -227,6 +227,14 @@ type Lane struct {
 	PullRequest bool
 }
 
+// Event is the event that starts the lane: the first word of Why.
+func (l Lane) Event() string {
+	if fields := strings.Fields(l.Why); len(fields) > 0 {
+		return fields[0]
+	}
+	return ""
+}
+
 // SkippedWorkflow is a workflow the scenario does not start, with the reason.
 type SkippedWorkflow struct {
 	Path, Name, Reason string

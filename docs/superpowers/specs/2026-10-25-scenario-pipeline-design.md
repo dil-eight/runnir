@@ -1,6 +1,6 @@
 # Scenarios: The Pipeline Of A Change, And Running It Locally (B31)
 
-Status: the planner, `GetFlow` and the Overview canvas are built (B32 in the checklist); running a scenario locally (S10, S11 below), "the file changed since", branches matching a pattern target and Review on GitHub for a waiting gate are not. Design approved on 2026-10-25. Backlog: B31 (new, B32 in the checklist) in the [MVP checklist](../../product/mvp-implementation-checklist.md). Builds on the workspace cache and sync of [B26 and B27](2026-10-22-workspace-cache-design.md), the run links of [B30](2026-10-23-run-change-links-design.md), the local runs of B14–B16 with the bundled act ([ADR 0006](../../decisions/0006-bundled-act-for-local-runs.md)) and screens S03, S10 and S11 ([screens and states](../../design/screens-and-states.md)). Context: [gRPC API](../../architecture/grpc-api.md), [workflow intelligence](../../architecture/workflow-intelligence.md) ("model logical pipelines across multiple actual GitHub runs").
+Status: the planner, `GetFlow` and the Overview canvas are built (B32 in the checklist); running a scenario locally is built as decided on 2026-11-08 ([below](#local-scenario-runs-s10-s11)), without gates, tool preparation and local statuses on the canvas; "the file changed since", branches matching a pattern target and Review on GitHub for a waiting gate are not. Design approved on 2026-10-25. Backlog: B31 (new, B32 in the checklist) in the [MVP checklist](../../product/mvp-implementation-checklist.md). Builds on the workspace cache and sync of [B26 and B27](2026-10-22-workspace-cache-design.md), the run links of [B30](2026-10-23-run-change-links-design.md), the local runs of B14–B16 with the bundled act ([ADR 0006](../../decisions/0006-bundled-act-for-local-runs.md)) and screens S03, S10 and S11 ([screens and states](../../design/screens-and-states.md)). Context: [gRPC API](../../architecture/grpc-api.md), [workflow intelligence](../../architecture/workflow-intelligence.md) ("model logical pipelines across multiple actual GitHub runs").
 
 ## Goal
 
@@ -116,55 +116,60 @@ The Workspace's "Pipeline preview" (S09), now "Preview unavailable", shows the o
 
 ## Local Scenario Runs (S10, S11)
 
+Decided on 2026-11-08 and built in this form; it replaces the single-workflow review. Run Locally always runs a scenario: what GitHub would start for the change, or the part of it the user ticks.
+
 ### Review (S10)
 
-**Run locally** prepares the whole scenario in the Core and shows: the lanes in order with their jobs; what will not run here (`runs-on: macos-*`: no local image; skipped); images to download; that no secrets are passed; the gates that will wait; the event (ref, base, head, commit); tool preparation when needed; the trust confirmation, as today.
+- **Header**: "Run locally", then the scenario as a dropdown with the Overview's list and default ("Pull request → main" on a branch, "Push to main" on `main`), and how many workflows and jobs are ticked. Run Locally… in the Workspace opens the same review, whatever file is selected; Run Again opens it with the run's scenario and ticks.
+- **Workflows and jobs**: one row per workflow with a checkbox, its name and file, why the scenario starts it (`pull_request · paths ✓`) and the event act gets; under it its jobs with checkboxes, in the order of their columns, each with its runner or why it cannot run here.
+  - Ticked by default: the workflows the scenario starts (direct, and chained ones after their source) and their jobs that run in the scenario and can run here. Workflows run only by hand and workflows the scenario does not start are listed unticked, dimmed, with the reason ("push only to main"); a tick runs them anyway. Jobs the scenario skips (an `if:` that is false) are unticked with the reason.
+  - Ticking a job ticks the jobs it needs, all the way down; unticking one unticks the jobs that need it. A workflow's checkbox ticks or unticks all its jobs that can run here and shows a dash when some are ticked. A job no local image can run (`macos-*`, Windows) cannot be ticked.
+  - Workflows are independent of one another in a run, except a chained one, which follows its source: unticking the source leaves it ticked, and it then runs without waiting.
+- **The other sections** (tools, compatibility, images, secrets and variables, environment, limits, access, trust) are those of today's review, over every ticked job.
+- **Dropdowns** in the review look like dropdowns: a chevron, a background under the pointer and the hand pointer.
 
 ### Event
 
-The Core writes the event payload and passes it with `--eventpath`, so `github.ref`, `base_ref`, `head_ref` and `github.event.*` are real:
+Each workflow gets the event its row shows: the one that starts it in the scenario, or for a workflow ticked outside the scenario the scenario's event when it reacts to it, else its own first trigger of `push`, `pull_request`, `workflow_dispatch`. The Core writes the event's payload into the run's temporary folder and passes it with `--eventpath`, so `github.ref`, `base_ref`, `head_ref` and `github.event.*` are those of the scenario:
 
-- Pull request: `pull_request`, action `synchronize`, the open pull request's number (0 without one), head and base refs and commits, `draft`.
-- Push: `refs/heads/<branch>`, `before`/`after`, `head_commit`.
+- Pull request: `pull_request` (or `pull_request_target`), action `synchronize`, the open pull request's number (0 without one), head (the current branch and commit) and base refs.
+- Push: `ref` `refs/heads/<branch>`, `before` (the upstream's commit or zeros), `after` and `head_commit` (the commit checked out).
 - Merge into X: a push to `refs/heads/X`. The code is the working tree; the review says that a real merge can differ when X moved on.
-- Tag: `refs/tags/<name>`. Manual: `workflow_dispatch` with the inputs from the form or a preset. Schedule: `schedule`.
+- Tag: a push to `refs/tags/<name>`, or `release` with the tag. Manual: `workflow_dispatch` on the current branch; inputs take their defaults. Schedule: `schedule` on the default branch. Chained: `workflow_run` with the source's name and conclusion `success`.
 
 ### Order
 
-- Lanes run one after another, direct ones in plan order. Inside a lane act runs the jobs by `needs`, independent ones in parallel within the engine's limits (`--concurrent-jobs` = the engine's CPUs, as today's limits).
-- A chained lane starts after its source lane, when the source's result meets its condition (by default success).
-- A failed lane stops only what depends on it: its chained lanes and later gates; independent lanes go on.
-- Manual lanes wait for **▷ Run** once every lane before them has passed (or for **Run anyway**).
+- Workflows run one after another in the review's order, one act each, on a copy of the workflow file holding only the ticked jobs and the jobs they need, written to the run's temporary folder (never into the repository) from the file as reviewed. act runs a workflow's jobs by `needs`, independent ones in parallel.
+- A chained workflow runs after its source only when the source succeeded; otherwise its jobs are "not run" with the reason. A failed workflow stops nothing else.
+- The time limit applies to each workflow. **Stop** stops the current act; the workflows after it do not start.
 
-### Gates
+### macOS Jobs On This Mac
 
-act cannot pause inside a run. A lane with gates runs in two steps:
+Decided on 2026-11-08. act runs jobs in Linux containers; macOS cannot run in a container, so on a Mac a job on a `macos-*` runner runs on the Mac itself (act's host mode, `-P <label>=-self-hosted`), in the macOS sandbox (Seatbelt, `sandbox-exec`), as Codex and Claude Code sandbox commands. Elsewhere such a job stays "not supported locally".
 
-1. A temporary copy of the workflow without the gated jobs and the jobs that need them (written to the run's temporary folder, never into the repository).
-2. **▷ Run** on a gate runs `act --job <gate>` on the real file. act runs the jobs the gate needs again (for example build), because it cannot resume the first run. The review and the gate's button say so.
-
-### Tool Preparation
-
-Parallel jobs that install the same tool version for the first time race on act's shared `act-toolcache` volume (`ENOTEMPTY … /opt/hostedtoolcache`, then `which go` finds nothing). Before a lane's first parallel stage, when two or more of its jobs use `actions/setup-*`:
-
-- The Core builds a temporary workflow with one job: `actions/checkout`, then each distinct `setup-*` step of those jobs (same action, same `with:`, `cache: false`), one after another, on the same runner image.
-- It runs first, shown as "Prepare tools" in the lane. The parallel jobs then find the tools cached.
-- The set (action, version inputs, version files' digests, image) is remembered per repository; a set prepared before is skipped. Clear Cache forgets the sets.
-- If a race still shows in a job's output (the signatures above), the job is marked "tool cache collision" with **Run lane again**.
+- **Ticks**: never ticked by default, and a workflow's checkbox leaves them out unless the workflow has nothing else; the user ticks them one by one. The review then names them in a warning ("… run on this Mac, not in a container") and asks for a confirmation of its own, apart from trusting the workflow.
+- **The sandbox**: everything is allowed but writing outside the run's scratch folder, act's cache and the system's temporary folders; reading the home folder outside the repository (and a worktree's git folders), act's own folder, Node.js and the engine's socket; and the Keychain's services. The network is open. Foundation's home (`CFFIXED_USER_HOME`) and `HOME` are the run's scratch home, so Xcode's DerivedData and caches stay in the run.
+- **Tools**: the steps' PATH is the run's shims, Node.js (found on the PATH or nvm's newest, for JavaScript actions), Homebrew and the system's. Xcode, SwiftPM and the Swift compiler sandbox what they run themselves, which cannot start inside a sandbox: the `xcodebuild` shim adds `-IDEPackageSupportDisableManifestSandbox=YES -IDEPackageSupportDisablePluginExecutionSandbox=YES ENABLE_USER_SCRIPT_SANDBOXING=NO SWIFTC_DISABLE_SANDBOX=YES`, the `swift` shim `--disable-sandbox`; the lane's sandbox is the stricter one.
+- **No root**: a `sudo` shim. `sudo xcode-select -s X` writes `DEVELOPER_DIR` for the next steps instead; any other sudo fails with the reason. A plan whose Mac jobs run sudo says so in a note.
+- **Xcode's tests**: any sandbox around `xcodebuild test` hangs it, even one that allows everything (checked on macOS 27 with Xcode 27.2: the test runner never reaches Xcode), while `swift test` runs. So the `xcodebuild` shim stops `test` and `test-without-building` at once with the reason, and a plan whose Mac jobs run them says so in a note. Checked on runnir's own `ci.yml` job: checkout, the Xcode switch, `setup-go` and the signing scripts pass, `xcodebuild build` builds the app in the sandbox (10 minutes), the unit tests stop there. Without the sandbox the whole job passes on this Mac: the build, 570 unit tests and the static analyzer, in 13 minutes.
+- **Without the sandbox**, decided on 2026-11-08 for `xcodebuild test`: the warning has a box "Run them without the sandbox, for this run only". Ticking it plans the run again (`host_unsandboxed` in the request and the plan, so the confirmation covers it), turns the warning red with what is at stake (everything the user can reach: files, SSH keys, cloud credentials, the Keychain with macOS's own prompts, the network, processes left running; only for workflows the user wrote or reviewed) and asks for the confirmation again. act then runs the lane without `sandbox-exec`, with only the `sudo` shim on the PATH: Xcode's and SwiftPM's own sandboxes work again, and root stays out of reach. Never kept between reviews.
+- **What it does not isolate**, said in the review: this Mac's macOS, Xcode and tools are used, CPU and memory limits do not apply, processes a step leaves running keep running, and steps that need root, another Xcode or the user's signing certificates fail.
+- **Contract**: `LOCAL_JOB_SUPPORT_HOST` and the plan's `host_jobs`. A Mac without `sandbox-exec` blocks such a run.
 
 ### Progress (S11)
 
-The Overview canvas switches to `Local` and shows statuses live; a job opens its output (S11 as today, with the scenario's lanes in its list). **Stop** cancels the current act and every lane not started. One local run record per scenario run, with its lanes, in `local_runs` (200 records as today).
+The Local Run tab lists the run's jobs under their workflows, in run order, each workflow with its state; a job opens its output. The run's record keeps the scenario and its workflows. Run Again reviews the same scenario with the same ticks.
 
-Matrix job names in the local job list are expanded as act reports them (`Native tests (ubuntu-latest)`, not `Native tests (${{ matrix.os }})`).
+### Later
+
+From the design above, not built yet: gates that wait for a click (jobs with `environment:` run at once, as before), tool preparation before parallel jobs, local statuses on the Overview canvas, and a form for `workflow_dispatch` inputs.
 
 ## gRPC Contract (`runnir.core.v1`, changed in place)
 
 - `ListScenarios(repository_id)` → scenarios (kind, target, label, `pattern` and `matching_branches` for pattern targets), the default scenario's id.
 - `GetScenarioFlow(repository_id, scenario)` → `Flow`: changes summary; lanes (workflow path and name, kind `DIRECT|CHAINED|MANUAL`, why it runs, source lane and condition for a chain, parse error, jobs with column, needs, matrix count, gate environment, condition `RUNS|SKIPPED|DEPENDS` with text and reason); skipped workflows with reasons; statuses (source `GITHUB|LOCAL|NONE`, per lane the run id, commit, "other commit" and "file changed" flags, per job the outcome and run job ids, gate waiting).
-- `PrepareScenarioRun(repository_id, scenario, inputs)` → a single-use approval id with the review: lanes with `LocalRunPlan`s, tool preparation, gates, event summary, notes and blockers.
-- `ConfirmScenarioRun(approval_id)` → an execution id. `ReleaseScenarioGate(execution_id, workflow_path, job_id)` runs a gate or a manual lane. `RunScenarioLaneAgain(execution_id, workflow_path)`. `CancelExecution` stops it.
-- `GetLocalRunOutput` gains the lanes of a scenario run (state per lane, "waiting for you" per gate).
+- Built on 2026-11-08 in place of `PrepareScenarioRun` and `ConfirmScenarioRun`: `PrepareLocalRun(repository_id, scenario, selection)` plans a scenario (unset: the default) with the ticked jobs per workflow (empty: the default ticks). Its `LocalRunPlan` carries the scenarios, the scenario, and one `LocalRunLane` per workflow (path, name, event, why or why not, in the scenario or not, the lane it follows, ticked, parse error, jobs with needs, ticked and the reason the scenario skips them), then the images, values, environment, limits, notes and blockers over the ticked jobs. `ConfirmLocalRun` is unchanged. `GetLocalRunOutput`'s jobs and lines name their workflow.
+- Later, with gates: `ReleaseScenarioGate(execution_id, workflow_path, job_id)` runs a gate or a manual lane; `RunScenarioLaneAgain(execution_id, workflow_path)`.
 
 ## App (Swift)
 
@@ -172,7 +177,7 @@ Matrix job names in the local job list are expanded as act reports them (`Native
 
 ## Design
 
-`docs/design/runnir.pen`: the S03 frames are redrawn (the one with CHECK/BUILD/ARCHIVE/DEPLOY stages and GitLab-style manual jobs goes): Pull request → main (default), Merge into main, Manual section, skipped workflows and conditions, offline with saved statuses, and a local scenario run in progress with a gate waiting; S10 for a scenario with tool preparation and a gate. New frames go into the journey rows A–F (settings last).
+`docs/design/runnir.pen`: the S03 frames are redrawn (the one with CHECK/BUILD/ARCHIVE/DEPLOY stages and GitLab-style manual jobs goes): Pull request → main (default), Merge into main, Manual section, skipped workflows and conditions, offline with saved statuses, and a local scenario run in progress with a gate waiting; S10 for a scenario with tool preparation and a gate. New frames go into the journey rows A–F (settings last). Drawn on 2026-11-08 for local runs as built, in journey E: S10 with the scenario, its workflows and jobs ticked and those it leaves out, S10 with the scenario menu open, S11 with a scenario's workflows one after another; the single-workflow review and run frames they replace were removed, and the other S10 frames got the scenario line in place of the workflow, job and event.
 
 ## Error Handling
 

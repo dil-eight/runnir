@@ -11,65 +11,105 @@ import (
 	"runnir/core/internal/flow"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
+	"runnir/core/internal/repository"
 	"runnir/core/internal/store"
 	"runnir/core/internal/tools"
 )
+
+// scenarioSetup is a scenario of the current branch, planned, with what
+// was read to plan it.
+type scenarioSetup struct {
+	workflows      []flow.Workflow
+	repo           flow.Repo
+	git            flow.Git
+	head           string
+	saved          store.Activity
+	headRepository string
+	// pullRequest is the branch's open pull request, when there is one.
+	pullRequest    github.RepositoryPullRequest
+	hasPullRequest bool
+	scenarios      []flow.Scenario
+	// chosen is planned only when planned is true: the workflows react to
+	// at least one scenario.
+	chosen  flow.Scenario
+	planned bool
+	changes flow.Changes
+	plan    flow.Flow
+}
+
+// planScenario reads the repository's workflows and git state and plans
+// the scenario asked for, or the branch's default one.
+func (s *service) planScenario(ctx context.Context, info repository.Info, requested *corev1.Scenario) (scenarioSetup, error) {
+	var out scenarioSetup
+	workflows, err := flow.ReadWorkflows(info.Path)
+	if err != nil {
+		return out, status.Error(codes.PermissionDenied, "the workflow files could not be read")
+	}
+	out.workflows = workflows
+	repo := flow.Repo{CurrentBranch: info.Branch}
+	if rt, ok := s.workspaces.ForRepository(info.ID); ok {
+		if a, err := rt.Saved(ctx); err == nil {
+			out.saved = a
+		}
+	}
+	repo.DefaultBranch = out.saved.DefaultBranch
+	if repo.DefaultBranch == "" {
+		repo.DefaultBranch = "main"
+	}
+	git := flow.Git{Path: s.git(), Root: info.Path}
+	out.git, out.head = git, git.Head(ctx)
+	// The branch's pull request, and where its head comes from: the
+	// repository itself or the user's fork.
+	out.headRepository = out.saved.Source.Repository
+	if p, ok := branchPullRequest(out.saved.PullRequests, repo.CurrentBranch, out.saved.Source.Repository, out.head, git.UpstreamHead(ctx)); ok {
+		repo.PullRequestBase = p.BaseRef
+		out.pullRequest, out.hasPullRequest = p, true
+		if p.HeadRepository != "" {
+			out.headRepository = p.HeadRepository
+		}
+	}
+	out.scenarios = flow.Scenarios(workflows, repo)
+	chosen, ok := scenarioOf(requested)
+	if !ok {
+		if len(out.scenarios) == 0 {
+			out.repo = repo
+			return out, nil
+		}
+		chosen = out.scenarios[0]
+	}
+	out.changes = git.ChangesFor(ctx, chosen, repo)
+	if chosen.Kind == flow.Push && repo.PullRequestBase != "" {
+		repo.PullRequestChanges = git.ChangesFor(ctx, flow.Scenario{Kind: flow.PullRequest, Target: repo.PullRequestBase}, repo)
+	}
+	out.repo, out.chosen, out.planned = repo, chosen, true
+	out.plan = flow.Plan(chosen, workflows, repo, out.changes)
+	return out, nil
+}
 
 func (s *service) GetFlow(ctx context.Context, request *corev1.GetFlowRequest) (*corev1.GetFlowResponse, error) {
 	info, err := s.repositories.Get(request.GetRepositoryId())
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	workflows, err := flow.ReadWorkflows(info.Path)
+	setup, err := s.planScenario(ctx, info, request.GetScenario())
 	if err != nil {
-		return nil, status.Error(codes.PermissionDenied, "the workflow files could not be read")
+		return nil, err
 	}
-	repo := flow.Repo{CurrentBranch: info.Branch}
-	var saved store.Activity
-	if rt, ok := s.workspaces.ForRepository(request.GetRepositoryId()); ok {
-		if a, err := rt.Saved(ctx); err == nil {
-			saved = a
-		}
-	}
-	repo.DefaultBranch = saved.DefaultBranch
-	if repo.DefaultBranch == "" {
-		repo.DefaultBranch = "main"
-	}
-	git := flow.Git{Path: s.git(), Root: info.Path}
-	head := git.Head(ctx)
-	// The branch's pull request, and where its head comes from: the
-	// repository itself or the user's fork.
-	headRepository := saved.Source.Repository
-	if p, ok := branchPullRequest(saved.PullRequests, repo.CurrentBranch, saved.Source.Repository, head, git.UpstreamHead(ctx)); ok {
-		repo.PullRequestBase = p.BaseRef
-		if p.HeadRepository != "" {
-			headRepository = p.HeadRepository
-		}
-	}
-	scenarios := flow.Scenarios(workflows, repo)
 	out := &corev1.GetFlowResponse{}
-	for _, sc := range scenarios {
+	for _, sc := range setup.scenarios {
 		out.Scenarios = append(out.Scenarios, scenarioMessage(sc))
 	}
-	chosen, ok := scenarioOf(request.GetScenario())
-	if !ok {
-		if len(scenarios) == 0 {
-			return out, nil
-		}
-		chosen = scenarios[0]
+	if !setup.planned {
+		return out, nil
 	}
-	changes := git.ChangesFor(ctx, chosen, repo)
+	chosen, repo, git, head, saved, plan, changes := setup.chosen, setup.repo, setup.git, setup.head, setup.saved, setup.plan, setup.changes
 	pullRequest := flow.Scenario{Kind: flow.PullRequest, Target: repo.PullRequestBase}
-	if chosen.Kind == flow.Push && repo.PullRequestBase != "" {
-		repo.PullRequestChanges = git.ChangesFor(ctx, pullRequest, repo)
-	}
-	plan := flow.Plan(chosen, workflows, repo, changes)
-	match := laneRuns{scenario: chosen, repo: repo, headRepository: headRepository}
+	match := laneRuns{scenario: chosen, repo: repo, headRepository: setup.headRepository}
 	if chosen.Kind == flow.Tag {
 		match.tags = git.Tags(ctx)
 	}
 	byPath := map[string]flow.Workflow{}
-	for _, w := range workflows {
+	for _, w := range setup.workflows {
 		byPath[w.Path] = w
 	}
 	out.Scenario = scenarioMessage(chosen)

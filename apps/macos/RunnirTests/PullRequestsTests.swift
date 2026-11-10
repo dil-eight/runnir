@@ -226,8 +226,8 @@ struct RunNotificationTests {
     }
 
     @Test func aLocalRunReportsOnceWhenItFinishes() throws {
-        let plan = CoreLocalRunPlan(workflowID: ".github/workflows/ci.yml", workflowName: "CI", jobID: "test",
-                                    jobs: [CoreLocalRunJob(id: "test", name: "test", support: .supported)])
+        let plan = CoreLocalRunPlan.oneLane(".github/workflows/ci.yml", name: "CI", jobs: [CoreLocalRunJob(id: "lint", support: .supported),
+                                                                                         CoreLocalRunJob(id: "test", name: "test", support: .supported, selected: true)])
         let run = LocalRunModel(executionID: "e1", workspaceID: UUID(), plan: plan)
         var reports = 0
         run.onFinish = { _ in reports += 1 }
