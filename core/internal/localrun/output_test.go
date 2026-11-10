@@ -8,6 +8,8 @@ import (
 
 	"runnir/core/internal/events"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
+
+	"google.golang.org/protobuf/proto"
 )
 
 // onePlan is a run of one lane, ci.yml, with every job given ticked.
@@ -56,6 +58,22 @@ func TestLongLinesAreCutOnACharacterBoundary(t *testing.T) {
 	}
 	if !strings.Contains(text, "é …") {
 		t.Fatal("cut inside a character")
+	}
+}
+
+// A line or a message that is not UTF-8 would make every later read of the
+// run fail to marshal, so the app could never learn that it finished.
+func TestOutputIsAlwaysValidUTF8(t *testing.T) {
+	o := NewOutputs()
+	newRun(o, "e1")
+	o.update("e1", func(r *run) { r.consume("act \xe2\x9c said", time.Now(), true) })
+	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_FAILED, Message: "failed \xff"})
+	snap, _ := o.Since("e1", 0)
+	if snap.Lines[0].Text != "act � said" || snap.Message != "failed �" {
+		t.Fatalf("line = %q, message = %q", snap.Lines[0].Text, snap.Message)
+	}
+	if _, err := proto.Marshal(&corev1.LocalRunLine{Text: snap.Lines[0].Text}); err != nil {
+		t.Fatal(err)
 	}
 }
 

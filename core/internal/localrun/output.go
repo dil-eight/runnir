@@ -184,7 +184,7 @@ func (o *Outputs) Observe(e events.Event) {
 		r.snap.Phase = PhaseFinished
 		r.snap.FinishedAt = now
 		if e.Message != "" {
-			r.snap.Message = e.Message
+			r.snap.Message = strings.ToValidUTF8(e.Message, "\uFFFD")
 		}
 		cancelled := e.ExecutionState == corev1.ExecutionState_EXECUTION_STATE_CANCELLED
 		for i := range r.snap.Jobs {
@@ -373,7 +373,9 @@ func (o *Outputs) update(executionID string, change func(*run)) {
 
 func (r *run) append(jobID, text string, isError bool) {
 	workflow := r.lane
-	text = mask(text, r.masks)
+	// Every line goes out in a protobuf string, which must be UTF-8: one
+	// broken line would keep the run's output from being read at all.
+	text = strings.ToValidUTF8(mask(text, r.masks), "\uFFFD")
 	if len(text) > MaxLineBytes {
 		cut := MaxLineBytes
 		for cut > 0 && !utf8Start(text[cut]) {
