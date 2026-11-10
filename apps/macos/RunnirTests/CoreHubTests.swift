@@ -645,8 +645,13 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
             return preparedLocalRun
         }
     }
-    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String]) async throws -> CoreExecution {
+    private var _startedBy: [String?] = []
+    /// Who each confirmed run was started by.
+    var startedBy: [String?] { lock.withLock { _startedBy } }
+    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String],
+                         startedBy: String?) async throws -> CoreExecution {
         try lock.withLock {
+            _startedBy.append(startedBy)
             if let confirmLocalRunError { throw confirmLocalRunError }
             guard !_confirmedLocalRuns.contains(confirmationID) else { throw CoreServiceError.failedPrecondition("used") }
             _confirmedLocalRuns.append(confirmationID)

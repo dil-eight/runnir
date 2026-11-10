@@ -7,10 +7,25 @@ struct McpRefusal: Error, Equatable {
     init(_ reason: String) { self.reason = reason }
 }
 
-/// A workspace ready to answer: the window showing it and its workflows.
+/// A workspace ready to answer: the window showing it, its workflows and
+/// its repository in the Core.
 struct McpWorkspaceContext {
     let windowID: UUID
     let workflows: [CoreWorkflow]
+    var repositoryID = ""
+    var branch = ""
+}
+
+/// An MCP client's name as people know it.
+enum McpClientName {
+    static func display(_ name: String) -> String {
+        switch name.lowercased() {
+        case "": "An MCP client"
+        case "claude-code", "claude code": "Claude Code"
+        case "codex", "codex-mcp-client": "Codex"
+        default: name
+        }
+    }
 }
 
 /// What the handler needs from the desktop.
@@ -20,6 +35,16 @@ protocol McpDesktop: AnyObject {
     var localRunValues: any LocalRunValueStoring { get }
     /// The change waiting for Save in a workspace window, if any.
     var mcpPrompt: McpValuesPrompt? { get set }
+    /// The run without the macOS sandbox waiting for Run, if any.
+    var mcpRunPrompt: McpUnsandboxedPrompt? { get set }
+    /// Settings › MCP › Allow actions.
+    var mcpActionsAllowed: Bool { get }
+    /// The hub local runs start through; nil before the Core runs.
+    var mcpHub: CoreHub? { get }
+    /// A window shows the workspace.
+    func mcpIsOpen(_ workspaceID: UUID) -> Bool
+    /// Shows the workspace's local run in the window, as after Run Locally.
+    func mcpShowLocalRun(windowID: UUID)
     /// Opens a window of the workspace when none shows it, brings it to the
     /// front when asked, and waits until the Core has read its workflows.
     func mcpContext(for workspace: WorkspaceRecord, front: Bool) async -> Result<McpWorkspaceContext, McpRefusal>
@@ -107,7 +132,7 @@ final class McpValuesPrompt: Identifiable {
     init(request: CoreMcpRequest, workspace: WorkspaceRecord, windowID: UUID, environment: String?,
          values: [(kind: LocalRunValueKind, name: String, value: String)], saved: Set<LocalRunValueKey>) {
         id = request.id
-        client = request.client.isEmpty ? "An MCP client" : request.client
+        client = McpClientName.display(request.client)
         self.workspace = workspace
         self.windowID = windowID
         self.environment = environment
@@ -180,8 +205,18 @@ final class McpRequestHandler {
         self.promptLifetime = promptLifetime
     }
 
+    static let actionsOff = "Actions are turned off in Runnir › Settings › MCP › Allow actions, so Runnir only answers reading tools."
+
     func answer(_ request: CoreMcpRequest) async -> CoreMcpAnswer {
         guard let desktop else { return .refusal("Runnir is closing.") }
+        if request.tool == .listWorkspaces {
+            return .workspaces(desktop.mcpWorkspaces.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }.map {
+                CoreMcpWorkspace(name: $0.name, path: $0.path, workspaceID: $0.id, open: desktop.mcpIsOpen($0.id))
+            })
+        }
+        if (request.action || request.tool == .setValues || request.tool == .startLocalRun), !desktop.mcpActionsAllowed {
+            return .refusal(Self.actionsOff)
+        }
         let workspace: WorkspaceRecord
         switch McpWorkspaceResolver.resolve(request.repository, in: desktop.mcpWorkspaces) {
         case .success(let found): workspace = found
@@ -195,22 +230,40 @@ final class McpRequestHandler {
             case .failure(let refusal): return .refusal(refusal.reason)
             }
         }
+        let front = request.tool == .setValues || request.start?.macosWithoutSandbox == true
         let context: McpWorkspaceContext
-        switch await desktop.mcpContext(for: workspace, front: request.tool == .setValues) {
+        switch await desktop.mcpContext(for: workspace, front: front) {
         case .success(let found): context = found
         case .failure(let refusal): return .refusal(refusal.reason)
+        }
+        switch request.tool {
+        case .openWorkspace:
+            guard !context.repositoryID.isEmpty else { return .refusal("Runnir Core has not opened \(workspace.name) yet. Try again in a moment.") }
+            return .workspace(CoreMcpOpenedWorkspace(
+                workspace: CoreMcpWorkspace(name: workspace.name, path: workspace.path, workspaceID: workspace.id, open: true),
+                repositoryID: context.repositoryID, branch: context.branch))
+        case .startLocalRun:
+            guard let hub = desktop.mcpHub else { return .refusal("Runnir Core is not running.") }
+            let starter = McpLocalRunStarter(hub: hub, values: desktop.localRunValues, promptLifetime: promptLifetime) { [weak desktop] prompt in
+                desktop?.mcpRunPrompt = prompt
+            }
+            let answer = await starter.start(request.start ?? CoreMcpLocalRunStart(), client: request.client, workspace: workspace,
+                                             windowID: context.windowID, busy: desktop.mcpRunPrompt != nil)
+            if case .started = answer { desktop.mcpShowLocalRun(windowID: context.windowID) }
+            return answer
+        case .listWorkspaces:
+            return .refusal("Runnir could not list its workspaces.")
+        case .listValueSets, .setValues:
+            break
         }
         let model = WorkspaceValuesModel()
         await model.load(workspaceID: workspace.id, workflows: context.workflows, store: desktop.localRunValues)
         if let error = model.error { return .refusal(error) }
         if let environments = await desktop.mcpEnvironments(for: workspace.id) { model.update(environments: environments) }
-
-        switch request.tool {
-        case .listValueSets:
+        if request.tool == .listValueSets {
             return .sets(McpValueSetsBuilder.sets(of: model, workspace: workspace.name))
-        case .setValues:
-            return await set(request, values: values, workspace: workspace, context: context, model: model, desktop: desktop)
         }
+        return await set(request, values: values, workspace: workspace, context: context, model: model, desktop: desktop)
     }
 
     private func set(_ request: CoreMcpRequest, values: [(kind: LocalRunValueKind, name: String, value: String)],

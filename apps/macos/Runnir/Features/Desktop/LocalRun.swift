@@ -163,6 +163,8 @@ final class LocalRunModel {
 
     let executionID: String
     let workspaceID: UUID
+    /// The MCP client that started the run ("claude-code"); nil for the user.
+    private(set) var startedBy: String?
     private(set) var plan: CoreLocalRunPlan
     private(set) var lines: [CoreLocalRunLine] = []
     /// Earlier output was dropped to stay within the bound.
@@ -195,9 +197,10 @@ final class LocalRunModel {
     @ObservationIgnored private var failedReads = 0
     static let failedReadsShown = 10
 
-    init(executionID: String, workspaceID: UUID, plan: CoreLocalRunPlan) {
+    init(executionID: String, workspaceID: UUID, plan: CoreLocalRunPlan, startedBy: String? = nil) {
         self.executionID = executionID
         self.workspaceID = workspaceID
+        self.startedBy = startedBy
         self.plan = plan
         jobs = plan.selectedLanes.flatMap { lane in
             lane.jobs.filter(\.selected).map { job in
@@ -251,6 +254,7 @@ final class LocalRunModel {
         cleanupProblem = output.cleanupProblem
         startedAt = output.startedAt ?? startedAt
         finishedAt = output.finishedAt
+        startedBy = output.startedBy ?? startedBy
         if phase == .finished, !reportedFinish {
             reportedFinish = true
             onFinish?(self)
@@ -569,8 +573,15 @@ final class LocalRunReviewModel {
         await prepare()
     }
 
+    /// Ticks exactly these jobs and plans the run again.
+    func select(_ selection: CoreLocalRunSelection) async {
+        self.selection = selection
+        await prepare()
+    }
+
     /// Starts the reviewed run; nil and `error` when it did not start.
-    func run() async -> LocalRunModel? {
+    /// `startedBy`: the MCP client that starts it; nil for the user.
+    func run(startedBy: String? = nil) async -> LocalRunModel? {
         guard canRun, let prepared else { return nil }
         isStarting = true
         defer { isStarting = false }
@@ -590,7 +601,8 @@ final class LocalRunReviewModel {
                 return nil
             }
         }
-        switch await hub.startLocalRun(workspaceID: workspaceID, prepared: prepared, secrets: secrets, variables: variables) {
+        switch await hub.startLocalRun(workspaceID: workspaceID, prepared: prepared, secrets: secrets, variables: variables,
+                                       startedBy: startedBy) {
         case .started(let model):
             return model
         case .failed(let message):

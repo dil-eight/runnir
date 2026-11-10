@@ -1129,8 +1129,9 @@ final class CoreHub {
 
     /// Starts a reviewed run once with the values for its secrets and
     /// variables, and makes it the workspace's local run.
+    /// `startedBy`: the MCP client that starts it; nil for the user.
     func startLocalRun(workspaceID: UUID, prepared: CorePreparedLocalRun,
-                       secrets: [String: String] = [:], variables: [String: String] = [:]) async -> LocalRunStart {
+                       secrets: [String: String] = [:], variables: [String: String] = [:], startedBy: String? = nil) async -> LocalRunStart {
         guard let confirmationID = prepared.confirmationID else { return .failed("This run can't start yet.") }
         // Another window of this workspace may have started one meanwhile;
         // replacing it would hide a run that keeps going.
@@ -1141,9 +1142,10 @@ final class CoreHub {
             return .failed("Runnir Core is not ready. Nothing was started.")
         }
         do {
-            let execution = try await service.confirmLocalRun(confirmationID: confirmationID, secrets: secrets, variables: variables)
+            let execution = try await service.confirmLocalRun(confirmationID: confirmationID, secrets: secrets, variables: variables,
+                                                              startedBy: startedBy)
             guard let session = sessions[workspaceID] else { return .failed("The workspace was closed.") }
-            let model = LocalRunModel(executionID: execution.id, workspaceID: workspaceID, plan: prepared.plan)
+            let model = LocalRunModel(executionID: execution.id, workspaceID: workspaceID, plan: prepared.plan, startedBy: startedBy)
             let name = (session.path as NSString).lastPathComponent
             model.onFinish = { [weak self] run in self?.onLocalRunFinished?(run, name) }
             session.localRun?.stopFollowing()

@@ -93,7 +93,7 @@ private struct FakeService: CoreServicing {
     func toolReadiness(refresh: Bool) async throws -> CoreToolReadiness { throw CoreServiceError.unavailable }
     func prepareLocalRun(repositoryID: String, scenario: CoreScenario?, selection: CoreLocalRunSelection?, hostUnsandboxed: Bool,
                          useInstalledAct: Bool, limits: CoreLocalRunLimits?, resetLimits: Bool) async throws -> CorePreparedLocalRun { throw CoreServiceError.unavailable }
-    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String]) async throws -> CoreExecution { throw CoreServiceError.unavailable }
+    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String], startedBy: String?) async throws -> CoreExecution { throw CoreServiceError.unavailable }
     func parseEnvFile(content: Data) async throws -> CoreEnvFile { throw CoreServiceError.unavailable }
     func envFiles(repositoryID: String) async throws -> [CoreRepositoryEnvFile] { throw CoreServiceError.unavailable }
     func environments(repositoryID: String) async throws -> [String] { throw CoreServiceError.unavailable }

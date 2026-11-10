@@ -3,7 +3,7 @@ import Testing
 @testable import Runnir
 
 @MainActor
-private final class FakeMcpDesktop: McpDesktop {
+final class FakeMcpDesktop: McpDesktop {
     var mcpWorkspaces: [WorkspaceRecord]
     var workflows: [CoreWorkflow]
     var environments: [String]?
@@ -12,6 +12,15 @@ private final class FakeMcpDesktop: McpDesktop {
     var opened: [(UUID, Bool)] = []
     var contextRefusal: String?
     let windowID = UUID()
+    var mcpRunPrompt: McpUnsandboxedPrompt?
+    var mcpActionsAllowed = true
+    var mcpHub: CoreHub?
+    var openIDs: Set<UUID> = []
+    var shownRuns: [UUID] = []
+    var repositoryID = "repo_1"
+
+    func mcpIsOpen(_ workspaceID: UUID) -> Bool { openIDs.contains(workspaceID) }
+    func mcpShowLocalRun(windowID: UUID) { shownRuns.append(windowID) }
 
     init(workspaces: [WorkspaceRecord], workflows: [CoreWorkflow], environments: [String]? = nil,
          store: any LocalRunValueStoring = InMemoryLocalRunValueStore()) {
@@ -24,7 +33,7 @@ private final class FakeMcpDesktop: McpDesktop {
     func mcpContext(for workspace: WorkspaceRecord, front: Bool) async -> Result<McpWorkspaceContext, McpRefusal> {
         opened.append((workspace.id, front))
         if let contextRefusal { return .failure(McpRefusal(contextRefusal)) }
-        return .success(McpWorkspaceContext(windowID: windowID, workflows: workflows))
+        return .success(McpWorkspaceContext(windowID: windowID, workflows: workflows, repositoryID: repositoryID, branch: "feature"))
     }
 
     func mcpEnvironments(for workspaceID: UUID) async -> [String]? { environments }
@@ -199,6 +208,59 @@ private final class FakeMcpDesktop: McpDesktop {
             return
         }
         #expect(reason.contains("API_KEY"))
+    }
+
+    // MARK: Workspaces and actions
+
+    @Test func workspacesAreListedByNameWithTheOpenOnes() async {
+        let desktop = FakeMcpDesktop(workspaces: [Self.memo, Self.fintropy], workflows: [])
+        desktop.openIDs = [Self.memo.id]
+        let answer = await McpRequestHandler(desktop: desktop).answer(CoreMcpRequest(id: "m", client: "codex", tool: .listWorkspaces,
+                                                                                     repository: "", set: "", secrets: [], variables: []))
+        #expect(answer == .workspaces([
+            CoreMcpWorkspace(name: "fintropy", path: Self.fintropy.path, workspaceID: Self.fintropy.id, open: false),
+            CoreMcpWorkspace(name: "memo-project", path: Self.memo.path, workspaceID: Self.memo.id, open: true),
+        ]))
+        #expect(desktop.opened.isEmpty, "listing opens no window")
+    }
+
+    private func open(_ repository: String, action: Bool) -> CoreMcpRequest {
+        CoreMcpRequest(id: "m", client: "codex", tool: .openWorkspace, repository: repository, set: "", secrets: [], variables: [], action: action)
+    }
+
+    @Test func anOpenedWorkspaceGivesItsRepositoryInTheCore() async {
+        let desktop = FakeMcpDesktop(workspaces: [Self.fintropy], workflows: [])
+        let answer = await McpRequestHandler(desktop: desktop).answer(open("/Users/me/projects/fintropy/apps", action: false))
+        #expect(answer == .workspace(CoreMcpOpenedWorkspace(
+            workspace: CoreMcpWorkspace(name: "fintropy", path: Self.fintropy.path, workspaceID: Self.fintropy.id, open: true),
+            repositoryID: "repo_1", branch: "feature")))
+        #expect(desktop.opened.map(\.1) == [false], "the window opens behind")
+        desktop.repositoryID = ""
+        guard case .refusal(let reason) = await McpRequestHandler(desktop: desktop).answer(open("fintropy", action: false)) else {
+            Issue.record("answered without a repository")
+            return
+        }
+        #expect(reason.contains("has not opened"))
+    }
+
+    @Test func actionsTurnedOffAreRefusedAndReadingGoesOn() async {
+        let desktop = FakeMcpDesktop(workspaces: [Self.fintropy], workflows: Self.workflows)
+        desktop.mcpActionsAllowed = false
+        let handler = McpRequestHandler(desktop: desktop)
+        #expect(await handler.answer(open("fintropy", action: true)) == .refusal(McpRequestHandler.actionsOff))
+        #expect(await handler.answer(set("fintropy", "Repository", secrets: [("A", "x")])) == .refusal(McpRequestHandler.actionsOff))
+        let start = CoreMcpRequest(id: "m", client: "codex", tool: .startLocalRun, repository: "fintropy", set: "", secrets: [], variables: [],
+                                   action: true, start: CoreMcpLocalRunStart())
+        #expect(await handler.answer(start) == .refusal(McpRequestHandler.actionsOff))
+        #expect(desktop.opened.isEmpty, "nothing opened for a refused action")
+        guard case .workspace = await handler.answer(open("fintropy", action: false)) else {
+            Issue.record("reading was refused")
+            return
+        }
+        guard case .sets = await handler.answer(list("fintropy")) else {
+            Issue.record("listing values was refused")
+            return
+        }
     }
 
     private func waitForPrompt(_ desktop: FakeMcpDesktop) async -> McpValuesPrompt? {

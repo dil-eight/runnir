@@ -1087,12 +1087,14 @@ struct GRPCCoreService: CoreServicing {
         )
     }
 
-    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String]) async throws -> CoreExecution {
+    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String],
+                         startedBy: String?) async throws -> CoreExecution {
         let response = try await call {
             try await client.confirmLocalRun(.with {
                 $0.confirmationID = confirmationID
                 $0.secrets = secrets
                 $0.variables = variables
+                $0.startedBy = startedBy ?? ""
             }, options: Self.options(Self.callTimeout))
         }
         return CoreExecution(id: response.execution.executionID, repositoryID: response.execution.repositoryID,
@@ -1164,7 +1166,8 @@ struct GRPCCoreService: CoreServicing {
             finishedAt: response.hasFinishedAt ? response.finishedAt.date : nil,
             exitCode: response.exitCode < 0 ? nil : Int(response.exitCode),
             message: response.message.isEmpty ? nil : response.message,
-            cleanupProblem: response.cleanupProblem.isEmpty ? nil : response.cleanupProblem
+            cleanupProblem: response.cleanupProblem.isEmpty ? nil : response.cleanupProblem,
+            startedBy: response.startedBy.isEmpty ? nil : response.startedBy
         )
     }
 
@@ -1303,16 +1306,55 @@ struct GRPCCoreService: CoreServicing {
                 case .sets(let sets): $0.sets = Self.message(sets)
                 case .saved(let saved): $0.saved = Self.message(saved)
                 case .refusal(let reason): $0.refusal = reason
+                case .workspaces(let workspaces): $0.workspaces = .with { $0.workspaces = workspaces.map(Self.message) }
+                case .workspace(let opened):
+                    $0.workspace = .with {
+                        $0.workspace = Self.message(opened.workspace)
+                        $0.repositoryID = opened.repositoryID
+                        $0.branch = opened.branch
+                    }
+                case .started(let started):
+                    $0.started = .with {
+                        $0.workspace = started.workspace
+                        $0.executionID = started.executionID
+                        $0.passed = started.passed
+                        $0.empty = started.empty
+                        $0.environment = started.environment ?? ""
+                    }
                 }
             }, options: Self.options(Self.callTimeout))
         }
     }
 
     static func map(_ request: Runnir_Core_V1_McpRequest) -> CoreMcpRequest {
-        CoreMcpRequest(id: request.id, client: request.client, tool: request.tool == .setValues ? .setValues : .listValueSets,
-                       repository: request.repository, set: request.set,
-                       secrets: request.secrets.map { CoreMcpValue(name: $0.name, value: $0.value) },
-                       variables: request.variables.map { CoreMcpValue(name: $0.name, value: $0.value) })
+        let tool: CoreMcpTool = switch request.tool {
+        case .setValues: .setValues
+        case .listWorkspaces: .listWorkspaces
+        case .openWorkspace: .openWorkspace
+        case .startLocalRun: .startLocalRun
+        default: .listValueSets
+        }
+        var start: CoreMcpLocalRunStart?
+        if request.hasStart {
+            let asked = request.start
+            start = CoreMcpLocalRunStart(scenario: asked.hasScenario ? map(asked.scenario) : nil,
+                                         workflows: asked.workflows.map { ($0.workflow, $0.jobs) },
+                                         environment: asked.environment.isEmpty ? nil : asked.environment,
+                                         allowMissingValues: asked.allowMissingValues, macosWithoutSandbox: asked.macosWithoutSandbox)
+        }
+        return CoreMcpRequest(id: request.id, client: request.client, tool: tool, repository: request.repository, set: request.set,
+                              secrets: request.secrets.map { CoreMcpValue(name: $0.name, value: $0.value) },
+                              variables: request.variables.map { CoreMcpValue(name: $0.name, value: $0.value) },
+                              action: request.action, start: start)
+    }
+
+    static func message(_ workspace: CoreMcpWorkspace) -> Runnir_Core_V1_McpWorkspace {
+        .with {
+            $0.name = workspace.name
+            $0.path = workspace.path
+            $0.workspaceID = workspace.workspaceID.uuidString.lowercased()
+            $0.open = workspace.open
+        }
     }
 
     static func message(_ sets: CoreMcpValueSets) -> Runnir_Core_V1_McpValueSets {

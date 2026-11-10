@@ -40,6 +40,9 @@ final class DesktopCoordinator {
     private(set) var notice: Notice?
     /// A change an MCP client asks for, waiting for Save in a workspace window.
     var mcpPrompt: McpValuesPrompt?
+    /// A run of macOS jobs without the sandbox an MCP client asks for,
+    /// waiting for Run in a workspace window.
+    var mcpRunPrompt: McpUnsandboxedPrompt?
     @ObservationIgnored private var mcpHandler: McpRequestHandler?
     /// The notice's text. Setting it replaces the notice, Locate included.
     var message: String? {
@@ -1174,6 +1177,14 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
 
 extension DesktopCoordinator: McpDesktop {
     var mcpWorkspaces: [WorkspaceRecord] { snapshot.workspaces }
+    var mcpActionsAllowed: Bool { McpSettings.allowActions }
+    var mcpHub: CoreHub? { core }
+
+    func mcpIsOpen(_ workspaceID: UUID) -> Bool { openCount(workspaceID) > 0 }
+
+    func mcpShowLocalRun(windowID: UUID) {
+        windows[windowID]?.navigate(to: .localRuns)
+    }
 
     func mcpContext(for workspace: WorkspaceRecord, front: Bool) async -> Result<McpWorkspaceContext, McpRefusal> {
         guard let core else { return .failure(McpRefusal("Runnir Core is not running.")) }
@@ -1196,7 +1207,8 @@ extension DesktopCoordinator: McpDesktop {
             if let session = core.session(for: workspace.id) {
                 switch session.phase {
                 case .ready:
-                    return .success(McpWorkspaceContext(windowID: windowID, workflows: session.workflows))
+                    return .success(McpWorkspaceContext(windowID: windowID, workflows: session.workflows,
+                                                        repositoryID: session.coreID ?? "", branch: session.branch))
                 case .failed(let reason):
                     return .failure(McpRefusal("Runnir could not read \(workspace.name): \(reason)"))
                 default:

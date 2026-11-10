@@ -1,10 +1,16 @@
 import Foundation
 
-/// A tool an MCP client called; the app answers it
-/// (docs/superpowers/specs/2026-11-08-mcp-value-sets-design.md).
+/// What the Core asks the app for an MCP tool
+/// (docs/superpowers/specs/2026-11-09-mcp-full-control-design.md).
 enum CoreMcpTool: Equatable, Sendable {
     case listValueSets
     case setValues
+    /// The registered workspaces.
+    case listWorkspaces
+    /// A workspace ready to use: its window opened when none shows it.
+    case openWorkspace
+    /// Start a local run as Run Locally does.
+    case startLocalRun
 }
 
 /// A name and its value from an MCP client. Its description never shows the
@@ -27,6 +33,54 @@ struct CoreMcpRequest: Equatable, Identifiable, Sendable {
     let set: String
     let secrets: [CoreMcpValue]
     let variables: [CoreMcpValue]
+    /// The tool changes something: refused while actions are turned off.
+    var action = false
+    /// For `.startLocalRun`.
+    var start: CoreMcpLocalRunStart?
+}
+
+/// A local run an MCP client asks for.
+struct CoreMcpLocalRunStart: Equatable, Sendable {
+    /// nil: the branch's default scenario.
+    var scenario: CoreScenario?
+    /// The workflows by path, file name or name, each with its job ids;
+    /// empty: what the scenario starts that can run here.
+    var workflows: [(workflow: String, jobs: [String])] = []
+    /// Whose values the run takes when the plan leaves it open.
+    var environment: String?
+    var allowMissingValues = false
+    var macosWithoutSandbox = false
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.scenario == b.scenario && a.environment == b.environment && a.allowMissingValues == b.allowMissingValues
+            && a.macosWithoutSandbox == b.macosWithoutSandbox
+            && a.workflows.map(\.workflow) == b.workflows.map(\.workflow) && a.workflows.map(\.jobs) == b.workflows.map(\.jobs)
+    }
+}
+
+struct CoreMcpWorkspace: Equatable, Sendable {
+    let name: String
+    let path: String
+    let workspaceID: UUID
+    /// A window shows it.
+    let open: Bool
+}
+
+struct CoreMcpOpenedWorkspace: Equatable, Sendable {
+    let workspace: CoreMcpWorkspace
+    /// The Core's id of its repository.
+    let repositoryID: String
+    let branch: String
+}
+
+struct CoreMcpLocalRunStarted: Equatable, Sendable {
+    let workspace: String
+    let executionID: String
+    /// "secrets.API_KEY", "vars.REGION": given a value, and left empty.
+    let passed: [String]
+    let empty: [String]
+    /// The environment whose values the run takes before the Repository's.
+    let environment: String?
 }
 
 enum CoreMcpValueState: Equatable, Sendable {
@@ -70,6 +124,9 @@ struct CoreMcpSaved: Equatable, Sendable {
 enum CoreMcpAnswer: Equatable, Sendable {
     case sets(CoreMcpValueSets)
     case saved(CoreMcpSaved)
+    case workspaces([CoreMcpWorkspace])
+    case workspace(CoreMcpOpenedWorkspace)
+    case started(CoreMcpLocalRunStarted)
     /// Why not, said to the MCP client as it is.
     case refusal(String)
 }

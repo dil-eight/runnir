@@ -704,6 +704,11 @@ struct DesktopWorkspaceView: View {
                 McpValuesPanel(prompt: prompt, store: desktop.localRunValues)
             }
         }
+        .overlay {
+            if let prompt = desktop.mcpRunPrompt, prompt.windowID == windowID {
+                McpRunPanel(prompt: prompt)
+            }
+        }
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: windowID)
         .dropdownHost()

@@ -739,6 +739,10 @@ struct LocalRunView: View {
             Text("\(run.plan.engineName.isEmpty ? "Container engine" : run.plan.engineName) · act \(run.plan.actVersion)\(run.plan.installedAct ? " (installed)" : "")")
                 .font(.system(size: 12, design: .monospaced)).foregroundStyle(RunnirTheme.secondaryForeground)
             Text("No GitHub token injected")
+            if let client = run.startedBy {
+                Label("Started by \(McpClientName.display(client))", systemImage: "terminal")
+                    .help("An agent started this run through Runnir's MCP server")
+            }
             Spacer()
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 Text(timing(now: context.date)).foregroundStyle(RunnirTheme.secondaryForeground)

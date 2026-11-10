@@ -17,6 +17,12 @@ enum McpSettings {
 
     static var helper: URL { Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/runnir-core") }
 
+    /// Settings › MCP › Allow actions: agents may start, stop, dispatch,
+    /// cancel, re-run and save values. On unless the user turned it off.
+    static let allowActionsKey = "mcp.allowActions"
+
+    static var allowActions: Bool { UserDefaults.standard.object(forKey: allowActionsKey) as? Bool ?? true }
+
     /// Where the Runnir plugin (plugins/runnir) starts the server: the same
     /// for every user, so only Runnir in /Applications is reached by it.
     static let pluginHelper = "/Applications/Runnir.app/Contents/Helpers/runnir-core"
@@ -61,6 +67,7 @@ enum McpSettings {
 struct McpSettingsSection: View {
     let hub: CoreHub?
     @State private var copied: String?
+    @AppStorage(McpSettings.allowActionsKey) private var allowActions = true
 
     private var dataDir: String? { try? RunnirSupportDirectory.url().path }
     private var name: String { McpSettings.serverName(for: .current) }
@@ -68,9 +75,19 @@ struct McpSettingsSection: View {
     var body: some View {
         Section("MCP clients") {
             status
-            Text("Claude Code, Codex and other MCP clients can list the secrets and variables local runs of a workspace read, and save values into one of its sets. Runnir asks you to confirm every change in the workspace's window.")
+            Text("Claude Code, Codex and other MCP clients can read your workspaces' workflows, what a scenario starts, runs on GitHub with their jobs and logs, and local runs, and list the values local runs read.")
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                 .fixedSize(horizontal: false, vertical: true)
+            Toggle(isOn: $allowActions) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Allow actions")
+                    Text("Agents can also start and stop local runs, start workflows on GitHub, cancel and re-run runs, and ask to save values, without a click. Runnir still asks you in the workspace's window before saving values and before running macOS jobs without the sandbox. Off: agents can only read.")
+                        .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .toggleStyle(.switch)
+            .handPointer()
         }
         if McpSettings.pluginReaches(build: .current, helper: McpSettings.helper.path) {
             Section("Claude Code") {

@@ -292,7 +292,9 @@ protocol CoreServicing: Sendable {
     /// secrets and variables. Throws `.failedPrecondition` when the
     /// confirmation expired or was used, or the file changed after the
     /// review, and `.invalidArgument` for a name the plan does not read.
-    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String]) async throws -> CoreExecution
+    /// `startedBy`: the MCP client that starts the run; nil for the user.
+    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String],
+                         startedBy: String?) async throws -> CoreExecution
     /// Parses the bytes of a .env file the user chose; values encrypted by
     /// dotenvx are flagged. The Core reads no path for this.
     func parseEnvFile(content: Data) async throws -> CoreEnvFile

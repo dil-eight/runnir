@@ -297,4 +297,6 @@ struct CoreLocalRunOutput: Equatable, Sendable {
     let exitCode: Int?
     let message: String?
     let cleanupProblem: String?
+    /// The MCP client that started the run; nil for the user.
+    var startedBy: String? = nil
 }
