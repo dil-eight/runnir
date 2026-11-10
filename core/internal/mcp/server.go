@@ -1,7 +1,8 @@
 // Package mcp serves Runnir's MCP tools over stdio (JSON-RPC 2.0, one
 // message per line) for MCP clients such as Claude Code and Codex. It is a
-// thin adapter: each tool call goes to the app's Core over McpBridge, and
-// the app answers it (docs/superpowers/specs/2026-11-08-mcp-value-sets-design.md).
+// thin adapter: it lists mcptools.Catalog and sends each tool call to the
+// app's Core over McpBridge, which runs it
+// (docs/superpowers/specs/2026-11-09-mcp-full-control-design.md).
 package mcp
 
 import (
@@ -22,12 +23,12 @@ import (
 	"runnir/core/internal/buildinfo"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/mcpbridge"
+	"runnir/core/internal/mcptools"
 )
 
 // Bridge is the app's Core as `runnir mcp` reaches it.
 type Bridge interface {
-	ListValueSets(context.Context, *corev1.McpBridgeListValueSetsRequest) (*corev1.McpValueSets, error)
-	SetValues(context.Context, *corev1.McpBridgeSetValuesRequest) (*corev1.McpSavedValues, error)
+	CallTool(context.Context, *corev1.McpBridgeCallToolRequest) (*corev1.McpBridgeCallToolResponse, error)
 }
 
 // protocolVersions are the MCP versions this server speaks, newest first.
@@ -35,11 +36,6 @@ var protocolVersions = []string{"2025-11-25", "2025-06-18", "2025-03-26", "2024-
 
 // maxMessage bounds one message: 100 values of 48 KiB fit with room.
 const maxMessage = 16 << 20
-
-const instructions = "Runnir keeps the secrets and variables that local runs of a workspace's GitHub Actions workflows use, " +
-	"in sets: the Repository's and one per environment. Call runnir_list_value_sets first to see each set and which names are missing; " +
-	"then runnir_set_values to save values into one set. Runnir asks the user to confirm every change in its own window, " +
-	"so a call to runnir_set_values waits until they answer."
 
 type request struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -126,7 +122,7 @@ func (s *server) handle(ctx context.Context, line []byte) {
 	case "ping":
 		s.reply(r.ID, struct{}{})
 	case "tools/list":
-		s.reply(r.ID, map[string]any{"tools": tools})
+		s.reply(r.ID, map[string]any{"tools": mcptools.Catalog})
 	case "tools/call":
 		s.call(ctx, r)
 	default:
@@ -173,7 +169,7 @@ func (s *server) initialize(params json.RawMessage) any {
 		"protocolVersion": version,
 		"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
 		"serverInfo":      map[string]any{"name": "runnir", "title": "Runnir", "version": buildinfo.Version},
-		"instructions":    instructions,
+		"instructions":    mcptools.Instructions,
 	}
 }
 
@@ -186,7 +182,7 @@ func (s *server) call(ctx context.Context, r request) {
 		s.fail(r.ID, -32602, "Invalid params")
 		return
 	}
-	if params.Name != listValueSets && params.Name != setValues {
+	if !mcptools.Known(params.Name) {
 		s.fail(r.ID, -32602, "Unknown tool: "+params.Name)
 		return
 	}
@@ -205,12 +201,7 @@ func (s *server) call(ctx context.Context, r request) {
 			s.mu.Unlock()
 			cancel()
 		}()
-		var result any
-		if params.Name == listValueSets {
-			result = s.list(callCtx, client, params.Arguments)
-		} else {
-			result = s.set(callCtx, client, params.Arguments)
-		}
+		result := s.forward(callCtx, client, params.Name, params.Arguments)
 		// A cancelled request gets no answer.
 		if callCtx.Err() != nil && ctx.Err() == nil {
 			return
@@ -219,51 +210,23 @@ func (s *server) call(ctx context.Context, r request) {
 	}()
 }
 
-func (s *server) list(ctx context.Context, client string, arguments json.RawMessage) any {
-	var a listArguments
-	if err := decode(arguments, &a); err != nil {
-		return toolError(err.Error())
+// forward runs a tool in the app's Core and answers its result.
+func (s *server) forward(ctx context.Context, client, name string, arguments json.RawMessage) any {
+	if len(arguments) == 0 || string(arguments) == "null" {
+		arguments = json.RawMessage("{}")
 	}
-	if a.Repository == nil || *a.Repository == "" {
-		return toolError("Name a repository: a registered workspace's folder or its name.")
-	}
-	sets, err := s.bridge.ListValueSets(ctx, &corev1.McpBridgeListValueSetsRequest{Client: client, Repository: *a.Repository})
+	out, err := s.bridge.CallTool(ctx, &corev1.McpBridgeCallToolRequest{Client: client, Tool: name, ArgumentsJson: string(arguments)})
 	if err != nil {
 		return toolError(bridgeMessage(err))
 	}
-	structured := fromSets(sets)
-	text, _ := json.Marshal(structured)
-	return map[string]any{"content": []any{textContent(string(text))}, "structuredContent": structured}
-}
-
-func (s *server) set(ctx context.Context, client string, arguments json.RawMessage) any {
-	var a setArguments
-	if err := decode(arguments, &a); err != nil {
-		return toolError(err.Error())
+	result := map[string]any{"content": []any{textContent(out.GetText())}}
+	if out.GetIsError() {
+		result["isError"] = true
 	}
-	request := &corev1.McpBridgeSetValuesRequest{Client: client}
-	if a.Repository != nil {
-		request.Repository = *a.Repository
+	if structured := out.GetStructuredJson(); structured != "" && json.Valid([]byte(structured)) {
+		result["structuredContent"] = json.RawMessage(structured)
 	}
-	if a.Set != nil {
-		request.Set = *a.Set
-	}
-	var err error
-	if request.Secrets, err = pairs(a.Secrets, "secret"); err != nil {
-		return toolError(err.Error())
-	}
-	if request.Variables, err = pairs(a.Variables, "variable"); err != nil {
-		return toolError(err.Error())
-	}
-	if err := mcpbridge.CheckSet(request); err != nil {
-		return toolError(err.Error())
-	}
-	saved, err := s.bridge.SetValues(ctx, request)
-	if err != nil {
-		return toolError(bridgeMessage(err))
-	}
-	structured, text := fromSaved(saved)
-	return map[string]any{"content": []any{textContent(text)}, "structuredContent": structured}
+	return result
 }
 
 // bridgeMessage says why a call to the app's Core failed, without detail
@@ -276,8 +239,8 @@ func bridgeMessage(err error) string {
 	switch st.Code() {
 	case codes.Unavailable:
 		return mcpbridge.ErrNoApp.Error()
-	case codes.FailedPrecondition, codes.DeadlineExceeded:
-		return st.Message()
+	case codes.DeadlineExceeded:
+		return "Runnir did not answer in time."
 	case codes.Canceled:
 		return "The call was cancelled."
 	case codes.Unimplemented:
@@ -318,27 +281,19 @@ func DialBridge(socketPath string) Bridge { return dialed{path: socketPath} }
 type dialed struct{ path string }
 
 func (d dialed) connect() (*grpc.ClientConn, corev1.McpBridgeClient, error) {
-	conn, err := grpc.NewClient("unix://"+d.path, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient("unix://"+d.path, grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(maxMessage), grpc.MaxCallRecvMsgSize(maxMessage)))
 	if err != nil {
 		return nil, nil, status.Error(codes.Unavailable, fmt.Sprint(err))
 	}
 	return conn, corev1.NewMcpBridgeClient(conn), nil
 }
 
-func (d dialed) ListValueSets(ctx context.Context, r *corev1.McpBridgeListValueSetsRequest) (*corev1.McpValueSets, error) {
+func (d dialed) CallTool(ctx context.Context, r *corev1.McpBridgeCallToolRequest) (*corev1.McpBridgeCallToolResponse, error) {
 	conn, client, err := d.connect()
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
-	return client.ListValueSets(ctx, r)
-}
-
-func (d dialed) SetValues(ctx context.Context, r *corev1.McpBridgeSetValuesRequest) (*corev1.McpSavedValues, error) {
-	conn, client, err := d.connect()
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-	return client.SetValues(ctx, r)
+	return client.CallTool(ctx, r)
 }

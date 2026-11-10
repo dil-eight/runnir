@@ -2,19 +2,25 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
+	"runnir/core/internal/localrun"
 	"runnir/core/internal/mcpbridge"
+	"runnir/core/internal/mcptools"
+	"runnir/core/internal/scanner"
 )
 
 // McpSocketName is the socket `runnir mcp` reaches the app's Core on, in
@@ -25,7 +31,7 @@ const McpSocketName = "mcp.sock"
 // 0600 and, where the platform tells, only for peers of this user. It is
 // left out, with a line in log, when the path is too long for a socket or
 // another Core of the same data folder holds it. stop ends it.
-func startMcp(dataDir string, broker *mcpbridge.Broker, log io.Writer) (stop func()) {
+func startMcp(dataDir string, tools *mcptools.Tools, log io.Writer) (stop func()) {
 	nothing := func() {}
 	if dataDir == "" {
 		return nothing
@@ -57,8 +63,9 @@ func startMcp(dataDir string, broker *mcpbridge.Broker, log io.Writer) (stop fun
 		fmt.Fprintln(log, "mcp: the socket could not be restricted")
 		return nothing
 	}
-	server := grpc.NewServer()
-	corev1.RegisterMcpBridgeServer(server, &mcpBridge{broker: broker})
+	// A call carries up to 100 values of 48 KiB; an answer a bounded log.
+	server := grpc.NewServer(grpc.MaxRecvMsgSize(16 << 20))
+	corev1.RegisterMcpBridgeServer(server, &mcpBridge{tools: tools})
 	done := make(chan struct{})
 	go func() { defer close(done); _ = server.Serve(samePeerUser{listener}) }()
 	return func() {
@@ -87,41 +94,72 @@ func (l samePeerUser) Accept() (net.Conn, error) {
 
 type mcpBridge struct {
 	corev1.UnimplementedMcpBridgeServer
-	broker *mcpbridge.Broker
+	tools *mcptools.Tools
 }
 
-func (m *mcpBridge) ListValueSets(ctx context.Context, request *corev1.McpBridgeListValueSetsRequest) (*corev1.McpValueSets, error) {
-	sets, err := m.broker.List(ctx, request.GetClient(), request.GetRepository())
+// CallTool runs one tool of an MCP client; its refusals are results.
+func (m *mcpBridge) CallTool(ctx context.Context, request *corev1.McpBridgeCallToolRequest) (*corev1.McpBridgeCallToolResponse, error) {
+	result := m.tools.Call(ctx, request.GetClient(), request.GetTool(), json.RawMessage(request.GetArgumentsJson()))
+	out := &corev1.McpBridgeCallToolResponse{Text: result.Text, IsError: result.IsError}
+	if result.Structured != nil {
+		data, err := json.Marshal(result.Structured)
+		if err != nil {
+			return nil, status.Error(codes.Internal, "the result could not be encoded")
+		}
+		out.StructuredJson = string(data)
+	}
+	return out, nil
+}
+
+// mcpCore is the service as the tools use it, with the reads that have no
+// RPC.
+type mcpCore struct{ *service }
+
+func (c mcpCore) WorkflowSource(repositoryID, path string) ([]byte, error) {
+	info, err := c.repositories.Get(repositoryID)
 	if err != nil {
-		return nil, mcpError(err)
+		return nil, err
 	}
-	return sets, nil
+	return scanner.ReadWorkflowFile(info.Path, path)
 }
 
-func (m *mcpBridge) SetValues(ctx context.Context, request *corev1.McpBridgeSetValuesRequest) (*corev1.McpSavedValues, error) {
-	saved, err := m.broker.Set(ctx, request)
-	if err != nil {
-		return nil, mcpError(err)
+// LocalRuns merges the workspace's history with the runs the Core holds:
+// the history knows every run, the Core who started the recent ones.
+func (c mcpCore) LocalRuns(ctx context.Context, repositoryID string, limit int) ([]mcptools.LocalRunSummary, error) {
+	held := map[string]localrun.Snapshot{}
+	for _, snap := range c.localOutputs.Recent(repositoryID) {
+		held[snap.ExecutionID] = snap
 	}
-	return saved, nil
-}
-
-func mcpError(err error) error {
-	var refusal mcpbridge.Refusal
-	switch {
-	case errors.As(err, &refusal):
-		return status.Error(codes.FailedPrecondition, refusal.Error())
-	case errors.Is(err, mcpbridge.ErrNoApp):
-		return status.Error(codes.Unavailable, err.Error())
-	case errors.Is(err, mcpbridge.ErrBusy):
-		return status.Error(codes.FailedPrecondition, err.Error())
-	case errors.Is(err, mcpbridge.ErrTimeout):
-		return status.Error(codes.DeadlineExceeded, err.Error())
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return status.FromContextError(err).Err()
-	default:
-		return status.Error(codes.Internal, "Runnir could not answer")
+	var out []mcptools.LocalRunSummary
+	if rt, ok := c.workspaces.ForRepository(repositoryID); ok {
+		history, err := rt.Store().LocalRuns(ctx, limit)
+		if err != nil {
+			return nil, status.Error(codes.Internal, "the workspace's local runs could not be read")
+		}
+		for _, h := range history {
+			summary := mcptools.LocalRunSummary{ExecutionID: h.ExecutionID, Scenario: h.Scenario, Workflows: h.Workflows,
+				State: h.State, Message: h.Message, StartedAt: h.StartedAt, FinishedAt: h.FinishedAt}
+			if snap, ok := held[h.ExecutionID]; ok {
+				summary.StartedBy = snap.StartedBy
+				delete(held, h.ExecutionID)
+			}
+			out = append(out, summary)
+		}
 	}
+	for _, snap := range held {
+		var workflows []string
+		for _, lane := range snap.Plan.Selected() {
+			workflows = append(workflows, lane.WorkflowID)
+		}
+		out = append(out, mcptools.LocalRunSummary{ExecutionID: snap.ExecutionID, Scenario: snap.Plan.Scenario.Title(), Workflows: workflows,
+			State: strings.ToLower(strings.TrimPrefix(snap.State.String(), "EXECUTION_STATE_")), Message: snap.Message,
+			StartedAt: snap.StartedAt, FinishedAt: snap.FinishedAt, StartedBy: snap.StartedBy})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
 }
 
 // SubscribeMcpRequests streams the calls of MCP clients to the app until

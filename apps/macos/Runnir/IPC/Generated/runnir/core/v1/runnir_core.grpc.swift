@@ -14251,36 +14251,22 @@ internal enum Runnir_Core_V1_McpBridge: Sendable {
     internal static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.McpBridge")
     /// Namespace for method metadata.
     internal enum Method: Sendable {
-        /// Namespace for "ListValueSets" metadata.
-        internal enum ListValueSets: Sendable {
-            /// Request type for "ListValueSets".
-            internal typealias Input = Runnir_Core_V1_McpBridgeListValueSetsRequest
-            /// Response type for "ListValueSets".
-            internal typealias Output = Runnir_Core_V1_McpValueSets
-            /// Descriptor for "ListValueSets".
+        /// Namespace for "CallTool" metadata.
+        internal enum CallTool: Sendable {
+            /// Request type for "CallTool".
+            internal typealias Input = Runnir_Core_V1_McpBridgeCallToolRequest
+            /// Response type for "CallTool".
+            internal typealias Output = Runnir_Core_V1_McpBridgeCallToolResponse
+            /// Descriptor for "CallTool".
             internal static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.McpBridge"),
-                method: "ListValueSets",
-                type: .unary
-            )
-        }
-        /// Namespace for "SetValues" metadata.
-        internal enum SetValues: Sendable {
-            /// Request type for "SetValues".
-            internal typealias Input = Runnir_Core_V1_McpBridgeSetValuesRequest
-            /// Response type for "SetValues".
-            internal typealias Output = Runnir_Core_V1_McpSavedValues
-            /// Descriptor for "SetValues".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
-                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.McpBridge"),
-                method: "SetValues",
+                method: "CallTool",
                 type: .unary
             )
         }
         /// Descriptors for all methods in the "runnir.core.v1.McpBridge" service.
         internal static let descriptors: [GRPCCore.MethodDescriptor] = [
-            ListValueSets.descriptor,
-            SetValues.descriptor
+            CallTool.descriptor
         ]
     }
 }
@@ -14310,41 +14296,23 @@ extension Runnir_Core_V1_McpBridge {
     /// > Source IDL Documentation:
     /// >
     /// > Served only on mcp.sock in the data folder, for `runnir mcp`: the tools
-    /// > of MCP clients, answered by the app. FAILED_PRECONDITION carries a
-    /// > refusal (its message says why); UNAVAILABLE says Runnir is not running.
+    /// > of MCP clients (docs/superpowers/specs/2026-11-09-mcp-full-control-design.md).
+    /// > The Core runs each tool, asking the app what only it knows. A tool's
+    /// > refusal is a result with is_error; UNAVAILABLE says Runnir is not running.
     internal protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
-        /// Handle the "ListValueSets" method.
+        /// Handle the "CallTool" method.
         ///
         /// - Parameters:
-        ///   - request: A streaming request of `Runnir_Core_V1_McpBridgeListValueSetsRequest` messages.
+        ///   - request: A streaming request of `Runnir_Core_V1_McpBridgeCallToolRequest` messages.
         ///   - context: Context providing information about the RPC.
         /// - Throws: Any error which occurred during the processing of the request. Thrown errors
         ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
         ///     to an internal error.
-        /// - Returns: A streaming response of `Runnir_Core_V1_McpValueSets` messages.
-        func listValueSets(
-            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_McpBridgeListValueSetsRequest>,
+        /// - Returns: A streaming response of `Runnir_Core_V1_McpBridgeCallToolResponse` messages.
+        func callTool(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_McpBridgeCallToolRequest>,
             context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_McpValueSets>
-
-        /// Handle the "SetValues" method.
-        ///
-        /// > Source IDL Documentation:
-        /// >
-        /// > Saves values only after the user confirms in Runnir; waits up to five
-        /// > minutes for that.
-        ///
-        /// - Parameters:
-        ///   - request: A streaming request of `Runnir_Core_V1_McpBridgeSetValuesRequest` messages.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A streaming response of `Runnir_Core_V1_McpSavedValues` messages.
-        func setValues(
-            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_McpBridgeSetValuesRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_McpSavedValues>
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_McpBridgeCallToolResponse>
     }
 
     /// Service protocol for the "runnir.core.v1.McpBridge" service.
@@ -14358,41 +14326,23 @@ extension Runnir_Core_V1_McpBridge {
     /// > Source IDL Documentation:
     /// >
     /// > Served only on mcp.sock in the data folder, for `runnir mcp`: the tools
-    /// > of MCP clients, answered by the app. FAILED_PRECONDITION carries a
-    /// > refusal (its message says why); UNAVAILABLE says Runnir is not running.
+    /// > of MCP clients (docs/superpowers/specs/2026-11-09-mcp-full-control-design.md).
+    /// > The Core runs each tool, asking the app what only it knows. A tool's
+    /// > refusal is a result with is_error; UNAVAILABLE says Runnir is not running.
     internal protocol ServiceProtocol: Runnir_Core_V1_McpBridge.StreamingServiceProtocol {
-        /// Handle the "ListValueSets" method.
+        /// Handle the "CallTool" method.
         ///
         /// - Parameters:
-        ///   - request: A request containing a single `Runnir_Core_V1_McpBridgeListValueSetsRequest` message.
+        ///   - request: A request containing a single `Runnir_Core_V1_McpBridgeCallToolRequest` message.
         ///   - context: Context providing information about the RPC.
         /// - Throws: Any error which occurred during the processing of the request. Thrown errors
         ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
         ///     to an internal error.
-        /// - Returns: A response containing a single `Runnir_Core_V1_McpValueSets` message.
-        func listValueSets(
-            request: GRPCCore.ServerRequest<Runnir_Core_V1_McpBridgeListValueSetsRequest>,
+        /// - Returns: A response containing a single `Runnir_Core_V1_McpBridgeCallToolResponse` message.
+        func callTool(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_McpBridgeCallToolRequest>,
             context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_McpValueSets>
-
-        /// Handle the "SetValues" method.
-        ///
-        /// > Source IDL Documentation:
-        /// >
-        /// > Saves values only after the user confirms in Runnir; waits up to five
-        /// > minutes for that.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `Runnir_Core_V1_McpBridgeSetValuesRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A response containing a single `Runnir_Core_V1_McpSavedValues` message.
-        func setValues(
-            request: GRPCCore.ServerRequest<Runnir_Core_V1_McpBridgeSetValuesRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_McpSavedValues>
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_McpBridgeCallToolResponse>
     }
 
     /// Simple service protocol for the "runnir.core.v1.McpBridge" service.
@@ -14404,41 +14354,23 @@ extension Runnir_Core_V1_McpBridge {
     /// > Source IDL Documentation:
     /// >
     /// > Served only on mcp.sock in the data folder, for `runnir mcp`: the tools
-    /// > of MCP clients, answered by the app. FAILED_PRECONDITION carries a
-    /// > refusal (its message says why); UNAVAILABLE says Runnir is not running.
+    /// > of MCP clients (docs/superpowers/specs/2026-11-09-mcp-full-control-design.md).
+    /// > The Core runs each tool, asking the app what only it knows. A tool's
+    /// > refusal is a result with is_error; UNAVAILABLE says Runnir is not running.
     internal protocol SimpleServiceProtocol: Runnir_Core_V1_McpBridge.ServiceProtocol {
-        /// Handle the "ListValueSets" method.
+        /// Handle the "CallTool" method.
         ///
         /// - Parameters:
-        ///   - request: A `Runnir_Core_V1_McpBridgeListValueSetsRequest` message.
+        ///   - request: A `Runnir_Core_V1_McpBridgeCallToolRequest` message.
         ///   - context: Context providing information about the RPC.
         /// - Throws: Any error which occurred during the processing of the request. Thrown errors
         ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
         ///     to an internal error.
-        /// - Returns: A `Runnir_Core_V1_McpValueSets` to respond with.
-        func listValueSets(
-            request: Runnir_Core_V1_McpBridgeListValueSetsRequest,
+        /// - Returns: A `Runnir_Core_V1_McpBridgeCallToolResponse` to respond with.
+        func callTool(
+            request: Runnir_Core_V1_McpBridgeCallToolRequest,
             context: GRPCCore.ServerContext
-        ) async throws -> Runnir_Core_V1_McpValueSets
-
-        /// Handle the "SetValues" method.
-        ///
-        /// > Source IDL Documentation:
-        /// >
-        /// > Saves values only after the user confirms in Runnir; waits up to five
-        /// > minutes for that.
-        ///
-        /// - Parameters:
-        ///   - request: A `Runnir_Core_V1_McpBridgeSetValuesRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A `Runnir_Core_V1_McpSavedValues` to respond with.
-        func setValues(
-            request: Runnir_Core_V1_McpBridgeSetValuesRequest,
-            context: GRPCCore.ServerContext
-        ) async throws -> Runnir_Core_V1_McpSavedValues
+        ) async throws -> Runnir_Core_V1_McpBridgeCallToolResponse
     }
 }
 
@@ -14447,22 +14379,11 @@ extension Runnir_Core_V1_McpBridge {
 extension Runnir_Core_V1_McpBridge.StreamingServiceProtocol {
     internal func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
         router.registerHandler(
-            forMethod: Runnir_Core_V1_McpBridge.Method.ListValueSets.descriptor,
-            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_McpBridgeListValueSetsRequest>(),
-            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_McpValueSets>(),
+            forMethod: Runnir_Core_V1_McpBridge.Method.CallTool.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_McpBridgeCallToolRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_McpBridgeCallToolResponse>(),
             handler: { request, context in
-                try await self.listValueSets(
-                    request: request,
-                    context: context
-                )
-            }
-        )
-        router.registerHandler(
-            forMethod: Runnir_Core_V1_McpBridge.Method.SetValues.descriptor,
-            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_McpBridgeSetValuesRequest>(),
-            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_McpSavedValues>(),
-            handler: { request, context in
-                try await self.setValues(
+                try await self.callTool(
                     request: request,
                     context: context
                 )
@@ -14474,22 +14395,11 @@ extension Runnir_Core_V1_McpBridge.StreamingServiceProtocol {
 // Default implementation of streaming methods from 'StreamingServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension Runnir_Core_V1_McpBridge.ServiceProtocol {
-    internal func listValueSets(
-        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_McpBridgeListValueSetsRequest>,
+    internal func callTool(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_McpBridgeCallToolRequest>,
         context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_McpValueSets> {
-        let response = try await self.listValueSets(
-            request: GRPCCore.ServerRequest(stream: request),
-            context: context
-        )
-        return GRPCCore.StreamingServerResponse(single: response)
-    }
-
-    internal func setValues(
-        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_McpBridgeSetValuesRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_McpSavedValues> {
-        let response = try await self.setValues(
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_McpBridgeCallToolResponse> {
+        let response = try await self.callTool(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -14500,25 +14410,12 @@ extension Runnir_Core_V1_McpBridge.ServiceProtocol {
 // Default implementation of methods from 'ServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension Runnir_Core_V1_McpBridge.SimpleServiceProtocol {
-    internal func listValueSets(
-        request: GRPCCore.ServerRequest<Runnir_Core_V1_McpBridgeListValueSetsRequest>,
+    internal func callTool(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_McpBridgeCallToolRequest>,
         context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_McpValueSets> {
-        return GRPCCore.ServerResponse<Runnir_Core_V1_McpValueSets>(
-            message: try await self.listValueSets(
-                request: request.message,
-                context: context
-            ),
-            metadata: [:]
-        )
-    }
-
-    internal func setValues(
-        request: GRPCCore.ServerRequest<Runnir_Core_V1_McpBridgeSetValuesRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_McpSavedValues> {
-        return GRPCCore.ServerResponse<Runnir_Core_V1_McpSavedValues>(
-            message: try await self.setValues(
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_McpBridgeCallToolResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_McpBridgeCallToolResponse>(
+            message: try await self.callTool(
                 request: request.message,
                 context: context
             ),
@@ -14539,50 +14436,27 @@ extension Runnir_Core_V1_McpBridge {
     /// > Source IDL Documentation:
     /// >
     /// > Served only on mcp.sock in the data folder, for `runnir mcp`: the tools
-    /// > of MCP clients, answered by the app. FAILED_PRECONDITION carries a
-    /// > refusal (its message says why); UNAVAILABLE says Runnir is not running.
+    /// > of MCP clients (docs/superpowers/specs/2026-11-09-mcp-full-control-design.md).
+    /// > The Core runs each tool, asking the app what only it knows. A tool's
+    /// > refusal is a result with is_error; UNAVAILABLE says Runnir is not running.
     internal protocol ClientProtocol: Sendable {
-        /// Call the "ListValueSets" method.
+        /// Call the "CallTool" method.
         ///
         /// - Parameters:
-        ///   - request: A request containing a single `Runnir_Core_V1_McpBridgeListValueSetsRequest` message.
-        ///   - serializer: A serializer for `Runnir_Core_V1_McpBridgeListValueSetsRequest` messages.
-        ///   - deserializer: A deserializer for `Runnir_Core_V1_McpValueSets` messages.
+        ///   - request: A request containing a single `Runnir_Core_V1_McpBridgeCallToolRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_McpBridgeCallToolRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_McpBridgeCallToolResponse` messages.
         ///   - options: Options to apply to this RPC.
         ///   - handleResponse: A closure which handles the response and returns its result to
         ///       the caller. Returning from the closure will cancel the RPC if it hasn't
         ///       already finished.
         /// - Returns: The result of `handleResponse`.
-        func listValueSets<Result>(
-            request: GRPCCore.ClientRequest<Runnir_Core_V1_McpBridgeListValueSetsRequest>,
-            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_McpBridgeListValueSetsRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_McpValueSets>,
+        func callTool<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_McpBridgeCallToolRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_McpBridgeCallToolRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_McpBridgeCallToolResponse>,
             options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_McpValueSets>) async throws -> Result
-        ) async throws -> Result where Result: Sendable
-
-        /// Call the "SetValues" method.
-        ///
-        /// > Source IDL Documentation:
-        /// >
-        /// > Saves values only after the user confirms in Runnir; waits up to five
-        /// > minutes for that.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `Runnir_Core_V1_McpBridgeSetValuesRequest` message.
-        ///   - serializer: A serializer for `Runnir_Core_V1_McpBridgeSetValuesRequest` messages.
-        ///   - deserializer: A deserializer for `Runnir_Core_V1_McpSavedValues` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response and returns its result to
-        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
-        ///       already finished.
-        /// - Returns: The result of `handleResponse`.
-        func setValues<Result>(
-            request: GRPCCore.ClientRequest<Runnir_Core_V1_McpBridgeSetValuesRequest>,
-            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_McpBridgeSetValuesRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_McpSavedValues>,
-            options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_McpSavedValues>) async throws -> Result
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_McpBridgeCallToolResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
     }
 
@@ -14595,8 +14469,9 @@ extension Runnir_Core_V1_McpBridge {
     /// > Source IDL Documentation:
     /// >
     /// > Served only on mcp.sock in the data folder, for `runnir mcp`: the tools
-    /// > of MCP clients, answered by the app. FAILED_PRECONDITION carries a
-    /// > refusal (its message says why); UNAVAILABLE says Runnir is not running.
+    /// > of MCP clients (docs/superpowers/specs/2026-11-09-mcp-full-control-design.md).
+    /// > The Core runs each tool, asking the app what only it knows. A tool's
+    /// > refusal is a result with is_error; UNAVAILABLE says Runnir is not running.
     internal struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
         private let client: GRPCCore.GRPCClient<Transport>
 
@@ -14608,64 +14483,29 @@ extension Runnir_Core_V1_McpBridge {
             self.client = client
         }
 
-        /// Call the "ListValueSets" method.
+        /// Call the "CallTool" method.
         ///
         /// - Parameters:
-        ///   - request: A request containing a single `Runnir_Core_V1_McpBridgeListValueSetsRequest` message.
-        ///   - serializer: A serializer for `Runnir_Core_V1_McpBridgeListValueSetsRequest` messages.
-        ///   - deserializer: A deserializer for `Runnir_Core_V1_McpValueSets` messages.
+        ///   - request: A request containing a single `Runnir_Core_V1_McpBridgeCallToolRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_McpBridgeCallToolRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_McpBridgeCallToolResponse` messages.
         ///   - options: Options to apply to this RPC.
         ///   - handleResponse: A closure which handles the response and returns its result to
         ///       the caller. Returning from the closure will cancel the RPC if it hasn't
         ///       already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func listValueSets<Result>(
-            request: GRPCCore.ClientRequest<Runnir_Core_V1_McpBridgeListValueSetsRequest>,
-            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_McpBridgeListValueSetsRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_McpValueSets>,
+        internal func callTool<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_McpBridgeCallToolRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_McpBridgeCallToolRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_McpBridgeCallToolResponse>,
             options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_McpValueSets>) async throws -> Result = { response in
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_McpBridgeCallToolResponse>) async throws -> Result = { response in
                 try response.message
             }
         ) async throws -> Result where Result: Sendable {
             try await self.client.unary(
                 request: request,
-                descriptor: Runnir_Core_V1_McpBridge.Method.ListValueSets.descriptor,
-                serializer: serializer,
-                deserializer: deserializer,
-                options: options,
-                onResponse: handleResponse
-            )
-        }
-
-        /// Call the "SetValues" method.
-        ///
-        /// > Source IDL Documentation:
-        /// >
-        /// > Saves values only after the user confirms in Runnir; waits up to five
-        /// > minutes for that.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `Runnir_Core_V1_McpBridgeSetValuesRequest` message.
-        ///   - serializer: A serializer for `Runnir_Core_V1_McpBridgeSetValuesRequest` messages.
-        ///   - deserializer: A deserializer for `Runnir_Core_V1_McpSavedValues` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response and returns its result to
-        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
-        ///       already finished.
-        /// - Returns: The result of `handleResponse`.
-        internal func setValues<Result>(
-            request: GRPCCore.ClientRequest<Runnir_Core_V1_McpBridgeSetValuesRequest>,
-            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_McpBridgeSetValuesRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_McpSavedValues>,
-            options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_McpSavedValues>) async throws -> Result = { response in
-                try response.message
-            }
-        ) async throws -> Result where Result: Sendable {
-            try await self.client.unary(
-                request: request,
-                descriptor: Runnir_Core_V1_McpBridge.Method.SetValues.descriptor,
+                descriptor: Runnir_Core_V1_McpBridge.Method.CallTool.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -14678,56 +14518,26 @@ extension Runnir_Core_V1_McpBridge {
 // Helpers providing default arguments to 'ClientProtocol' methods.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension Runnir_Core_V1_McpBridge.ClientProtocol {
-    /// Call the "ListValueSets" method.
+    /// Call the "CallTool" method.
     ///
     /// - Parameters:
-    ///   - request: A request containing a single `Runnir_Core_V1_McpBridgeListValueSetsRequest` message.
+    ///   - request: A request containing a single `Runnir_Core_V1_McpBridgeCallToolRequest` message.
     ///   - options: Options to apply to this RPC.
     ///   - handleResponse: A closure which handles the response and returns its result to
     ///       the caller. Returning from the closure will cancel the RPC if it hasn't
     ///       already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func listValueSets<Result>(
-        request: GRPCCore.ClientRequest<Runnir_Core_V1_McpBridgeListValueSetsRequest>,
+    internal func callTool<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_McpBridgeCallToolRequest>,
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_McpValueSets>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_McpBridgeCallToolResponse>) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
-        try await self.listValueSets(
+        try await self.callTool(
             request: request,
-            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_McpBridgeListValueSetsRequest>(),
-            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_McpValueSets>(),
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-
-    /// Call the "SetValues" method.
-    ///
-    /// > Source IDL Documentation:
-    /// >
-    /// > Saves values only after the user confirms in Runnir; waits up to five
-    /// > minutes for that.
-    ///
-    /// - Parameters:
-    ///   - request: A request containing a single `Runnir_Core_V1_McpBridgeSetValuesRequest` message.
-    ///   - options: Options to apply to this RPC.
-    ///   - handleResponse: A closure which handles the response and returns its result to
-    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
-    ///       already finished.
-    /// - Returns: The result of `handleResponse`.
-    internal func setValues<Result>(
-        request: GRPCCore.ClientRequest<Runnir_Core_V1_McpBridgeSetValuesRequest>,
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_McpSavedValues>) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        try await self.setValues(
-            request: request,
-            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_McpBridgeSetValuesRequest>(),
-            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_McpSavedValues>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_McpBridgeCallToolRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_McpBridgeCallToolResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -14737,7 +14547,7 @@ extension Runnir_Core_V1_McpBridge.ClientProtocol {
 // Helpers providing sugared APIs for 'ClientProtocol' methods.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension Runnir_Core_V1_McpBridge.ClientProtocol {
-    /// Call the "ListValueSets" method.
+    /// Call the "CallTool" method.
     ///
     /// - Parameters:
     ///   - message: request message to send.
@@ -14747,53 +14557,19 @@ extension Runnir_Core_V1_McpBridge.ClientProtocol {
     ///       the caller. Returning from the closure will cancel the RPC if it hasn't
     ///       already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func listValueSets<Result>(
-        _ message: Runnir_Core_V1_McpBridgeListValueSetsRequest,
+    internal func callTool<Result>(
+        _ message: Runnir_Core_V1_McpBridgeCallToolRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_McpValueSets>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_McpBridgeCallToolResponse>) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
-        let request = GRPCCore.ClientRequest<Runnir_Core_V1_McpBridgeListValueSetsRequest>(
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_McpBridgeCallToolRequest>(
             message: message,
             metadata: metadata
         )
-        return try await self.listValueSets(
-            request: request,
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-
-    /// Call the "SetValues" method.
-    ///
-    /// > Source IDL Documentation:
-    /// >
-    /// > Saves values only after the user confirms in Runnir; waits up to five
-    /// > minutes for that.
-    ///
-    /// - Parameters:
-    ///   - message: request message to send.
-    ///   - metadata: Additional metadata to send, defaults to empty.
-    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
-    ///   - handleResponse: A closure which handles the response and returns its result to
-    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
-    ///       already finished.
-    /// - Returns: The result of `handleResponse`.
-    internal func setValues<Result>(
-        _ message: Runnir_Core_V1_McpBridgeSetValuesRequest,
-        metadata: GRPCCore.Metadata = [:],
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_McpSavedValues>) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        let request = GRPCCore.ClientRequest<Runnir_Core_V1_McpBridgeSetValuesRequest>(
-            message: message,
-            metadata: metadata
-        )
-        return try await self.setValues(
+        return try await self.callTool(
             request: request,
             options: options,
             onResponse: handleResponse

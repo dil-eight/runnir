@@ -5,10 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
-	"io"
-	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +17,8 @@ const DefaultWait = 5 * time.Minute
 var (
 	ErrNoApp          = errors.New("Runnir is not running. Open Runnir and try again.")
 	ErrBusy           = errors.New("Runnir is already asking about other values; answer that first, then try again.")
-	ErrTimeout        = errors.New("Nobody answered in Runnir within 5 minutes; nothing was saved.")
+	ErrTimeout        = errors.New("Runnir did not answer within 5 minutes.")
+	ErrSetTimeout     = errors.New("Nobody answered in Runnir within 5 minutes; nothing was saved.")
 	ErrUnknownRequest = errors.New("the request is not waiting")
 )
 
@@ -35,11 +32,10 @@ type pending struct {
 	done chan result
 }
 
-// Broker hands the calls of MCP clients to the app, one subscriber at a
+// Broker hands the questions of MCP tools to the app, one subscriber at a
 // time, and waits for its answers. Safe for concurrent use.
 type Broker struct {
 	wait time.Duration
-	log  io.Writer
 
 	mu         sync.Mutex
 	subscriber chan *corev1.McpRequest
@@ -48,13 +44,12 @@ type Broker struct {
 	closed     bool
 }
 
-// NewBroker waits wait (DefaultWait when 0) for each answer and writes one
-// line per call to log, which may be nil.
-func NewBroker(wait time.Duration, log io.Writer) *Broker {
+// NewBroker waits wait (DefaultWait when 0) for each answer.
+func NewBroker(wait time.Duration) *Broker {
 	if wait <= 0 {
 		wait = DefaultWait
 	}
-	return &Broker{wait: wait, log: log, waiting: map[string]*pending{}}
+	return &Broker{wait: wait, waiting: map[string]*pending{}}
 }
 
 // Subscribe makes the caller the app that answers: requests arrive on the
@@ -122,54 +117,73 @@ func (b *Broker) Answer(a *corev1.AnswerMcpRequestRequest) error {
 	return nil
 }
 
+// Workspaces asks the app for its registered workspaces.
+func (b *Broker) Workspaces(ctx context.Context, client string) (*corev1.McpWorkspaces, error) {
+	answer, err := b.ask(ctx, &corev1.McpRequest{Client: client, Tool: corev1.McpTool_MCP_TOOL_LIST_WORKSPACES})
+	if err != nil {
+		return nil, err
+	}
+	return answered(answer.GetWorkspaces(), answer, "Runnir gave no workspaces.")
+}
+
+// Open asks the app for a workspace ready to use: resolved by its folder or
+// name, its window opened when none shows it. With action, the app refuses
+// while the user turned actions off.
+func (b *Broker) Open(ctx context.Context, client, repository string, action bool) (*corev1.McpOpenedWorkspace, error) {
+	answer, err := b.ask(ctx, &corev1.McpRequest{Client: client, Tool: corev1.McpTool_MCP_TOOL_OPEN_WORKSPACE, Repository: repository, Action: action})
+	if err != nil {
+		return nil, err
+	}
+	return answered(answer.GetWorkspace(), answer, "Runnir gave no workspace.")
+}
+
+// Start asks the app to start a local run as Run Locally does.
+func (b *Broker) Start(ctx context.Context, client, repository string, start *corev1.McpLocalRunStart) (*corev1.McpLocalRunStarted, error) {
+	answer, err := b.ask(ctx, &corev1.McpRequest{Client: client, Tool: corev1.McpTool_MCP_TOOL_START_LOCAL_RUN,
+		Repository: repository, Action: true, Start: start})
+	if err != nil {
+		return nil, err
+	}
+	return answered(answer.GetStarted(), answer, "Runnir gave no answer about the run.")
+}
+
 // List asks the app for a workspace's value sets.
 func (b *Broker) List(ctx context.Context, client, repository string) (*corev1.McpValueSets, error) {
-	request := &corev1.McpRequest{Client: client, Tool: corev1.McpTool_MCP_TOOL_LIST_VALUE_SETS, Repository: repository}
-	answer, err := b.ask(ctx, request)
-	var sets *corev1.McpValueSets
-	if err == nil {
-		sets, err = answer.GetSets(), refusalOf(answer)
-		if err == nil && sets == nil {
-			err = Refusal("Runnir gave no value sets.")
-		}
+	answer, err := b.ask(ctx, &corev1.McpRequest{Client: client, Tool: corev1.McpTool_MCP_TOOL_LIST_VALUE_SETS, Repository: repository})
+	if err != nil {
+		return nil, err
 	}
-	b.record(request, workspaceOf(sets.GetWorkspace(), repository), err, "listed")
-	return sets, err
+	return answered(answer.GetSets(), answer, "Runnir gave no value sets.")
 }
 
 // Set checks a runnir_set_values call, then asks the app to confirm and
 // save it.
-func (b *Broker) Set(ctx context.Context, r *corev1.McpBridgeSetValuesRequest) (*corev1.McpSavedValues, error) {
-	request := &corev1.McpRequest{Client: r.GetClient(), Tool: corev1.McpTool_MCP_TOOL_SET_VALUES,
+func (b *Broker) Set(ctx context.Context, r *corev1.McpRequest) (*corev1.McpSavedValues, error) {
+	request := &corev1.McpRequest{Client: r.GetClient(), Tool: corev1.McpTool_MCP_TOOL_SET_VALUES, Action: true,
 		Repository: r.GetRepository(), Set: r.GetSet(), Secrets: r.GetSecrets(), Variables: r.GetVariables()}
-	if err := CheckSet(r); err != nil {
-		b.record(request, r.GetRepository(), err, "")
+	if err := CheckSet(request); err != nil {
 		return nil, err
 	}
 	answer, err := b.ask(ctx, request)
-	var saved *corev1.McpSavedValues
-	if err == nil {
-		saved, err = answer.GetSaved(), refusalOf(answer)
-		if err == nil && saved == nil {
-			err = Refusal("Runnir gave no answer about the values.")
-		}
+	if errors.Is(err, ErrTimeout) {
+		return nil, ErrSetTimeout
 	}
-	b.record(request, workspaceOf(saved.GetWorkspace(), r.GetRepository()), err, "saved")
-	return saved, err
+	if err != nil {
+		return nil, err
+	}
+	return answered(answer.GetSaved(), answer, "Runnir gave no answer about the values.")
 }
 
-func refusalOf(a *corev1.AnswerMcpRequestRequest) error {
+// answered is the app's answer of the kind asked, or its refusal.
+func answered[T comparable](got T, a *corev1.AnswerMcpRequestRequest, missing string) (T, error) {
+	var none T
 	if refusal, ok := a.GetAnswer().(*corev1.AnswerMcpRequestRequest_Refusal); ok {
-		return Refusal(refusal.Refusal)
+		return none, Refusal(refusal.Refusal)
 	}
-	return nil
-}
-
-func workspaceOf(answered, asked string) string {
-	if answered != "" {
-		return answered
+	if got == none {
+		return none, Refusal(missing)
 	}
-	return asked
+	return got, nil
 }
 
 func (b *Broker) ask(ctx context.Context, request *corev1.McpRequest) (*corev1.AnswerMcpRequestRequest, error) {
@@ -216,36 +230,6 @@ func (b *Broker) forget(id string) {
 	b.mu.Lock()
 	delete(b.waiting, id)
 	b.mu.Unlock()
-}
-
-// record writes one line: the tool, the workspace, the set, the names and
-// the outcome. Never a value.
-func (b *Broker) record(r *corev1.McpRequest, workspace string, err error, success string) {
-	if b.log == nil {
-		return
-	}
-	outcome := success
-	if err != nil {
-		outcome = "refused: " + err.Error()
-	}
-	line := "mcp: list_value_sets " + fmt.Sprintf("%q", workspace)
-	if r.Tool == corev1.McpTool_MCP_TOOL_SET_VALUES {
-		line = fmt.Sprintf("mcp: set_values %q set %q secrets=[%s] variables=[%s]", workspace, r.GetSet(),
-			names(r.GetSecrets()), names(r.GetVariables()))
-	}
-	if r.GetClient() != "" {
-		line += fmt.Sprintf(" client %q", r.GetClient())
-	}
-	fmt.Fprintf(b.log, "%s: %s\n", line, outcome)
-}
-
-func names(values []*corev1.McpValue) string {
-	out := make([]string, 0, len(values))
-	for _, v := range values {
-		out = append(out, v.GetName())
-	}
-	sort.Strings(out)
-	return strings.Join(out, " ")
 }
 
 func newID() string {

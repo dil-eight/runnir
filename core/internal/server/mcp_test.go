@@ -78,24 +78,29 @@ func TestMcpCallsReachTheAppAndItsAnswersComeBack(t *testing.T) {
 			Workspace: "r", Set: r.Set, Secrets: []string{r.Secrets[0].Name}}}}
 	})
 
-	sets, err := bridge.ListValueSets(ctx, &corev1.McpBridgeListValueSetsRequest{Client: "codex", Repository: "/r"})
-	if err != nil || sets.Workspace != "r" || len(sets.Sets) != 1 {
-		t.Fatalf("sets = %v, %v", sets, err)
+	call := func(client, tool, args string) *corev1.McpBridgeCallToolResponse {
+		t.Helper()
+		out, err := bridge.CallTool(ctx, &corev1.McpBridgeCallToolRequest{Client: client, Tool: tool, ArgumentsJson: args})
+		if err != nil {
+			t.Fatalf("%s: %v", tool, err)
+		}
+		return out
 	}
-	saved, err := bridge.SetValues(ctx, &corev1.McpBridgeSetValuesRequest{Client: "codex", Repository: "/r", Set: "production",
-		Secrets: []*corev1.McpValue{{Name: "API_KEY", Value: "s3cr3t"}}})
-	if err != nil || saved.Secrets[0] != "API_KEY" {
-		t.Fatalf("saved = %v, %v", saved, err)
+	sets := call("codex", "runnir_list_value_sets", `{"repository":"/r"}`)
+	if sets.IsError || !strings.Contains(sets.StructuredJson, `"workspace":"r"`) || !strings.Contains(sets.Text, `"Repository"`) {
+		t.Fatalf("sets = %v", sets)
 	}
-	_, err = bridge.SetValues(ctx, &corev1.McpBridgeSetValuesRequest{Repository: "/r", Set: "staging",
-		Secrets: []*corev1.McpValue{{Name: "API_KEY", Value: "s3cr3t"}}})
-	if status.Code(err) != codes.FailedPrecondition || !strings.Contains(status.Convert(err).Message(), "no set named staging") {
-		t.Fatalf("refusal = %v", err)
+	saved := call("codex", "runnir_set_values", `{"repository":"/r","set":"production","secrets":{"API_KEY":"s3cr3t"}}`)
+	if saved.IsError || !strings.Contains(saved.Text, "Saved in r › production") || strings.Contains(saved.Text, "s3cr3t") {
+		t.Fatalf("saved = %v", saved)
 	}
-	_, err = bridge.SetValues(ctx, &corev1.McpBridgeSetValuesRequest{Repository: "/r", Set: "production",
-		Secrets: []*corev1.McpValue{{Name: "GITHUB_SHA", Value: "x"}}})
-	if status.Code(err) != codes.FailedPrecondition || !strings.Contains(status.Convert(err).Message(), "GITHUB_") {
-		t.Fatalf("check = %v", err)
+	refused := call("codex", "runnir_set_values", `{"repository":"/r","set":"staging","secrets":{"API_KEY":"s3cr3t"}}`)
+	if !refused.IsError || !strings.Contains(refused.Text, "no set named staging") {
+		t.Fatalf("refusal = %v", refused)
+	}
+	checked := call("codex", "runnir_set_values", `{"repository":"/r","set":"production","secrets":{"GITHUB_SHA":"x"}}`)
+	if !checked.IsError || !strings.Contains(checked.Text, "GITHUB_") {
+		t.Fatalf("check = %v", checked)
 	}
 
 	info, err := os.Stat(mcpPath)
@@ -119,9 +124,9 @@ func TestTheMcpSocketServesNothingElse(t *testing.T) {
 
 func TestMcpCallsWithoutTheAppSaySo(t *testing.T) {
 	_, bridge, _, ctx := mcpRig(t)
-	_, err := bridge.ListValueSets(ctx, &corev1.McpBridgeListValueSetsRequest{Repository: "/r"})
-	if status.Code(err) != codes.Unavailable || !strings.Contains(status.Convert(err).Message(), "not running") {
-		t.Fatalf("err = %v", err)
+	out, err := bridge.CallTool(ctx, &corev1.McpBridgeCallToolRequest{Tool: "runnir_list_workspaces", ArgumentsJson: "{}"})
+	if err != nil || !out.IsError || !strings.Contains(out.Text, "not running") {
+		t.Fatalf("out = %v, %v", out, err)
 	}
 }
 
@@ -139,5 +144,34 @@ func TestWithoutADataFolderThereIsNoMcpSocket(t *testing.T) {
 	_, _ = serving(t, path, startWith(t, path, Options{}))
 	if _, err := os.Stat(filepath.Join(filepath.Dir(path), McpSocketName)); !os.IsNotExist(err) {
 		t.Fatalf("mcp.sock: %v", err)
+	}
+}
+
+// A tool that the Core runs itself reaches the app only to open the
+// workspace, then reads the Core's own repository.
+func TestMcpToolsReadTheCoresOwnRepositories(t *testing.T) {
+	main, bridge, _, ctx := mcpRig(t)
+	repo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, ".github", "workflows"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".github", "workflows", "ci.yml"), []byte("name: CI\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	opened, err := main.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: repo})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fakeApp(t, ctx, main, func(r *corev1.McpRequest) *corev1.AnswerMcpRequestRequest {
+		return &corev1.AnswerMcpRequestRequest{Answer: &corev1.AnswerMcpRequestRequest_Workspace{Workspace: &corev1.McpOpenedWorkspace{
+			Workspace: &corev1.McpWorkspace{Name: "repo", Path: repo}, RepositoryId: opened.GetRepository().GetId()}}}
+	})
+	out, err := bridge.CallTool(ctx, &corev1.McpBridgeCallToolRequest{Tool: "runnir_get_workflow", ArgumentsJson: `{"repository":"repo","workflow":"CI"}`})
+	if err != nil || out.IsError || !strings.Contains(out.StructuredJson, `"path":".github/workflows/ci.yml"`) || !strings.Contains(out.StructuredJson, "echo hi") {
+		t.Fatalf("out = %v, %v", out, err)
+	}
+	out, err = bridge.CallTool(ctx, &corev1.McpBridgeCallToolRequest{Tool: "runnir_list_local_runs", ArgumentsJson: `{"repository":"repo"}`})
+	if err != nil || out.IsError || !strings.Contains(out.StructuredJson, `"runs":[]`) {
+		t.Fatalf("out = %v, %v", out, err)
 	}
 }

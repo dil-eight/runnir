@@ -237,40 +237,45 @@ service RunnirCore {
 }
 
 // Served only on mcp.sock in the data folder, for `runnir mcp`: the tools
-// of MCP clients, answered by the app. FAILED_PRECONDITION carries a
-// refusal (its message says why); UNAVAILABLE says Runnir is not running.
+// of MCP clients (docs/superpowers/specs/2026-11-09-mcp-full-control-design.md).
+// The Core runs each tool, asking the app what only it knows. A tool's
+// refusal is a result with is_error; UNAVAILABLE says Runnir is not running.
 service McpBridge {
-  rpc ListValueSets(McpBridgeListValueSetsRequest) returns (McpValueSets);
-  // Saves values only after the user confirms in Runnir; waits up to five
-  // minutes for that.
-  rpc SetValues(McpBridgeSetValuesRequest) returns (McpSavedValues);
+  rpc CallTool(McpBridgeCallToolRequest) returns (McpBridgeCallToolResponse);
 }
 
+message McpBridgeCallToolRequest {
+  // The MCP client's name from its initialize request.
+  string client = 1;
+  string tool = 2;
+  // The tool's arguments, a JSON object.
+  string arguments_json = 3;
+}
+
+message McpBridgeCallToolResponse {
+  string text = 1;
+  // The structured content, a JSON object; empty for none.
+  string structured_json = 2;
+  bool is_error = 3;
+}
+
+// What the Core asks the app for an MCP tool.
 enum McpTool {
   MCP_TOOL_UNSPECIFIED = 0;
   MCP_TOOL_LIST_VALUE_SETS = 1;
   MCP_TOOL_SET_VALUES = 2;
+  // The registered workspaces.
+  MCP_TOOL_LIST_WORKSPACES = 3;
+  // A workspace ready to use: resolved, its window opened when none shows
+  // it, and opened in the Core.
+  MCP_TOOL_OPEN_WORKSPACE = 4;
+  // Start a local run as Run Locally does.
+  MCP_TOOL_START_LOCAL_RUN = 5;
 }
 
 message McpValue {
   string name = 1;
   string value = 2;
-}
-
-message McpBridgeListValueSetsRequest {
-  // The MCP client's name from its initialize request.
-  string client = 1;
-  // A registered workspace's folder (absolute path) or its name.
-  string repository = 2;
-}
-
-message McpBridgeSetValuesRequest {
-  string client = 1;
-  string repository = 2;
-  // "Repository" or an environment's name.
-  string set = 3;
-  repeated McpValue secrets = 4;
-  repeated McpValue variables = 5;
 }
 
 message SubscribeMcpRequestsRequest {}
@@ -283,6 +288,61 @@ message McpRequest {
   string set = 5;
   repeated McpValue secrets = 6;
   repeated McpValue variables = 7;
+  // The tool changes something: refused while the user turned actions off.
+  bool action = 8;
+  // For START_LOCAL_RUN.
+  McpLocalRunStart start = 9;
+}
+
+message McpLocalRunStart {
+  // Unset: the branch's default scenario.
+  Scenario scenario = 1;
+  // The workflows to run, by path or name, each with the jobs to tick;
+  // no jobs ticks every job that can run here except macOS jobs. Empty:
+  // what the scenario starts that can run here.
+  repeated McpLocalRunWorkflow workflows = 2;
+  // Whose values the run takes when the plan leaves it to the user; empty
+  // is the Repository's.
+  string environment = 3;
+  // Start even when some of the run's secrets or variables have no value.
+  bool allow_missing_values = 4;
+  // Run the ticked macOS jobs without the macOS sandbox; the user confirms
+  // it in the workspace's window.
+  bool macos_without_sandbox = 5;
+}
+
+message McpLocalRunWorkflow {
+  string workflow = 1;
+  repeated string jobs = 2;
+}
+
+message McpWorkspace {
+  string name = 1;
+  string path = 2;
+  string workspace_id = 3;
+  // A window shows it.
+  bool open = 4;
+}
+
+message McpWorkspaces {
+  repeated McpWorkspace workspaces = 1;
+}
+
+message McpOpenedWorkspace {
+  McpWorkspace workspace = 1;
+  // The Core's id of its repository.
+  string repository_id = 2;
+  string branch = 3;
+}
+
+message McpLocalRunStarted {
+  string workspace = 1;
+  string execution_id = 2;
+  // Names given a value, and names left empty, upper-cased.
+  repeated string passed = 3;
+  repeated string empty = 4;
+  // The environment whose values the run takes before the Repository's.
+  string environment = 5;
 }
 
 enum McpValueState {
@@ -333,6 +393,9 @@ message AnswerMcpRequestRequest {
     McpSavedValues saved = 3;
     // Why not, said to the MCP client as it is.
     string refusal = 4;
+    McpWorkspaces workspaces = 5;
+    McpOpenedWorkspace workspace = 6;
+    McpLocalRunStarted started = 7;
   }
 }
 
@@ -1657,6 +1720,8 @@ message ConfirmLocalRunRequest {
   // its environment, and are not logged or stored.
   map<string, string> secrets = 2;
   map<string, string> variables = 3;
+  // The MCP client that starts the run ("claude-code"); empty for the user.
+  string started_by = 4;
 }
 
 message ConfirmLocalRunResponse {
@@ -1731,6 +1796,8 @@ message GetLocalRunOutputResponse {
   string message = 13;
   // Set when containers of this run may still exist.
   string cleanup_problem = 14;
+  // The MCP client that started the run; empty for the user.
+  string started_by = 15;
 }
 
 message CancelExecutionRequest {

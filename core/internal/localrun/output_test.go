@@ -235,3 +235,24 @@ func TestSummaryOfAFinishedRun(t *testing.T) {
 		t.Fatal("billed job minutes do not round up to at least one")
 	}
 }
+
+// An agent's run keeps the agent's name, and Recent lists a repository's
+// runs newest first without their lines.
+func TestRecentRunsKeepWhoStartedThem(t *testing.T) {
+	o := NewOutputs()
+	newRun(o, "e1")
+	newRun(o, "e2")
+	o.Create("e3", "other", onePlan(JobPlan{ID: "lint", Support: Supported}), "0.2.89", false, "OrbStack")
+	o.MarkStartedBy("e2", "claude-code")
+	o.update("e1", func(r *run) { r.consume("line", time.Now(), false) })
+	recent := o.Recent("repo")
+	if len(recent) != 2 || recent[0].ExecutionID != "e2" || recent[1].ExecutionID != "e1" {
+		t.Fatalf("recent = %+v", recent)
+	}
+	if recent[0].StartedBy != "claude-code" || recent[1].StartedBy != "" || len(recent[1].Lines) != 0 || recent[1].LastSequence == 0 {
+		t.Fatalf("recent = %+v", recent)
+	}
+	if snap, _ := o.Since("e2", 0); snap.StartedBy != "claude-code" {
+		t.Fatalf("since = %+v", snap)
+	}
+}

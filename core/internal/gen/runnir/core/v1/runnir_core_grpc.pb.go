@@ -2744,8 +2744,7 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	McpBridge_ListValueSets_FullMethodName = "/runnir.core.v1.McpBridge/ListValueSets"
-	McpBridge_SetValues_FullMethodName     = "/runnir.core.v1.McpBridge/SetValues"
+	McpBridge_CallTool_FullMethodName = "/runnir.core.v1.McpBridge/CallTool"
 )
 
 // McpBridgeClient is the client API for McpBridge service.
@@ -2753,13 +2752,11 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // Served only on mcp.sock in the data folder, for `runnir mcp`: the tools
-// of MCP clients, answered by the app. FAILED_PRECONDITION carries a
-// refusal (its message says why); UNAVAILABLE says Runnir is not running.
+// of MCP clients (docs/superpowers/specs/2026-11-09-mcp-full-control-design.md).
+// The Core runs each tool, asking the app what only it knows. A tool's
+// refusal is a result with is_error; UNAVAILABLE says Runnir is not running.
 type McpBridgeClient interface {
-	ListValueSets(ctx context.Context, in *McpBridgeListValueSetsRequest, opts ...grpc.CallOption) (*McpValueSets, error)
-	// Saves values only after the user confirms in Runnir; waits up to five
-	// minutes for that.
-	SetValues(ctx context.Context, in *McpBridgeSetValuesRequest, opts ...grpc.CallOption) (*McpSavedValues, error)
+	CallTool(ctx context.Context, in *McpBridgeCallToolRequest, opts ...grpc.CallOption) (*McpBridgeCallToolResponse, error)
 }
 
 type mcpBridgeClient struct {
@@ -2770,20 +2767,10 @@ func NewMcpBridgeClient(cc grpc.ClientConnInterface) McpBridgeClient {
 	return &mcpBridgeClient{cc}
 }
 
-func (c *mcpBridgeClient) ListValueSets(ctx context.Context, in *McpBridgeListValueSetsRequest, opts ...grpc.CallOption) (*McpValueSets, error) {
+func (c *mcpBridgeClient) CallTool(ctx context.Context, in *McpBridgeCallToolRequest, opts ...grpc.CallOption) (*McpBridgeCallToolResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(McpValueSets)
-	err := c.cc.Invoke(ctx, McpBridge_ListValueSets_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *mcpBridgeClient) SetValues(ctx context.Context, in *McpBridgeSetValuesRequest, opts ...grpc.CallOption) (*McpSavedValues, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(McpSavedValues)
-	err := c.cc.Invoke(ctx, McpBridge_SetValues_FullMethodName, in, out, cOpts...)
+	out := new(McpBridgeCallToolResponse)
+	err := c.cc.Invoke(ctx, McpBridge_CallTool_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2795,13 +2782,11 @@ func (c *mcpBridgeClient) SetValues(ctx context.Context, in *McpBridgeSetValuesR
 // for forward compatibility.
 //
 // Served only on mcp.sock in the data folder, for `runnir mcp`: the tools
-// of MCP clients, answered by the app. FAILED_PRECONDITION carries a
-// refusal (its message says why); UNAVAILABLE says Runnir is not running.
+// of MCP clients (docs/superpowers/specs/2026-11-09-mcp-full-control-design.md).
+// The Core runs each tool, asking the app what only it knows. A tool's
+// refusal is a result with is_error; UNAVAILABLE says Runnir is not running.
 type McpBridgeServer interface {
-	ListValueSets(context.Context, *McpBridgeListValueSetsRequest) (*McpValueSets, error)
-	// Saves values only after the user confirms in Runnir; waits up to five
-	// minutes for that.
-	SetValues(context.Context, *McpBridgeSetValuesRequest) (*McpSavedValues, error)
+	CallTool(context.Context, *McpBridgeCallToolRequest) (*McpBridgeCallToolResponse, error)
 	mustEmbedUnimplementedMcpBridgeServer()
 }
 
@@ -2812,11 +2797,8 @@ type McpBridgeServer interface {
 // pointer dereference when methods are called.
 type UnimplementedMcpBridgeServer struct{}
 
-func (UnimplementedMcpBridgeServer) ListValueSets(context.Context, *McpBridgeListValueSetsRequest) (*McpValueSets, error) {
-	return nil, status.Error(codes.Unimplemented, "method ListValueSets not implemented")
-}
-func (UnimplementedMcpBridgeServer) SetValues(context.Context, *McpBridgeSetValuesRequest) (*McpSavedValues, error) {
-	return nil, status.Error(codes.Unimplemented, "method SetValues not implemented")
+func (UnimplementedMcpBridgeServer) CallTool(context.Context, *McpBridgeCallToolRequest) (*McpBridgeCallToolResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CallTool not implemented")
 }
 func (UnimplementedMcpBridgeServer) mustEmbedUnimplementedMcpBridgeServer() {}
 func (UnimplementedMcpBridgeServer) testEmbeddedByValue()                   {}
@@ -2839,38 +2821,20 @@ func RegisterMcpBridgeServer(s grpc.ServiceRegistrar, srv McpBridgeServer) {
 	s.RegisterService(&McpBridge_ServiceDesc, srv)
 }
 
-func _McpBridge_ListValueSets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(McpBridgeListValueSetsRequest)
+func _McpBridge_CallTool_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(McpBridgeCallToolRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(McpBridgeServer).ListValueSets(ctx, in)
+		return srv.(McpBridgeServer).CallTool(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: McpBridge_ListValueSets_FullMethodName,
+		FullMethod: McpBridge_CallTool_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(McpBridgeServer).ListValueSets(ctx, req.(*McpBridgeListValueSetsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _McpBridge_SetValues_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(McpBridgeSetValuesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(McpBridgeServer).SetValues(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: McpBridge_SetValues_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(McpBridgeServer).SetValues(ctx, req.(*McpBridgeSetValuesRequest))
+		return srv.(McpBridgeServer).CallTool(ctx, req.(*McpBridgeCallToolRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2883,12 +2847,8 @@ var McpBridge_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*McpBridgeServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "ListValueSets",
-			Handler:    _McpBridge_ListValueSets_Handler,
-		},
-		{
-			MethodName: "SetValues",
-			Handler:    _McpBridge_SetValues_Handler,
+			MethodName: "CallTool",
+			Handler:    _McpBridge_CallTool_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

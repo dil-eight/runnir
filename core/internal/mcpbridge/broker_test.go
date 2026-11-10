@@ -1,33 +1,13 @@
 package mcpbridge
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 )
-
-type safeBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *safeBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *safeBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.String()
-}
 
 // app answers every request it receives with answer(request).
 func app(t *testing.T, b *Broker, answer func(*corev1.McpRequest) *corev1.AnswerMcpRequestRequest) func() {
@@ -49,14 +29,13 @@ func app(t *testing.T, b *Broker, answer func(*corev1.McpRequest) *corev1.Answer
 	return func() { stop(); cancel(); <-done }
 }
 
-func setRequest() *corev1.McpBridgeSetValuesRequest {
-	return &corev1.McpBridgeSetValuesRequest{Client: "claude-code", Repository: "/Users/me/r", Set: "production",
+func setRequest() *corev1.McpRequest {
+	return &corev1.McpRequest{Client: "claude-code", Repository: "/Users/me/r", Set: "production",
 		Secrets: values("API_KEY", "s3cr3t-VALUE"), Variables: values("REGION", "eu-west-1")}
 }
 
 func TestAListIsAnsweredByTheApp(t *testing.T) {
-	log := &safeBuffer{}
-	b := NewBroker(time.Second, log)
+	b := NewBroker(time.Second)
 	var seen *corev1.McpRequest
 	defer app(t, b, func(r *corev1.McpRequest) *corev1.AnswerMcpRequestRequest {
 		seen = r
@@ -69,14 +48,10 @@ func TestAListIsAnsweredByTheApp(t *testing.T) {
 	if seen.Tool != corev1.McpTool_MCP_TOOL_LIST_VALUE_SETS || seen.Client != "codex" || seen.Repository != "/Users/me/r" || seen.Id == "" {
 		t.Fatalf("request = %v", seen)
 	}
-	if !strings.Contains(log.String(), "list_value_sets") {
-		t.Fatalf("log = %q", log.String())
-	}
 }
 
-func TestASetIsAnsweredAndLoggedWithoutValues(t *testing.T) {
-	log := &safeBuffer{}
-	b := NewBroker(time.Second, log)
+func TestASetIsAnsweredByTheApp(t *testing.T) {
+	b := NewBroker(time.Second)
 	var seen *corev1.McpRequest
 	defer app(t, b, func(r *corev1.McpRequest) *corev1.AnswerMcpRequestRequest {
 		seen = r
@@ -87,17 +62,13 @@ func TestASetIsAnsweredAndLoggedWithoutValues(t *testing.T) {
 	if err != nil || saved.Secrets[0] != "API_KEY" {
 		t.Fatalf("saved = %v, %v", saved, err)
 	}
-	if seen.Tool != corev1.McpTool_MCP_TOOL_SET_VALUES || seen.Set != "production" || seen.Secrets[0].Value != "s3cr3t-VALUE" {
+	if seen.Tool != corev1.McpTool_MCP_TOOL_SET_VALUES || seen.Set != "production" || seen.Secrets[0].Value != "s3cr3t-VALUE" || !seen.Action {
 		t.Fatalf("request = %v", seen)
-	}
-	got := log.String()
-	if strings.Contains(got, "s3cr3t") || strings.Contains(got, "eu-west-1") || !strings.Contains(got, "API_KEY") || !strings.Contains(got, "saved") {
-		t.Fatalf("log = %q", got)
 	}
 }
 
 func TestARefusalReachesTheCaller(t *testing.T) {
-	b := NewBroker(time.Second, nil)
+	b := NewBroker(time.Second)
 	defer app(t, b, func(*corev1.McpRequest) *corev1.AnswerMcpRequestRequest {
 		return &corev1.AnswerMcpRequestRequest{Answer: &corev1.AnswerMcpRequestRequest_Refusal{Refusal: "Cancelled in Runnir."}}
 	})()
@@ -109,7 +80,7 @@ func TestARefusalReachesTheCaller(t *testing.T) {
 }
 
 func TestACheckFailsBeforeTheAppIsAsked(t *testing.T) {
-	b := NewBroker(time.Second, nil)
+	b := NewBroker(time.Second)
 	asked := false
 	defer app(t, b, func(*corev1.McpRequest) *corev1.AnswerMcpRequestRequest { asked = true; return nil })()
 	request := setRequest()
@@ -123,22 +94,22 @@ func TestACheckFailsBeforeTheAppIsAsked(t *testing.T) {
 }
 
 func TestWithoutTheAppNothingWaits(t *testing.T) {
-	b := NewBroker(time.Minute, nil)
+	b := NewBroker(time.Minute)
 	if _, err := b.List(context.Background(), "c", "/r"); !errors.Is(err, ErrNoApp) {
 		t.Fatalf("err = %v", err)
 	}
 }
 
 func TestAnUnansweredRequestTimesOut(t *testing.T) {
-	b := NewBroker(50*time.Millisecond, nil)
+	b := NewBroker(50 * time.Millisecond)
 	defer app(t, b, func(*corev1.McpRequest) *corev1.AnswerMcpRequestRequest { return nil })()
-	if _, err := b.Set(context.Background(), setRequest()); !errors.Is(err, ErrTimeout) {
+	if _, err := b.Set(context.Background(), setRequest()); !errors.Is(err, ErrSetTimeout) {
 		t.Fatalf("err = %v", err)
 	}
 }
 
 func TestOneSetWaitsAtATime(t *testing.T) {
-	b := NewBroker(time.Second, nil)
+	b := NewBroker(time.Second)
 	arrived := make(chan *corev1.McpRequest, 2)
 	defer app(t, b, func(r *corev1.McpRequest) *corev1.AnswerMcpRequestRequest { arrived <- r; return nil })()
 	first := make(chan error, 1)
@@ -164,7 +135,7 @@ func TestOneSetWaitsAtATime(t *testing.T) {
 }
 
 func TestACallerThatLeavesRemovesItsRequest(t *testing.T) {
-	b := NewBroker(time.Minute, nil)
+	b := NewBroker(time.Minute)
 	arrived := make(chan *corev1.McpRequest, 1)
 	defer app(t, b, func(r *corev1.McpRequest) *corev1.AnswerMcpRequestRequest { arrived <- r; return nil })()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -181,7 +152,7 @@ func TestACallerThatLeavesRemovesItsRequest(t *testing.T) {
 }
 
 func TestTheAppLeavingFailsWaitingRequests(t *testing.T) {
-	b := NewBroker(time.Minute, nil)
+	b := NewBroker(time.Minute)
 	arrived := make(chan *corev1.McpRequest, 1)
 	stop := app(t, b, func(r *corev1.McpRequest) *corev1.AnswerMcpRequestRequest { arrived <- r; return nil })
 	done := make(chan error, 1)
@@ -194,7 +165,7 @@ func TestTheAppLeavingFailsWaitingRequests(t *testing.T) {
 }
 
 func TestAWrongKindOfAnswerIsARefusal(t *testing.T) {
-	b := NewBroker(time.Second, nil)
+	b := NewBroker(time.Second)
 	defer app(t, b, func(*corev1.McpRequest) *corev1.AnswerMcpRequestRequest {
 		return &corev1.AnswerMcpRequestRequest{Answer: &corev1.AnswerMcpRequestRequest_Saved{Saved: &corev1.McpSavedValues{}}}
 	})()
@@ -204,7 +175,7 @@ func TestAWrongKindOfAnswerIsARefusal(t *testing.T) {
 }
 
 func TestClosingEndsTheSubscription(t *testing.T) {
-	b := NewBroker(time.Minute, nil)
+	b := NewBroker(time.Minute)
 	requests, _ := b.Subscribe(context.Background())
 	b.Close()
 	if _, ok := <-requests; ok {
@@ -215,6 +186,50 @@ func TestClosingEndsTheSubscription(t *testing.T) {
 		t.Fatal("a later subscription is open")
 	}
 	if _, err := b.List(context.Background(), "c", "/r"); !errors.Is(err, ErrNoApp) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestTheAppListsOpensAndStarts(t *testing.T) {
+	b := NewBroker(time.Second)
+	var seen []*corev1.McpRequest
+	defer app(t, b, func(r *corev1.McpRequest) *corev1.AnswerMcpRequestRequest {
+		seen = append(seen, r)
+		switch r.Tool {
+		case corev1.McpTool_MCP_TOOL_LIST_WORKSPACES:
+			return &corev1.AnswerMcpRequestRequest{Answer: &corev1.AnswerMcpRequestRequest_Workspaces{Workspaces: &corev1.McpWorkspaces{
+				Workspaces: []*corev1.McpWorkspace{{Name: "r", Path: "/Users/me/r"}}}}}
+		case corev1.McpTool_MCP_TOOL_OPEN_WORKSPACE:
+			return &corev1.AnswerMcpRequestRequest{Answer: &corev1.AnswerMcpRequestRequest_Workspace{Workspace: &corev1.McpOpenedWorkspace{
+				Workspace: &corev1.McpWorkspace{Name: "r"}, RepositoryId: "repo_1", Branch: "main"}}}
+		default:
+			return &corev1.AnswerMcpRequestRequest{Answer: &corev1.AnswerMcpRequestRequest_Started{Started: &corev1.McpLocalRunStarted{ExecutionId: "exec_1"}}}
+		}
+	})()
+	workspaces, err := b.Workspaces(context.Background(), "codex")
+	if err != nil || workspaces.Workspaces[0].Path != "/Users/me/r" {
+		t.Fatalf("workspaces = %v, %v", workspaces, err)
+	}
+	opened, err := b.Open(context.Background(), "codex", "/Users/me/r/sub", true)
+	if err != nil || opened.RepositoryId != "repo_1" {
+		t.Fatalf("opened = %v, %v", opened, err)
+	}
+	started, err := b.Start(context.Background(), "codex", "r", &corev1.McpLocalRunStart{AllowMissingValues: true})
+	if err != nil || started.ExecutionId != "exec_1" {
+		t.Fatalf("started = %v, %v", started, err)
+	}
+	if !seen[1].Action || seen[1].Repository != "/Users/me/r/sub" || !seen[2].Action || !seen[2].Start.AllowMissingValues || seen[0].Action {
+		t.Fatalf("requests = %v", seen)
+	}
+}
+
+func TestAnEmptyAnswerIsARefusal(t *testing.T) {
+	b := NewBroker(time.Second)
+	defer app(t, b, func(*corev1.McpRequest) *corev1.AnswerMcpRequestRequest {
+		return &corev1.AnswerMcpRequestRequest{Answer: &corev1.AnswerMcpRequestRequest_Workspace{}}
+	})()
+	var refusal Refusal
+	if _, err := b.Open(context.Background(), "c", "/r", false); !errors.As(err, &refusal) {
 		t.Fatalf("err = %v", err)
 	}
 }

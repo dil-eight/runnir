@@ -82,6 +82,8 @@ type Snapshot struct {
 	Message        string
 	CleanupProblem string
 	LastSequence   uint64
+	// StartedBy is the MCP client that started the run; empty for the user.
+	StartedBy string
 }
 
 // laneTimes is when a lane's act started and ended.
@@ -331,6 +333,30 @@ func billedMinutes(jobs []JobStatus) int64 {
 		total += BilledJobMinutes(job.FinishedAt.Sub(job.StartedAt))
 	}
 	return total
+}
+
+// MarkStartedBy keeps the MCP client that started a run.
+func (o *Outputs) MarkStartedBy(executionID, client string) {
+	o.update(executionID, func(r *run) { r.snap.StartedBy = client })
+}
+
+// Recent returns the runs of a repository the Core still holds, newest
+// first, without their lines.
+func (o *Outputs) Recent(repositoryID string) []Snapshot {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	var out []Snapshot
+	for i := len(o.order) - 1; i >= 0; i-- {
+		r := o.runs[o.order[i]]
+		if r == nil || r.snap.RepositoryID != repositoryID {
+			continue
+		}
+		snap := r.snap
+		snap.Jobs = append([]JobStatus(nil), r.snap.Jobs...)
+		snap.LastSequence = r.next
+		out = append(out, snap)
+	}
+	return out
 }
 
 // Since returns the lines after a sequence number and the run's state.

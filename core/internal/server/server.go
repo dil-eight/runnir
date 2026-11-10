@@ -21,6 +21,7 @@ import (
 	"runnir/core/internal/github"
 	"runnir/core/internal/localrun"
 	"runnir/core/internal/mcpbridge"
+	"runnir/core/internal/mcptools"
 	"runnir/core/internal/repository"
 	"runnir/core/internal/scanner"
 	"runnir/core/internal/tools"
@@ -183,11 +184,10 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 		grpc.StreamInterceptor(authStream(options.ClientSecret)),
 	)
 	accounts := github.NewAccounts(options.GitHubBaseURL, buildinfo.Version)
-	// MCP clients reach the app through the broker: `runnir mcp` on
-	// mcp.sock, the app on this socket's SubscribeMcpRequests.
-	mcpRequests := mcpbridge.NewBroker(options.McpWait, os.Stderr)
-	stopMcp := startMcp(options.DataDir, mcpRequests, os.Stderr)
-	corev1.RegisterRunnirCoreServer(grpcServer, &service{
+	// MCP clients reach the app's Core on mcp.sock (`runnir mcp`); the Core
+	// asks the app through the broker, on this socket's SubscribeMcpRequests.
+	mcpRequests := mcpbridge.NewBroker(options.McpWait)
+	core := &service{
 		repositories: repositories, events: bus, executions: executions, workspaces: workspaces,
 		accounts:         accounts,
 		watcher:          watch.New(accounts, workspaces, time.Now),
@@ -201,7 +201,9 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 		analytics:        ledger,
 		analyticsSending: sender.Enabled(),
 		mcp:              mcpRequests,
-	})
+	}
+	corev1.RegisterRunnirCoreServer(grpcServer, core)
+	stopMcp := startMcp(options.DataDir, mcptools.New(mcpCore{core}, mcpRequests, os.Stderr), os.Stderr)
 
 	done := make(chan error, 1)
 	go func() { done <- grpcServer.Serve(listener) }()

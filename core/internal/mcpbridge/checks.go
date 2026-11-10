@@ -25,7 +25,7 @@ func (r Refusal) Error() string { return string(r) }
 
 // CheckSet refuses a runnir_set_values call the app should not be asked
 // about. The refusal names names, never values.
-func CheckSet(r *corev1.McpBridgeSetValuesRequest) error {
+func CheckSet(r *corev1.McpRequest) error {
 	if strings.TrimSpace(r.GetRepository()) == "" {
 		return Refusal("Name a repository: a registered workspace's folder or its name.")
 	}

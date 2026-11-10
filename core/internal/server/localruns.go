@@ -419,6 +419,9 @@ func (s *service) ConfirmLocalRun(_ context.Context, request *corev1.ConfirmLoca
 		StartedAt: time.Now(), State: store.LocalQueued, ActVersion: approved.ActVersion, Engine: approved.EngineName,
 	})
 	s.localOutputs.Create(id, info.ID, plan, approved.ActVersion, approved.Installed, approved.EngineName)
+	if request.GetStartedBy() != "" {
+		s.localOutputs.MarkStartedBy(id, request.GetStartedBy())
+	}
 	// The limits of a confirmed run are the workspace's from now on; a run
 	// with the defaults forgets them.
 	var keep *store.RunLimits
@@ -452,6 +455,7 @@ func (s *service) GetLocalRunOutput(_ context.Context, request *corev1.GetLocalR
 			Installed: snap.ActInstalled, EngineName: snap.EngineName}),
 		StartedAt: timestamp(snap.StartedAt), FinishedAt: timestamp(snap.FinishedAt),
 		ExitCode: int32(snap.ExitCode), Message: snap.Message, CleanupProblem: snap.CleanupProblem,
+		StartedBy: snap.StartedBy,
 	}
 	for _, line := range snap.Lines {
 		out.Lines = append(out.Lines, &corev1.LocalRunLine{Sequence: line.Sequence, WorkflowId: line.Workflow, JobId: line.JobID, Text: line.Text, Error: line.Error})

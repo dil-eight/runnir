@@ -16,42 +16,23 @@ import (
 	"google.golang.org/grpc/status"
 
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
+	"runnir/core/internal/mcptools"
 )
 
 type fakeBridge struct {
-	mu      sync.Mutex
-	lists   []*corev1.McpBridgeListValueSetsRequest
-	sets    []*corev1.McpBridgeSetValuesRequest
-	listErr error
-	setErr  error
-	block   chan struct{}
-	// cancelled closes when a blocked SetValues sees its context end.
+	mu    sync.Mutex
+	calls []*corev1.McpBridgeCallToolRequest
+	err   error
+	// answer is the result of every call; nil echoes the arguments.
+	answer *corev1.McpBridgeCallToolResponse
+	block  chan struct{}
+	// cancelled closes when a blocked call sees its context end.
 	cancelled chan struct{}
 }
 
-func (f *fakeBridge) ListValueSets(_ context.Context, r *corev1.McpBridgeListValueSetsRequest) (*corev1.McpValueSets, error) {
+func (f *fakeBridge) CallTool(ctx context.Context, r *corev1.McpBridgeCallToolRequest) (*corev1.McpBridgeCallToolResponse, error) {
 	f.mu.Lock()
-	f.lists = append(f.lists, r)
-	f.mu.Unlock()
-	if f.listErr != nil {
-		return nil, f.listErr
-	}
-	return &corev1.McpValueSets{Workspace: "fintropy", Sets: []*corev1.McpValueSet{
-		{Name: "Repository", Names: []*corev1.McpValueName{
-			{Name: "GHCR_TOKEN", Secret: true, State: corev1.McpValueState_MCP_VALUE_STATE_SAVED},
-			{Name: "DO_APP_ID", State: corev1.McpValueState_MCP_VALUE_STATE_SAVED, Value: "app-1"},
-		}},
-		{Name: "production", Names: []*corev1.McpValueName{
-			{Name: "DEPLOY_SSH_KEY", Secret: true, State: corev1.McpValueState_MCP_VALUE_STATE_MISSING},
-			{Name: "GHCR_TOKEN", Secret: true, State: corev1.McpValueState_MCP_VALUE_STATE_FROM_REPOSITORY},
-		}},
-		{Name: "old", Stale: true},
-	}}, nil
-}
-
-func (f *fakeBridge) SetValues(ctx context.Context, r *corev1.McpBridgeSetValuesRequest) (*corev1.McpSavedValues, error) {
-	f.mu.Lock()
-	f.sets = append(f.sets, r)
+	f.calls = append(f.calls, r)
 	block := f.block
 	f.mu.Unlock()
 	if block != nil {
@@ -62,17 +43,13 @@ func (f *fakeBridge) SetValues(ctx context.Context, r *corev1.McpBridgeSetValues
 			return nil, ctx.Err()
 		}
 	}
-	if f.setErr != nil {
-		return nil, f.setErr
+	if f.err != nil {
+		return nil, f.err
 	}
-	out := &corev1.McpSavedValues{Workspace: "fintropy", Set: r.Set}
-	for _, v := range r.Secrets {
-		out.Secrets = append(out.Secrets, v.Name)
+	if f.answer != nil {
+		return f.answer, nil
 	}
-	for _, v := range r.Variables {
-		out.Variables = append(out.Variables, v.Name)
-	}
-	return out, nil
+	return &corev1.McpBridgeCallToolResponse{Text: r.ArgumentsJson, StructuredJson: `{"tool":"` + r.Tool + `"}`}, nil
 }
 
 type response struct {
@@ -168,7 +145,7 @@ func TestToolsListMatchesTheCatalog(t *testing.T) {
 	if err := json.Unmarshal(raw, &catalog); err != nil {
 		t.Fatal(err)
 	}
-	if len(listed.Tools) != 2 {
+	if len(listed.Tools) != len(mcptools.Catalog) {
 		t.Fatalf("tools = %v", listed.Tools)
 	}
 	for _, tool := range listed.Tools {
@@ -220,96 +197,41 @@ func result(t *testing.T, r response) toolResult {
 	return out
 }
 
-func TestListValueSets(t *testing.T) {
+func TestToolCallsGoToTheCoreAsTheyAre(t *testing.T) {
 	bridge := &fakeBridge{}
 	answers, _ := exchange(t, bridge, initialize,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"runnir_list_value_sets","arguments":{"repository":"/Users/me/projects/fintropy"}}}`)
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"runnir_list_runs","arguments":{"repository":"/Users/me/shop","status":"failed"}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"runnir_list_workspaces"}}`)
 	out := result(t, answers["2"])
-	if out.IsError {
-		t.Fatalf("error: %s", out.Content[0].Text)
-	}
-	var sets struct {
-		Workspace string `json:"workspace"`
-		Sets      []struct {
-			Name    string `json:"name"`
-			Stale   bool   `json:"stale"`
-			Secrets []struct {
-				Name  string `json:"name"`
-				State string `json:"state"`
-			} `json:"secrets"`
-			Variables []struct {
-				Name  string `json:"name"`
-				State string `json:"state"`
-				Value string `json:"value"`
-			} `json:"variables"`
-		} `json:"sets"`
-	}
-	if err := json.Unmarshal(out.StructuredContent, &sets); err != nil {
-		t.Fatal(err)
-	}
-	if sets.Workspace != "fintropy" || len(sets.Sets) != 3 || sets.Sets[0].Secrets[0].State != "saved" ||
-		sets.Sets[0].Variables[0].Value != "app-1" || sets.Sets[1].Secrets[0].State != "missing" ||
-		sets.Sets[1].Secrets[1].State != "from_repository" || !sets.Sets[2].Stale {
-		t.Fatalf("sets = %s", out.StructuredContent)
-	}
-	if !json.Valid([]byte(out.Content[0].Text)) {
-		t.Fatalf("text = %q", out.Content[0].Text)
-	}
-	if bridge.lists[0].Client != "codex-mcp-client" || bridge.lists[0].Repository != "/Users/me/projects/fintropy" {
-		t.Fatalf("bridge got %v", bridge.lists[0])
-	}
-}
-
-func TestSetValues(t *testing.T) {
-	bridge := &fakeBridge{}
-	answers, raw := exchange(t, bridge, initialize,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"runnir_set_values","arguments":{"repository":"fintropy","set":"production","secrets":{"DEPLOY_SSH_KEY":"s3cr3t-VALUE"},"variables":{"DO_APP_ID":"app-2"}}}}`)
-	out := result(t, answers["2"])
-	if out.IsError || !strings.Contains(out.Content[0].Text, "DEPLOY_SSH_KEY") || !strings.Contains(out.Content[0].Text, "production") {
+	if out.IsError || out.Content[0].Text != `{"repository":"/Users/me/shop","status":"failed"}` || string(out.StructuredContent) != `{"tool":"runnir_list_runs"}` {
 		t.Fatalf("result = %+v", out)
 	}
-	if strings.Contains(raw, "s3cr3t") {
-		t.Fatal("a secret value was written out")
-	}
-	got := bridge.sets[0]
-	if got.Client != "codex-mcp-client" || got.Set != "production" || got.Secrets[0].Name != "DEPLOY_SSH_KEY" ||
-		got.Secrets[0].Value != "s3cr3t-VALUE" || got.Variables[0].Value != "app-2" {
-		t.Fatalf("bridge got %v", got)
-	}
-}
-
-func TestInvalidArgumentsAreToolErrors(t *testing.T) {
-	bridge := &fakeBridge{}
-	answers, raw := exchange(t, bridge, initialize,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"runnir_list_value_sets","arguments":{}}}`,
-		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"runnir_list_value_sets","arguments":{"repository":"/r","extra":1}}}`,
-		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"runnir_set_values","arguments":{"repository":"/r","set":"Repository","secrets":{"GITHUB_SHA":"s3cr3t-VALUE"}}}}`,
-		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"runnir_set_values","arguments":{"repository":"/r","set":"Repository","secrets":{"A":5}}}}`,
-		`{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"runnir_set_values","arguments":{"repository":"/r","set":"Repository"}}}`)
-	for _, id := range []string{"2", "3", "4", "5", "6"} {
-		if out := result(t, answers[id]); !out.IsError {
-			t.Errorf("%s: not an error: %+v", id, out)
+	for _, got := range bridge.calls {
+		if got.Client != "codex-mcp-client" || (got.Tool != "runnir_list_runs" && got.Tool != "runnir_list_workspaces") {
+			t.Fatalf("bridge got %v", got)
 		}
 	}
-	if len(bridge.lists)+len(bridge.sets) != 0 {
-		t.Fatal("the bridge was called")
-	}
-	if strings.Contains(raw, "s3cr3t") {
-		t.Fatal("a secret value was written out")
+	if out := result(t, answers["3"]); out.Content[0].Text != "{}" {
+		t.Fatalf("no arguments = %+v", out)
 	}
 }
 
-func TestBridgeErrorsAreToolErrors(t *testing.T) {
-	bridge := &fakeBridge{listErr: status.Error(codes.Unavailable, "connection refused"),
-		setErr: status.Error(codes.FailedPrecondition, "Cancelled in Runnir.")}
+func TestTheCoresRefusalsAndAnAbsentRunnirAreToolErrors(t *testing.T) {
+	bridge := &fakeBridge{answer: &corev1.McpBridgeCallToolResponse{Text: "Cancelled in Runnir.", IsError: true}}
 	answers, _ := exchange(t, bridge, initialize,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"runnir_list_value_sets","arguments":{"repository":"/r"}}}`,
-		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"runnir_set_values","arguments":{"repository":"/r","set":"Repository","variables":{"A":"b"}}}}`)
-	if out := result(t, answers["2"]); !out.IsError || !strings.Contains(out.Content[0].Text, "Runnir is not running") {
-		t.Fatalf("list = %+v", out)
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"runnir_set_values","arguments":{"repository":"/r","set":"Repository","variables":{"A":"b"}}}}`)
+	if out := result(t, answers["2"]); !out.IsError || out.Content[0].Text != "Cancelled in Runnir." || out.StructuredContent != nil {
+		t.Fatalf("refusal = %+v", out)
 	}
-	if out := result(t, answers["3"]); !out.IsError || out.Content[0].Text != "Cancelled in Runnir." {
-		t.Fatalf("set = %+v", out)
+	answers, _ = exchange(t, &fakeBridge{err: status.Error(codes.Unavailable, "connection refused")}, initialize,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"runnir_list_workspaces","arguments":{}}}`)
+	if out := result(t, answers["2"]); !out.IsError || !strings.Contains(out.Content[0].Text, "Runnir is not running") {
+		t.Fatalf("absent = %+v", out)
+	}
+	answers, _ = exchange(t, &fakeBridge{err: status.Error(codes.Unimplemented, "unknown service")}, initialize,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"runnir_list_workspaces","arguments":{}}}`)
+	if out := result(t, answers["2"]); !out.IsError || !strings.Contains(out.Content[0].Text, "update Runnir") {
+		t.Fatalf("old = %+v", out)
 	}
 }
 
@@ -330,7 +252,7 @@ func TestProtocolErrors(t *testing.T) {
 	}
 }
 
-func TestAWaitingSetDoesNotHoldOtherCallsAndCanBeCancelled(t *testing.T) {
+func TestAWaitingCallDoesNotHoldOtherCallsAndCanBeCancelled(t *testing.T) {
 	bridge := &fakeBridge{block: make(chan struct{}), cancelled: make(chan struct{})}
 	inputReader, inputWriter := io.Pipe()
 	out := &lockedBuffer{}
