@@ -1,6 +1,6 @@
 module runnir/core
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/rhysd/actionlint v1.7.12

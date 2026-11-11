@@ -223,7 +223,7 @@
       "components": [
         {
           "name": "Go",
-          "version": "1.27.3",
+          "version": "1.27.4",
           "license": "BSD-3-Clause",
           "source": "https://go.dev/dl/",
           "texts": [
@@ -481,7 +481,7 @@
       "components": [
         {
           "name": "Go",
-          "version": "1.27.3",
+          "version": "1.27.4",
           "license": "BSD-3-Clause",
           "source": "https://go.dev/dl/",
           "texts": [
