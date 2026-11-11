@@ -109,12 +109,32 @@ struct McpLocalRunTests {
         #expect(desktop.opened.last?.1 == true, "the window comes to the front")
 
         let ran = Task { await handler.answer(request) }
-        try #require(await waitForRunPrompt(desktop)).run()
+        let asked = try #require(await waitForRunPrompt(desktop))
+        let planned = fake.localRunRequests.count
+        asked.run()
         guard case .started = await ran.value else {
             Issue.record("the run did not start")
             return
         }
         #expect(fake.confirmedLocalRuns == ["local_1"])
+        #expect(fake.localRunRequests.count == planned + 1, "planned again after the yes, for a fresh confirmation")
+    }
+
+    /// The prompt waits longer than the Core keeps a confirmation, so the run
+    /// is planned again after the yes; one that changed meanwhile does not start.
+    @Test func aRunThatChangedWhileAskingDoesNotStart() async throws {
+        let (desktop, _, fake, _) = await rig(Self.plan(host: true, unsandboxed: true))
+        let handler = McpRequestHandler(desktop: desktop)
+        let request = start(CoreMcpLocalRunStart(workflows: [(Self.ci, ["test", "mac"])], allowMissingValues: true, macosWithoutSandbox: true))
+
+        let ran = Task { await handler.answer(request) }
+        let asked = try #require(await waitForRunPrompt(desktop))
+        var changed = Self.plan(host: true, unsandboxed: true)
+        changed.hostJobs = ["CI › mac", "CI › other-mac"]
+        fake.preparedLocalRun = CorePreparedLocalRun(readiness: FakeCore.readyTools, plan: changed, confirmationID: "local_2", expiresAt: Date())
+        asked.run()
+        #expect(await ran.value == .refusal("The run changed while Runnir asked about it, so nothing ran. Ask again."))
+        #expect(fake.confirmedLocalRuns.isEmpty)
     }
 
     @Test func withoutAMacOSJobThereIsNothingToUnsandbox() async {

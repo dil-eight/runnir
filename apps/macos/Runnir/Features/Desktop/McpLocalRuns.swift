@@ -65,6 +65,15 @@ struct McpLocalRunStarter {
             expiry.cancel()
             show(nil)
             guard confirmed else { return .refusal(prompt.outcome ?? "Not run.") }
+            // The Core keeps a confirmation two minutes and the prompt waits
+            // up to five: plan again for a fresh one, and run only the jobs
+            // the user said yes to.
+            await review.prepare()
+            guard let fresh = review.prepared?.plan, fresh.blockers.isEmpty, fresh.hostUnsandboxed,
+                  fresh.hostJobs == plan.hostJobs,
+                  LocalRunTicks.selection(of: fresh.lanes) == LocalRunTicks.selection(of: plan.lanes) else {
+                return .refusal(review.error ?? "The run changed while Runnir asked about it, so nothing ran. Ask again.")
+            }
         }
         review.hostConfirmed = true
         review.trusted = true
