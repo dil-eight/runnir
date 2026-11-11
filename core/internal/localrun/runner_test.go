@@ -596,3 +596,21 @@ func TestMacJobsAskedToRunWithoutTheSandboxRunAsActAlone(t *testing.T) {
 		t.Fatalf("PATH = %s", path)
 	}
 }
+
+// act runs a step on this Mac from a script in its cache folder and splits
+// the script's path at spaces, so a lane with Mac jobs keeps act's cache off
+// a path with one ("Runnir Local") and on the run's own folder.
+func TestHostLanesKeepActsCacheOffPathsWithSpaces(t *testing.T) {
+	spec := &Spec{CacheDir: "/Users/me/Library/Caches/Runnir Local", DockerHost: "unix:///tmp/engine.sock"}
+	env := strings.Join(hostEnv(actEnv(spec, "/tmp/runnir-act-1"), "/tmp/runnir-act-1", ""), "\n")
+	if !strings.Contains(env, "XDG_CACHE_HOME=/tmp/runnir-act-1/cache\n") || strings.Contains(env, "Runnir Local") {
+		t.Fatalf("a host lane's act cache has a space: %s", env)
+	}
+	if env := strings.Join(actEnv(spec, "/tmp/runnir-act-1"), "\n"); !strings.Contains(env, "XDG_CACHE_HOME="+spec.CacheDir) {
+		t.Fatalf("a container lane lost the shared cache: %s", env)
+	}
+	spec.CacheDir = "/Users/me/Library/Caches/Runnir"
+	if env := strings.Join(hostEnv(actEnv(spec, "/tmp/runnir-act-1"), "/tmp/runnir-act-1", ""), "\n"); !strings.Contains(env, "XDG_CACHE_HOME="+spec.CacheDir) {
+		t.Fatalf("a host lane lost a cache without spaces: %s", env)
+	}
+}

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"runnir/core/internal/execution"
 )
@@ -414,11 +415,18 @@ func actEnv(spec *Spec, scratch string) []string {
 // hostEnv is act's environment for a lane with jobs on this Mac: their
 // steps get it, with the shims and tools on the PATH and the scratch home
 // as Foundation's home too, so Xcode's DerivedData and caches stay in it.
+// act runs such a step from a script in its cache folder and splits the
+// script's path at spaces, so a cache folder whose path has one (the Caches
+// folder of Runnir Dev or Runnir Local, a home folder with a space) gives way
+// to the run's own: that lane then fetches its actions again.
 func hostEnv(env []string, dir, node string) []string {
 	out := make([]string, 0, len(env)+1)
 	for _, entry := range env {
 		if strings.HasPrefix(entry, "PATH=") {
 			entry = "PATH=" + hostPath(filepath.Join(dir, "bin"), node)
+		}
+		if cache, ok := strings.CutPrefix(entry, "XDG_CACHE_HOME="); ok && strings.IndexFunc(cache, unicode.IsSpace) >= 0 {
+			entry = "XDG_CACHE_HOME=" + filepath.Join(dir, "cache")
 		}
 		out = append(out, entry)
 	}

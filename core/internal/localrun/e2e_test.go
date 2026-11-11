@@ -295,7 +295,7 @@ jobs:
 	}
 	plan.Lanes[0].Payload, _ = Payload(EventContext{Event: "push", Ref: "refs/heads/main", DefaultBranch: "main"})
 	spec := &Spec{ActPath: act, DockerPath: report.DockerCLI.Path, DockerHost: report.Engine.Endpoint, UserHome: home,
-		RepositoryPath: repo, Plan: plan, CacheDir: filepath.Join(t.TempDir(), "cache"), HostNode: tools.FindNode(home, os.Getenv("PATH"))}
+		RepositoryPath: repo, Plan: plan, CacheDir: filepath.Join(t.TempDir(), "Runnir Local", "cache"), HostNode: tools.FindNode(home, os.Getenv("PATH"))}
 	outputs := NewOutputs()
 	id, _ := execution.NewID()
 	outputs.Create(id, "repo", plan, "e2e", false, "none")
@@ -342,7 +342,7 @@ func TestE2EMacJobOfARepository(t *testing.T) {
 	t.Logf("notes: %v", plan.Notes)
 	plan.Lanes[0].Payload, _ = Payload(EventContext{Event: "push", Ref: "refs/heads/main", DefaultBranch: "main"})
 	spec := &Spec{ActPath: act, DockerPath: report.DockerCLI.Path, DockerHost: report.Engine.Endpoint, UserHome: home,
-		RepositoryPath: repo, Plan: plan, CacheDir: filepath.Join(t.TempDir(), "cache"), HostNode: tools.FindNode(home, os.Getenv("PATH"))}
+		RepositoryPath: repo, Plan: plan, CacheDir: filepath.Join(t.TempDir(), "Runnir Local", "cache"), HostNode: tools.FindNode(home, os.Getenv("PATH"))}
 	outputs := NewOutputs()
 	id, _ := execution.NewID()
 	outputs.Create(id, "repo", plan, "e2e", false, "none")
