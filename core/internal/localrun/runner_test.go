@@ -180,7 +180,7 @@ func TestSuccessfulRunRecordsOutputAndJobs(t *testing.T) {
 	call := calls[0]
 	for _, want := range []string{
 		"--directory=" + spec.RepositoryPath, "--json", "--rm", "--pull=false", "--network=bridge",
-		"--no-cache-server", "--container-daemon-socket=-",
+		"--no-cache-server", "--use-new-action-cache", "--container-daemon-socket=-",
 		"--container-options=--label=com.runnir.execution=exec_test --cpus=2 --memory=1073741824",
 		"--platform=ubuntu-latest=catthehacker/ubuntu:act-latest",
 	} {

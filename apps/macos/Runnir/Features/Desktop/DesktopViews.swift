@@ -1074,7 +1074,7 @@ struct DesktopWorkspaceView: View {
     private var runLocallyHelp: String {
         if localRun.map({ !$0.isFinished }) == true { return "A local run of this workspace is in progress" }
         if !canValidate { return "Local runs start in Runnir Core, which has not opened this repository yet" }
-        return "Review what a push, a pull request or another scenario starts, then run it with act"
+        return "Review what a push, a pull request or another scenario starts, then run it with act (beta)"
     }
 
     /// Editor and Local run tabs of the Workspace section.
@@ -1093,6 +1093,7 @@ struct DesktopWorkspaceView: View {
                         LocalJobIcon(state: run.isFinished ? (run.state == .succeeded ? .succeeded : run.state == .cancelled ? .cancelled : .failed) : .running)
                             .font(.system(size: 11))
                         Text("Local run")
+                        BetaBadge()
                     }
                 }.buttonStyle(WorkflowTabStyle(selected: state.workspaceTab == .localRun))
                 Spacer()
