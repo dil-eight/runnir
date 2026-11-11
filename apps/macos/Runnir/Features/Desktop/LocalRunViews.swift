@@ -1,6 +1,23 @@
 import AppKit
 import SwiftUI
 
+// MARK: Beta
+
+/// Local runs are in beta: act runs a workflow close to GitHub, not the same
+/// way, and some jobs that pass on GitHub fail here (ADR 0006 lists the known
+/// cases). The badge marks the local run surfaces.
+struct BetaBadge: View {
+    static let help = "Local runs are in beta: act runs a workflow close to GitHub but not the same way, so a job can fail here and pass on GitHub. Check a failure on GitHub before changing the workflow for it."
+
+    var body: some View {
+        Text("Beta")
+            .font(.system(size: 10, weight: .medium)).padding(.horizontal, 6).padding(.vertical, 1)
+            .foregroundStyle(RunnirTheme.info).background(RunnirTheme.info.opacity(0.14), in: Capsule())
+            .help(Self.help)
+            .accessibilityLabel("Beta")
+    }
+}
+
 // MARK: Tools
 
 /// Container engines Runnir can point people to. Runnir never installs or
@@ -345,7 +362,10 @@ struct LocalRunSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Run locally").font(.system(size: 17, weight: .semibold))
+            HStack(spacing: 8) {
+                Text("Run locally").font(.system(size: 17, weight: .semibold))
+                BetaBadge()
+            }
             HStack(spacing: 10) {
                 if let scenarios = model.prepared?.plan.scenarios, !scenarios.isEmpty {
                     DropdownPicker("Scenario", selection: Binding(
@@ -734,8 +754,11 @@ struct LocalRunView: View {
 
     private var summary: some View {
         HStack(spacing: 22) {
-            Text(run.plan.scenario.map { "Local · \($0.title)" } ?? "Local · not a GitHub run")
-                .help("Runs on this Mac with act, not on GitHub")
+            HStack(spacing: 6) {
+                Text(run.plan.scenario.map { "Local · \($0.title)" } ?? "Local · not a GitHub run")
+                    .help("Runs on this Mac with act, not on GitHub")
+                BetaBadge()
+            }
             Text("\(run.plan.engineName.isEmpty ? "Container engine" : run.plan.engineName) · act \(run.plan.actVersion)\(run.plan.installedAct ? " (installed)" : "")")
                 .font(.system(size: 12, design: .monospaced)).foregroundStyle(RunnirTheme.secondaryForeground)
             Text("No GitHub token injected")
