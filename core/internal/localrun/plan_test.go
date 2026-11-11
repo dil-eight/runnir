@@ -2,6 +2,8 @@ package localrun
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -382,6 +384,13 @@ jobs:
 		t.Fatalf("on Linux, app = %+v", p.Lanes[0].Jobs[1])
 	}
 
+	// The plan looks for sandbox-exec on disk: as a Mac, the test gives it
+	// one, so it passes on a Linux runner too.
+	defer func(saved string) { SandboxExec = saved }(SandboxExec)
+	SandboxExec = filepath.Join(t.TempDir(), "sandbox-exec")
+	if err := os.WriteFile(SandboxExec, nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	hostOS = "darwin"
 	p := plan(t, source, "", readyReport(), nil)
 	app := p.Lanes[0].Jobs[1]
@@ -406,9 +415,7 @@ jobs:
 		t.Fatalf("labels = %v", p.Lanes[0].HostLabels)
 	}
 
-	saved := SandboxExec
 	SandboxExec = "/nonexistent/sandbox-exec"
-	defer func() { SandboxExec = saved }()
 	if p := plan(t, source, "app", readyReport(), nil); p.Runnable() {
 		t.Fatal("a Mac job ran without the sandbox")
 	}
