@@ -333,6 +333,12 @@ func Args(spec *Spec, lane Lane, executionID, scratch string) []string {
 		"--network=bridge",
 		// The cache server would listen on a network address of this Mac.
 		"--no-cache-server",
+		// Remote actions come from a bare repository as the files of the
+		// commit their ref resolves to. act's other cache checks actions out
+		// in a folder that parallel jobs (a matrix) reset while another job
+		// copies it, which drops files from the copy; it also never moves a
+		// tag such as v7 once fetched.
+		"--use-new-action-cache",
 		// Never mount the engine's socket into job containers.
 		"--container-daemon-socket=-",
 		// Override act's defaults (.env, .secrets, .vars, .input in the

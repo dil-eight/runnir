@@ -30,7 +30,7 @@ import (
 // API 1.41 (Docker 20.10).
 var (
 	MinActVersion    = Version{0, 2, 60}
-	TestedActVersion = Version{0, 2, 89}
+	TestedActVersion = Version{0, 2, 97}
 	MinEngineAPI     = Version{1, 41, 0}
 )
 
