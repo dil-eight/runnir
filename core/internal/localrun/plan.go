@@ -85,6 +85,9 @@ type JobPlan struct {
 	Selected bool
 	// Skipped says why the scenario skips it on GitHub; empty when it runs there.
 	Skipped string
+	// GitHubOnly: it uses an action that works only on GitHub, or needs a
+	// job that does. Unsupported, with the reason; never run locally.
+	GitHubOnly bool
 }
 
 type Limits struct {
@@ -284,6 +287,9 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 			selected++
 			key := strings.ToLower(jp.ID)
 			ids = append(ids, key)
+			if jp.GitHubOnly {
+				plan.Blockers = append(plan.Blockers, fmt.Sprintf("%s › %s cannot run locally. %s", laneTitle(lane), jp.ID, jp.Reason))
+			}
 			if jp.Support == Unsupported {
 				continue
 			}
@@ -399,6 +405,7 @@ func planLane(in LaneInput, chosen bool) (Lane, *actionlint.Workflow, error) {
 		jp.Skipped = skippedReason(in.JobSkipped, jp.ID)
 		lane.Jobs = append(lane.Jobs, jp)
 	}
+	markGitHubOnly(lane.Jobs, workflow)
 
 	var ticked []string
 	if chosen {
