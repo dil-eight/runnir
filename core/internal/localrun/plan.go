@@ -631,8 +631,7 @@ func planJob(key string, job *actionlint.Job) JobPlan {
 	}
 	if runner.LabelsExpr != nil {
 		jp.RunsOn = []string{runner.LabelsExpr.Value}
-		jp.Support = Unknown
-		jp.Reason = "runs-on is an expression; act decides when the job starts"
+		jp.Support, jp.Reason = expressionRunner(runner.LabelsExpr.Value)
 		return jp
 	}
 	for _, label := range runner.Labels {
@@ -647,8 +646,7 @@ func planJob(key string, job *actionlint.Job) JobPlan {
 	}
 	for _, label := range jp.RunsOn {
 		if strings.Contains(label, "${{") {
-			jp.Support = Unknown
-			jp.Reason = "runs-on is an expression; act decides when the job starts"
+			jp.Support, jp.Reason = expressionRunner(label)
 			return jp
 		}
 	}
@@ -672,6 +670,20 @@ func planJob(key string, job *actionlint.Job) JobPlan {
 	jp.Support = Unsupported
 	jp.Reason = unsupportedReason(jp.RunsOn)
 	return jp
+}
+
+// matrixRunner finds a runs-on expression that reads the matrix.
+var matrixRunner = regexp.MustCompile(`\bmatrix\s*\.`)
+
+// expressionRunner is the support of a job whose runs-on is an expression.
+// act evaluates one from the matrix in the job shared by every entry, so all
+// entries get the runner of the first one evaluated: an entry is skipped or
+// runs on the wrong runner (act#5971; the fix in act#6050 is not merged).
+func expressionRunner(expression string) (Support, string) {
+	if matrixRunner.MatchString(expression) {
+		return Unsupported, "Not supported locally: act gives every matrix entry the runner of the first one, so runs-on from the matrix runs on the wrong runner"
+	}
+	return Unknown, "runs-on is an expression; act decides when the job starts"
 }
 
 func unsupportedReason(labels []string) string {

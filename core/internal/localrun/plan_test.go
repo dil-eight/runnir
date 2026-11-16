@@ -244,6 +244,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps: [{run: echo}]
+  picked:
+    runs-on: ${{ inputs.os || 'ubuntu-latest' }}
+    steps: [{run: echo}]
   selfhosted:
     runs-on: [self-hosted, linux]
     steps: [{run: echo}]
@@ -264,10 +267,15 @@ jobs:
 	for _, job := range p.Lanes[0].Jobs {
 		byID[job.ID] = job
 	}
-	for id, want := range map[string]Support{"matrix": Unknown, "selfhosted": Unsupported, "windows": Unsupported, "container": Supported, "reusable": Unknown} {
+	for id, want := range map[string]Support{"matrix": Unsupported, "picked": Unknown, "selfhosted": Unsupported, "windows": Unsupported, "container": Supported, "reusable": Unknown} {
 		if byID[id].Support != want {
 			t.Errorf("%s = %+v, want support %v", id, byID[id], want)
 		}
+	}
+	// act gives every entry of a matrix the runner of the first one it
+	// evaluates (act#5971), so such a job is never run locally.
+	if reason := byID["matrix"].Reason; !strings.Contains(reason, "matrix") || !strings.HasPrefix(reason, "Not supported locally") {
+		t.Errorf("matrix reason = %q", reason)
 	}
 	if byID["container"].Image != "node:22" {
 		t.Errorf("container image = %q", byID["container"].Image)
