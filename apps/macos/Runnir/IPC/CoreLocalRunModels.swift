@@ -280,6 +280,13 @@ struct CoreLocalRunLine: Equatable, Identifiable, Sendable {
     var id: UInt64 { sequence }
 }
 
+/// A job whose newest lines the Core keeps on their own.
+struct CoreLocalRunLineSource: Hashable, Sendable {
+    let workflowID: String
+    /// Empty for act's own messages of the workflow.
+    let jobID: String
+}
+
 struct CoreLocalRunOutput: Equatable, Sendable {
     let executionID: String
     let repositoryID: String
@@ -288,6 +295,8 @@ struct CoreLocalRunOutput: Equatable, Sendable {
     let lines: [CoreLocalRunLine]
     /// Lines after the requested sequence were dropped to stay in the bound.
     let discarded: Bool
+    /// The jobs those dropped lines were from.
+    var discardedJobs: [CoreLocalRunLineSource] = []
     let lastSequence: UInt64
     let jobs: [CoreLocalRunJobStatus]
     let plan: CoreLocalRunPlan

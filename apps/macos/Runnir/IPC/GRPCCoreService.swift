@@ -1144,7 +1144,9 @@ struct GRPCCoreService: CoreServicing {
             executionID: response.executionID, repositoryID: response.repositoryID,
             state: Self.map(response.state), phase: phase,
             lines: response.lines.map { CoreLocalRunLine(sequence: $0.sequence, workflowID: $0.workflowID, jobID: $0.jobID, text: $0.text, isError: $0.error) },
-            discarded: response.discarded, lastSequence: response.lastSequence,
+            discarded: response.discarded,
+            discardedJobs: response.discardedJobs.map { CoreLocalRunLineSource(workflowID: $0.workflowID, jobID: $0.jobID) },
+            lastSequence: response.lastSequence,
             jobs: response.jobs.map { job in
                 let state: CoreLocalJobState = switch job.state {
                 case .waiting: .waiting

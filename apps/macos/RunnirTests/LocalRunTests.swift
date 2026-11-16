@@ -34,9 +34,10 @@ struct LocalRunTests {
     }
 
     private func output(made: [CoreLocalRunLine], phase: CoreLocalRunPhase = .running, state: CoreExecutionState = .running,
-                        discarded: Bool = false, jobs: [CoreLocalRunJobStatus] = [], cleanup: String? = nil) -> CoreLocalRunOutput {
+                        discarded: Bool = false, discardedJobs: [CoreLocalRunLineSource] = [],
+                        jobs: [CoreLocalRunJobStatus] = [], cleanup: String? = nil) -> CoreLocalRunOutput {
         CoreLocalRunOutput(executionID: "exec_1", repositoryID: "repo", state: state, phase: phase, lines: made,
-                                  discarded: discarded, lastSequence: made.last?.sequence ?? 0, jobs: jobs, plan: plan(),
+                                  discarded: discarded, discardedJobs: discardedJobs, lastSequence: made.last?.sequence ?? 0, jobs: jobs, plan: plan(),
                                   startedAt: Date(), finishedAt: phase == .finished ? Date() : nil,
                                   exitCode: phase == .finished ? 0 : nil, message: nil, cleanupProblem: cleanup)
     }
@@ -92,6 +93,36 @@ struct LocalRunTests {
         #expect(LocalRunText.outsideWarning(lane, ticked: true)?.contains("Here it gets the push event of this branch") == true)
         lane.kind = .direct
         #expect(LocalRunText.outsideWarning(lane, ticked: true) == nil)
+    }
+
+    /// The Core says which jobs lost lines: only those say their earlier
+    /// output was dropped, not a job of ~200 lines next to a noisy one, and
+    /// All output says it when any did.
+    @Test func coreReportedDiscardIsShownForTheJobsThatLostLines() {
+        let run = LocalRunModel(executionID: "exec_1", workspaceID: UUID(), plan: plan())
+        let release = ".github/workflows/release.yml"
+        let jobs = [CoreLocalRunJobStatus(workflowID: Self.ci, id: "lint", state: .succeeded),
+                    CoreLocalRunJobStatus(workflowID: Self.ci, id: "build", state: .running),
+                    CoreLocalRunJobStatus(workflowID: release, id: "build", state: .succeeded)]
+        let lines = [CoreLocalRunLine(sequence: 1, workflowID: Self.ci, jobID: "lint", text: "lint 1", isError: false),
+                     CoreLocalRunLine(sequence: 2, workflowID: release, jobID: "build", text: "release 2", isError: false),
+                     CoreLocalRunLine(sequence: 9000, workflowID: Self.ci, jobID: "build", text: "build 9000", isError: false)]
+        run.apply(output(made: lines, discarded: true, discardedJobs: [CoreLocalRunLineSource(workflowID: Self.ci, jobID: "build")], jobs: jobs))
+        #expect(run.selectedJobID.flatMap(run.job)?.jobID == "lint")
+        #expect(!run.visibleDiscarded)
+        // The same job id in another workflow is another job.
+        run.selectedJobID = jobs[2].id
+        #expect(!run.visibleDiscarded)
+        run.selectedJobID = jobs[1].id
+        #expect(run.visibleDiscarded)
+        run.selectedJobID = nil
+        #expect(run.visibleDiscarded)
+        // A later answer that dropped nothing does not bring the lines back.
+        run.apply(output(made: [CoreLocalRunLine(sequence: 9001, workflowID: Self.ci, jobID: "build", text: "build 9001", isError: false)], jobs: jobs))
+        run.selectedJobID = jobs[1].id
+        #expect(run.visibleDiscarded)
+        run.selectedJobID = jobs[0].id
+        #expect(!run.visibleDiscarded)
     }
 
     @Test func allOutputStaysChosenWhileTheRunReports() {

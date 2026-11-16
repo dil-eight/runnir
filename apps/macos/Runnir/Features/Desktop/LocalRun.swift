@@ -180,10 +180,9 @@ final class LocalRunModel {
     private(set) var jobLines: [JobKey: [CoreLocalRunLine]] = [:]
     /// Earlier output of the whole run was dropped to stay within the bound.
     private(set) var discarded = false
-    /// Jobs whose earlier output was dropped.
+    /// Jobs whose earlier output was dropped, by the app or by the Core
+    /// before the app read it.
     private(set) var discardedJobs: Set<JobKey> = []
-    /// The Core dropped lines before the app read them.
-    private(set) var missedLines = false
     private(set) var jobs: [CoreLocalRunJobStatus]
     private(set) var state: CoreExecutionState = .queued
     private(set) var phase: CoreLocalRunPhase = .queued
@@ -236,7 +235,7 @@ final class LocalRunModel {
     /// Earlier output of what is shown was dropped.
     var visibleDiscarded: Bool {
         guard let key = selectedKey else { return discarded }
-        return missedLines || discardedJobs.contains(key)
+        return discardedJobs.contains(key)
     }
 
     private var selectedKey: JobKey? {
@@ -263,10 +262,10 @@ final class LocalRunModel {
 
     /// Merges what the Core reported after `lastSequence`.
     func apply(_ output: CoreLocalRunOutput) {
-        if output.discarded {
-            discarded = true
-            missedLines = true
-        }
+        if output.discarded { discarded = true }
+        // Only the jobs the Core dropped lines of, so a job that writes a lot
+        // does not make another's output look cut.
+        discardedJobs.formUnion(output.discardedJobs.map { JobKey(workflowID: $0.workflowID, jobID: $0.jobID) })
         let fresh = output.lines.filter { $0.sequence > lastSequence }
         lines.append(contentsOf: fresh)
         if lines.count > Self.maxLines {
