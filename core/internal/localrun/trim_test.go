@@ -60,6 +60,69 @@ jobs:
 	}
 }
 
+// An alias whose anchor was in a job left out names a copy of its value, so
+// act can parse the copy.
+func TestTrimKeepsWhatAliasesOfDroppedJobsName(t *testing.T) {
+	source := `on: push
+jobs:
+  lint: &job
+    runs-on: ubuntu-latest
+    env: &env {LEVEL: &level strict}
+    steps: &steps
+      - run: echo one
+      - run: echo two
+  test:
+    <<: *job
+    env: {MODE: *level}
+    steps: *steps
+  check:
+    runs-on: ubuntu-latest
+    env: *env
+    steps: [{run: echo check}]
+`
+	copied, err := Trim([]byte(source), map[string]bool{"test": true, "check": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(copied), "*") {
+		t.Fatalf("the copy keeps an alias of a dropped anchor:\n%s", copied)
+	}
+	var workflow struct {
+		Jobs map[string]struct {
+			RunsOn string            `yaml:"runs-on"`
+			Env    map[string]string `yaml:"env"`
+			Steps  []map[string]string
+		}
+	}
+	if err := yaml.Unmarshal(copied, &workflow); err != nil {
+		t.Fatalf("copy does not parse: %v\n%s", err, copied)
+	}
+	test, check := workflow.Jobs["test"], workflow.Jobs["check"]
+	if len(workflow.Jobs) != 2 || test.RunsOn != "ubuntu-latest" || test.Env["MODE"] != "strict" || len(test.Steps) != 2 ||
+		test.Steps[1]["run"] != "echo two" || check.Env["LEVEL"] != "strict" {
+		t.Fatalf("copy = %+v\n%s", workflow, copied)
+	}
+
+	// Aliases of kept anchors stay aliases.
+	kept := "on: push\nenv: {A: &shared yes}\njobs:\n  a: {runs-on: ubuntu-latest, env: {B: *shared}, steps: [{run: x}]}\n  b: {runs-on: ubuntu-latest, steps: [{run: y}]}\n"
+	if copied, err := Trim([]byte(kept), map[string]bool{"a": true}); err != nil || !strings.Contains(string(copied), "*shared") {
+		t.Fatalf("copy = %s, %v", copied, err)
+	}
+}
+
+func TestTrimRefusesAliasesThatExpandTooFar(t *testing.T) {
+	source := "on: push\njobs:\n  bomb:\n    runs-on: ubuntu-latest\n    env:\n      a: &a [x, x, x, x, x, x, x, x, x, x]\n"
+	prev := "a"
+	for _, name := range []string{"b", "c", "d", "e", "f"} {
+		source += "      " + name + ": &" + name + " [*" + prev + ", *" + prev + ", *" + prev + ", *" + prev + ", *" + prev + ", *" + prev + ", *" + prev + ", *" + prev + ", *" + prev + ", *" + prev + "]\n"
+		prev = name
+	}
+	source += "  run:\n    runs-on: ubuntu-latest\n    env: {big: *f}\n    steps: [{run: x}]\n"
+	if _, err := Trim([]byte(source), map[string]bool{"run": true}); err == nil {
+		t.Fatal("a copy that expands a million nodes was made")
+	}
+}
+
 func TestPayloadsCarryTheScenariosRefs(t *testing.T) {
 	read := func(c EventContext) map[string]any {
 		t.Helper()

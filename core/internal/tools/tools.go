@@ -24,12 +24,13 @@ import (
 // Version policy. Runnir drives act through its command line and its JSON
 // log format, which are not a stable API, so the app bundles the act version
 // local runs were verified with and uses it by default. An installed act is
-// an experimental opt-in: it must be at least MinActVersion, and newer
-// versions are labelled untested. Docker is used through long-stable CLI
+// an experimental opt-in: it must be at least MinActVersion (the first with
+// --concurrent-jobs, which every run passes), and newer versions are
+// labelled untested. Docker is used through long-stable CLI
 // commands; act negotiates the engine API itself, so the engine only needs
 // API 1.41 (Docker 20.10).
 var (
-	MinActVersion    = Version{0, 2, 60}
+	MinActVersion    = Version{0, 2, 78}
 	TestedActVersion = Version{0, 2, 97}
 	MinEngineAPI     = Version{1, 41, 0}
 )

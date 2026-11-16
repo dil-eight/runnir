@@ -18,9 +18,12 @@ type script struct {
 	Stderr []string `json:"stderr"`
 	Exit   int      `json:"exit"`
 	// Exits, when set, is the exit code of each run of act in turn.
-	Exits           []int `json:"exits"`
-	WaitForSignal   bool  `json:"waitForSignal"`
-	IgnoreInterrupt bool  `json:"ignoreInterrupt"`
+	Exits []int `json:"exits"`
+	// RunLines, when set, are the lines of each run of act in turn, in
+	// place of Lines.
+	RunLines        [][]string `json:"runLines"`
+	WaitForSignal   bool       `json:"waitForSignal"`
+	IgnoreInterrupt bool       `json:"ignoreInterrupt"`
 	// CopyValueFiles records what the --secret-file, --var-file,
 	// --workflows and --eventpath paths hold, in act.files, a line per run.
 	CopyValueFiles bool `json:"copyValueFiles"`
@@ -76,6 +79,9 @@ func main() {
 	}
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
+	if runs := countLines(filepath.Join(dir, name+".invocations")); runs > 0 && runs <= len(s.RunLines) {
+		s.Lines = s.RunLines[runs-1]
+	}
 	for _, line := range s.Lines {
 		fmt.Println(line)
 	}

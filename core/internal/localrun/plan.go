@@ -18,10 +18,12 @@ import (
 	"time"
 
 	"github.com/rhysd/actionlint"
+	"go.yaml.in/yaml/v3"
 
 	"runnir/core/internal/flow"
 	"runnir/core/internal/references"
 	"runnir/core/internal/tools"
+	"runnir/core/internal/yamlnode"
 )
 
 // Limits every local run gets, lowered to what the engine has.
@@ -328,6 +330,12 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 		if _, err := os.Stat(SandboxExec); err != nil {
 			plan.Blockers = append(plan.Blockers, "macOS jobs run in the macOS sandbox, and this Mac has no sandbox-exec.")
 		}
+		for _, lane := range plan.Lanes {
+			if !lane.Selected() || len(lane.HostLabels) == 0 {
+				continue
+			}
+			plan.Blockers = append(plan.Blockers, crossingReads(lane)...)
+		}
 	}
 	switch {
 	case selected == 0:
@@ -416,8 +424,14 @@ func planLane(in LaneInput, chosen bool) (Lane, *actionlint.Workflow, error) {
 			ticked = append(ticked, strings.ToLower(id))
 		}
 	} else if in.Kind == Direct || in.Kind == Chained {
+		// macOS jobs run only when ticked, so neither they nor the jobs
+		// that need one are ticked by default.
+		support := map[string]Support{}
 		for _, jp := range lane.Jobs {
-			if jp.Support != Unsupported && jp.Support != Host && jp.Skipped == "" {
+			support[strings.ToLower(jp.ID)] = jp.Support
+		}
+		for _, jp := range lane.Jobs {
+			if jp.Support != Unsupported && jp.Support != Host && jp.Skipped == "" && !needsHost(workflow, jp.ID, support) {
 				ticked = append(ticked, strings.ToLower(jp.ID))
 			}
 		}
@@ -508,6 +522,189 @@ func jobOrder(workflow *actionlint.Workflow, order []string) []string {
 	}
 	sort.Slice(rest, func(i, j int) bool { return position(workflow.Jobs[rest[i]]) < position(workflow.Jobs[rest[j]]) })
 	return append(keys, rest...)
+}
+
+// needsHost reports a job that needs a macOS job (Host), directly or
+// through other jobs.
+func needsHost(workflow *actionlint.Workflow, id string, support map[string]Support) bool {
+	for key := range Closure(workflow, []string{id}) {
+		if support[key] == Host {
+			return true
+		}
+	}
+	return false
+}
+
+// LanePart is one act of a lane in the macOS sandbox: ticked jobs, by
+// lower-cased key, that all run on this Mac (Host) or all not.
+type LanePart struct {
+	Host bool
+	Jobs map[string]bool
+}
+
+// Parts splits a lane's ticked jobs into the acts that run them in the
+// macOS sandbox, in order. Jobs on this Mac run in acts of their own, apart
+// from the container engine, which a job in the sandbox could otherwise use
+// to start a container that mounts the home folder; jobs in a container or
+// that act places when they start (Unknown) run in the others. A job that
+// needs a job on the other side runs in a later act; no job needs one of a
+// later act.
+func Parts(lane Lane) []LanePart {
+	host := map[string]bool{}
+	var order []string
+	for _, job := range lane.Jobs {
+		if job.Selected {
+			key := strings.ToLower(job.ID)
+			host[key] = job.Support == Host
+			order = append(order, key)
+		}
+	}
+	needs := laneNeeds(lane)
+	phase := map[string]int{}
+	var visit func(key string, seen map[string]bool) int
+	visit = func(key string, seen map[string]bool) int {
+		if p, ok := phase[key]; ok {
+			return p
+		}
+		if seen[key] {
+			return 0 // a cycle, which actionlint refuses
+		}
+		seen[key] = true
+		p := 0
+		for _, need := range needs[key] {
+			q := visit(need, seen)
+			if host[need] != host[key] {
+				q++
+			}
+			p = max(p, q)
+		}
+		phase[key] = p
+		return p
+	}
+	last := 0
+	for _, key := range order {
+		last = max(last, visit(key, map[string]bool{}))
+	}
+	var parts []LanePart
+	for p := 0; p <= last; p++ {
+		for _, onMac := range []bool{false, true} {
+			part := LanePart{Host: onMac, Jobs: map[string]bool{}}
+			for _, key := range order {
+				if phase[key] == p && host[key] == onMac {
+					part.Jobs[key] = true
+				}
+			}
+			if len(part.Jobs) > 0 {
+				parts = append(parts, part)
+			}
+		}
+	}
+	return parts
+}
+
+// laneNeeds is what each ticked job needs among the ticked jobs, by
+// lower-cased key.
+func laneNeeds(lane Lane) map[string][]string {
+	ticked := map[string]bool{}
+	for _, job := range lane.Jobs {
+		if job.Selected {
+			ticked[strings.ToLower(job.ID)] = true
+		}
+	}
+	needs := map[string][]string{}
+	for _, job := range lane.Jobs {
+		if !job.Selected {
+			continue
+		}
+		key := strings.ToLower(job.ID)
+		for _, need := range job.Needs {
+			if ticked[strings.ToLower(need)] {
+				needs[key] = append(needs[key], strings.ToLower(need))
+			}
+		}
+	}
+	return needs
+}
+
+// readsNeeds finds a job that reads the needs context, or whose if reads a
+// needed job's result through always(), failure() or cancelled().
+var (
+	readsNeeds   = regexp.MustCompile(`(?i)\bneeds\b`)
+	statusChecks = regexp.MustCompile(`(?i)\b(always|failure|cancelled)\s*\(`)
+)
+
+// crossingReads says, for the macOS sandbox, which ticked jobs read what a
+// job on the other side did: that job runs in another act (Parts), whose
+// outputs and result do not reach them.
+func crossingReads(lane Lane) []string {
+	var document yaml.Node
+	if yaml.Unmarshal(lane.Copy, &document) != nil || len(document.Content) != 1 {
+		return nil
+	}
+	sources := map[string]map[string]any{}
+	root := yamlnode.Resolve(document.Content[0])
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value != "jobs" {
+			continue
+		}
+		jobs := yamlnode.Resolve(root.Content[i+1])
+		for j := 0; j+1 < len(jobs.Content); j += 2 {
+			var body map[string]any
+			if jobs.Content[j+1].Decode(&body) == nil {
+				sources[strings.ToLower(jobs.Content[j].Value)] = body
+			}
+		}
+	}
+	host, ids := map[string]bool{}, map[string]string{}
+	for _, job := range lane.Jobs {
+		if job.Selected {
+			host[strings.ToLower(job.ID)], ids[strings.ToLower(job.ID)] = job.Support == Host, job.ID
+		}
+	}
+	needs := laneNeeds(lane)
+	var problems []string
+	for _, job := range lane.Jobs {
+		key := strings.ToLower(job.ID)
+		if !job.Selected {
+			continue
+		}
+		var across []string
+		for _, need := range needs[key] {
+			if host[need] != host[key] {
+				across = append(across, ids[need])
+			}
+		}
+		if len(across) == 0 || !readsWhatItNeeds(sources[key]) {
+			continue
+		}
+		where := map[bool]string{true: "on this Mac", false: "in a container"}
+		problems = append(problems, fmt.Sprintf("%s › %s reads the result or outputs of %s, which %s %s while it runs %s. "+
+			"In the macOS sandbox jobs on this Mac run in an act apart from the container engine, so those do not reach it: run the macOS jobs without the sandbox.",
+			laneTitle(lane), job.ID, andList(across), map[bool]string{true: "runs", false: "run"}[len(across) == 1], where[!host[key]], where[host[key]]))
+	}
+	return problems
+}
+
+// readsWhatItNeeds reports a job definition that reads the needs context
+// anywhere but in its needs, or whose if checks the result of what it needs.
+func readsWhatItNeeds(body map[string]any) bool {
+	if body == nil {
+		return false
+	}
+	rest := map[string]any{}
+	for key, value := range body {
+		if !strings.EqualFold(key, "needs") {
+			rest[key] = value
+		}
+	}
+	text, err := yaml.Marshal(rest)
+	if err != nil {
+		return true
+	}
+	if condition, ok := body["if"].(string); ok && statusChecks.MatchString(condition) {
+		return true
+	}
+	return readsNeeds.Match(text)
 }
 
 // Closure is the jobs given and every job they need, all the way down, by

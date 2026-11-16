@@ -276,10 +276,42 @@ func (o *Outputs) Summary(executionID string) (Summary, bool) {
 
 // startLane records that act started on a lane: its output and jobs are
 // the lane's from now on.
+// A lane that runs as several acts (Parts) keeps its first start.
 func (o *Outputs) startLane(executionID, workflow string, now time.Time) {
 	o.update(executionID, func(r *run) {
 		r.lane = workflow
-		r.lanes[workflow] = laneTimes{started: now}
+		if _, ok := r.lanes[workflow]; !ok {
+			r.lanes[workflow] = laneTimes{started: now}
+		}
+	})
+}
+
+// jobStates are the states of a lane's jobs, by lower-cased id.
+func (o *Outputs) jobStates(executionID, workflow string) map[string]JobState {
+	states := map[string]JobState{}
+	o.update(executionID, func(r *run) {
+		for _, job := range r.snap.Jobs {
+			if job.Workflow == workflow {
+				states[strings.ToLower(job.ID)] = job.State
+			}
+		}
+	})
+	return states
+}
+
+// skipJobs records waiting jobs of a lane that do not run, with the reason
+// for each, by lower-cased id.
+func (o *Outputs) skipJobs(executionID, workflow string, reasons map[string]string) {
+	if len(reasons) == 0 {
+		return
+	}
+	o.update(executionID, func(r *run) {
+		for i := range r.snap.Jobs {
+			job := &r.snap.Jobs[i]
+			if reason := reasons[strings.ToLower(job.ID)]; reason != "" && job.Workflow == workflow && job.State == JobWaiting {
+				job.State, job.Reason = JobNotRun, reason
+			}
+		}
 	})
 }
 

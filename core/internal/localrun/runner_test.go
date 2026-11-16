@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -534,10 +535,15 @@ func TestMacJobsRunInTheSandboxWithTheShims(t *testing.T) {
 		t.Fatalf("sandbox-exec args = %v", args)
 	}
 	env := strings.Join(calls[1].Env, "\n")
-	for _, want := range []string{"CFFIXED_USER_HOME=", "PATH=" + filepath.Join(filepath.Dir(sandboxed[0].Args[1]), "bin") + ":/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:"} {
+	for _, want := range []string{"CFFIXED_USER_HOME=", "PATH=" + filepath.Join(filepath.Dir(sandboxed[0].Args[1]), "bin") + ":/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:",
+		"XDG_CACHE_HOME=" + filepath.Join(spec.CacheDir, "sandboxed") + string(filepath.Separator)} {
 		if !strings.Contains(env, want) {
 			t.Fatalf("act's environment lacks %q: %s", want, env)
 		}
+	}
+	// act in the sandbox runs no container, and its jobs learn of no engine.
+	if strings.Contains(env, "DOCKER_HOST=") || !strings.Contains(strings.Join(calls[0].Env, "\n"), "DOCKER_HOST=unix:///tmp/engine.sock") {
+		t.Fatalf("DOCKER_HOST: sandboxed %v / container lane %v", calls[1].Env, calls[0].Env)
 	}
 	profile, _ := os.ReadFile(filepath.Join(dir, "sandbox.profile"))
 	for _, want := range []string{"(deny file-write*)", "(deny file-read* (subpath ", "com.apple.securityd.xpc", realPath(spec.RepositoryPath), realPath(filepath.Dir(actPath))} {
@@ -552,14 +558,18 @@ func TestTheSandboxProfileClosesTheHomeButForWhatTheRunNeeds(t *testing.T) {
 		t.Skip("macOS jobs run on a Mac")
 	}
 	profile := sandboxProfile(sandboxRoots{Home: "/Users/me", Readable: []string{"/Users/me/code/app", `/Users/me/odd "name"`},
-		Writable: []string{"/private/var/folders/x/T/runnir-act-1/0"}})
+		Writable: []string{"/private/var/folders/x/T/runnir-act-1/0"}, Sockets: []string{"/private/var/folders/x/T/podman/podman.sock"}})
 	for _, want := range []string{
 		"(deny file-write*)\n(allow file-write*\n  (subpath \"/private/var/folders/x/T/runnir-act-1/0\")",
 		"(deny file-read* (subpath \"/Users/me\"))",
 		"(subpath \"/Users/me/code/app\")",
 		`(subpath "/Users/me/odd \"name\"")`,
 		"(literal \"/Users/me/code\")", "(literal \"/Users/me\")",
-		"(global-name \"com.apple.SecurityServer\")",
+		"(global-name \"com.apple.SecurityServer\")", "(global-name \"com.apple.pasteboard.1\")",
+		"(deny lsopen)\n(deny appleevent-send)\n(deny job-creation)\n",
+		"(deny network-outbound\n  (remote unix-socket (subpath \"/Users/me\"))\n",
+		`(remote unix-socket (regex #"^/private/(var/run|tmp)/com\.apple\.launchd\.[^/]+/"))`,
+		"(remote unix-socket (path-literal \"/private/var/folders/x/T/podman/podman.sock\")))",
 	} {
 		if !strings.Contains(profile, want) {
 			t.Fatalf("profile lacks %q:\n%s", want, profile)
@@ -602,21 +612,226 @@ func TestMacJobsAskedToRunWithoutTheSandboxRunAsActAlone(t *testing.T) {
 
 // act runs a step on this Mac from a script in its cache folder and splits
 // the script's path at spaces, so a lane with Mac jobs keeps act's cache off
-// a path with one ("Runnir Local") and on the run's own folder.
-func TestHostLanesKeepActsCacheOffPathsWithSpaces(t *testing.T) {
+// a path with one ("Runnir Local") and on the run's own folder. A lane in
+// the macOS sandbox gets its workspace's own cache: what a job there writes
+// into the tool cache reaches no run outside the sandbox and no other
+// workspace.
+func TestLaneCachesKeepTheSandboxApart(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("macOS jobs run on a Mac")
 	}
-	spec := &Spec{CacheDir: "/Users/me/Library/Caches/Runnir Local", DockerHost: "unix:///tmp/engine.sock"}
-	env := strings.Join(hostEnv(actEnv(spec, "/tmp/runnir-act-1"), "/tmp/runnir-act-1", ""), "\n")
-	if !strings.Contains(env, "XDG_CACHE_HOME=/tmp/runnir-act-1/cache\n") || strings.Contains(env, "Runnir Local") {
-		t.Fatalf("a host lane's act cache has a space: %s", env)
+	scratch := "/tmp/runnir-act-1"
+	spec := &Spec{CacheDir: "/Users/me/Library/Caches/Runnir Local/act", RepositoryPath: "/Users/me/code/app", DockerHost: "unix:///tmp/engine.sock"}
+	if got := laneCache(spec, scratch, true, true); got != "/tmp/runnir-act-1/cache" {
+		t.Fatalf("a host lane's act cache has a space: %s", got)
 	}
-	if env := strings.Join(actEnv(spec, "/tmp/runnir-act-1"), "\n"); !strings.Contains(env, "XDG_CACHE_HOME="+spec.CacheDir) {
-		t.Fatalf("a container lane lost the shared cache: %s", env)
+	if got := laneCache(spec, scratch, false, false); got != spec.CacheDir {
+		t.Fatalf("a container lane lost the shared cache: %s", got)
 	}
-	spec.CacheDir = "/Users/me/Library/Caches/Runnir"
-	if env := strings.Join(hostEnv(actEnv(spec, "/tmp/runnir-act-1"), "/tmp/runnir-act-1", ""), "\n"); !strings.Contains(env, "XDG_CACHE_HOME="+spec.CacheDir) {
-		t.Fatalf("a host lane lost a cache without spaces: %s", env)
+	spec.CacheDir = "/Users/me/Library/Caches/Runnir/act"
+	shared, sandboxed := laneCache(spec, scratch, true, false), laneCache(spec, scratch, true, true)
+	other := laneCache(&Spec{CacheDir: spec.CacheDir, RepositoryPath: "/Users/me/code/other"}, scratch, true, true)
+	if shared != spec.CacheDir || !strings.HasPrefix(sandboxed, spec.CacheDir+"/sandboxed/") || other == sandboxed || laneCache(spec, scratch, true, true) != sandboxed {
+		t.Fatalf("shared %s, sandboxed %s, another workspace's %s", shared, sandboxed, other)
+	}
+	env := strings.Join(hostEnv(actEnv(spec, scratch, sandboxed), scratch, "", true), "\n")
+	if !strings.Contains(env, "XDG_CACHE_HOME="+sandboxed+"\n") || strings.Contains(env, "DOCKER_HOST") {
+		t.Fatalf("sandboxed env = %s", env)
+	}
+	if env := strings.Join(hostEnv(actEnv(spec, scratch, shared), scratch, "", false), "\n"); !strings.Contains(env, "DOCKER_HOST=unix:///tmp/engine.sock") {
+		t.Fatalf("a lane without the sandbox lost its engine: %s", env)
+	}
+}
+
+// The folders the sandbox opens never include the home folder or one that
+// holds it: not through a separate git folder, a worktree's, nor Node.js in
+// ~/bin.
+func TestTheSandboxNeverOpensTheHomeFolder(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("macOS jobs run on a Mac")
+	}
+	home := realPath(t.TempDir())
+	write := func(path, text string, mode os.FileMode) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(text), mode); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A repository made with --separate-git-dir, and Node.js in ~/bin.
+	repo := filepath.Join(home, "code", "app")
+	write(filepath.Join(repo, ".git"), "gitdir: ../../gits/app.git\n", 0o644)
+	write(filepath.Join(home, "gits", "app.git", "HEAD"), "ref: refs/heads/main\n", 0o644)
+	write(filepath.Join(home, "bin", "node"), "#!/bin/sh\n", 0o755)
+	// A linked worktree of another repository.
+	worktree := filepath.Join(home, "code", "wt")
+	common := filepath.Join(home, "code", "main", ".git")
+	write(filepath.Join(worktree, ".git"), "gitdir: "+filepath.Join(common, "worktrees", "wt")+"\n", 0o644)
+	write(filepath.Join(common, "worktrees", "wt", "commondir"), "../..\n", 0o644)
+	// nvm's Node.js: its whole folder opens, for npm.
+	nvm := filepath.Join(home, ".nvm", "versions", "node", "v24.1.0")
+	write(filepath.Join(nvm, "bin", "node"), "#!/bin/sh\n", 0o755)
+	write(filepath.Join(nvm, "lib", "node_modules", "npm", "package.json"), "{}", 0o644)
+	write(filepath.Join(nvm, "LICENSE"), "", 0o644)
+
+	profileOf := func(repository, node string) string {
+		t.Helper()
+		dir := filepath.Join(t.TempDir(), "lane")
+		if err := os.Mkdir(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		spec := &Spec{UserHome: home, RepositoryPath: repository, ActPath: "/opt/act/act", HostNode: node, DockerHost: "unix://" + filepath.Join(home, ".orbstack", "run", "docker.sock")}
+		path, err := prepareHost(spec, dir, filepath.Join(home, "Library", "Caches", "Runnir", "act", "sandboxed", "x"), true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, _ := os.ReadFile(path)
+		return string(data)
+	}
+	readable := func(profile string) []string {
+		allow := profile[strings.Index(profile, "(allow file-read*\n"):]
+		allow = allow[:strings.Index(allow, "\n(")]
+		var out []string
+		for _, match := range regexp.MustCompile(`\(subpath "([^"]*)"\)`).FindAllStringSubmatch(allow, -1) {
+			out = append(out, match[1])
+		}
+		return out
+	}
+	profile := profileOf(repo, filepath.Join(home, "bin", "node"))
+	got := readable(profile)
+	for _, path := range got {
+		if opensHome(path, home) {
+			t.Fatalf("the profile opens %s:\n%s", path, profile)
+		}
+	}
+	for _, want := range []string{repo, filepath.Join(home, "gits", "app.git"), filepath.Join(home, "bin", "node")} {
+		if !slices.Contains(got, want) {
+			t.Fatalf("readable %v lacks %s", got, want)
+		}
+	}
+	if slices.Contains(got, filepath.Join(home, "bin")) {
+		t.Fatalf("node in ~/bin opens the whole folder: %v", got)
+	}
+	got = readable(profileOf(worktree, filepath.Join(nvm, "bin", "node")))
+	for _, want := range []string{worktree, filepath.Join(common, "worktrees", "wt"), common, nvm} {
+		if !slices.Contains(got, want) {
+			t.Fatalf("readable %v lacks %s", got, want)
+		}
+	}
+	// A commondir that names another folder opens nothing more.
+	write(filepath.Join(common, "worktrees", "wt", "commondir"), "../../../..\n", 0o644)
+	if got := readable(profileOf(worktree, "")); slices.Contains(got, common) || !slices.Contains(got, filepath.Join(common, "worktrees", "wt")) {
+		t.Fatalf("readable = %v", got)
+	}
+	// The home folder itself is no repository to run in the sandbox.
+	if _, err := prepareHost(&Spec{UserHome: home, RepositoryPath: home, ActPath: "/opt/act/act"}, t.TempDir(), t.TempDir(), true); err == nil {
+		t.Fatal("a repository that is the home folder ran in the sandbox")
+	}
+}
+
+// In the macOS sandbox, jobs on this Mac run in acts of their own, without
+// the container engine; a job that needs one on the other side runs in a
+// later act, with its copy no longer naming what ran before.
+func TestSandboxedLaneRunsMacJobsInActsOfTheirOwn(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("macOS jobs run on a Mac")
+	}
+	result := func(id, outcome string) string {
+		return `{"level":"info","job":"CI/` + id + `","jobID":"` + id + `","jobResult":"` + outcome + `","msg":"done"}`
+	}
+	actPath, dockerPath, dir := fakeTools(t, map[string]any{"copyValueFiles": true, "runLines": [][]string{
+		{result("lint", "success")}, {result("solo", "success")}, {result("build", "success")}, {result("publish", "success")}}})
+	saved := SandboxExec
+	SandboxExec = filepath.Join(dir, "sandbox-exec")
+	defer func() { SandboxExec = saved }()
+	spec := testSpec(t, actPath, dockerPath)
+	ci := lane(".github/workflows/ci.yml", "push",
+		JobPlan{ID: "lint", Support: Supported},
+		JobPlan{ID: "build", Support: Host, RunsOn: []string{"macos-26"}, Needs: []string{"lint"}},
+		JobPlan{ID: "publish", Support: Supported, Needs: []string{"build"}},
+		JobPlan{ID: "solo", Support: Host, RunsOn: []string{"macos-26"}})
+	ci.Copy = []byte("on: push\njobs:\n  lint: {runs-on: ubuntu-latest, steps: [{run: a}]}\n" +
+		"  build: {needs: lint, runs-on: macos-26, steps: [{run: b}]}\n" +
+		"  publish: {needs: [build], runs-on: ubuntu-latest, steps: [{run: c}]}\n" +
+		"  solo: {runs-on: macos-26, steps: [{run: d}]}\n")
+	ci.HostLabels = []string{"macos-26"}
+	spec.Plan.Lanes = []Lane{ci}
+	runner, outputs, job := startRun(t, spec)
+	if err := runner.Run(context.Background(), job); err != nil {
+		t.Fatalf("Run = %v", err)
+	}
+	calls := invocations(t, dir, "act")
+	if len(calls) != 4 || len(invocations(t, dir, "sandbox-exec")) != 2 {
+		t.Fatalf("act ran %d times, %d in the sandbox", len(calls), len(invocations(t, dir, "sandbox-exec")))
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "act.files"))
+	copies := strings.Split(strings.TrimSpace(string(data)), "\n")
+	for i, want := range []struct {
+		job     string
+		onMac   bool
+		without []string
+	}{{"lint", false, []string{"build", "solo"}}, {"solo", true, []string{"lint", "build"}}, {"build", true, []string{"lint", "publish", "needs"}}, {"publish", false, []string{"lint", "build", "needs"}}} {
+		var files map[string]string
+		if err := json.Unmarshal([]byte(copies[i]), &files); err != nil {
+			t.Fatal(err)
+		}
+		copied := files["--workflows="]
+		env := strings.Join(calls[i].Env, "\n")
+		if !strings.Contains(copied, want.job+":") || slices.Contains(calls[i].Args, "--platform=macos-26=-self-hosted") != want.onMac ||
+			strings.Contains(env, "DOCKER_HOST=") == want.onMac {
+			t.Fatalf("act %d: args %v\n%s", i, calls[i].Args, copied)
+		}
+		for _, other := range want.without {
+			if strings.Contains(copied, other) {
+				t.Fatalf("act %d's copy has %s:\n%s", i, other, copied)
+			}
+		}
+	}
+	snap, _ := outputs.Since(job.ExecutionID, 0)
+	for _, status := range snap.Jobs {
+		if status.State != JobSucceeded {
+			t.Fatalf("jobs = %+v", snap.Jobs)
+		}
+	}
+}
+
+// A job whose needs in an earlier act failed does not run, nor do the jobs
+// that need it; the other acts still run.
+func TestLaterActsRunOnlyWhatTheirNeedsLetThrough(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("macOS jobs run on a Mac")
+	}
+	actPath, dockerPath, dir := fakeTools(t, map[string]any{"exits": []int{1, 0}, "runLines": [][]string{
+		{`{"level":"info","job":"CI/lint","jobID":"lint","jobResult":"failure","msg":"done"}`},
+		{`{"level":"info","job":"CI/solo","jobID":"solo","jobResult":"success","msg":"done"}`}}})
+	saved := SandboxExec
+	SandboxExec = filepath.Join(dir, "sandbox-exec")
+	defer func() { SandboxExec = saved }()
+	spec := testSpec(t, actPath, dockerPath)
+	ci := lane(".github/workflows/ci.yml", "push",
+		JobPlan{ID: "lint", Support: Supported},
+		JobPlan{ID: "build", Support: Host, RunsOn: []string{"macos-26"}, Needs: []string{"lint"}},
+		JobPlan{ID: "publish", Support: Supported, Needs: []string{"build"}},
+		JobPlan{ID: "solo", Support: Host, RunsOn: []string{"macos-26"}})
+	ci.HostLabels = []string{"macos-26"}
+	spec.Plan.Lanes = []Lane{ci}
+	runner, outputs, job := startRun(t, spec)
+	if err := runner.Run(context.Background(), job); err == nil || err.Error() != "act exited with code 1" {
+		t.Fatalf("Run = %v", err)
+	}
+	if calls := invocations(t, dir, "act"); len(calls) != 2 {
+		t.Fatalf("act ran %d times", len(calls))
+	}
+	snap, _ := outputs.Since(job.ExecutionID, 0)
+	states := map[string]JobStatus{}
+	for _, status := range snap.Jobs {
+		states[status.ID] = status
+	}
+	if states["lint"].State != JobFailed || states["solo"].State != JobSucceeded ||
+		states["build"].State != JobNotRun || states["build"].Reason != "Not run: lint did not succeed" ||
+		states["publish"].State != JobNotRun || states["publish"].Reason != "Not run: build did not run" {
+		t.Fatalf("jobs = %+v", snap.Jobs)
 	}
 }

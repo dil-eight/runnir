@@ -152,9 +152,10 @@ func TestBundledActIsUsedWhenNoActIsInstalled(t *testing.T) {
 
 func TestOldInstalledActIsUnsupportedAndNewActIsUntested(t *testing.T) {
 	host := readyHost()
-	host.commands["act --version"] = "act version 0.2.45"
+	// Every run passes --concurrent-jobs, which act has had since 0.2.78.
+	host.commands["act --version"] = "act version 0.2.77"
 	report := host.detector().Check(context.Background(), false)
-	if report.InstalledAct.State != Unsupported || !strings.Contains(report.InstalledAct.Detail, "0.2.60") {
+	if report.InstalledAct.State != Unsupported || !strings.Contains(report.InstalledAct.Detail, "0.2.78") {
 		t.Fatalf("act = %+v", report.InstalledAct)
 	}
 	if _, source := report.Act(true); source != ActBundled {

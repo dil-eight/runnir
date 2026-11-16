@@ -114,7 +114,7 @@ func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 			continue
 		}
 		dir := filepath.Join(root, strconv.Itoa(i))
-		err := r.runLane(ctx, spec, id, dir, lane)
+		err := r.runWorkflow(ctx, spec, id, dir, lane)
 		r.outputs.finishLane(id, lane.WorkflowID, r.now())
 		switch {
 		case err == nil:
@@ -144,9 +144,108 @@ func laneTitle(lane Lane) string {
 	return filepath.Base(lane.WorkflowID)
 }
 
-// runLane runs act once for a lane, in its own scratch folder, within the
-// time limit, and removes the lane's containers afterwards.
-func (r *Runner) runLane(ctx context.Context, spec *Spec, id, dir string, lane Lane) error {
+// runWorkflow runs a lane within its time limit. In the macOS sandbox a
+// lane whose ticked jobs run both on this Mac and in containers runs as
+// several acts (Parts), so no act in the sandbox gets the container engine;
+// a job whose needs in an earlier act did not all succeed does not run.
+func (r *Runner) runWorkflow(ctx context.Context, spec *Spec, id, dir string, lane Lane) error {
+	timeout := spec.Plan.Limits.Timeout
+	if timeout <= 0 {
+		timeout = DefaultTimeout
+	}
+	deadline := time.Now().Add(timeout)
+	var parts []LanePart
+	if len(lane.HostLabels) > 0 && !spec.Plan.HostUnsandboxed {
+		parts = Parts(lane)
+	}
+	if len(parts) <= 1 {
+		return r.runLane(ctx, spec, id, dir, lane, deadline)
+	}
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		return fmt.Errorf("prepare the run: %w", err)
+	}
+	needs, ids := laneNeeds(lane), map[string]string{}
+	for _, job := range lane.Jobs {
+		ids[strings.ToLower(job.ID)] = job.ID
+	}
+	var failed error
+	for i, part := range parts {
+		keep, skipped := runnableJobs(part.Jobs, needs, ids, r.outputs.jobStates(id, lane.WorkflowID))
+		r.outputs.skipJobs(id, lane.WorkflowID, skipped)
+		if len(keep) == 0 {
+			continue
+		}
+		piece, err := lanePart(lane, keep, part.Host)
+		if err != nil {
+			return fmt.Errorf("prepare the run: %w", err)
+		}
+		err = r.runLane(ctx, spec, id, filepath.Join(dir, strconv.Itoa(i)), piece, deadline)
+		switch {
+		case ctx.Err() != nil:
+			return ctx.Err()
+		case errors.Is(err, ErrTimedOut):
+			return err
+		case err != nil && failed == nil:
+			failed = err
+		}
+	}
+	return failed
+}
+
+// runnableJobs is the part of an act that runs: without the jobs whose
+// needs in an earlier act did not all succeed, nor the jobs that need one
+// of those. skipped says why each of them does not run, by lower-cased key.
+func runnableJobs(part map[string]bool, needs map[string][]string, ids map[string]string, states map[string]JobState) (keep map[string]bool, skipped map[string]string) {
+	keep, skipped = map[string]bool{}, map[string]string{}
+	for key := range part {
+		keep[key] = true
+	}
+	for changed := true; changed; {
+		changed = false
+		for key := range keep {
+			for _, need := range needs[key] {
+				reason := ""
+				switch {
+				case skipped[need] != "" || (!part[need] && states[need] == JobNotRun):
+					reason = "Not run: " + ids[need] + " did not run"
+				case !part[need] && states[need] != JobSucceeded:
+					reason = "Not run: " + ids[need] + " did not succeed"
+				}
+				if reason != "" {
+					delete(keep, key)
+					skipped[key] = reason
+					changed = true
+					break
+				}
+			}
+		}
+	}
+	return keep, skipped
+}
+
+// lanePart is the lane as one of its acts runs it: only the jobs in keep
+// (lower-cased keys) ticked, the file's copy holding only them, and the
+// macOS labels only for an act on this Mac.
+func lanePart(lane Lane, keep map[string]bool, host bool) (Lane, error) {
+	part := lane
+	part.Jobs = append([]JobPlan(nil), lane.Jobs...)
+	for i := range part.Jobs {
+		part.Jobs[i].Selected = part.Jobs[i].Selected && keep[strings.ToLower(part.Jobs[i].ID)]
+	}
+	if !host {
+		part.HostLabels = nil
+	}
+	copied, err := Trim(lane.Copy, keep)
+	if err != nil {
+		return Lane{}, err
+	}
+	part.Copy = copied
+	return part, nil
+}
+
+// runLane runs act once for a lane, in its own scratch folder, until the
+// deadline, and removes the lane's containers afterwards.
+func (r *Runner) runLane(ctx context.Context, spec *Spec, id, dir string, lane Lane, deadline time.Time) error {
 	if err := os.Mkdir(dir, 0o700); err != nil {
 		return fmt.Errorf("prepare the run: %w", err)
 	}
@@ -159,30 +258,31 @@ func (r *Runner) runLane(ctx context.Context, spec *Spec, id, dir string, lane L
 	if err := os.WriteFile(filepath.Join(dir, "event.json"), lane.Payload, 0o600); err != nil {
 		return fmt.Errorf("prepare the run: %w", err)
 	}
+	host := len(lane.HostLabels) > 0
+	sandboxed := host && !spec.Plan.HostUnsandboxed
+	cache := laneCache(spec, dir, host, sandboxed)
+	if err := os.MkdirAll(cache, 0o700); err != nil {
+		return fmt.Errorf("prepare act's cache: %w", err)
+	}
 	r.outputs.startLane(id, lane.WorkflowID, r.now())
 
-	timeout := spec.Plan.Limits.Timeout
-	if timeout <= 0 {
-		timeout = DefaultTimeout
-	}
-	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	runCtx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
 
 	cmd := exec.Command(spec.ActPath, Args(spec, lane, id, dir)...)
-	cmd.Env = actEnv(spec, dir)
-	if len(lane.HostLabels) > 0 {
+	cmd.Env = actEnv(spec, dir, cache)
+	if host {
 		// Jobs on this Mac: act and everything it starts run in the macOS
 		// sandbox, with the shims first on the PATH; without it, as the
 		// user asked, only the sudo shim is there.
-		sandboxed := !spec.Plan.HostUnsandboxed
-		profile, err := prepareHost(spec, dir, sandboxed)
+		profile, err := prepareHost(spec, dir, cache, sandboxed)
 		if err != nil {
 			return fmt.Errorf("prepare the jobs on this Mac: %w", err)
 		}
 		if sandboxed {
 			cmd = exec.Command(SandboxExec, append([]string{"-f", profile, spec.ActPath}, Args(spec, lane, id, dir)...)...)
 		}
-		cmd.Env = hostEnv(actEnv(spec, dir), dir, spec.HostNode)
+		cmd.Env = hostEnv(actEnv(spec, dir, cache), dir, spec.HostNode, sandboxed)
 	}
 	cmd.Dir = dir // keeps act from reading an .actrc where the Core runs
 	setProcessGroup(cmd)
@@ -399,40 +499,51 @@ func containerOptions(limits Limits, executionID string) string {
 
 // actEnv gives act a private home and configuration directory, so neither
 // the user's nor the repository's act configuration or Docker credentials
-// apply, and no token from the Core's environment is passed on.
-func actEnv(spec *Spec, scratch string) []string {
-	env := []string{
+// apply, and no token from the Core's environment is passed on; cache is
+// act's cache folder (laneCache).
+func actEnv(spec *Spec, scratch, cache string) []string {
+	return []string{
 		"HOME=" + filepath.Join(scratch, "home"),
 		"XDG_CONFIG_HOME=" + filepath.Join(scratch, "config"),
+		"XDG_CACHE_HOME=" + cache,
 		"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
 		"LANG=C",
 		"TMPDIR=" + scratch,
 		"ACT_DISABLE_VERSION_CHECK=1",
 		"DOCKER_HOST=" + dockerHost(spec.DockerHost),
 	}
-	if spec.CacheDir != "" {
-		env = append(env, "XDG_CACHE_HOME="+spec.CacheDir)
-	} else {
-		env = append(env, "XDG_CACHE_HOME="+filepath.Join(scratch, "cache"))
+}
+
+// laneCache is act's cache folder for a lane: its clones of actions and,
+// for jobs on this Mac, the tool cache setup actions install into. A lane in
+// the macOS sandbox gets its workspace's own (sandboxedCache). act runs a
+// step on this Mac from a script in this folder and splits the script's
+// path at spaces, so a lane with jobs on this Mac whose cache folder has one
+// (the Caches folder of Runnir Dev or Runnir Local, a home folder with a
+// space) uses the run's own folder instead and fetches its actions again.
+func laneCache(spec *Spec, scratch string, host, sandboxed bool) string {
+	cache := spec.CacheDir
+	if sandboxed {
+		cache = sandboxedCache(spec)
 	}
-	return env
+	if cache == "" || (host && strings.IndexFunc(cache, unicode.IsSpace) >= 0) {
+		return filepath.Join(scratch, "cache")
+	}
+	return cache
 }
 
 // hostEnv is act's environment for a lane with jobs on this Mac: their
 // steps get it, with the shims and tools on the PATH and the scratch home
-// as Foundation's home too, so Xcode's DerivedData and caches stay in it.
-// act runs such a step from a script in its cache folder and splits the
-// script's path at spaces, so a cache folder whose path has one (the Caches
-// folder of Runnir Dev or Runnir Local, a home folder with a space) gives way
-// to the run's own: that lane then fetches its actions again.
-func hostEnv(env []string, dir, node string) []string {
+// as Foundation's home too, so Xcode's DerivedData and caches stay in it. In
+// the sandbox it names no container engine: that act runs none.
+func hostEnv(env []string, dir, node string, sandboxed bool) []string {
 	out := make([]string, 0, len(env)+1)
 	for _, entry := range env {
 		if strings.HasPrefix(entry, "PATH=") {
 			entry = "PATH=" + hostPath(filepath.Join(dir, "bin"), node)
 		}
-		if cache, ok := strings.CutPrefix(entry, "XDG_CACHE_HOME="); ok && strings.IndexFunc(cache, unicode.IsSpace) >= 0 {
-			entry = "XDG_CACHE_HOME=" + filepath.Join(dir, "cache")
+		if sandboxed && strings.HasPrefix(entry, "DOCKER_HOST=") {
+			continue
 		}
 		out = append(out, entry)
 	}

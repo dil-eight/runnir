@@ -276,19 +276,31 @@ jobs:
           if ls "HOME_DIR/.ssh" >/dev/null 2>&1; then echo "ssh=readable"; else echo "ssh=closed"; fi
           if touch "HOME_DIR/runnir-e2e-probe" 2>/dev/null; then echo "home-write=open"; rm -f "HOME_DIR/runnir-e2e-probe"; else echo "home-write=closed"; fi
           if security list-keychains >/dev/null 2>&1; then echo "keychain=open"; else echo "keychain=closed"; fi
+          if curl -s -m 3 --unix-socket /var/run/docker.sock http://localhost/_ping >/dev/null 2>&1 || curl -s -m 3 --unix-socket "ENGINE_SOCKET" http://localhost/_ping >/dev/null 2>&1; then echo "engine=open"; else echo "engine=closed"; fi
+          agent=closed
+          for socket in /private/var/run/com.apple.launchd.*/Listeners /private/tmp/com.apple.launchd.*/Listeners; do
+            [ -S "$socket" ] || continue
+            code=0
+            SSH_AUTH_SOCK=$socket ssh-add -l >/dev/null 2>&1 || code=$?
+            if [ $code -le 1 ]; then agent=open; fi
+          done
+          echo "agent=$agent"
+          if pbpaste >/dev/null 2>&1; then echo "pasteboard=open"; else echo "pasteboard=closed"; fi
+          if open -g -j -a Calculator 2>/dev/null; then echo "launch=open"; else echo "launch=closed"; fi
           echo "swift=$(swift --version 2>&1 | head -1 | cut -c1-12)"
           sudo xcode-select -s /Applications/Xcode.app
           if sudo whoami >/dev/null 2>&1; then echo "root=yes"; else echo "root=no"; fi
       - name: After
         run: echo "developer=$DEVELOPER_DIR"
 `, "HOME_DIR", home)
+	report := tools.NewDetector(home, act, "").Check(context.Background(), true)
+	workflow = strings.ReplaceAll(workflow, "ENGINE_SOCKET", strings.TrimPrefix(report.Engine.Endpoint, "unix://"))
 	repo, _ := filepath.EvalSymlinks(t.TempDir())
 	_ = os.MkdirAll(filepath.Join(repo, ".github", "workflows"), 0o755)
 	_ = os.WriteFile(filepath.Join(repo, ".github", "workflows", "mac.yml"), []byte(workflow), 0o644)
 	_ = os.WriteFile(filepath.Join(repo, "README.md"), []byte("fixture"), 0o644)
 	request := Request{Chosen: true, Lanes: []LaneInput{{WorkflowID: ".github/workflows/mac.yml", Source: []byte(workflow),
 		Kind: Direct, Event: "push", Selected: []string{"mac"}}}}
-	report := tools.NewDetector(home, act, "").Check(context.Background(), true)
 	plan, err := NewPlan(request, report, false, nil, Choose(nil, CeilingFor(report.Engine)))
 	if err != nil || len(plan.HostJobs) != 1 {
 		t.Fatalf("plan = %+v, %v", plan, err)
@@ -307,10 +319,88 @@ jobs:
 	if err != nil {
 		t.Fatalf("Run = %v", err)
 	}
-	for _, want := range []string{"readme=fixture", "ssh=closed", "home-write=closed", "keychain=closed", "swift=", "root=no",
-		"developer=/Applications/Xcode.app/Contents/Developer"} {
+	for _, want := range []string{"readme=fixture", "ssh=closed", "home-write=closed", "keychain=closed", "engine=closed", "agent=closed",
+		"pasteboard=closed", "launch=closed", "swift=", "root=no", "developer=/Applications/Xcode.app/Contents/Developer"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q", want)
+		}
+	}
+}
+
+// A workflow whose macOS job needs a container job and is needed by one
+// runs as three acts: the macOS one gets no engine, and each starts once
+// what it needs succeeded.
+func TestE2EMacJobsRunApartFromContainerJobs(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("macOS jobs run on a Mac")
+	}
+	act := os.Getenv("RUNNIR_E2E_ACT")
+	if act == "" {
+		t.Skip("RUNNIR_E2E_ACT is not set")
+	}
+	defer func(saved string) { hostOS = saved }(hostOS)
+	hostOS = "darwin"
+	home, _ := os.UserHomeDir()
+	report := tools.NewDetector(home, act, "").Check(context.Background(), true)
+	if !report.Ready(false) {
+		t.Fatalf("tools not ready: %+v", report)
+	}
+	workflow := strings.ReplaceAll(`name: Mixed
+on: push
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    container: alpine:3.20
+    steps:
+      - shell: sh
+        run: echo "lint-ran"
+  mac:
+    needs: lint
+    runs-on: macos-latest
+    steps:
+      - run: |
+          echo "mac-ran"
+          if curl -s -m 3 --unix-socket "ENGINE_SOCKET" http://localhost/_ping >/dev/null 2>&1; then echo "engine=open"; else echo "engine=closed"; fi
+  publish:
+    needs: mac
+    runs-on: ubuntu-latest
+    container: alpine:3.20
+    steps:
+      - shell: sh
+        run: echo "publish-ran"
+`, "ENGINE_SOCKET", strings.TrimPrefix(report.Engine.Endpoint, "unix://"))
+	repo, _ := filepath.EvalSymlinks(t.TempDir())
+	_ = os.MkdirAll(filepath.Join(repo, ".github", "workflows"), 0o755)
+	_ = os.WriteFile(filepath.Join(repo, ".github", "workflows", "mixed.yml"), []byte(workflow), 0o644)
+	request := Request{Chosen: true, Lanes: []LaneInput{{WorkflowID: ".github/workflows/mixed.yml", Source: []byte(workflow),
+		Kind: Direct, Event: "push", Selected: []string{"publish"}}}}
+	plan, err := NewPlan(request, report, false, nil, Choose(nil, CeilingFor(report.Engine)))
+	if err != nil || !plan.Runnable() || len(plan.HostJobs) != 1 || len(Parts(plan.Lanes[0])) != 3 {
+		t.Fatalf("plan = %+v, %v", plan, err)
+	}
+	plan.Lanes[0].Payload, _ = Payload(EventContext{Event: "push", Ref: "refs/heads/main", DefaultBranch: "main"})
+	spec := &Spec{ActPath: act, DockerPath: report.DockerCLI.Path, DockerHost: report.Engine.Endpoint, UserHome: home,
+		RepositoryPath: repo, Plan: plan, CacheDir: filepath.Join(t.TempDir(), "cache"), HostNode: tools.FindNode(home, os.Getenv("PATH"))}
+	outputs := NewOutputs()
+	id, _ := execution.NewID()
+	outputs.Create(id, "repo", plan, "e2e", false, "none")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	err = NewRunner(outputs).Run(ctx, execution.Job{ExecutionID: id, RepositoryID: "repo", RepositoryPath: repo, Spec: spec})
+	out := text(outputs, id)
+	t.Logf("output:\n%s", out)
+	if err != nil {
+		t.Fatalf("Run = %v", err)
+	}
+	for _, want := range []string{"lint-ran", "mac-ran", "engine=closed", "publish-ran"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q", want)
+		}
+	}
+	snap, _ := outputs.Since(id, ^uint64(0))
+	for _, job := range snap.Jobs {
+		if job.State != JobSucceeded {
+			t.Errorf("job %s = %v (%s)", job.ID, job.State, job.Reason)
 		}
 	}
 }

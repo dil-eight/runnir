@@ -2,6 +2,7 @@ package localrun
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -439,5 +440,126 @@ jobs:
 	request.Lanes[0].Selected = []string{"lint"}
 	if p, _ := NewPlan(request, readyReport(), false, nil, Limits{}); p.HostUnsandboxed {
 		t.Fatal("a run without Mac jobs says it runs them without the sandbox")
+	}
+}
+
+// A job that needs a macOS job is not ticked by default either: ticking it
+// would run the macOS job without anyone ticking it.
+func TestJobsThatNeedAMacJobAreNotTickedByDefault(t *testing.T) {
+	defer func(saved string) { hostOS = saved }(hostOS)
+	defer func(saved string) { SandboxExec = saved }(SandboxExec)
+	SandboxExec = filepath.Join(t.TempDir(), "sandbox-exec")
+	if err := os.WriteFile(SandboxExec, nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	hostOS = "darwin"
+	source := `on: push
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps: [{run: echo}]
+  build-mac:
+    needs: lint
+    runs-on: macos-26
+    steps: [{run: echo}]
+  publish:
+    needs: build-mac
+    runs-on: ubuntu-latest
+    steps: [{run: echo}]
+  notify:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps: [{run: echo}]
+`
+	p := plan(t, source, "", readyReport(), nil)
+	if got := selected(p.Lanes[0]); !slices.Equal(got, []string{"lint"}) || len(p.HostJobs) != 0 || len(p.Lanes[0].HostLabels) != 0 {
+		t.Fatalf("ticked %v, host jobs %v", got, p.HostJobs)
+	}
+	// Ticked by hand, the run goes as acts in turn: lint, then build-mac on
+	// this Mac, then publish and notify.
+	p = plan(t, source, "notify", readyReport(), nil)
+	if !p.Runnable() || !slices.Equal(p.HostJobs, []string{"ci.yml › build-mac"}) {
+		t.Fatalf("blockers %v, host jobs %v", p.Blockers, p.HostJobs)
+	}
+	var parts []string
+	for _, part := range Parts(p.Lanes[0]) {
+		parts = append(parts, fmt.Sprint(part.Host, sortedKeys(part.Jobs)))
+	}
+	if want := []string{"false [lint]", "true [build-mac]", "false [notify publish]"}; !slices.Equal(parts, want) {
+		t.Fatalf("parts = %v", parts)
+	}
+}
+
+func TestPartsKeepEachActOnOneSide(t *testing.T) {
+	job := func(id string, support Support, needs ...string) JobPlan {
+		return JobPlan{ID: id, Support: support, Needs: needs, Selected: true}
+	}
+	for _, c := range []struct {
+		name string
+		jobs []JobPlan
+		want []string
+	}{
+		{"only Mac jobs", []JobPlan{job("a", Host), job("b", Host, "a")}, []string{"true [a b]"}},
+		{"apart", []JobPlan{job("lint", Supported), job("app", Host), job("test", Supported, "lint")}, []string{"false [lint test]", "true [app]"}},
+		{"a Mac job after Linux jobs", []JobPlan{job("lint", Supported), job("unit", Unknown, "lint"), job("app", Host, "unit")},
+			[]string{"false [lint unit]", "true [app]"}},
+		{"Linux after Mac", []JobPlan{job("app", Host), job("release", Supported, "app"), job("other", Supported)},
+			[]string{"false [other]", "true [app]", "false [release]"}},
+		{"an unticked need", []JobPlan{job("app", Host, "gone"), {ID: "gone", Support: Supported}}, []string{"true [app]"}},
+	} {
+		var got []string
+		for _, part := range Parts(Lane{Jobs: c.jobs}) {
+			got = append(got, fmt.Sprint(part.Host, sortedKeys(part.Jobs)))
+		}
+		if !slices.Equal(got, c.want) {
+			t.Errorf("%s: parts = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+// What a job on the other side did does not reach a job in another act, so
+// a job that reads it cannot run in the sandbox.
+func TestJobsReadingAcrossActsNeedTheMacJobsUnsandboxed(t *testing.T) {
+	defer func(saved string) { hostOS = saved }(hostOS)
+	defer func(saved string) { SandboxExec = saved }(SandboxExec)
+	SandboxExec = filepath.Join(t.TempDir(), "sandbox-exec")
+	if err := os.WriteFile(SandboxExec, nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	hostOS = "darwin"
+	source := `on: push
+jobs:
+  build-mac:
+    runs-on: macos-26
+    outputs: {version: "${{ steps.v.outputs.version }}"}
+    steps: [{id: v, run: echo}]
+  publish:
+    needs: build-mac
+    runs-on: ubuntu-latest
+    steps: [{run: "echo ${{ needs.build-mac.outputs.version }}"}]
+  always:
+    needs: [build-mac]
+    if: always()
+    runs-on: ubuntu-latest
+    steps: [{run: echo}]
+  plain:
+    needs: build-mac
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps: [{run: echo}]
+`
+	lane := LaneInput{WorkflowID: ".github/workflows/ci.yml", Source: []byte(source), Kind: Direct, Event: "push", Selected: []string{"publish", "always", "plain"}}
+	request := Request{Chosen: true, Lanes: []LaneInput{lane}}
+	p, err := NewPlan(request, readyReport(), false, nil, Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Blockers) != 2 || !strings.HasPrefix(p.Blockers[0], "ci.yml › publish reads the result or outputs of build-mac, which runs on this Mac while it runs in a container.") ||
+		!strings.HasPrefix(p.Blockers[1], "ci.yml › always reads") {
+		t.Fatalf("blockers = %q", p.Blockers)
+	}
+	request.HostUnsandboxed = true
+	if p, _ := NewPlan(request, readyReport(), false, nil, Limits{}); !p.Runnable() {
+		t.Fatalf("without the sandbox one act runs them all: %v", p.Blockers)
 	}
 }
