@@ -70,6 +70,19 @@ func (s *service) planScenario(ctx context.Context, info repository.Info, reques
 	}
 	out.scenarios = flow.Scenarios(workflows, repo)
 	chosen, ok := scenarioOf(requested)
+	if kind, given := scenarioKind(requested); !ok && given {
+		// A scenario asked for without its target, as an MCP client may:
+		// the branch's first of that kind, as Run Locally lists them.
+		for _, scenario := range out.scenarios {
+			if scenario.Kind == kind {
+				chosen, ok = scenario, true
+				break
+			}
+		}
+		if !ok {
+			return out, status.Error(codes.FailedPrecondition, "no workflow of this repository reacts to "+kindPhrase(kind)+"; give the scenario's target")
+		}
+	}
 	if !ok {
 		if len(out.scenarios) == 0 {
 			out.repo = repo
@@ -260,12 +273,7 @@ func scenarioMessage(sc flow.Scenario) *corev1.Scenario {
 }
 
 func scenarioOf(m *corev1.Scenario) (flow.Scenario, bool) {
-	kinds := map[corev1.ScenarioKind]flow.Kind{
-		corev1.ScenarioKind_SCENARIO_KIND_PULL_REQUEST: flow.PullRequest, corev1.ScenarioKind_SCENARIO_KIND_PUSH: flow.Push,
-		corev1.ScenarioKind_SCENARIO_KIND_MERGE: flow.Merge, corev1.ScenarioKind_SCENARIO_KIND_TAG: flow.Tag,
-		corev1.ScenarioKind_SCENARIO_KIND_MANUAL: flow.Manual, corev1.ScenarioKind_SCENARIO_KIND_SCHEDULE: flow.Schedule,
-	}
-	kind, ok := kinds[m.GetKind()]
+	kind, ok := scenarioKind(m)
 	if !ok {
 		return flow.Scenario{}, false
 	}
@@ -274,6 +282,35 @@ func scenarioOf(m *corev1.Scenario) (flow.Scenario, bool) {
 		return flow.Scenario{}, false
 	}
 	return flow.Scenario{Kind: kind, Target: target}, true
+}
+
+// scenarioKind is the kind of scenario asked for; false for none.
+func scenarioKind(m *corev1.Scenario) (flow.Kind, bool) {
+	kinds := map[corev1.ScenarioKind]flow.Kind{
+		corev1.ScenarioKind_SCENARIO_KIND_PULL_REQUEST: flow.PullRequest, corev1.ScenarioKind_SCENARIO_KIND_PUSH: flow.Push,
+		corev1.ScenarioKind_SCENARIO_KIND_MERGE: flow.Merge, corev1.ScenarioKind_SCENARIO_KIND_TAG: flow.Tag,
+		corev1.ScenarioKind_SCENARIO_KIND_MANUAL: flow.Manual, corev1.ScenarioKind_SCENARIO_KIND_SCHEDULE: flow.Schedule,
+	}
+	kind, ok := kinds[m.GetKind()]
+	return kind, ok
+}
+
+// kindPhrase names what happens in a scenario of a kind: "a tag".
+func kindPhrase(kind flow.Kind) string {
+	switch kind {
+	case flow.PullRequest:
+		return "a pull request"
+	case flow.Push:
+		return "a push"
+	case flow.Merge:
+		return "a merge"
+	case flow.Tag:
+		return "a tag"
+	case flow.Manual:
+		return "a manual start"
+	default:
+		return "the schedule"
+	}
 }
 
 func laneKindMessage(kind flow.LaneKind) corev1.LaneKind {

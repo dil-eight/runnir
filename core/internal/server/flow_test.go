@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"runnir/core/internal/flow"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
@@ -84,10 +87,18 @@ func TestTheFlowOfAScenarioCarriesTheNewestRunOfEachLane(t *testing.T) {
 	if err != nil || len(nightly.Lanes) != 1 || nightly.Lanes[0].Run.GetId() != 12 || nightly.Changes.Applies {
 		t.Fatalf("schedule = %v, %v", nightly, err)
 	}
-	// A pull request without a base is no scenario: the default is planned.
+	// A scenario without its target, as MCP clients ask, is the branch's
+	// first of that kind, never the branch's default of another kind.
 	fallback, err := client.GetFlow(ctx, &corev1.GetFlowRequest{RepositoryId: id, Scenario: &corev1.Scenario{Kind: corev1.ScenarioKind_SCENARIO_KIND_PULL_REQUEST}})
 	if err != nil || fallback.Scenario.GetTitle() != "Pull request → main" {
 		t.Fatalf("fallback = %v, %v", fallback, err)
+	}
+	untargeted, err := client.GetFlow(ctx, &corev1.GetFlowRequest{RepositoryId: id, Scenario: &corev1.Scenario{Kind: corev1.ScenarioKind_SCENARIO_KIND_MERGE}})
+	if err != nil || untargeted.Scenario.GetTitle() != "Merge into main" {
+		t.Fatalf("merge without a target = %v, %v", untargeted.GetScenario(), err)
+	}
+	if _, err := client.GetFlow(ctx, &corev1.GetFlowRequest{RepositoryId: id, Scenario: &corev1.Scenario{Kind: corev1.ScenarioKind_SCENARIO_KIND_TAG}}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("a tag no workflow reacts to = %v", err)
 	}
 	if _, err := client.GetFlow(ctx, &corev1.GetFlowRequest{RepositoryId: "repo_nope"}); err == nil {
 		t.Fatal("an unknown repository is refused")

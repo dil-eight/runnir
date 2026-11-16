@@ -104,7 +104,7 @@
           },
           "target": {
             "type": "string",
-            "description": "The pull request's base, the branch pushed or merged into, or the tag; the scenario's default when left out"
+            "description": "The pull request's base, the branch pushed or merged into, or the tag; when left out, the branch's first scenario of that kind, as runnir_plan_scenario lists them"
           }
         },
         "required": [
@@ -394,7 +394,7 @@
           },
           "target": {
             "type": "string",
-            "description": "The pull request's base, the branch pushed or merged into, or the tag; the scenario's default when left out"
+            "description": "The pull request's base, the branch pushed or merged into, or the tag; when left out, the branch's first scenario of that kind, as runnir_plan_scenario lists them"
           },
           "workflows": {
             "type": "array",

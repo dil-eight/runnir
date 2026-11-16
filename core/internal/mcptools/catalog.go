@@ -51,7 +51,7 @@ const repositorySchema = `{"type":"string","minLength":1,"description":"A worksp
 const valuesSchema = `{"type":"object","propertyNames":{"type":"string","pattern":"^(?![Gg][Ii][Tt][Hh][Uu][Bb]_(?![Tt][Oo][Kk][Ee][Nn]$))[A-Za-z_][A-Za-z0-9_]*$","maxLength":255},"additionalProperties":{"type":"string","minLength":1,"maxLength":49152},"maxProperties":100}`
 
 const scenarioSchema = `"scenario":{"type":"string","enum":["pull_request","push","merge","tag","manual","schedule"],"description":"The event to plan for; the branch's own scenario when left out"},` +
-	`"target":{"type":"string","description":"The pull request's base, the branch pushed or merged into, or the tag; the scenario's default when left out"}`
+	`"target":{"type":"string","description":"The pull request's base, the branch pushed or merged into, or the tag; when left out, the branch's first scenario of that kind, as runnir_plan_scenario lists them"}`
 
 const linesSchema = `"lines":{"type":"integer","minimum":1,"maximum":2000,"description":"At most this many lines, 200 by default"}`
 
