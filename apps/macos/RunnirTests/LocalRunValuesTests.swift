@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import Runnir
@@ -276,6 +277,69 @@ private final class Announcements: @unchecked Sendable {
         #expect(reason == "show the saved value of NPM_TOKEN")
         model.hideSecrets()
         #expect(model.text(for: token) == "")
+    }
+
+    @Test func aConfirmationHoldsForAMinute() async {
+        let shared = LocalRunValueKey(kind: .secret, name: "SHARED")
+        let store = InMemoryLocalRunValueStore(values: [workspace: [token: "s3cr3t", shared: "other"]])
+        let model = WorkspaceValuesModel()
+        var now = Date(timeIntervalSince1970: 1_000)
+        model.now = { now }
+        await model.load(workspaceID: workspace, workflows: workflows(), store: store)
+        var asked = 0
+        let confirm: @MainActor (String) async -> OwnerConfirmation = { _ in asked += 1; return .confirmed }
+        // A declined question lets nothing through later.
+        await model.reveal(token, workspaceID: workspace, store: store) { _ in .declined }
+        await model.reveal(token, workspaceID: workspace, store: store, ask: confirm)
+        model.hideSecrets()
+        now += 59
+        await model.reveal(token, workspaceID: workspace, store: store, ask: confirm)
+        await model.reveal(shared, workspaceID: workspace, store: store, ask: confirm)
+        #expect(asked == 1)
+        #expect(model.text(for: token) == "s3cr3t")
+        #expect(model.text(for: shared) == "other")
+        // The minute counts from the answer, not from the last use.
+        model.hideSecrets()
+        now += 2
+        await model.reveal(token, workspaceID: workspace, store: store, ask: confirm)
+        #expect(asked == 2)
+    }
+
+    @Test func copyGivesTheFieldsValueOrTheSavedSecretAfterConfirmation() async {
+        let shared = LocalRunValueKey(kind: .secret, name: "SHARED")
+        let store = InMemoryLocalRunValueStore(values: [workspace: [token: "s3cr3t", region: "eu"]])
+        let model = WorkspaceValuesModel()
+        await model.load(workspaceID: workspace, workflows: workflows(), store: store)
+        var reasons: [String] = []
+        let confirm: @MainActor (String) async -> OwnerConfirmation = { reasons.append($0); return .confirmed }
+        // A variable is on screen: nothing to ask.
+        #expect(await model.valueToCopy(region, workspaceID: workspace, store: store, ask: confirm) == "eu")
+        // Nothing saved or typed: nothing to copy, nothing asked.
+        #expect(await model.valueToCopy(shared, workspaceID: workspace, store: store, ask: confirm) == nil)
+        #expect(reasons.isEmpty)
+        // A hidden secret is copied only once the owner confirms, and stays hidden.
+        #expect(await model.valueToCopy(token, workspaceID: workspace, store: store) { _ in .declined } == nil)
+        #expect(await model.valueToCopy(token, workspaceID: workspace, store: store, ask: confirm) == "s3cr3t")
+        #expect(reasons == ["copy the saved value of NPM_TOKEN"])
+        #expect(model.text(for: token) == "")
+        // A typed value is copied as typed.
+        model.setText("typed", for: token)
+        #expect(await model.valueToCopy(token, workspaceID: workspace, store: store, ask: confirm) == "typed")
+        // A value to forget on Save is not copied.
+        model.forget(token)
+        #expect(await model.valueToCopy(token, workspaceID: workspace, store: store, ask: confirm) == nil)
+        #expect(reasons.count == 1)
+    }
+
+    @Test func aSecretGoesToThePasteboardConcealed() {
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("runnir-tests-\(UUID().uuidString)"))
+        defer { pasteboard.releaseGlobally() }
+        ValuePasteboard.copy("s3cr3t", secret: true, to: pasteboard)
+        #expect(pasteboard.string(forType: .string) == "s3cr3t")
+        #expect(pasteboard.types?.contains(ValuePasteboard.concealed) == true)
+        ValuePasteboard.copy("eu", secret: false, to: pasteboard)
+        #expect(pasteboard.string(forType: .string) == "eu")
+        #expect(pasteboard.types?.contains(ValuePasteboard.concealed) == false)
     }
 
     @Test func aShownSecretShowsItsNewValueAfterSave() async throws {
