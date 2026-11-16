@@ -158,17 +158,32 @@ enum LocalRunSettings {
 @MainActor
 @Observable
 final class LocalRunModel {
-    /// The app keeps as many lines as the Core does.
+    /// The app keeps as many lines as the Core does: the newest of each job,
+    /// and the newest of the whole run for All output.
     static let maxLines = 5000
+
+    /// The job a line is from.
+    struct JobKey: Hashable {
+        let workflowID: String
+        let jobID: String
+    }
 
     let executionID: String
     let workspaceID: UUID
     /// The MCP client that started the run ("claude-code"); nil for the user.
     private(set) var startedBy: String?
     private(set) var plan: CoreLocalRunPlan
+    /// The newest lines of the whole run.
     private(set) var lines: [CoreLocalRunLine] = []
-    /// Earlier output was dropped to stay within the bound.
+    /// Each job's newest lines, so a job that writes a lot, such as a matrix
+    /// of builds, never pushes out what another job wrote.
+    private(set) var jobLines: [JobKey: [CoreLocalRunLine]] = [:]
+    /// Earlier output of the whole run was dropped to stay within the bound.
     private(set) var discarded = false
+    /// Jobs whose earlier output was dropped.
+    private(set) var discardedJobs: Set<JobKey> = []
+    /// The Core dropped lines before the app read them.
+    private(set) var missedLines = false
     private(set) var jobs: [CoreLocalRunJobStatus]
     private(set) var state: CoreExecutionState = .queued
     private(set) var phase: CoreLocalRunPhase = .queued
@@ -214,8 +229,19 @@ final class LocalRunModel {
     var isFinished: Bool { phase == .finished || lostMessage != nil }
 
     var visibleLines: [CoreLocalRunLine] {
-        guard let selectedJobID, let job = job(selectedJobID) else { return lines }
-        return lines.filter { $0.jobID == job.jobID && $0.workflowID == job.workflowID }
+        guard let key = selectedKey else { return lines }
+        return jobLines[key] ?? []
+    }
+
+    /// Earlier output of what is shown was dropped.
+    var visibleDiscarded: Bool {
+        guard let key = selectedKey else { return discarded }
+        return missedLines || discardedJobs.contains(key)
+    }
+
+    private var selectedKey: JobKey? {
+        guard let selectedJobID, let job = job(selectedJobID) else { return nil }
+        return JobKey(workflowID: job.workflowID, jobID: job.jobID)
     }
 
     /// The output shown, as Copy puts it on the pasteboard.
@@ -237,12 +263,27 @@ final class LocalRunModel {
 
     /// Merges what the Core reported after `lastSequence`.
     func apply(_ output: CoreLocalRunOutput) {
-        if output.discarded { discarded = true }
+        if output.discarded {
+            discarded = true
+            missedLines = true
+        }
         let fresh = output.lines.filter { $0.sequence > lastSequence }
         lines.append(contentsOf: fresh)
         if lines.count > Self.maxLines {
             lines.removeFirst(lines.count - Self.maxLines)
             discarded = true
+        }
+        var grown: Set<JobKey> = []
+        for line in fresh where !line.jobID.isEmpty {
+            let key = JobKey(workflowID: line.workflowID, jobID: line.jobID)
+            jobLines[key, default: []].append(line)
+            grown.insert(key)
+        }
+        for key in grown {
+            if let count = jobLines[key]?.count, count > Self.maxLines {
+                jobLines[key]?.removeFirst(count - Self.maxLines)
+                discardedJobs.insert(key)
+            }
         }
         lastSequence = max(lastSequence, output.lastSequence, fresh.last?.sequence ?? 0)
         if !output.jobs.isEmpty { jobs = output.jobs }

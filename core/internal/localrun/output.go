@@ -3,6 +3,7 @@ package localrun
 import (
 	"encoding/json"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -11,8 +12,9 @@ import (
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 )
 
-// Output bounds: the newest lines of a run are kept, each cut to a length,
-// and only the most recent runs are remembered.
+// Output bounds: the newest lines of each job of a run are kept (act's own
+// messages count as a job of their workflow), each cut to a length, and only
+// the most recent runs are remembered.
 const (
 	MaxLines     = 5000
 	MaxLineBytes = 4096
@@ -96,9 +98,10 @@ type run struct {
 	// lane is the workflow of the lane running; lanes their times.
 	lane  string
 	lanes map[string]laneTimes
-	lines []Line // ring of at most MaxLines
-	head  int
-	next  uint64
+	// outputs keeps each job's newest lines, so a job that writes a lot
+	// never pushes out what another one wrote.
+	outputs map[lineSource]*ring
+	next    uint64
 	// masks are the secret values hidden in kept lines while the run goes.
 	masks []string
 }
@@ -370,23 +373,46 @@ func (o *Outputs) Since(executionID string, after uint64) (Snapshot, bool) {
 	snap := r.snap
 	snap.Jobs = append([]JobStatus(nil), r.snap.Jobs...)
 	snap.LastSequence = r.next
-	ordered := r.ordered()
-	if len(ordered) > 0 && ordered[0].Sequence > after+1 {
-		snap.Discarded = true
-	}
-	for _, line := range ordered {
-		if line.Sequence > after {
-			snap.Lines = append(snap.Lines, line)
+	for _, output := range r.outputs {
+		if output.dropped > after {
+			snap.Discarded = true
 		}
+		snap.Lines = output.since(after, snap.Lines)
 	}
+	sort.Slice(snap.Lines, func(i, j int) bool { return snap.Lines[i].Sequence < snap.Lines[j].Sequence })
 	return snap, true
 }
 
-func (r *run) ordered() []Line {
-	if len(r.lines) < MaxLines {
-		return r.lines
+// lineSource is the job a line is from; job is empty for act's own messages.
+type lineSource struct{ workflow, job string }
+
+// ring keeps the newest MaxLines lines of one job.
+type ring struct {
+	lines []Line
+	// head is the oldest line once the ring is full.
+	head int
+	// dropped is the sequence of the newest line no longer kept.
+	dropped uint64
+}
+
+func (b *ring) add(line Line) {
+	if len(b.lines) < MaxLines {
+		b.lines = append(b.lines, line)
+		return
 	}
-	return append(append([]Line(nil), r.lines[r.head:]...), r.lines[:r.head]...)
+	b.dropped = b.lines[b.head].Sequence
+	b.lines[b.head] = line
+	b.head = (b.head + 1) % MaxLines
+}
+
+// since appends the lines after a sequence number, oldest first.
+func (b *ring) since(after uint64, out []Line) []Line {
+	n := len(b.lines)
+	at := func(i int) Line { return b.lines[(b.head+i)%n] }
+	for i := sort.Search(n, func(i int) bool { return at(i).Sequence > after }); i < n; i++ {
+		out = append(out, at(i))
+	}
+	return out
 }
 
 func (o *Outputs) update(executionID string, change func(*run)) {
@@ -410,13 +436,16 @@ func (r *run) append(jobID, text string, isError bool) {
 		text = text[:cut] + " …"
 	}
 	r.next++
-	line := Line{Sequence: r.next, Workflow: workflow, JobID: jobID, Text: text, Error: isError}
-	if len(r.lines) < MaxLines {
-		r.lines = append(r.lines, line)
-		return
+	source := lineSource{workflow: workflow, job: jobID}
+	output := r.outputs[source]
+	if output == nil {
+		output = &ring{}
+		if r.outputs == nil {
+			r.outputs = map[lineSource]*ring{}
+		}
+		r.outputs[source] = output
 	}
-	r.lines[r.head] = line
-	r.head = (r.head + 1) % MaxLines
+	output.add(Line{Sequence: r.next, Workflow: workflow, JobID: jobID, Text: text, Error: isError})
 }
 
 func utf8Start(b byte) bool { return b&0xC0 != 0x80 }

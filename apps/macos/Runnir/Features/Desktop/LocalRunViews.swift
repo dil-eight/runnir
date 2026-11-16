@@ -870,7 +870,7 @@ struct LocalRunView: View {
                 Toggle("Follow output", isOn: $follow).toggleStyle(.checkbox).pointerStyle(.link).font(.system(size: 12))
             }.padding(.horizontal, 16).frame(height: 40)
             DesignDivider()
-            if run.discarded {
+            if run.visibleDiscarded {
                 Label("Output is bounded: showing the last \(LocalRunModel.maxLines.formatted()) lines. Earlier output was discarded.", systemImage: "info.circle")
                     .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                     .padding(.horizontal, 16).frame(maxWidth: .infinity, minHeight: 26, alignment: .leading).background(RunnirTheme.surface)

@@ -30,8 +30,13 @@ struct LocalRunTests {
     private func output(lines: ClosedRange<UInt64>?, phase: CoreLocalRunPhase = .running, state: CoreExecutionState = .running,
                         discarded: Bool = false, jobs: [CoreLocalRunJobStatus] = [], cleanup: String? = nil) -> CoreLocalRunOutput {
         let made = lines.map { range in range.map { CoreLocalRunLine(sequence: $0, workflowID: Self.ci, jobID: $0 % 2 == 0 ? "lint" : "", text: "line \($0)", isError: false) } } ?? []
-        return CoreLocalRunOutput(executionID: "exec_1", repositoryID: "repo", state: state, phase: phase, lines: made,
-                                  discarded: discarded, lastSequence: lines?.upperBound ?? 0, jobs: jobs, plan: plan(),
+        return output(made: made, phase: phase, state: state, discarded: discarded, jobs: jobs, cleanup: cleanup)
+    }
+
+    private func output(made: [CoreLocalRunLine], phase: CoreLocalRunPhase = .running, state: CoreExecutionState = .running,
+                        discarded: Bool = false, jobs: [CoreLocalRunJobStatus] = [], cleanup: String? = nil) -> CoreLocalRunOutput {
+        CoreLocalRunOutput(executionID: "exec_1", repositoryID: "repo", state: state, phase: phase, lines: made,
+                                  discarded: discarded, lastSequence: made.last?.sequence ?? 0, jobs: jobs, plan: plan(),
                                   startedAt: Date(), finishedAt: phase == .finished ? Date() : nil,
                                   exitCode: phase == .finished ? 0 : nil, message: nil, cleanupProblem: cleanup)
     }
@@ -57,6 +62,26 @@ struct LocalRunTests {
         #expect(run.lines.count == LocalRunModel.maxLines)
         #expect(run.lines.last?.sequence == UInt64(LocalRunModel.maxLines + 10))
         #expect(run.discarded)
+    }
+
+    /// A matrix of builds writing a lot never empties the output of a job
+    /// that ended before: each job keeps its own newest lines.
+    @Test func aJobThatWritesALotKeepsAnotherJobsOutput() {
+        let run = LocalRunModel(executionID: "exec_1", workspaceID: UUID(), plan: plan())
+        let lint = (1...3).map { CoreLocalRunLine(sequence: $0, workflowID: Self.ci, jobID: "lint", text: "lint \($0)", isError: false) }
+        let build = (4...UInt64(LocalRunModel.maxLines + 13)).map {
+            CoreLocalRunLine(sequence: $0, workflowID: Self.ci, jobID: "build", text: "build \($0)", isError: false)
+        }
+        run.apply(output(made: lint))
+        run.apply(output(made: build))
+        #expect(run.selectedJobID.flatMap(run.job)?.jobID == "lint")
+        #expect(run.visibleText == "lint 1\nlint 2\nlint 3")
+        #expect(!run.visibleDiscarded)
+        // All output is the newest lines of the whole run.
+        run.selectedJobID = nil
+        #expect(run.visibleLines.count == LocalRunModel.maxLines)
+        #expect(run.visibleLines.last?.sequence == UInt64(LocalRunModel.maxLines + 13))
+        #expect(run.visibleDiscarded)
     }
 
     @Test func allOutputStaysChosenWhileTheRunReports() {

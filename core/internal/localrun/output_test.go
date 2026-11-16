@@ -47,6 +47,42 @@ func TestOutputKeepsTheNewestLines(t *testing.T) {
 	}
 }
 
+// A job that writes a lot, such as a matrix of builds, keeps its own newest
+// lines and never pushes out the output of a job that ended before.
+func TestEachJobKeepsItsOwnNewestLines(t *testing.T) {
+	o := NewOutputs()
+	newRun(o, "e1")
+	o.update("e1", func(r *run) {
+		for i := 1; i <= 3; i++ {
+			r.consume(fmt.Sprintf(`{"jobID":"lint","job":"CI/lint","msg":"lint %d"}`, i), time.Now(), false)
+		}
+		for i := 1; i <= MaxLines+10; i++ {
+			r.consume(fmt.Sprintf(`{"jobID":"test","job":"CI/test","msg":"test %d"}`, i), time.Now(), false)
+		}
+	})
+	snap, _ := o.Since("e1", 0)
+	if len(snap.Lines) != MaxLines+3 || !snap.Discarded {
+		t.Fatalf("lines=%d discarded=%v", len(snap.Lines), snap.Discarded)
+	}
+	var lint []string
+	for i, line := range snap.Lines {
+		if i > 0 && line.Sequence <= snap.Lines[i-1].Sequence {
+			t.Fatalf("line %d is out of order", i)
+		}
+		if line.JobID == "lint" {
+			lint = append(lint, line.Text)
+		}
+	}
+	if strings.Join(lint, ",") != "[CI/lint] lint 1,[CI/lint] lint 2,[CI/lint] lint 3" {
+		t.Fatalf("lint lines = %q", lint)
+	}
+	// Only the noisy job's lines were dropped: reading after them loses nothing.
+	later, _ := o.Since("e1", 3+10)
+	if len(later.Lines) != MaxLines || later.Discarded {
+		t.Fatalf("after the dropped lines = %d lines, discarded %v", len(later.Lines), later.Discarded)
+	}
+}
+
 func TestLongLinesAreCutOnACharacterBoundary(t *testing.T) {
 	o := NewOutputs()
 	newRun(o, "e1")
