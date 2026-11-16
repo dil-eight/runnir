@@ -1,10 +1,10 @@
 # GitHub Actions pain points and Runnir opportunities
 
-Accumulated publication window: **2026-04-26 through 2026-11-09**, inclusive through the latest review. Baseline verified on 2026-10-26; latest findings added on 2026-11-09 for the overlapping 2026-10-26 through 2026-11-09 review window. Older source-specific verification dates are retained.
+Accumulated publication window: **2026-04-26 through 2026-11-16**, inclusive through the latest review. Baseline verified on 2026-10-26; latest findings added on 2026-11-16 for the overlapping 2026-11-02 through 2026-11-16 review window. Older source-specific verification dates are retained.
 
 ## Executive summary
 
-The [evidence database](pain-points.csv) contains **42 evidence rows from 34 threads, 41 distinct source/comment permalinks, and 20 pain points**. There are 41 distinguishable public author accounts within platforms. Different accounts across platforms do not prove different people or organizations. One HN comment describes two problems, so evidence rows are not a user count. One transferable CI/CD example does not identify its provider and is labeled `firsthand_cross_ci`.
+The [evidence database](pain-points.csv) contains **43 evidence rows from 35 threads, 42 distinct source/comment permalinks, and 20 pain points**. There are 42 distinguishable public author accounts within platforms. Different accounts across platforms do not prove different people or organizations. One HN comment describes two problems, so evidence rows are not a user count. One transferable CI/CD example does not identify its provider and is labeled `firsthand_cross_ci`.
 
 The strongest recurring product signal is the need to validate workflows before pushing and explain the limits of local execution. Six authors describe a difficult feedback loop or local-runner incompatibility. The latest reports also support inspecting individual matrix legs and distinguishing missing schedule opportunities from queued runs. Three authors describe separate manual-dispatch frustrations. Queue diagnosis is useful, but Runnir cannot repair GitHub's internal scheduler.
 
@@ -14,10 +14,10 @@ The [earlier report](../github-actions-pain-points.md), [tracker](../pain-tracke
 
 | Category | Evidence rows | Distinct pains |
 |---|---:|---:|
-| A - Pipelines and workflows | 16 | 7 |
+| A - Pipelines and workflows | 17 | 7 |
 | B - Deployments and manual launch | 7 | 5 |
 | C - Runs and jobs | 19 | 8 |
-| Total | 42 | 20 |
+| Total | 43 | 20 |
 
 Each pain has one category. Manual launch belongs to B even when the workflow is not a deployment. Totals include historical bugs, feature requests, and weak opinions; they are not counts of active confirmed defects. Evidence strength describes the specificity of the source, not proof of the alleged cause. Reports were not reproduced on the authors' infrastructure. A read-only check of one public matrix run corroborated the reported cancelled zero-step leg and successful gate; it did not reproduce GitHub's aggregation behavior.
 
@@ -40,7 +40,7 @@ The table links every included evidence row. Author counts identify different ac
 | P18 | C | Runner updates and deprecations disrupt fleet readiness | 2 author account(s): [E0021](https://github.com/actions/runner/issues/4570), [E0022](https://github.com/actions/runner/issues/4442) | Jobs hang or runners stop accepting work. | Provide read-only runner version/health information and upstream notices. | P2 |
 | P19 | B | Sequential phases require repeated environment approvals | 1 author account(s): [E0015](https://github.com/orgs/community/discussions/201528) | Operators return for multiple approvals. | Show current pending approvals while preserving protection semantics. | P2 |
 | P20 | C | Run elapsed duration is confused with job execution | 2 author account(s): [E0012](https://github.com/orgs/community/discussions/211084), [E0033](https://github.com/orgs/community/discussions/211773) | Queue time or cost can be misdiagnosed. | Separate intervals and attempts, flag contradictory timestamps, and do not treat updated_at as completion. | P2 |
-| P10 | A | Permissions and workflow trust boundaries are hard to navigate | 3 author account(s): [E0024](https://www.reddit.com/r/devops/comments/1wfw0o1/comment/p9pg63t/), [E0029](https://news.ycombinator.com/item?id=50185520), [E0042](https://stackoverflow.com/questions/80012905/how-can-i-safely-publish-a-report-for-a-fork-pr-when-actions-checkoutv7-blocks) | Access configuration is harder; one concrete fork-reporting case involves an intended security safeguard. | Explain grants, trusted publisher code, and intended fork-checkout protection. | P2 |
+| P10 | A | Permissions and workflow trust boundaries are hard to navigate | 4 author account(s): [E0024](https://www.reddit.com/r/devops/comments/1wfw0o1/comment/p9pg63t/), [E0029](https://news.ycombinator.com/item?id=50185520), [E0042](https://stackoverflow.com/questions/80012905/how-can-i-safely-publish-a-report-for-a-fork-pr-when-actions-checkoutv7-blocks), [E0043](https://www.reddit.com/r/github/comments/1xq7brr/infisical_github_actions_oidc_authentication/) | Access configuration is harder; concrete cases involve fork-code protection and provider-side OIDC trust. | Explain grants, trusted publisher code, fork-checkout protection, and token permission versus external OIDC trust. | P2 |
 | P07 | B | Rebuilding instead of promoting one artifact | 1 author account(s); provider unspecified: [E0032](https://www.reddit.com/r/devops/comments/1v0v1a4/comment/ozuiecg/) | Releases and hotfixes take longer. | Detect duplicate builds read-only before adding explicit promotion workflows. | P2 |
 | P13 | C | Duplicate suites can disagree with required-check and merge state | 1 author account: [E0038](https://github.com/orgs/community/discussions/211754) | Operators can target the wrong rerun or mistake a green aggregate for merge readiness. | Group runs, attempts, suites, and checks by exact PR head and show merge readiness separately. | P2 |
 | P23 | A | Expected schedule executions are missing without a run record | 1 author account: [E0035](https://github.com/orgs/community/discussions/211723) | There is no job log for the missing opportunity. | Show suspected schedule gaps separately from queued runs; do not infer a cause or auto-dispatch replacements. | P2 |
@@ -61,7 +61,7 @@ P0 means a demonstrated Runnir release blocker. **No new P0 is established by th
 | P02/P04/P11 | One detailed source each; broad recurrence is unproven | APIs and local storage offer bounded improvements | P1 for inspector/history improvements; older docs call B33/B34 built, but runtime behavior was not verified here |
 | P17/P18 | Two authors each; time and reliability impact | Measurement and read-only health are feasible; upstream repairs are outside the app's control | P2 candidates for v0.2, without automatic fleet administration |
 | P19/P20 | One approval scenario and two distinct timing reports | UI can explain state without changing GitHub protection or billing | P2 inspection, without approval bypass |
-| P10/P07 | Two broad permission opinions, one concrete trust-boundary question, and one cross-CI artifact scenario | Explain intended safeguards and offer reviewed suggestions; universal promotion is not feasible | P2 discovery; preserve security protections and keep artifact promotion in v0.4 |
+| P10/P07 | Two broad permission opinions, two concrete trust-boundary questions, and one cross-CI artifact scenario | Explain intended safeguards and offer reviewed suggestions; universal promotion is not feasible | P2 discovery; preserve security protections and keep artifact promotion in v0.4 |
 | P24 | One detailed storage-confusion scenario; broader recurrence is unproven | Artifact metadata is readable and retention is explainable; inventory is not an authoritative account bill | P2 visibility candidate with modest infrastructure, no automatic deletion or predicted savings |
 | P08/P21 | Scheduling has poor MVP fit; stale listing received an upstream resolution | Always-on infrastructure exceeds a desktop MVP; API integrity remains useful engineering practice | P3 rather than new MVP features |
 | P22 | One detailed report; one public job snapshot corroborates a cancelled leg and successful gate | Attempt-specific Jobs API is available; value is accurate inspection rather than changing aggregation | P1 diagnostic candidate, not a new release gate or an automatic gate rewrite |
@@ -106,7 +106,7 @@ For v0.4, consider explicit artifact promotion and build-once-deploy-many throug
 
 ## Research limitations
 
-- This is a targeted, nonrepresentative sample. The 34 threads are included sources, not all examined results. Included publications start in May; no April entries does not establish an absence of problems.
+- This is a targeted, nonrepresentative sample. The 35 threads are included sources, not all examined results. Included publications start in May; no April entries does not establish an absence of problems.
 - Platform coverage is uneven, especially Stack Overflow and engineering blogs. No saturation or population-frequency claim is supported.
 - Some Reddit content was unavailable or removed. Cached content that disagreed with the current source was excluded. The old acceleration claim from post 1uaafd5 was not imported.
 - HN comments were verified through Algolia because the direct page was unavailable. A DEV deployment story with an unconfirmed publication year was excluded. Crawl dates were not substituted for publication dates.
@@ -114,7 +114,7 @@ For v0.4, consider explicit artifact promotion and build-once-deploy-many throug
 - Several queue reports may describe the same incident. Reported causes are not independent reproductions or proof that Runnir can repair GitHub infrastructure.
 - API findings describe the checked github.com contract; GHES support requires version-specific verification. Monetary savings, arbitrary-workflow safety, and full local/remote parity are unproven.
 
-See the [baseline findings](weekly/2026-10-26.md), [2026-11-02 findings](weekly/2026-11-02.md), and [latest findings](weekly/2026-11-09.md). The latest review adds three evidence rows from three new parent threads outside GitHub; prior weekly reports remain unchanged.
+See the [baseline findings](weekly/2026-10-26.md), [2026-11-02 findings](weekly/2026-11-02.md), [2026-11-09 findings](weekly/2026-11-09.md), and [latest findings](weekly/2026-11-16.md). The latest review adds one external OIDC report to P10. Prior weekly reports remain unchanged.
 
 ## Latest API and upstream review - 2026-11-02
 
@@ -132,3 +132,11 @@ The three new records come from two Reddit threads and one Stack Overflow questi
 - [Checkout v7 release notes](https://github.com/actions/checkout/releases/tag/v7.0.0) document the block on fork PR checkout under workflow_run and pull_request_target. [workflow_run documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run) warns about executing untrusted code with elevated privileges. P10's new report concerns adapting to an intended protection; it is not evidence for disabling the safeguard. Trusted publisher code must still validate untrusted report data, run/PR identity, and output handling.
 
 No new upstream fix or backend cause is established for the queue report. Recommendations remain read-only diagnosis, reviewed workflow suggestions, and explicit approval for cleanup or execution.
+
+## Latest findings and OIDC review - 2026-11-16
+
+E0043 adds one author-reported provider-side OIDC rejection to P10; there is no new pain ID or priority change. External evidence now totals 12 rows from seven parent threads, compared with 31 GitHub rows. The latest source was published inside the overlapping review window, but its late discovery does not establish delayed indexing. Its cross-post is not an independent source.
+
+[GitHub's OIDC reference](https://docs.github.com/en/actions/reference/security/oidc) distinguishes permission to request an identity token from access to another service. Subject shape depends on job context and configured subject templates; repositories using immutable subjects also include owner/repository IDs. The source does not expose its actual token or provider policy, so a preflight cannot assert the exact expected subject. A provider's env-slug does not itself declare a GitHub job environment.
+
+[Infisical's OIDC documentation](https://infisical.com/docs/documentation/platform/identities/oidc-auth/github) describes provider-side validation and identity access configuration. Runnir can explain these prerequisites and compare explicitly supplied metadata; GitHub's API alone cannot prove that an external binding or project role is correct. Do not widen subject matching, retrieve secrets, or change provider policy automatically. The recorded HTTP 403 is not a confirmed GitHub or Infisical defect, and no successful source fix is established.
