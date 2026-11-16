@@ -84,6 +84,16 @@ struct LocalRunTests {
         #expect(run.visibleDiscarded)
     }
 
+    /// Release Build ticked in a pull request scenario got a push of the
+    /// branch instead of a tag and failed at its first step.
+    @Test func aTickedWorkflowOutsideTheScenarioIsWarnedAbout() {
+        var lane = CoreLocalRunLane(workflowID: ".github/workflows/release.yml", kind: .outside, event: "push", skipped: "runs on tags v*.*.*")
+        #expect(LocalRunText.outsideWarning(lane, ticked: false) == nil)
+        #expect(LocalRunText.outsideWarning(lane, ticked: true)?.contains("Here it gets the push event of this branch") == true)
+        lane.kind = .direct
+        #expect(LocalRunText.outsideWarning(lane, ticked: true) == nil)
+    }
+
     @Test func allOutputStaysChosenWhileTheRunReports() {
         let run = LocalRunModel(executionID: "exec_1", workspaceID: UUID(), plan: plan())
         run.selectedJobID = nil

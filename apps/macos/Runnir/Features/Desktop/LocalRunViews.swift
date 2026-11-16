@@ -100,6 +100,15 @@ struct ActInstallButton: View {
 }
 
 enum LocalRunText {
+    /// A workflow ticked although the scenario does not start it: the event
+    /// it gets here instead, and what may break. nil for any other lane.
+    static func outsideWarning(_ lane: CoreLocalRunLane, ticked: Bool) -> String? {
+        guard lane.kind == .outside, ticked else { return nil }
+        let event = lane.event.isEmpty ? "another event" : "the \(lane.event) event of this branch"
+        return "GitHub would not start it in this scenario. Here it gets \(event), so a step that checks what started it, "
+            + "such as a tag name, may fail. To run it as GitHub would, choose a scenario that starts it."
+    }
+
     static func tool(_ status: CoreToolStatus) -> String {
         switch status.state {
         case .found: status.untested ? "\(status.version) · found · not verified with Runnir" : "\(status.version) · found"
@@ -1217,6 +1226,10 @@ struct LocalRunLaneRow: View {
                     Text(detail).font(.system(size: 11))
                         .foregroundStyle(lane.parseError.isEmpty ? RunnirTheme.secondaryForeground : RunnirTheme.destructive)
                         .fixedSize(horizontal: false, vertical: true)
+                    if let warning = LocalRunText.outsideWarning(lane, ticked: state != .off) {
+                        Label(warning, systemImage: "exclamationmark.triangle").font(.system(size: 11))
+                            .foregroundStyle(RunnirTheme.warning).fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
             if lane.parseError.isEmpty {
