@@ -244,19 +244,20 @@ final class FakeMcpDesktop: McpDesktop {
     }
 
     /// The question lasts until a few seconds before the Core stops waiting,
-    /// counted from when the Core asked, not from when it came up.
+    /// counted from when the Core asked, not from when it came up: without
+    /// the Core's time it would wait an hour here.
     @Test func aPromptEndsBeforeTheCoresDeadline() async {
         let desktop = FakeMcpDesktop(workspaces: [Self.fintropy], workflows: Self.workflows)
         var request = set("fintropy", "Repository", secrets: [("GHCR_TOKEN", "t")])
         request.expiresAt = Date().addingTimeInterval(5.05)
         let started = Date()
-        let answer = await McpRequestHandler(desktop: desktop).answer(request)
+        let answer = await McpRequestHandler(desktop: desktop, promptLifetime: .seconds(3600)).answer(request)
         guard case .refusal(let reason) = answer else {
             Issue.record("\(answer)")
             return
         }
         #expect(reason.contains("Nobody answered"))
-        #expect(Date().timeIntervalSince(started) < 2)
+        #expect(Date().timeIntervalSince(started) < 60)
     }
 
     /// Cancel, expiry and withdrawal wait for a save that has started.

@@ -243,13 +243,14 @@ func TestAnEmptyAnswerIsARefusal(t *testing.T) {
 func TestARequestThatStopsWaitingIsWithdrawn(t *testing.T) {
 	for _, c := range []struct {
 		name string
+		wait time.Duration
 		end  func(cancel context.CancelFunc)
 		err  error
 	}{
-		{"expired", func(context.CancelFunc) {}, ErrSetTimeout},
-		{"the caller left", func(cancel context.CancelFunc) { cancel() }, context.Canceled},
+		{"expired", 80 * time.Millisecond, func(context.CancelFunc) {}, ErrSetTimeout},
+		{"the caller left", time.Minute, func(cancel context.CancelFunc) { cancel() }, context.Canceled},
 	} {
-		b := NewBroker(80 * time.Millisecond)
+		b := NewBroker(c.wait)
 		ctx, cancel := context.WithCancel(context.Background())
 		requests, stop := b.Subscribe(ctx)
 		callCtx, leave := context.WithCancel(context.Background())
@@ -257,7 +258,7 @@ func TestARequestThatStopsWaitingIsWithdrawn(t *testing.T) {
 		before := time.Now()
 		go func() { _, err := b.Set(callCtx, setRequest()); done <- err }()
 		asked := <-requests
-		if asked.Withdrawn || asked.GetExpiresAt().AsTime().Before(before.Add(70*time.Millisecond)) || asked.GetExpiresAt().AsTime().After(time.Now().Add(80*time.Millisecond)) {
+		if expires := asked.GetExpiresAt().AsTime(); asked.Withdrawn || expires.Before(before.Add(c.wait)) || expires.After(time.Now().Add(c.wait)) {
 			t.Fatalf("%s: asked = %v", c.name, asked)
 		}
 		c.end(leave)
@@ -279,7 +280,8 @@ func TestARequestThatStopsWaitingIsWithdrawn(t *testing.T) {
 // Once claimed, a request no longer expires: the call waits for the answer
 // the app gives after acting, and nothing is withdrawn.
 func TestAClaimedRequestWaitsForItsAnswer(t *testing.T) {
-	b := NewBroker(60 * time.Millisecond)
+	// Long enough for the claim to come first on a busy machine.
+	b := NewBroker(300 * time.Millisecond)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	requests, stop := b.Subscribe(ctx)
@@ -298,7 +300,7 @@ func TestAClaimedRequestWaitsForItsAnswer(t *testing.T) {
 	if err := b.Claim(asked.Id); err != nil {
 		t.Fatalf("a second claim = %v", err)
 	}
-	time.Sleep(150 * time.Millisecond) // past the request's own wait
+	time.Sleep(500 * time.Millisecond) // past the request's own wait
 	if err := b.Answer(&corev1.AnswerMcpRequestRequest{Id: asked.Id, Answer: &corev1.AnswerMcpRequestRequest_Saved{Saved: &corev1.McpSavedValues{Secrets: []string{"API_KEY"}}}}); err != nil {
 		t.Fatalf("answer after the wait = %v", err)
 	}
