@@ -158,7 +158,7 @@ func (s *service) PrepareLocalRun(ctx context.Context, request *corev1.PrepareLo
 		Spec: &localrun.Spec{
 			ActPath: act.Path, DockerPath: report.DockerCLI.Path, DockerHost: report.Engine.Endpoint,
 			UserHome: s.home, RepositoryPath: info.Path, Plan: plan, CacheDir: s.actCache, GitHubInstance: instance,
-			HostNode: node,
+			HostNode: node, ConcurrentJobs: localrun.HostConcurrentJobs(),
 		},
 	}
 	out := &corev1.PrepareLocalRunResponse{Readiness: readinessMessage(report), Plan: planMessage(approved)}

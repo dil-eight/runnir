@@ -56,6 +56,9 @@ type Spec struct {
 	// HostNode is Node.js on this Mac, for JavaScript actions in jobs that
 	// run here; empty when none was found.
 	HostNode string
+	// ConcurrentJobs is how many jobs of a workflow run at once
+	// (HostConcurrentJobs); 0 leaves act's default.
+	ConcurrentJobs int
 }
 
 // Runner runs approved plans with act. It implements execution.Runner.
@@ -365,6 +368,9 @@ func Args(spec *Spec, lane Lane, executionID, scratch string) []string {
 	}
 	if spec.GitHubInstance != "" {
 		args = append(args, "--github-instance="+spec.GitHubInstance)
+	}
+	if spec.ConcurrentJobs > 0 {
+		args = append(args, "--concurrent-jobs="+strconv.Itoa(spec.ConcurrentJobs))
 	}
 	args = append(args, "--", lane.Event)
 	return args
