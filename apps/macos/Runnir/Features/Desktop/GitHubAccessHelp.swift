@@ -294,7 +294,7 @@ struct GitHubAccessNotice: View {
 
     var body: some View {
         content
-            .sheet(isPresented: $showingConnect) { if let github { GitHubConnectView(session: github) } }
+            .sheet(isPresented: $showingConnect) { if let github { GitHubConnectView(session: github).dropdownHost() } }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                 guard awaitingReturn else { return }
                 awaitingReturn = false
@@ -423,7 +423,7 @@ struct GitHubAccessAlert: ViewModifier {
                     }
                 }
             }
-            .sheet(isPresented: $showingConnect) { if let github { GitHubConnectView(session: github) } }
+            .sheet(isPresented: $showingConnect) { if let github { GitHubConnectView(session: github).dropdownHost() } }
     }
 
     private func perform(_ fix: GitHubAccessHelp.Fix) {

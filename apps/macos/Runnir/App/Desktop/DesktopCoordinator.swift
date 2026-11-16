@@ -259,6 +259,7 @@ final class DesktopCoordinator {
         core?.mcpRequestHandler = { [weak handler] request in
             await handler?.answer(request) ?? .refusal("Runnir is closing.")
         }
+        core?.mcpWithdrawHandler = { [weak handler] id in handler?.withdraw(id) }
         splash = makeWindow(size: NSSize(width: 480, height: 280), title: "Runnir", borderless: true)
         splash?.contentViewController = NSHostingController(rootView: StartupSplashView())
         splash?.makeKeyAndOrderFront(nil)
@@ -488,6 +489,7 @@ final class DesktopCoordinator {
                 return
             }
             do { try commit(candidate) } catch { grant.stop(); throw error }
+            if current.record.workspaceID != workspace.id { cancelMcpPrompts(in: reuseWindowID) }
             current.attach(record: record, workspace: workspace, grant: grant)
             core?.attach(windowID: reuseWindowID, workspaceID: workspace.id, path: workspace.path)
             current.window?.makeKeyAndOrderFront(nil)
@@ -723,6 +725,8 @@ final class DesktopCoordinator {
     /// closes once the answer lets it.
     func shouldClose(_ id: UUID) -> Bool {
         if terminationInProgress { return true }
+        // A window stays while its question is open, as with a sheet.
+        if askers[id]?.question != nil { return false }
         if closeConfirmed.remove(id) == nil, asksBeforeLeaving(id) {
             Task {
                 if await confirmLeaving(id, action: .closeWindow) {
@@ -770,6 +774,10 @@ final class DesktopCoordinator {
 
     func didClose(_ id: UUID) {
         guard !terminationInProgress else { return }
+        // Whatever still waits on the window gets its cancel answer: a quit
+        // waiting for it ends, and an MCP client hears nothing happened.
+        askers.removeValue(forKey: id)?.cancel()
+        cancelMcpPrompts(in: id)
         let grant = windows.removeValue(forKey: id)?.grant
         // The folder access ends only once the Core has closed the repository,
         // so a scan still running in the Core never loses it midway.
@@ -897,9 +905,18 @@ final class DesktopCoordinator {
         return asker
     }
 
+    /// The questions of MCP clients a window shows answer Cancel: the
+    /// window closes, or shows another workspace.
+    private func cancelMcpPrompts(in windowID: UUID) {
+        if let prompt = mcpPrompt, prompt.windowID == windowID { prompt.cancel() }
+        if let prompt = mcpRunPrompt, prompt.windowID == windowID { prompt.cancel() }
+    }
+
     /// Asks in Runnir's own dialog in the workspace window, brought to the
-    /// front; in the Workspace Manager when there is no such window.
+    /// front with Runnir (quitting from the Dock or at logout leaves it
+    /// behind); in the Workspace Manager when there is no such window.
     func ask(_ question: DialogAsker.Question, in windowID: UUID?) async -> Int {
+        NSApp?.activate()
         if let windowID, let controller = windows[windowID] {
             controller.window?.makeKeyAndOrderFront(nil)
             return await asker(for: windowID).ask(question)
@@ -1236,6 +1253,8 @@ extension DesktopCoordinator: McpDesktop {
     var mcpHub: CoreHub? { core }
 
     func mcpIsOpen(_ workspaceID: UUID) -> Bool { openCount(workspaceID) > 0 }
+
+    func mcpClaim(_ requestID: String) async -> Bool { await core?.claimMcpRequest(id: requestID) ?? false }
 
     func mcpShowLocalRun(windowID: UUID) {
         windows[windowID]?.navigate(to: .localRuns)

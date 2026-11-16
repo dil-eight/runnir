@@ -23,6 +23,24 @@ import Testing
         #expect(DropdownPlacement.shift(button: left, panelWidth: 0, space: 1280, trailing: true) == 0, "a panel not measured yet stays put")
     }
 
+    /// A window's question shows in its root, or in a sheet over it while
+    /// the sheet is up, never under it.
+    @MainActor
+    @Test func aWindowsQuestionShowsInTheHostInFront() async {
+        let asker = DialogAsker()
+        let window = UUID(), sheet = UUID()
+        asker.appeared(window)
+        let answer = Task { await asker.ask(DialogAsker.Question(title: "Save?", message: "", choices: [DialogChoice(title: "Cancel")], cancel: 0)) }
+        while asker.question == nil { await Task.yield() }
+        #expect(asker.shows(in: window))
+        asker.appeared(sheet)
+        #expect(asker.shows(in: sheet) && !asker.shows(in: window))
+        asker.disappeared(sheet)
+        #expect(asker.shows(in: window))
+        asker.cancel()
+        #expect(await answer.value == 0 && !asker.shows(in: window))
+    }
+
     @Test func theAppUsesItsOwnDropdowns() throws {
         let sources = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("Runnir")

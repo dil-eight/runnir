@@ -72,6 +72,18 @@ struct GRPCCoreService: CoreServicing {
         return options
     }
 
+    /// Options of a call whose answers can be larger than gRPC's default 4
+    /// MiB. grpc-swift-nio-transport 2.11 limits the messages a client
+    /// receives with maxRequestMessageBytes, not maxResponseMessageBytes, so
+    /// both are set.
+    private static func options(_ timeout: Duration?, receiving bytes: Int) -> CallOptions {
+        var options = CallOptions.defaults
+        options.timeout = timeout
+        options.maxRequestMessageBytes = bytes
+        options.maxResponseMessageBytes = bytes
+        return options
+    }
+
     func healthCheck() async throws -> CoreHealth {
         let response = try await call { try await client.healthCheck(.init(), options: Self.options(Self.healthTimeout)) }
         return CoreHealth(
@@ -595,8 +607,7 @@ struct GRPCCoreService: CoreServicing {
     }
 
     func listPullRequests(server: String, closedSince: Date) async throws -> CorePullRequests {
-        var options = Self.options(.seconds(60))
-        options.maxResponseMessageBytes = 4 << 20
+        let options = Self.options(.seconds(60), receiving: 8 << 20)
         let response = try await call {
             try await client.listPullRequests(.with {
                 $0.closedSince = .init(date: closedSince)
@@ -617,8 +628,7 @@ struct GRPCCoreService: CoreServicing {
     }
 
     func listWatchedRuns(_ repositories: [CoreWatchedRepository], refresh: Bool) async throws -> CoreWatchedRunsList {
-        var options = Self.options(.seconds(60))
-        options.maxResponseMessageBytes = 8 << 20
+        let options = Self.options(.seconds(60), receiving: 8 << 20)
         let response = try await call {
             try await client.listWatchedRuns(.with {
                 $0.repositories = repositories.map { sent in
@@ -655,8 +665,7 @@ struct GRPCCoreService: CoreServicing {
 
     func listGitHubRepositories(server: String) async throws -> CoreGitHubAccount {
         // Up to 1,000 repositories over several GitHub pages.
-        var options = Self.options(.seconds(60))
-        options.maxResponseMessageBytes = 8 << 20
+        let options = Self.options(.seconds(60), receiving: 8 << 20)
         let response = try await call { try await client.listGitHubRepositories(.with { $0.githubServer = server }, options: options) }
         return CoreGitHubAccount(
             access: Self.map(response.status),
@@ -973,9 +982,7 @@ struct GRPCCoreService: CoreServicing {
     /// A log of up to 50,000 lines can exceed gRPC's default 4 MiB message
     /// limit on the wire, so this call allows more.
     func jobLog(repositoryID: String, jobID: Int64) async throws -> CoreJobLog {
-        var options = Self.options(.seconds(150))
-        options.maxRequestMessageBytes = 16 << 20
-        options.maxResponseMessageBytes = 16 << 20
+        let options = Self.options(.seconds(150), receiving: 16 << 20)
         let response = try await call {
             try await client.getJobLog(.with {
                 $0.repositoryID = repositoryID
@@ -1123,9 +1130,8 @@ struct GRPCCoreService: CoreServicing {
     }
 
     func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput {
-        var options = Self.options(Self.callTimeout)
-        // 5,000 lines of up to 4 KiB each can exceed gRPC's 4 MiB default.
-        options.maxResponseMessageBytes = 32 << 20
+        // The Core gives at most 8 MiB of lines an answer (more_lines).
+        let options = Self.options(Self.callTimeout, receiving: 32 << 20)
         let response = try await call {
             try await client.getLocalRunOutput(.with {
                 $0.executionID = executionID
@@ -1147,6 +1153,7 @@ struct GRPCCoreService: CoreServicing {
             discarded: response.discarded,
             discardedJobs: response.discardedJobs.map { CoreLocalRunLineSource(workflowID: $0.workflowID, jobID: $0.jobID) },
             lastSequence: response.lastSequence,
+            moreLines: response.moreLines,
             jobs: response.jobs.map { job in
                 let state: CoreLocalJobState = switch job.state {
                 case .waiting: .waiting
@@ -1284,7 +1291,9 @@ struct GRPCCoreService: CoreServicing {
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await client.subscribeMcpRequests(Runnir_Core_V1_SubscribeMcpRequestsRequest()) { response in
+                    // A change of up to 100 values of 48 KiB is one message.
+                    try await client.subscribeMcpRequests(Runnir_Core_V1_SubscribeMcpRequestsRequest(),
+                                                          options: Self.options(nil, receiving: 16 << 20)) { response in
                         for try await message in response.messages {
                             continuation.yield(Self.map(message))
                         }
@@ -1297,6 +1306,12 @@ struct GRPCCoreService: CoreServicing {
                 }
             }
             continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    func claimMcpRequest(id: String) async throws {
+        _ = try await call {
+            try await client.claimMcpRequest(.with { $0.id = id }, options: Self.options(Self.callTimeout))
         }
     }
 
@@ -1347,7 +1362,8 @@ struct GRPCCoreService: CoreServicing {
         return CoreMcpRequest(id: request.id, client: request.client, tool: tool, repository: request.repository, set: request.set,
                               secrets: request.secrets.map { CoreMcpValue(name: $0.name, value: $0.value) },
                               variables: request.variables.map { CoreMcpValue(name: $0.name, value: $0.value) },
-                              action: request.action, start: start)
+                              action: request.action, start: start,
+                              expiresAt: request.hasExpiresAt ? request.expiresAt.date : nil, withdrawn: request.withdrawn)
     }
 
     static func message(_ workspace: CoreMcpWorkspace) -> Runnir_Core_V1_McpWorkspace {

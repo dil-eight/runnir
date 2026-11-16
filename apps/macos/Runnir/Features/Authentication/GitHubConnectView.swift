@@ -331,7 +331,7 @@ struct GitHubAccountRow: View {
         }
         .buttonStyle(.hit)
         .help("GitHub connection")
-        .sheet(isPresented: $showingConnect) { GitHubConnectView(session: session) }
+        .sheet(isPresented: $showingConnect) { GitHubConnectView(session: session).dropdownHost() }
     }
 
     private var status: String {
@@ -402,7 +402,7 @@ struct GitHubAccountSettings: View {
                 Button("Connect GitHub...") { showingConnect = true }
             }
         }
-        .sheet(isPresented: $showingConnect) { GitHubConnectView(session: session) }
+        .sheet(isPresented: $showingConnect) { GitHubConnectView(session: session).dropdownHost() }
     }
 
     private var signOut: some View {

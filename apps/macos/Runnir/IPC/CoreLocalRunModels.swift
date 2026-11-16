@@ -298,6 +298,8 @@ struct CoreLocalRunOutput: Equatable, Sendable {
     /// The jobs those dropped lines were from.
     var discardedJobs: [CoreLocalRunLineSource] = []
     let lastSequence: UInt64
+    /// More lines follow than one answer holds: ask again at once.
+    var moreLines = false
     let jobs: [CoreLocalRunJobStatus]
     let plan: CoreLocalRunPlan
     let startedAt: Date?

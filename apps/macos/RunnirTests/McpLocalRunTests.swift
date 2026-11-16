@@ -157,11 +157,12 @@ struct McpLocalRunTests {
             CoreLocalRunLane(workflowID: ".github/workflows/release.yml", workflowName: "Release", jobs: [CoreLocalRunJob(id: "build", support: .supported)]),
         ]
         let all = try McpLocalRunStarter.selection([("ci", [])], in: lanes).get()
-        #expect(all.jobs[Self.ci] == ["lint", "test"], "macOS jobs only when named")
-        #expect(all.jobs[".github/workflows/release.yml"] == [])
+        #expect(all.selection.jobs[Self.ci] == ["lint", "test"], "macOS jobs only when named")
+        #expect(all.selection.jobs[".github/workflows/release.yml"] == [] && all.macOSJobs.isEmpty)
         let named = try McpLocalRunStarter.selection([("ci.yml", ["test", "mac"]), ("Release", [])], in: lanes).get()
-        #expect(named.jobs[Self.ci] == ["lint", "test", "mac"], "a job brings what it needs")
-        #expect(named.jobs[".github/workflows/release.yml"] == ["build"])
+        #expect(named.selection.jobs[Self.ci] == ["lint", "test", "mac"], "a job brings what it needs")
+        #expect(named.selection.jobs[".github/workflows/release.yml"] == ["build"])
+        #expect(named.macOSJobs == [McpLocalRunStarter.key(Self.ci, "mac")])
 
         func refusal(_ asked: [(workflow: String, jobs: [String])]) -> String {
             guard case .failure(let refusal) = McpLocalRunStarter.selection(asked, in: lanes) else { return "" }
@@ -170,6 +171,64 @@ struct McpLocalRunTests {
         #expect(refusal([("deploy", [])]).contains(".github/workflows/release.yml"))
         #expect(refusal([("CI", ["nope"])]).contains("lint, test, mac, win"))
         #expect(refusal([("CI", ["win"])]).contains("Windows runner"))
+    }
+
+    /// A job that needs a macOS job does not bring it unnamed: a workflow
+    /// named alone leaves both out, and naming only the job is refused.
+    @Test func aMacOSJobRunsOnlyWhenNamed() throws {
+        let lanes = [CoreLocalRunLane(workflowID: Self.ci, workflowName: "CI", jobs: [
+            CoreLocalRunJob(id: "lint", support: .supported),
+            CoreLocalRunJob(id: "mac", support: .host, needs: ["lint"]),
+            CoreLocalRunJob(id: "publish", support: .supported, needs: ["mac"]),
+        ])]
+        let whole = try McpLocalRunStarter.selection([("CI", [])], in: lanes).get()
+        #expect(whole.selection.jobs[Self.ci] == ["lint"] && whole.macOSJobs.isEmpty)
+        guard case .failure(let refusal) = McpLocalRunStarter.selection([("CI", ["publish"])], in: lanes) else {
+            Issue.record("publish brought mac along unnamed")
+            return
+        }
+        #expect(refusal.reason.contains("need mac") && refusal.reason.contains("name it too"))
+        let both = try McpLocalRunStarter.selection([("CI", ["publish", "mac"])], in: lanes).get()
+        #expect(both.selection.jobs[Self.ci] == ["lint", "mac", "publish"])
+    }
+
+    /// A plan the Core makes with a macOS job nobody named does not start.
+    @Test func aPlanWithAnUnnamedMacOSJobDoesNotStart() async {
+        let (desktop, _, fake, _) = await rig(Self.plan(host: true))
+        let answer = await McpRequestHandler(desktop: desktop).answer(start(CoreMcpLocalRunStart(allowMissingValues: true)))
+        guard case .refusal(let reason) = answer else {
+            Issue.record("\(answer)")
+            return
+        }
+        #expect(reason.contains("mac") && reason.contains("only when named"))
+        #expect(fake.confirmedLocalRuns.isEmpty)
+    }
+
+    /// The run starts only after the request is claimed: a call that ended
+    /// starts nothing.
+    @Test func aCallThatStoppedWaitingStartsNothing() async {
+        let (desktop, _, fake, _) = await rig(Self.plan())
+        desktop.gone = ["m"]
+        let answer = await McpRequestHandler(desktop: desktop).answer(start(CoreMcpLocalRunStart(allowMissingValues: true)))
+        #expect(answer == .refusal(McpLocalRunStarter.gone))
+        #expect(fake.confirmedLocalRuns.isEmpty && desktop.claims == ["m"])
+    }
+
+    /// One question about a run without the sandbox at a time; the second
+    /// call is refused, and the first's question stays until it is answered.
+    @Test func aSecondUnsandboxedRunWaitsItsTurn() async throws {
+        let (desktop, _, _, _) = await rig(Self.plan(host: true, unsandboxed: true))
+        let handler = McpRequestHandler(desktop: desktop)
+        let request = start(CoreMcpLocalRunStart(workflows: [(Self.ci, ["test", "mac"])], allowMissingValues: true, macosWithoutSandbox: true))
+        let first = Task { await handler.answer(request) }
+        let shown = try #require(await waitForRunPrompt(desktop))
+        let second = CoreMcpRequest(id: "m2", client: "claude-code", tool: .startLocalRun, repository: "/repo/a", set: "", secrets: [], variables: [],
+                                    action: true, start: request.start)
+        #expect(await handler.answer(second) == .refusal("Runnir is already asking about another run; answer that first, then try again."))
+        #expect(desktop.mcpRunPrompt === shown)
+        handler.withdraw("m")
+        #expect(await first.value == .refusal(McpLocalRunStarter.gone))
+        #expect(desktop.mcpRunPrompt == nil)
     }
 
     @Test func theRequestCarriesTheStartOverGRPC() {

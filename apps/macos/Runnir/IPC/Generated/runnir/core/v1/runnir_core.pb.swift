@@ -1954,43 +1954,85 @@ nonisolated struct Runnir_Core_V1_SubscribeMcpRequestsRequest: Sendable {
   init() {}
 }
 
-nonisolated struct Runnir_Core_V1_McpRequest: Sendable {
+nonisolated struct Runnir_Core_V1_McpRequest: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  var id: String = String()
+  var id: String {
+    get {_storage._id}
+    set {_uniqueStorage()._id = newValue}
+  }
 
-  var client: String = String()
+  var client: String {
+    get {_storage._client}
+    set {_uniqueStorage()._client = newValue}
+  }
 
-  var tool: Runnir_Core_V1_McpTool = .unspecified
+  var tool: Runnir_Core_V1_McpTool {
+    get {_storage._tool}
+    set {_uniqueStorage()._tool = newValue}
+  }
 
-  var repository: String = String()
+  var repository: String {
+    get {_storage._repository}
+    set {_uniqueStorage()._repository = newValue}
+  }
 
-  var set: String = String()
+  var set: String {
+    get {_storage._set}
+    set {_uniqueStorage()._set = newValue}
+  }
 
-  var secrets: [Runnir_Core_V1_McpValue] = []
+  var secrets: [Runnir_Core_V1_McpValue] {
+    get {_storage._secrets}
+    set {_uniqueStorage()._secrets = newValue}
+  }
 
-  var variables: [Runnir_Core_V1_McpValue] = []
+  var variables: [Runnir_Core_V1_McpValue] {
+    get {_storage._variables}
+    set {_uniqueStorage()._variables = newValue}
+  }
 
   /// The tool changes something: refused while the user turned actions off.
-  var action: Bool = false
+  var action: Bool {
+    get {_storage._action}
+    set {_uniqueStorage()._action = newValue}
+  }
 
   /// For START_LOCAL_RUN.
   var start: Runnir_Core_V1_McpLocalRunStart {
-    get {_start ?? Runnir_Core_V1_McpLocalRunStart()}
-    set {_start = newValue}
+    get {_storage._start ?? Runnir_Core_V1_McpLocalRunStart()}
+    set {_uniqueStorage()._start = newValue}
   }
   /// Returns true if `start` has been explicitly set.
-  var hasStart: Bool {self._start != nil}
+  var hasStart: Bool {_storage._start != nil}
   /// Clears the value of `start`. Subsequent reads from it will return its default value.
-  mutating func clearStart() {self._start = nil}
+  mutating func clearStart() {_uniqueStorage()._start = nil}
+
+  /// When the Core stops waiting and tells the client nothing happened,
+  /// unless the app claimed the request first (ClaimMcpRequest).
+  var expiresAt: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {_storage._expiresAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_uniqueStorage()._expiresAt = newValue}
+  }
+  /// Returns true if `expiresAt` has been explicitly set.
+  var hasExpiresAt: Bool {_storage._expiresAt != nil}
+  /// Clears the value of `expiresAt`. Subsequent reads from it will return its default value.
+  mutating func clearExpiresAt() {_uniqueStorage()._expiresAt = nil}
+
+  /// Only says that the request with this id no longer waits: its client
+  /// went away or it expired. The app takes down what asks about it.
+  var withdrawn: Bool {
+    get {_storage._withdrawn}
+    set {_uniqueStorage()._withdrawn = newValue}
+  }
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
 
-  fileprivate var _start: Runnir_Core_V1_McpLocalRunStart? = nil
+  fileprivate var _storage = _StorageClass.defaultInstance
 }
 
 nonisolated struct Runnir_Core_V1_McpLocalRunStart: Sendable {
@@ -2269,6 +2311,28 @@ nonisolated struct Runnir_Core_V1_AnswerMcpRequestRequest: Sendable {
 }
 
 nonisolated struct Runnir_Core_V1_AnswerMcpRequestResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_ClaimMcpRequestRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var id: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+nonisolated struct Runnir_Core_V1_ClaimMcpRequestResponse: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -5469,10 +5533,18 @@ nonisolated struct Runnir_Core_V1_GetLocalRunOutputResponse: @unchecked Sendable
     set {_uniqueStorage()._discardedJobs = newValue}
   }
 
-  /// The highest sequence number so far.
+  /// The highest sequence number so far; with more_lines, that of the last
+  /// line given.
   var lastSequence: UInt64 {
     get {_storage._lastSequence}
     set {_uniqueStorage()._lastSequence = newValue}
+  }
+
+  /// More lines follow than one answer holds: ask again at once, after
+  /// last_sequence.
+  var moreLines: Bool {
+    get {_storage._moreLines}
+    set {_uniqueStorage()._moreLines = newValue}
   }
 
   var jobs: [Runnir_Core_V1_LocalRunJobStatus] {
@@ -7074,73 +7146,139 @@ nonisolated extension Runnir_Core_V1_SubscribeMcpRequestsRequest: SwiftProtobuf.
 
 nonisolated extension Runnir_Core_V1_McpRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".McpRequest"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}client\0\u{1}tool\0\u{1}repository\0\u{1}set\0\u{1}secrets\0\u{1}variables\0\u{1}action\0\u{1}start\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}client\0\u{1}tool\0\u{1}repository\0\u{1}set\0\u{1}secrets\0\u{1}variables\0\u{1}action\0\u{1}start\0\u{3}expires_at\0\u{1}withdrawn\0")
+
+  fileprivate class _StorageClass {
+    var _id: String = String()
+    var _client: String = String()
+    var _tool: Runnir_Core_V1_McpTool = .unspecified
+    var _repository: String = String()
+    var _set: String = String()
+    var _secrets: [Runnir_Core_V1_McpValue] = []
+    var _variables: [Runnir_Core_V1_McpValue] = []
+    var _action: Bool = false
+    var _start: Runnir_Core_V1_McpLocalRunStart? = nil
+    var _expiresAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+    var _withdrawn: Bool = false
+
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _id = source._id
+      _client = source._client
+      _tool = source._tool
+      _repository = source._repository
+      _set = source._set
+      _secrets = source._secrets
+      _variables = source._variables
+      _action = source._action
+      _start = source._start
+      _expiresAt = source._expiresAt
+      _withdrawn = source._withdrawn
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
-      case 2: try { try decoder.decodeSingularStringField(value: &self.client) }()
-      case 3: try { try decoder.decodeSingularEnumField(value: &self.tool) }()
-      case 4: try { try decoder.decodeSingularStringField(value: &self.repository) }()
-      case 5: try { try decoder.decodeSingularStringField(value: &self.set) }()
-      case 6: try { try decoder.decodeRepeatedMessageField(value: &self.secrets) }()
-      case 7: try { try decoder.decodeRepeatedMessageField(value: &self.variables) }()
-      case 8: try { try decoder.decodeSingularBoolField(value: &self.action) }()
-      case 9: try { try decoder.decodeSingularMessageField(value: &self._start) }()
-      default: break
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularStringField(value: &_storage._id) }()
+        case 2: try { try decoder.decodeSingularStringField(value: &_storage._client) }()
+        case 3: try { try decoder.decodeSingularEnumField(value: &_storage._tool) }()
+        case 4: try { try decoder.decodeSingularStringField(value: &_storage._repository) }()
+        case 5: try { try decoder.decodeSingularStringField(value: &_storage._set) }()
+        case 6: try { try decoder.decodeRepeatedMessageField(value: &_storage._secrets) }()
+        case 7: try { try decoder.decodeRepeatedMessageField(value: &_storage._variables) }()
+        case 8: try { try decoder.decodeSingularBoolField(value: &_storage._action) }()
+        case 9: try { try decoder.decodeSingularMessageField(value: &_storage._start) }()
+        case 10: try { try decoder.decodeSingularMessageField(value: &_storage._expiresAt) }()
+        case 11: try { try decoder.decodeSingularBoolField(value: &_storage._withdrawn) }()
+        default: break
+        }
       }
     }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    // The use of inline closures is to circumvent an issue where the compiler
-    // allocates stack space for every if/case branch local when no optimizations
-    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
-    // https://github.com/apple/swift-protobuf/issues/1182
-    if !self.id.isEmpty {
-      try visitor.visitSingularStringField(value: self.id, fieldNumber: 1)
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every if/case branch local when no optimizations
+      // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+      // https://github.com/apple/swift-protobuf/issues/1182
+      if !_storage._id.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._id, fieldNumber: 1)
+      }
+      if !_storage._client.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._client, fieldNumber: 2)
+      }
+      if _storage._tool != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._tool, fieldNumber: 3)
+      }
+      if !_storage._repository.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._repository, fieldNumber: 4)
+      }
+      if !_storage._set.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._set, fieldNumber: 5)
+      }
+      if !_storage._secrets.isEmpty {
+        try visitor.visitRepeatedMessageField(value: _storage._secrets, fieldNumber: 6)
+      }
+      if !_storage._variables.isEmpty {
+        try visitor.visitRepeatedMessageField(value: _storage._variables, fieldNumber: 7)
+      }
+      if _storage._action != false {
+        try visitor.visitSingularBoolField(value: _storage._action, fieldNumber: 8)
+      }
+      try { if let v = _storage._start {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 9)
+      } }()
+      try { if let v = _storage._expiresAt {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 10)
+      } }()
+      if _storage._withdrawn != false {
+        try visitor.visitSingularBoolField(value: _storage._withdrawn, fieldNumber: 11)
+      }
     }
-    if !self.client.isEmpty {
-      try visitor.visitSingularStringField(value: self.client, fieldNumber: 2)
-    }
-    if self.tool != .unspecified {
-      try visitor.visitSingularEnumField(value: self.tool, fieldNumber: 3)
-    }
-    if !self.repository.isEmpty {
-      try visitor.visitSingularStringField(value: self.repository, fieldNumber: 4)
-    }
-    if !self.set.isEmpty {
-      try visitor.visitSingularStringField(value: self.set, fieldNumber: 5)
-    }
-    if !self.secrets.isEmpty {
-      try visitor.visitRepeatedMessageField(value: self.secrets, fieldNumber: 6)
-    }
-    if !self.variables.isEmpty {
-      try visitor.visitRepeatedMessageField(value: self.variables, fieldNumber: 7)
-    }
-    if self.action != false {
-      try visitor.visitSingularBoolField(value: self.action, fieldNumber: 8)
-    }
-    try { if let v = self._start {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 9)
-    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Runnir_Core_V1_McpRequest, rhs: Runnir_Core_V1_McpRequest) -> Bool {
-    if lhs.id != rhs.id {return false}
-    if lhs.client != rhs.client {return false}
-    if lhs.tool != rhs.tool {return false}
-    if lhs.repository != rhs.repository {return false}
-    if lhs.set != rhs.set {return false}
-    if lhs.secrets != rhs.secrets {return false}
-    if lhs.variables != rhs.variables {return false}
-    if lhs.action != rhs.action {return false}
-    if lhs._start != rhs._start {return false}
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._id != rhs_storage._id {return false}
+        if _storage._client != rhs_storage._client {return false}
+        if _storage._tool != rhs_storage._tool {return false}
+        if _storage._repository != rhs_storage._repository {return false}
+        if _storage._set != rhs_storage._set {return false}
+        if _storage._secrets != rhs_storage._secrets {return false}
+        if _storage._variables != rhs_storage._variables {return false}
+        if _storage._action != rhs_storage._action {return false}
+        if _storage._start != rhs_storage._start {return false}
+        if _storage._expiresAt != rhs_storage._expiresAt {return false}
+        if _storage._withdrawn != rhs_storage._withdrawn {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -7718,6 +7856,55 @@ nonisolated extension Runnir_Core_V1_AnswerMcpRequestResponse: SwiftProtobuf.Mes
   }
 
   static func ==(lhs: Runnir_Core_V1_AnswerMcpRequestResponse, rhs: Runnir_Core_V1_AnswerMcpRequestResponse) -> Bool {
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ClaimMcpRequestRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ClaimMcpRequestRequest"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.id.isEmpty {
+      try visitor.visitSingularStringField(value: self.id, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ClaimMcpRequestRequest, rhs: Runnir_Core_V1_ClaimMcpRequestRequest) -> Bool {
+    if lhs.id != rhs.id {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Runnir_Core_V1_ClaimMcpRequestResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ClaimMcpRequestResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    // Load everything into unknown fields
+    while try decoder.nextFieldNumber() != nil {}
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_ClaimMcpRequestResponse, rhs: Runnir_Core_V1_ClaimMcpRequestResponse) -> Bool {
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -13464,7 +13651,7 @@ nonisolated extension Runnir_Core_V1_GetLocalRunOutputRequest: SwiftProtobuf.Mes
 
 nonisolated extension Runnir_Core_V1_GetLocalRunOutputResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".GetLocalRunOutputResponse"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}execution_id\0\u{3}repository_id\0\u{1}state\0\u{1}phase\0\u{1}lines\0\u{1}discarded\0\u{3}last_sequence\0\u{1}jobs\0\u{1}plan\0\u{3}started_at\0\u{3}finished_at\0\u{3}exit_code\0\u{1}message\0\u{3}cleanup_problem\0\u{3}started_by\0\u{3}discarded_jobs\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}execution_id\0\u{3}repository_id\0\u{1}state\0\u{1}phase\0\u{1}lines\0\u{1}discarded\0\u{3}last_sequence\0\u{1}jobs\0\u{1}plan\0\u{3}started_at\0\u{3}finished_at\0\u{3}exit_code\0\u{1}message\0\u{3}cleanup_problem\0\u{3}started_by\0\u{3}discarded_jobs\0\u{3}more_lines\0")
 
   fileprivate class _StorageClass {
     var _executionID: String = String()
@@ -13475,6 +13662,7 @@ nonisolated extension Runnir_Core_V1_GetLocalRunOutputResponse: SwiftProtobuf.Me
     var _discarded: Bool = false
     var _discardedJobs: [Runnir_Core_V1_LocalRunLineSource] = []
     var _lastSequence: UInt64 = 0
+    var _moreLines: Bool = false
     var _jobs: [Runnir_Core_V1_LocalRunJobStatus] = []
     var _plan: Runnir_Core_V1_LocalRunPlan? = nil
     var _startedAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
@@ -13501,6 +13689,7 @@ nonisolated extension Runnir_Core_V1_GetLocalRunOutputResponse: SwiftProtobuf.Me
       _discarded = source._discarded
       _discardedJobs = source._discardedJobs
       _lastSequence = source._lastSequence
+      _moreLines = source._moreLines
       _jobs = source._jobs
       _plan = source._plan
       _startedAt = source._startedAt
@@ -13543,6 +13732,7 @@ nonisolated extension Runnir_Core_V1_GetLocalRunOutputResponse: SwiftProtobuf.Me
         case 14: try { try decoder.decodeSingularStringField(value: &_storage._cleanupProblem) }()
         case 15: try { try decoder.decodeSingularStringField(value: &_storage._startedBy) }()
         case 16: try { try decoder.decodeRepeatedMessageField(value: &_storage._discardedJobs) }()
+        case 17: try { try decoder.decodeSingularBoolField(value: &_storage._moreLines) }()
         default: break
         }
       }
@@ -13603,6 +13793,9 @@ nonisolated extension Runnir_Core_V1_GetLocalRunOutputResponse: SwiftProtobuf.Me
       if !_storage._discardedJobs.isEmpty {
         try visitor.visitRepeatedMessageField(value: _storage._discardedJobs, fieldNumber: 16)
       }
+      if _storage._moreLines != false {
+        try visitor.visitSingularBoolField(value: _storage._moreLines, fieldNumber: 17)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -13620,6 +13813,7 @@ nonisolated extension Runnir_Core_V1_GetLocalRunOutputResponse: SwiftProtobuf.Me
         if _storage._discarded != rhs_storage._discarded {return false}
         if _storage._discardedJobs != rhs_storage._discardedJobs {return false}
         if _storage._lastSequence != rhs_storage._lastSequence {return false}
+        if _storage._moreLines != rhs_storage._moreLines {return false}
         if _storage._jobs != rhs_storage._jobs {return false}
         if _storage._plan != rhs_storage._plan {return false}
         if _storage._startedAt != rhs_storage._startedAt {return false}

@@ -581,6 +581,24 @@ struct DesktopCoordinatorTests {
         #expect(asked == [["ci.yml"], ["ci.yml"], ["ci.yml"]])
     }
 
+    /// A window stays while its question is open; one that closes anyway
+    /// answers Cancel, so a quit waiting for it never hangs.
+    @Test func aQuestionInAWindowThatClosesIsCancelled() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant, makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        let id = try #require(factory.windows.first).record.id
+        let question = DialogAsker.Question(title: "Quit?", message: "", choices: [DialogChoice(title: "Cancel"), DialogChoice(title: "Quit")], cancel: 0)
+        let answer = Task { await coordinator.ask(question, in: id) }
+        #expect(await eventually { coordinator.asker(for: id).question != nil })
+        #expect(!coordinator.shouldClose(id), "the window stays while it asks")
+        coordinator.didClose(id)
+        #expect(await answer.value == 0)
+    }
+
     @Test func aSearchResultOpensItsWorkspaceAndGoesThere() async throws {
         let fixture = try CoordinatorFixture()
         defer { fixture.remove() }

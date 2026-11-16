@@ -50,6 +50,9 @@ protocol McpDesktop: AnyObject {
     func mcpContext(for workspace: WorkspaceRecord, front: Bool) async -> Result<McpWorkspaceContext, McpRefusal>
     /// The environments a local run can take, as Secrets and Variables shows them.
     func mcpEnvironments(for workspaceID: UUID) async -> [String]?
+    /// Claims a request in the Core before acting on it; false when its
+    /// client no longer waits.
+    func mcpClaim(_ requestID: String) async -> Bool
 }
 
 /// Finds the workspace an MCP client names: a folder (or a folder inside
@@ -126,16 +129,21 @@ final class McpValuesPrompt: Identifiable {
     let environment: String?
     private(set) var rows: [Row]
     private(set) var isSaving = false
+    /// Claims the request in the Core before saving; false when its client
+    /// no longer waits.
+    @ObservationIgnored private let claim: @MainActor () async -> Bool
     @ObservationIgnored private var continuation: CheckedContinuation<CoreMcpAnswer, Never>?
     @ObservationIgnored private var answer: CoreMcpAnswer?
 
     init(request: CoreMcpRequest, workspace: WorkspaceRecord, windowID: UUID, environment: String?,
-         values: [(kind: LocalRunValueKind, name: String, value: String)], saved: Set<LocalRunValueKey>) {
+         values: [(kind: LocalRunValueKind, name: String, value: String)], saved: Set<LocalRunValueKey>,
+         claim: @escaping @MainActor () async -> Bool = { true }) {
         id = request.id
         client = McpClientName.display(request.client)
         self.workspace = workspace
         self.windowID = windowID
         self.environment = environment
+        self.claim = claim
         setName = environment ?? McpRequestHandler.repositorySet
         rows = values.map { value in
             Row(kind: value.kind, name: value.name, value: value.value,
@@ -149,11 +157,17 @@ final class McpValuesPrompt: Identifiable {
         rows[index].shown.toggle()
     }
 
-    /// Writes every value to the set, then answers the names.
+    /// Writes every value to the set, then answers the names. Nothing is
+    /// written once the client stopped waiting, as it was told nothing was
+    /// saved; Cancel, expiry and withdrawal wait for the save to finish.
     func save(store: any LocalRunValueStoring) async {
         guard answer == nil, !isSaving else { return }
         isSaving = true
         defer { isSaving = false }
+        guard await claim() else {
+            finish(.refusal(Self.gone))
+            return
+        }
         var saved: [Row] = []
         for row in rows {
             do {
@@ -171,9 +185,23 @@ final class McpValuesPrompt: Identifiable {
                                    variables: saved.filter { $0.kind == .variable }.map(\.name))))
     }
 
-    func cancel() { finish(.refusal("Cancelled in Runnir. Nothing was saved.")) }
+    func cancel() {
+        guard !isSaving else { return }
+        finish(.refusal("Cancelled in Runnir. Nothing was saved."))
+    }
 
-    func expire() { finish(.refusal("Nobody answered in Runnir within 5 minutes; nothing was saved.")) }
+    func expire() {
+        guard !isSaving else { return }
+        finish(.refusal("Nobody answered in Runnir within 5 minutes; nothing was saved."))
+    }
+
+    /// The client no longer waits: the question comes down.
+    func withdraw() {
+        guard !isSaving else { return }
+        finish(.refusal(Self.gone))
+    }
+
+    static let gone = "The call stopped waiting before the user answered in Runnir; nothing was saved."
 
     /// Waits for Save, Cancel or the end of the prompt's life.
     func decision() async -> CoreMcpAnswer {
@@ -196,18 +224,51 @@ final class McpRequestHandler {
     static let repositorySet = "Repository"
 
     private weak var desktop: (any McpDesktop)?
-    /// Shorter than the Core's five minutes, so a change the client was told
-    /// expired is never saved later.
+    /// How long a question waits when the Core gives no time; shorter than
+    /// the Core's five minutes.
     private let promptLifetime: Duration
+    /// Requests being answered, and those of them the Core withdrew before
+    /// their question came up.
+    private var answering: Set<String> = []
+    private var withdrawn: Set<String> = []
 
     init(desktop: any McpDesktop, promptLifetime: Duration = .seconds(290)) {
         self.desktop = desktop
         self.promptLifetime = promptLifetime
     }
 
+    /// The Core no longer waits for a request: its question comes down, or
+    /// never comes up.
+    func withdraw(_ id: String) {
+        if let prompt = desktop?.mcpPrompt, prompt.id == id {
+            prompt.withdraw()
+        } else if let prompt = desktop?.mcpRunPrompt, prompt.requestID == id {
+            prompt.withdraw()
+        } else if answering.contains(id) {
+            withdrawn.insert(id)
+        }
+    }
+
+    /// How long a request's question may wait: until a few seconds before
+    /// the Core stops waiting, so the user never answers a call that ended.
+    private func lifetime(of request: CoreMcpRequest) -> Duration {
+        guard let expiresAt = request.expiresAt else { return promptLifetime }
+        return .milliseconds(max(0, Int((expiresAt.timeIntervalSinceNow - 5) * 1000)))
+    }
+
+    /// Claims a request in the Core before acting on it.
+    private func claim(_ id: String) -> @MainActor () async -> Bool {
+        { [weak desktop] in await desktop?.mcpClaim(id) ?? false }
+    }
+
     static let actionsOff = "Actions are turned off in Runnir › Settings › MCP › Allow actions, so Runnir only answers reading tools."
 
     func answer(_ request: CoreMcpRequest) async -> CoreMcpAnswer {
+        answering.insert(request.id)
+        defer {
+            answering.remove(request.id)
+            withdrawn.remove(request.id)
+        }
         guard let desktop else { return .refusal("Runnir is closing.") }
         if request.tool == .listWorkspaces {
             return .workspaces(desktop.mcpWorkspaces.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }.map {
@@ -244,11 +305,19 @@ final class McpRequestHandler {
                 repositoryID: context.repositoryID, branch: context.branch))
         case .startLocalRun:
             guard let hub = desktop.mcpHub else { return .refusal("Runnir Core is not running.") }
-            let starter = McpLocalRunStarter(hub: hub, values: desktop.localRunValues, promptLifetime: promptLifetime) { [weak desktop] prompt in
-                desktop?.mcpRunPrompt = prompt
-            }
+            let starter = McpLocalRunStarter(
+                hub: hub, values: desktop.localRunValues, requestID: request.id, promptLifetime: lifetime(of: request),
+                claim: claim(request.id),
+                show: { [weak desktop, weak self] prompt in
+                    guard let desktop, desktop.mcpRunPrompt == nil, self?.withdrawn.contains(prompt.requestID) != true else { return false }
+                    desktop.mcpRunPrompt = prompt
+                    return true
+                },
+                hide: { [weak desktop] prompt in
+                    if desktop?.mcpRunPrompt === prompt { desktop?.mcpRunPrompt = nil }
+                })
             let answer = await starter.start(request.start ?? CoreMcpLocalRunStart(), client: request.client, workspace: workspace,
-                                             windowID: context.windowID, busy: desktop.mcpRunPrompt != nil)
+                                             windowID: context.windowID)
             if case .started = answer { desktop.mcpShowLocalRun(windowID: context.windowID) }
             return answer
         case .listWorkspaces:
@@ -279,18 +348,21 @@ final class McpRequestHandler {
             let sets = ([Self.repositorySet] + model.environments).joined(separator: ", ")
             return .refusal("\(workspace.name) has no set named \(asked). Its sets: \(sets).")
         }
-        guard desktop.mcpPrompt == nil else {
-            return .refusal("Runnir is already asking about other values; answer that first, then try again.")
-        }
         let saved: Set<LocalRunValueKey>
         do { saved = try await desktop.localRunValues.keys(workspaceID: workspace.id) } catch {
             return .refusal("Keychain did not list the saved values.")
         }
+        // Checked and shown with no wait between, so two calls never take
+        // the same place.
+        guard desktop.mcpPrompt == nil else {
+            return .refusal("Runnir is already asking about other values; answer that first, then try again.")
+        }
+        guard !withdrawn.contains(request.id) else { return .refusal(McpValuesPrompt.gone) }
         let prompt = McpValuesPrompt(request: request, workspace: workspace, windowID: context.windowID,
-                                     environment: environment, values: values, saved: saved)
+                                     environment: environment, values: values, saved: saved, claim: claim(request.id))
         desktop.mcpPrompt = prompt
-        let expiry = Task { [promptLifetime] in
-            try? await Task.sleep(for: promptLifetime)
+        let expiry = Task { [lifetime = lifetime(of: request)] in
+            try? await Task.sleep(for: lifetime)
             if !Task.isCancelled { prompt.expire() }
         }
         let answer = await prompt.decision()

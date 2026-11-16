@@ -42,6 +42,9 @@ struct ScenarioFlowView: View {
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .dialog(asking: asker)
+        // A question left open answers Cancel, so the start waiting for it
+        // ends.
+        .onDisappear { asker.cancel() }
     }
 
     /// How wide a lane's jobs are: their columns of nodes with the arrows between.

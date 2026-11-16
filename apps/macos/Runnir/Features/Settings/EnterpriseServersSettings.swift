@@ -120,7 +120,7 @@ struct EnterpriseServersSection: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .sheet(isPresented: $adding) {
-            if let hub { AddEnterpriseServerSheet(servers: servers, hub: hub) }
+            if let hub { AddEnterpriseServerSheet(servers: servers, hub: hub).dropdownHost() }
         }
     }
 

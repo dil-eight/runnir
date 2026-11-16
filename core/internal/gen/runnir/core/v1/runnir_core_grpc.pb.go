@@ -87,6 +87,7 @@ const (
 	RunnirCore_ListEnvironments_FullMethodName          = "/runnir.core.v1.RunnirCore/ListEnvironments"
 	RunnirCore_SubscribeMcpRequests_FullMethodName      = "/runnir.core.v1.RunnirCore/SubscribeMcpRequests"
 	RunnirCore_AnswerMcpRequest_FullMethodName          = "/runnir.core.v1.RunnirCore/AnswerMcpRequest"
+	RunnirCore_ClaimMcpRequest_FullMethodName           = "/runnir.core.v1.RunnirCore/ClaimMcpRequest"
 )
 
 // RunnirCoreClient is the client API for RunnirCore service.
@@ -301,6 +302,11 @@ type RunnirCoreClient interface {
 	// The app's answer to one request. NOT_FOUND when the request no longer
 	// waits (answered, timed out or its client went away).
 	AnswerMcpRequest(ctx context.Context, in *AnswerMcpRequestRequest, opts ...grpc.CallOption) (*AnswerMcpRequestResponse, error)
+	// Before the app acts on a request the user answered (saves values,
+	// starts a run): the Core no longer lets the request expire and waits
+	// for the answer. NOT_FOUND when the request no longer waits, so the app
+	// never does what its client was told did not happen.
+	ClaimMcpRequest(ctx context.Context, in *ClaimMcpRequestRequest, opts ...grpc.CallOption) (*ClaimMcpRequestResponse, error)
 }
 
 type runnirCoreClient struct {
@@ -949,6 +955,16 @@ func (c *runnirCoreClient) AnswerMcpRequest(ctx context.Context, in *AnswerMcpRe
 	return out, nil
 }
 
+func (c *runnirCoreClient) ClaimMcpRequest(ctx context.Context, in *ClaimMcpRequestRequest, opts ...grpc.CallOption) (*ClaimMcpRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClaimMcpRequestResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ClaimMcpRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnirCoreServer is the server API for RunnirCore service.
 // All implementations must embed UnimplementedRunnirCoreServer
 // for forward compatibility.
@@ -1161,6 +1177,11 @@ type RunnirCoreServer interface {
 	// The app's answer to one request. NOT_FOUND when the request no longer
 	// waits (answered, timed out or its client went away).
 	AnswerMcpRequest(context.Context, *AnswerMcpRequestRequest) (*AnswerMcpRequestResponse, error)
+	// Before the app acts on a request the user answered (saves values,
+	// starts a run): the Core no longer lets the request expire and waits
+	// for the answer. NOT_FOUND when the request no longer waits, so the app
+	// never does what its client was told did not happen.
+	ClaimMcpRequest(context.Context, *ClaimMcpRequestRequest) (*ClaimMcpRequestResponse, error)
 	mustEmbedUnimplementedRunnirCoreServer()
 }
 
@@ -1356,6 +1377,9 @@ func (UnimplementedRunnirCoreServer) SubscribeMcpRequests(*SubscribeMcpRequestsR
 }
 func (UnimplementedRunnirCoreServer) AnswerMcpRequest(context.Context, *AnswerMcpRequestRequest) (*AnswerMcpRequestResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AnswerMcpRequest not implemented")
+}
+func (UnimplementedRunnirCoreServer) ClaimMcpRequest(context.Context, *ClaimMcpRequestRequest) (*ClaimMcpRequestResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClaimMcpRequest not implemented")
 }
 func (UnimplementedRunnirCoreServer) mustEmbedUnimplementedRunnirCoreServer() {}
 func (UnimplementedRunnirCoreServer) testEmbeddedByValue()                    {}
@@ -2480,6 +2504,24 @@ func _RunnirCore_AnswerMcpRequest_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_ClaimMcpRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClaimMcpRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ClaimMcpRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ClaimMcpRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ClaimMcpRequest(ctx, req.(*ClaimMcpRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnirCore_ServiceDesc is the grpc.ServiceDesc for RunnirCore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2726,6 +2768,10 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AnswerMcpRequest",
 			Handler:    _RunnirCore_AnswerMcpRequest_Handler,
+		},
+		{
+			MethodName: "ClaimMcpRequest",
+			Handler:    _RunnirCore_ClaimMcpRequest_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

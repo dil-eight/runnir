@@ -234,6 +234,11 @@ service RunnirCore {
   // The app's answer to one request. NOT_FOUND when the request no longer
   // waits (answered, timed out or its client went away).
   rpc AnswerMcpRequest(AnswerMcpRequestRequest) returns (AnswerMcpRequestResponse);
+  // Before the app acts on a request the user answered (saves values,
+  // starts a run): the Core no longer lets the request expire and waits
+  // for the answer. NOT_FOUND when the request no longer waits, so the app
+  // never does what its client was told did not happen.
+  rpc ClaimMcpRequest(ClaimMcpRequestRequest) returns (ClaimMcpRequestResponse);
 }
 
 // Served only on mcp.sock in the data folder, for `runnir mcp`: the tools
@@ -292,6 +297,12 @@ message McpRequest {
   bool action = 8;
   // For START_LOCAL_RUN.
   McpLocalRunStart start = 9;
+  // When the Core stops waiting and tells the client nothing happened,
+  // unless the app claimed the request first (ClaimMcpRequest).
+  google.protobuf.Timestamp expires_at = 10;
+  // Only says that the request with this id no longer waits: its client
+  // went away or it expired. The app takes down what asks about it.
+  bool withdrawn = 11;
 }
 
 message McpLocalRunStart {
@@ -400,6 +411,12 @@ message AnswerMcpRequestRequest {
 }
 
 message AnswerMcpRequestResponse {}
+
+message ClaimMcpRequestRequest {
+  string id = 1;
+}
+
+message ClaimMcpRequestResponse {}
 
 message HealthCheckRequest {}
 
@@ -1794,8 +1811,12 @@ message GetLocalRunOutputResponse {
   // The jobs those dropped lines were from, by workflow and job id; a job
   // that lost no lines after `after_sequence` is not listed.
   repeated LocalRunLineSource discarded_jobs = 16;
-  // The highest sequence number so far.
+  // The highest sequence number so far; with more_lines, that of the last
+  // line given.
   uint64 last_sequence = 7;
+  // More lines follow than one answer holds: ask again at once, after
+  // last_sequence.
+  bool more_lines = 17;
   repeated LocalRunJobStatus jobs = 8;
   LocalRunPlan plan = 9;
   google.protobuf.Timestamp started_at = 10;

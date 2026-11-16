@@ -832,6 +832,19 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "ClaimMcpRequest" metadata.
+        internal enum ClaimMcpRequest: Sendable {
+            /// Request type for "ClaimMcpRequest".
+            internal typealias Input = Runnir_Core_V1_ClaimMcpRequestRequest
+            /// Response type for "ClaimMcpRequest".
+            internal typealias Output = Runnir_Core_V1_ClaimMcpRequestResponse
+            /// Descriptor for "ClaimMcpRequest".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "runnir.core.v1.RunnirCore"),
+                method: "ClaimMcpRequest",
+                type: .unary
+            )
+        }
         /// Descriptors for all methods in the "runnir.core.v1.RunnirCore" service.
         internal static let descriptors: [GRPCCore.MethodDescriptor] = [
             HealthCheck.descriptor,
@@ -895,7 +908,8 @@ internal enum Runnir_Core_V1_RunnirCore: Sendable {
             ListEnvFiles.descriptor,
             ListEnvironments.descriptor,
             SubscribeMcpRequests.descriptor,
-            AnswerMcpRequest.descriptor
+            AnswerMcpRequest.descriptor,
+            ClaimMcpRequest.descriptor
         ]
     }
 }
@@ -2088,6 +2102,27 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_AnswerMcpRequestRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_AnswerMcpRequestResponse>
+
+        /// Handle the "ClaimMcpRequest" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Before the app acts on a request the user answered (saves values,
+        /// > starts a run): the Core no longer lets the request expire and waits
+        /// > for the answer. NOT_FOUND when the request no longer waits, so the app
+        /// > never does what its client was told did not happen.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Runnir_Core_V1_ClaimMcpRequestRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Runnir_Core_V1_ClaimMcpRequestResponse` messages.
+        func claimMcpRequest(
+            request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ClaimMcpRequestRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ClaimMcpRequestResponse>
     }
 
     /// Service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -3264,6 +3299,27 @@ extension Runnir_Core_V1_RunnirCore {
             request: GRPCCore.ServerRequest<Runnir_Core_V1_AnswerMcpRequestRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_AnswerMcpRequestResponse>
+
+        /// Handle the "ClaimMcpRequest" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Before the app acts on a request the user answered (saves values,
+        /// > starts a run): the Core no longer lets the request expire and waits
+        /// > for the answer. NOT_FOUND when the request no longer waits, so the app
+        /// > never does what its client was told did not happen.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClaimMcpRequestRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Runnir_Core_V1_ClaimMcpRequestResponse` message.
+        func claimMcpRequest(
+            request: GRPCCore.ServerRequest<Runnir_Core_V1_ClaimMcpRequestRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ClaimMcpRequestResponse>
     }
 
     /// Simple service protocol for the "runnir.core.v1.RunnirCore" service.
@@ -4440,6 +4496,27 @@ extension Runnir_Core_V1_RunnirCore {
             request: Runnir_Core_V1_AnswerMcpRequestRequest,
             context: GRPCCore.ServerContext
         ) async throws -> Runnir_Core_V1_AnswerMcpRequestResponse
+
+        /// Handle the "ClaimMcpRequest" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Before the app acts on a request the user answered (saves values,
+        /// > starts a run): the Core no longer lets the request expire and waits
+        /// > for the answer. NOT_FOUND when the request no longer waits, so the app
+        /// > never does what its client was told did not happen.
+        ///
+        /// - Parameters:
+        ///   - request: A `Runnir_Core_V1_ClaimMcpRequestRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Runnir_Core_V1_ClaimMcpRequestResponse` to respond with.
+        func claimMcpRequest(
+            request: Runnir_Core_V1_ClaimMcpRequestRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Runnir_Core_V1_ClaimMcpRequestResponse
     }
 }
 
@@ -5129,6 +5206,17 @@ extension Runnir_Core_V1_RunnirCore.StreamingServiceProtocol {
                 )
             }
         )
+        router.registerHandler(
+            forMethod: Runnir_Core_V1_RunnirCore.Method.ClaimMcpRequest.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ClaimMcpRequestRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ClaimMcpRequestResponse>(),
+            handler: { request, context in
+                try await self.claimMcpRequest(
+                    request: request,
+                    context: context
+                )
+            }
+        )
     }
 }
 
@@ -5811,6 +5899,17 @@ extension Runnir_Core_V1_RunnirCore.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_AnswerMcpRequestResponse> {
         let response = try await self.answerMcpRequest(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func claimMcpRequest(
+        request: GRPCCore.StreamingServerRequest<Runnir_Core_V1_ClaimMcpRequestRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Runnir_Core_V1_ClaimMcpRequestResponse> {
+        let response = try await self.claimMcpRequest(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -6628,6 +6727,19 @@ extension Runnir_Core_V1_RunnirCore.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_AnswerMcpRequestResponse> {
         return GRPCCore.ServerResponse<Runnir_Core_V1_AnswerMcpRequestResponse>(
             message: try await self.answerMcpRequest(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func claimMcpRequest(
+        request: GRPCCore.ServerRequest<Runnir_Core_V1_ClaimMcpRequestRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Runnir_Core_V1_ClaimMcpRequestResponse> {
+        return GRPCCore.ServerResponse<Runnir_Core_V1_ClaimMcpRequestResponse>(
+            message: try await self.claimMcpRequest(
                 request: request.message,
                 context: context
             ),
@@ -8120,6 +8232,32 @@ extension Runnir_Core_V1_RunnirCore {
             deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_AnswerMcpRequestResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_AnswerMcpRequestResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ClaimMcpRequest" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Before the app acts on a request the user answered (saves values,
+        /// > starts a run): the Core no longer lets the request expire and waits
+        /// > for the answer. NOT_FOUND when the request no longer waits, so the app
+        /// > never does what its client was told did not happen.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClaimMcpRequestRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ClaimMcpRequestRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ClaimMcpRequestResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func claimMcpRequest<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ClaimMcpRequestRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ClaimMcpRequestRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ClaimMcpRequestResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClaimMcpRequestResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
     }
 
@@ -10293,6 +10431,43 @@ extension Runnir_Core_V1_RunnirCore {
                 onResponse: handleResponse
             )
         }
+
+        /// Call the "ClaimMcpRequest" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Before the app acts on a request the user answered (saves values,
+        /// > starts a run): the Core no longer lets the request expire and waits
+        /// > for the answer. NOT_FOUND when the request no longer waits, so the app
+        /// > never does what its client was told did not happen.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Runnir_Core_V1_ClaimMcpRequestRequest` message.
+        ///   - serializer: A serializer for `Runnir_Core_V1_ClaimMcpRequestRequest` messages.
+        ///   - deserializer: A deserializer for `Runnir_Core_V1_ClaimMcpRequestResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func claimMcpRequest<Result>(
+            request: GRPCCore.ClientRequest<Runnir_Core_V1_ClaimMcpRequestRequest>,
+            serializer: some GRPCCore.MessageSerializer<Runnir_Core_V1_ClaimMcpRequestRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Runnir_Core_V1_ClaimMcpRequestResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClaimMcpRequestResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Runnir_Core_V1_RunnirCore.Method.ClaimMcpRequest.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
     }
 }
 
@@ -12139,6 +12314,38 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_AnswerMcpRequestRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_AnswerMcpRequestResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ClaimMcpRequest" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Before the app acts on a request the user answered (saves values,
+    /// > starts a run): the Core no longer lets the request expire and waits
+    /// > for the answer. NOT_FOUND when the request no longer waits, so the app
+    /// > never does what its client was told did not happen.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Runnir_Core_V1_ClaimMcpRequestRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func claimMcpRequest<Result>(
+        request: GRPCCore.ClientRequest<Runnir_Core_V1_ClaimMcpRequestRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClaimMcpRequestResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.claimMcpRequest(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Runnir_Core_V1_ClaimMcpRequestRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Runnir_Core_V1_ClaimMcpRequestResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -14235,6 +14442,42 @@ extension Runnir_Core_V1_RunnirCore.ClientProtocol {
             metadata: metadata
         )
         return try await self.answerMcpRequest(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ClaimMcpRequest" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Before the app acts on a request the user answered (saves values,
+    /// > starts a run): the Core no longer lets the request expire and waits
+    /// > for the answer. NOT_FOUND when the request no longer waits, so the app
+    /// > never does what its client was told did not happen.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func claimMcpRequest<Result>(
+        _ message: Runnir_Core_V1_ClaimMcpRequestRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Runnir_Core_V1_ClaimMcpRequestResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Runnir_Core_V1_ClaimMcpRequestRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.claimMcpRequest(
             request: request,
             options: options,
             onResponse: handleResponse

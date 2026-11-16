@@ -423,6 +423,8 @@ struct ValueInput: NSViewRepresentable {
 
     func updateNSView(_ field: NSTextField, context: Context) {
         context.coordinator.parent = self
+        // Disabled under a dialog, as the SwiftUI controls around it are.
+        if field.isEnabled != context.environment.isEnabled { field.isEnabled = context.environment.isEnabled }
         if field.placeholderString != placeholder { field.placeholderString = placeholder }
         if let editor = field.currentEditor() as? NSTextView {
             if editor.string != text { editor.string = text }

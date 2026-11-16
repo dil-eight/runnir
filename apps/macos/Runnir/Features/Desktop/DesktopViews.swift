@@ -245,8 +245,8 @@ struct WorkspaceManagerView: View {
         .tint(RunnirTheme.primary)
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: DesktopCoordinator.managerWindowID)
-        .dialog(asking: desktop.asker(for: nil))
         .dropdownHost()
+        .environment(\.dialogAsker, desktop.asker(for: nil))
     }
 }
 
@@ -700,24 +700,16 @@ struct DesktopWorkspaceView: View {
                                   close: { showingNotifications = false })
             }
         }
-        .overlay {
-            if let prompt = desktop.mcpPrompt, prompt.windowID == windowID {
-                McpValuesPanel(prompt: prompt, store: desktop.localRunValues)
-            }
-        }
-        .overlay {
-            if let prompt = desktop.mcpRunPrompt, prompt.windowID == windowID {
-                McpRunPanel(prompt: prompt)
-            }
-        }
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: windowID)
-        // Inside the host, which draws its dialogs over the whole window.
+        // Inside the host, which draws its dialogs over the whole window,
+        // Settings included; the window's own questions come from the
+        // environment's asker.
+        .mcpPrompts(desktop: desktop, windowID: windowID)
         .githubAccessAlert($accessHelp, github: desktop.github)
-        .dialog(asking: desktop.asker(for: windowID))
         .dropdownHost()
         .sheet(isPresented: $reportingBug) {
-            BugReportSheet(draft: BugReportDraft.current(coreVersion: desktop.core?.status.coreVersion))
+            BugReportSheet(draft: BugReportDraft.current(coreVersion: desktop.core?.status.coreVersion)).dropdownHost()
         }
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
@@ -747,6 +739,7 @@ struct DesktopWorkspaceView: View {
                         .buttonStyle(DesignButtonStyle())
                 }
                 .padding(20).frame(width: 420)
+                .dropdownHost()
             }
         }
         .sheet(item: Binding(get: { state.localRunRequest }, set: { state.localRunRequest = $0 })) { request in
@@ -767,6 +760,7 @@ struct DesktopWorkspaceView: View {
                         .buttonStyle(DesignButtonStyle())
                 }
                 .padding(20).frame(width: 420)
+                .dropdownHost()
             }
         }
         .sheet(item: $fileNameRequest, onDismiss: {
@@ -780,12 +774,16 @@ struct DesktopWorkspaceView: View {
                 case .rename: await renameSelected(to: name)
                 }
             }
+            .dropdownHost()
         }
         // What the repository allows (push, the owner's installation) is read
         // once GitHub answers, and again after a new sign-in.
         .task(id: "\(session?.githubAccess == .ok)|\(desktop.core?.credentialGeneration ?? 0)") {
             if session?.githubAccess == .ok { await desktop.core?.githubRepository(workspaceID: workspace.id) }
         }
+        // The window's questions (closing it, quitting): its root and its
+        // sheets show them, whichever is in front (.dropdownHost()).
+        .environment(\.dialogAsker, desktop.asker(for: windowID))
     }
 
     private var session: RepositorySession? { desktop.core?.session(for: workspace.id) }

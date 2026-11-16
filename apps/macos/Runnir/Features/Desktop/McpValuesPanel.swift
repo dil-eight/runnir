@@ -1,20 +1,16 @@
 import SwiftUI
 
-/// Asks, over a workspace window, whether to save the values an MCP client
-/// sent (docs/superpowers/specs/2026-11-08-mcp-value-sets-design.md). Only
-/// Save writes Keychain; a click outside does nothing, so the change is
-/// never decided by accident.
+/// Asks, in Runnir's own dialog over a workspace window, whether to save the
+/// values an MCP client sent
+/// (docs/superpowers/specs/2026-11-08-mcp-value-sets-design.md). Only Save
+/// writes Keychain; a click outside does nothing, so the change is never
+/// decided by accident, and Escape cancels until the save starts.
 struct McpValuesPanel: View {
     let prompt: McpValuesPrompt
     let store: any LocalRunValueStoring
 
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.22).contentShape(Rectangle()).accessibilityHidden(true)
-            panel
-        }
-        .transition(.opacity)
-        .accessibilityIdentifier("mcp-values")
+        panel.accessibilityIdentifier("mcp-values")
     }
 
     private var panel: some View {
@@ -40,8 +36,8 @@ struct McpValuesPanel: View {
             HStack(spacing: 8) {
                 Spacer()
                 Button("Cancel") { prompt.cancel() }
-                    .keyboardShortcut(.cancelAction)
                     .buttonStyle(DesignButtonStyle())
+                    .disabled(prompt.isSaving)
                 Button(prompt.isSaving ? "Saving…" : "Save") { Task { await prompt.save(store: store) } }
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(DesignButtonStyle(primary: true))

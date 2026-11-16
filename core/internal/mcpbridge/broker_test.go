@@ -18,6 +18,9 @@ func app(t *testing.T, b *Broker, answer func(*corev1.McpRequest) *corev1.Answer
 	go func() {
 		defer close(done)
 		for request := range requests {
+			if request.Withdrawn {
+				continue
+			}
 			if a := answer(request); a != nil {
 				a.Id = request.Id
 				if err := b.Answer(a); err != nil {
@@ -230,6 +233,92 @@ func TestAnEmptyAnswerIsARefusal(t *testing.T) {
 	})()
 	var refusal Refusal
 	if _, err := b.Open(context.Background(), "c", "/r", false); !errors.As(err, &refusal) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+// A request carries when its call stops waiting; a request whose call ends
+// unanswered is withdrawn from the app, and a late claim or answer finds it
+// gone.
+func TestARequestThatStopsWaitingIsWithdrawn(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		end  func(cancel context.CancelFunc)
+		err  error
+	}{
+		{"expired", func(context.CancelFunc) {}, ErrSetTimeout},
+		{"the caller left", func(cancel context.CancelFunc) { cancel() }, context.Canceled},
+	} {
+		b := NewBroker(80 * time.Millisecond)
+		ctx, cancel := context.WithCancel(context.Background())
+		requests, stop := b.Subscribe(ctx)
+		callCtx, leave := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		before := time.Now()
+		go func() { _, err := b.Set(callCtx, setRequest()); done <- err }()
+		asked := <-requests
+		if asked.Withdrawn || asked.GetExpiresAt().AsTime().Before(before.Add(70*time.Millisecond)) || asked.GetExpiresAt().AsTime().After(time.Now().Add(80*time.Millisecond)) {
+			t.Fatalf("%s: asked = %v", c.name, asked)
+		}
+		c.end(leave)
+		if err := <-done; !errors.Is(err, c.err) {
+			t.Fatalf("%s: err = %v", c.name, err)
+		}
+		if withdrawn := <-requests; !withdrawn.Withdrawn || withdrawn.Id != asked.Id {
+			t.Fatalf("%s: then = %v", c.name, withdrawn)
+		}
+		if err := b.Claim(asked.Id); !errors.Is(err, ErrUnknownRequest) {
+			t.Fatalf("%s: late claim = %v", c.name, err)
+		}
+		stop()
+		cancel()
+		leave()
+	}
+}
+
+// Once claimed, a request no longer expires: the call waits for the answer
+// the app gives after acting, and nothing is withdrawn.
+func TestAClaimedRequestWaitsForItsAnswer(t *testing.T) {
+	b := NewBroker(60 * time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	requests, stop := b.Subscribe(ctx)
+	defer stop()
+	done := make(chan error, 1)
+	var saved *corev1.McpSavedValues
+	go func() {
+		var err error
+		saved, err = b.Set(context.Background(), setRequest())
+		done <- err
+	}()
+	asked := <-requests
+	if err := b.Claim(asked.Id); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Claim(asked.Id); err != nil {
+		t.Fatalf("a second claim = %v", err)
+	}
+	time.Sleep(150 * time.Millisecond) // past the request's own wait
+	if err := b.Answer(&corev1.AnswerMcpRequestRequest{Id: asked.Id, Answer: &corev1.AnswerMcpRequestRequest_Saved{Saved: &corev1.McpSavedValues{Secrets: []string{"API_KEY"}}}}); err != nil {
+		t.Fatalf("answer after the wait = %v", err)
+	}
+	if err := <-done; err != nil || len(saved.GetSecrets()) != 1 {
+		t.Fatalf("saved = %v, %v", saved, err)
+	}
+	select {
+	case extra := <-requests:
+		t.Fatalf("a claimed request was withdrawn: %v", extra)
+	default:
+	}
+
+	// A claimed request the app never answers ends after the claimed wait.
+	b.claimedWait = 50 * time.Millisecond
+	go func() { _, err := b.Set(context.Background(), setRequest()); done <- err }()
+	asked = <-requests
+	if err := b.Claim(asked.Id); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; !errors.Is(err, ErrUnfinished) {
 		t.Fatalf("err = %v", err)
 	}
 }

@@ -316,6 +316,10 @@ protocol CoreServicing: Sendable {
     /// `.unavailable` when the Core goes away or another subscriber takes
     /// them; callers subscribe again.
     func mcpRequests() -> AsyncThrowingStream<CoreMcpRequest, any Error>
+    /// Claims an MCP request before acting on it, so the Core no longer
+    /// lets it expire; `.notFound` when it no longer waits, and its client
+    /// was told nothing happened.
+    func claimMcpRequest(id: String) async throws
     /// The answer to one MCP request; `.notFound` when it no longer waits.
     func answerMcpRequest(id: String, answer: CoreMcpAnswer) async throws
 }
@@ -331,6 +335,10 @@ enum CoreGitHubTarget: Hashable, Sendable {
 extension CoreServicing {
     func mcpRequests() -> AsyncThrowingStream<CoreMcpRequest, any Error> {
         AsyncThrowingStream { $0.finish(throwing: CoreServiceError.unavailable) }
+    }
+
+    func claimMcpRequest(id: String) async throws {
+        throw CoreServiceError.unavailable
     }
 
     func answerMcpRequest(id: String, answer: CoreMcpAnswer) async throws {

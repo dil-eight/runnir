@@ -187,6 +187,9 @@ final class CoreHub {
     /// Answers the calls of MCP clients (the desktop sets it). Without it
     /// every call is refused.
     @ObservationIgnored var mcpRequestHandler: (@MainActor (CoreMcpRequest) async -> CoreMcpAnswer)?
+    /// Takes down what asks about a request that no longer waits, by id
+    /// (the desktop sets it).
+    @ObservationIgnored var mcpWithdrawHandler: (@MainActor (String) -> Void)?
     /// Ids this hub closed itself; their REPOSITORY_CLOSED events are not
     /// "someone else closed it" and must not trigger a reopen.
     @ObservationIgnored private var ownCloses: Set<String> = []
@@ -1507,7 +1510,11 @@ final class CoreHub {
                     for try await request in service.mcpRequests() {
                         guard let self else { return }
                         delay = firstDelay
-                        Task { await self.answer(request, with: service) }
+                        if request.withdrawn {
+                            self.mcpWithdrawHandler?(request.id)
+                        } else {
+                            Task { await self.answer(request, with: service) }
+                        }
                     }
                 } catch is CancellationError {
                     return
@@ -1518,6 +1525,19 @@ final class CoreHub {
                 try? await Task.sleep(for: delay)
                 delay = min(delay * 2, .seconds(30))
             }
+        }
+    }
+
+    /// Claims an MCP request before the app acts on it; false when it no
+    /// longer waits (its client was told nothing happened) or the Core is
+    /// out of reach, and the app must not act.
+    func claimMcpRequest(id: String) async -> Bool {
+        guard isReady, let service = try? await provider.service() else { return false }
+        do {
+            try await service.claimMcpRequest(id: id)
+            return true
+        } catch {
+            return false
         }
     }
 

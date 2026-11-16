@@ -161,7 +161,7 @@ func message(err error) string {
 	case errors.As(err, &app):
 		return string(app)
 	case errors.Is(err, mcpbridge.ErrNoApp), errors.Is(err, mcpbridge.ErrBusy), errors.Is(err, mcpbridge.ErrTimeout),
-		errors.Is(err, mcpbridge.ErrSetTimeout):
+		errors.Is(err, mcpbridge.ErrSetTimeout), errors.Is(err, mcpbridge.ErrUnfinished):
 		return err.Error()
 	case errors.Is(err, context.Canceled):
 		return "The call was cancelled."

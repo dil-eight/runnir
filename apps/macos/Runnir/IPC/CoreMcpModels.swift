@@ -37,6 +37,12 @@ struct CoreMcpRequest: Equatable, Identifiable, Sendable {
     var action = false
     /// For `.startLocalRun`.
     var start: CoreMcpLocalRunStart?
+    /// When the Core stops waiting and tells the client nothing happened,
+    /// unless the app claimed the request first.
+    var expiresAt: Date?
+    /// Only says that the request with this id no longer waits: what asks
+    /// about it comes down.
+    var withdrawn = false
 }
 
 /// A local run an MCP client asks for.

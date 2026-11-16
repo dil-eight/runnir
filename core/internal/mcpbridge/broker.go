@@ -8,11 +8,17 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 )
 
 // DefaultWait is how long a call waits for the app.
 const DefaultWait = 5 * time.Minute
+
+// ClaimedWait is how long a call waits once the app claimed it: the user
+// answered, and the app saves the values or starts the run.
+const ClaimedWait = 2 * time.Minute
 
 var (
 	ErrNoApp          = errors.New("Runnir is not running. Open Runnir and try again.")
@@ -20,6 +26,7 @@ var (
 	ErrTimeout        = errors.New("Runnir did not answer within 5 minutes.")
 	ErrSetTimeout     = errors.New("Nobody answered in Runnir within 5 minutes; nothing was saved.")
 	ErrUnknownRequest = errors.New("the request is not waiting")
+	ErrUnfinished     = errors.New("The user answered in Runnir, but Runnir did not finish within 2 minutes. Check Runnir.")
 )
 
 type result struct {
@@ -30,12 +37,15 @@ type result struct {
 type pending struct {
 	set  bool
 	done chan result
+	// claim is closed when the app claims the request: it no longer expires.
+	claim   chan struct{}
+	claimed bool
 }
 
 // Broker hands the questions of MCP tools to the app, one subscriber at a
 // time, and waits for its answers. Safe for concurrent use.
 type Broker struct {
-	wait time.Duration
+	wait, claimedWait time.Duration
 
 	mu         sync.Mutex
 	subscriber chan *corev1.McpRequest
@@ -49,7 +59,7 @@ func NewBroker(wait time.Duration) *Broker {
 	if wait <= 0 {
 		wait = DefaultWait
 	}
-	return &Broker{wait: wait, waiting: map[string]*pending{}}
+	return &Broker{wait: wait, claimedWait: ClaimedWait, waiting: map[string]*pending{}}
 }
 
 // Subscribe makes the caller the app that answers: requests arrive on the
@@ -114,6 +124,24 @@ func (b *Broker) Answer(a *corev1.AnswerMcpRequestRequest) error {
 		return ErrUnknownRequest
 	}
 	p.done <- result{answer: a}
+	return nil
+}
+
+// Claim marks a request the app is about to act on: it no longer expires,
+// and its call waits up to ClaimedWait for the answer. ErrUnknownRequest
+// when the request no longer waits: its client was told nothing happened,
+// so the app must not act.
+func (b *Broker) Claim(id string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	p, ok := b.waiting[id]
+	if !ok {
+		return ErrUnknownRequest
+	}
+	if !p.claimed {
+		p.claimed = true
+		close(p.claim)
+	}
 	return nil
 }
 
@@ -202,7 +230,8 @@ func (b *Broker) ask(ctx context.Context, request *corev1.McpRequest) (*corev1.A
 		}
 	}
 	request.Id = newID()
-	p := &pending{set: set, done: make(chan result, 1)}
+	request.ExpiresAt = timestamppb.New(time.Now().Add(b.wait))
+	p := &pending{set: set, done: make(chan result, 1), claim: make(chan struct{})}
 	select {
 	case b.subscriber <- request:
 	default:
@@ -214,22 +243,65 @@ func (b *Broker) ask(ctx context.Context, request *corev1.McpRequest) (*corev1.A
 
 	timer := time.NewTimer(b.wait)
 	defer timer.Stop()
-	select {
-	case r := <-p.done:
-		return r.answer, r.err
-	case <-ctx.Done():
-		b.forget(request.Id)
-		return nil, ctx.Err()
-	case <-timer.C:
-		b.forget(request.Id)
-		return nil, ErrTimeout
+	claim, claimed := p.claim, false
+	for {
+		select {
+		case r := <-p.done:
+			return r.answer, r.err
+		case <-claim:
+			claim, claimed = nil, true
+			timer.Reset(b.claimedWait)
+		case <-ctx.Done():
+			b.end(request.Id)
+			return nil, ctx.Err()
+		case <-timer.C:
+			if claimed {
+				b.end(request.Id)
+				return nil, ErrUnfinished
+			}
+			if b.expire(request.Id) {
+				return nil, ErrTimeout
+			}
+			// Claimed as the time ran out.
+			claim, claimed = nil, true
+			timer.Reset(b.claimedWait)
+		}
 	}
 }
 
-func (b *Broker) forget(id string) {
+// expire ends a request that was not claimed and says so to the app; false
+// when the app claimed it.
+func (b *Broker) expire(id string) bool {
 	b.mu.Lock()
+	defer b.mu.Unlock()
+	if p, ok := b.waiting[id]; ok && p.claimed {
+		return false
+	}
+	b.endLocked(id)
+	return true
+}
+
+// end ends a request whose call no longer waits.
+func (b *Broker) end(id string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.endLocked(id)
+}
+
+// endLocked forgets a request and, unless the app claimed it and acts on it,
+// tells the app it no longer waits, so it takes its question down.
+func (b *Broker) endLocked(id string) {
+	p, ok := b.waiting[id]
+	if !ok {
+		return
+	}
 	delete(b.waiting, id)
-	b.mu.Unlock()
+	if !p.claimed && b.subscriber != nil {
+		select {
+		case b.subscriber <- &corev1.McpRequest{Id: id, Withdrawn: true}:
+		default: // the app finds out when it claims or answers it
+		}
+	}
 }
 
 func newID() string {

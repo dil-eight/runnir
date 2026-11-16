@@ -116,7 +116,8 @@ struct CodeEditor: NSViewRepresentable {
         let coordinator = context.coordinator
         coordinator.text = $text
         guard let textView = coordinator.textView else { return }
-        textView.isEditable = isEditable
+        // Read-only under a dialog, as the SwiftUI controls around it are.
+        textView.isEditable = isEditable && context.environment.isEnabled
         if let edit, edit.id != coordinator.appliedEdit, textView.string == edit.before {
             coordinator.appliedEdit = edit.id
             // After this update: the change sets the binding.

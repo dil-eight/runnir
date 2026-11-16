@@ -601,7 +601,7 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         installedAct: CoreToolStatus(state: .missing, detail: "No act is installed on this Mac."),
         dockerCLI: CoreToolStatus(state: .found, version: "29.0.1", path: "/usr/local/bin/docker"),
         engine: CoreContainerEngine(state: .found, name: "OrbStack", context: "orbstack", local: true, cpus: 8, memoryBytes: 16 << 30),
-        checkedAt: Date(), testedActVersion: "0.2.89", minimumActVersion: "0.2.60")
+        checkedAt: Date(), testedActVersion: "0.2.89", minimumActVersion: "0.2.78")
     var readiness = FakeCore.readyTools
     private var _readinessRefreshes = 0
     var readinessRefreshes: Int { lock.withLock { _readinessRefreshes } }
@@ -739,6 +739,18 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     }
     func answerMcpRequest(id: String, answer: CoreMcpAnswer) async throws {
         lock.withLock { _mcpAnswers.append((id, answer)) }
+    }
+    private var _mcpClaims: [String] = []
+    private var _mcpGone: Set<String> = []
+    /// The requests the app claimed before acting on them.
+    var mcpClaims: [String] { lock.withLock { _mcpClaims } }
+    /// Makes a request no longer wait, as when its client went away.
+    func endMcpRequest(_ id: String) { lock.withLock { _ = _mcpGone.insert(id) } }
+    func claimMcpRequest(id: String) async throws {
+        try lock.withLock {
+            guard !_mcpGone.contains(id) else { throw CoreServiceError.notFound }
+            _mcpClaims.append(id)
+        }
     }
 }
 

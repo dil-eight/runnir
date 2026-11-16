@@ -18,8 +18,15 @@ final class FakeMcpDesktop: McpDesktop {
     var openIDs: Set<UUID> = []
     var shownRuns: [UUID] = []
     var repositoryID = "repo_1"
+    /// Requests whose client no longer waits: claiming them fails.
+    var gone: Set<String> = []
+    var claims: [String] = []
 
     func mcpIsOpen(_ workspaceID: UUID) -> Bool { openIDs.contains(workspaceID) }
+    func mcpClaim(_ requestID: String) async -> Bool {
+        claims.append(requestID)
+        return !gone.contains(requestID)
+    }
     func mcpShowLocalRun(windowID: UUID) { shownRuns.append(windowID) }
 
     init(workspaces: [WorkspaceRecord], workflows: [CoreWorkflow], environments: [String]? = nil,
@@ -30,8 +37,12 @@ final class FakeMcpDesktop: McpDesktop {
         localRunValues = store
     }
 
+    /// Runs while the window "opens".
+    var onContext: (() -> Void)?
+
     func mcpContext(for workspace: WorkspaceRecord, front: Bool) async -> Result<McpWorkspaceContext, McpRefusal> {
         opened.append((workspace.id, front))
+        onContext?()
         if let contextRefusal { return .failure(McpRefusal(contextRefusal)) }
         return .success(McpWorkspaceContext(windowID: windowID, workflows: workflows, repositoryID: repositoryID, branch: "feature"))
     }
@@ -200,6 +211,71 @@ final class FakeMcpDesktop: McpDesktop {
         #expect(desktop.mcpPrompt == nil)
     }
 
+    /// Save claims the request first: a call the Core already answered,
+    /// telling its client nothing was saved, saves nothing.
+    @Test func aCallThatStoppedWaitingSavesNothing() async throws {
+        let store = InMemoryLocalRunValueStore()
+        let desktop = FakeMcpDesktop(workspaces: [Self.fintropy], workflows: Self.workflows, store: store)
+        let handler = McpRequestHandler(desktop: desktop)
+        let answering = Task { await handler.answer(set("fintropy", "Repository", secrets: [("GHCR_TOKEN", "t")])) }
+        let prompt = try #require(await waitForPrompt(desktop))
+        desktop.gone = ["mcp_2"]
+        await prompt.save(store: store)
+        #expect(await answering.value == .refusal(McpValuesPrompt.gone))
+        #expect(desktop.claims == ["mcp_2"])
+        #expect(try await store.keys(workspaceID: Self.fintropy.id).isEmpty)
+        #expect(desktop.mcpPrompt == nil)
+    }
+
+    /// A request the Core withdraws takes its question down, or never shows it.
+    @Test func aWithdrawnRequestComesDown() async throws {
+        let desktop = FakeMcpDesktop(workspaces: [Self.fintropy], workflows: Self.workflows)
+        let handler = McpRequestHandler(desktop: desktop)
+        let answering = Task { await handler.answer(set("fintropy", "Repository", secrets: [("GHCR_TOKEN", "t")])) }
+        _ = try #require(await waitForPrompt(desktop))
+        handler.withdraw("mcp_2")
+        #expect(await answering.value == .refusal(McpValuesPrompt.gone))
+        #expect(desktop.mcpPrompt == nil)
+
+        // Withdrawn while the window opens, before the question came up.
+        desktop.onContext = { handler.withdraw("mcp_2") }
+        #expect(await handler.answer(set("fintropy", "Repository", secrets: [("GHCR_TOKEN", "t")])) == .refusal(McpValuesPrompt.gone))
+        #expect(desktop.mcpPrompt == nil, "withdrawn before it came up")
+    }
+
+    /// The question lasts until a few seconds before the Core stops waiting,
+    /// counted from when the Core asked, not from when it came up.
+    @Test func aPromptEndsBeforeTheCoresDeadline() async {
+        let desktop = FakeMcpDesktop(workspaces: [Self.fintropy], workflows: Self.workflows)
+        var request = set("fintropy", "Repository", secrets: [("GHCR_TOKEN", "t")])
+        request.expiresAt = Date().addingTimeInterval(5.05)
+        let started = Date()
+        let answer = await McpRequestHandler(desktop: desktop).answer(request)
+        guard case .refusal(let reason) = answer else {
+            Issue.record("\(answer)")
+            return
+        }
+        #expect(reason.contains("Nobody answered"))
+        #expect(Date().timeIntervalSince(started) < 2)
+    }
+
+    /// Cancel, expiry and withdrawal wait for a save that has started.
+    @Test func aSaveThatStartedIsNotCancelled() async throws {
+        let store = SlowValueStore()
+        let desktop = FakeMcpDesktop(workspaces: [Self.fintropy], workflows: Self.workflows, store: store)
+        let handler = McpRequestHandler(desktop: desktop)
+        let answering = Task { await handler.answer(set("fintropy", "Repository", secrets: [("A", "1"), ("B", "2")])) }
+        let prompt = try #require(await waitForPrompt(desktop))
+        let saving = Task { await prompt.save(store: store) }
+        while !prompt.isSaving { await Task.yield() }
+        prompt.cancel()
+        prompt.expire()
+        prompt.withdraw()
+        store.release()
+        await saving.value
+        #expect(await answering.value == .saved(CoreMcpSaved(workspace: "fintropy", set: "Repository", secrets: ["A", "B"], variables: [])))
+    }
+
     @Test func namesThatDifferOnlyInCaseAreRefused() async {
         let desktop = FakeMcpDesktop(workspaces: [Self.fintropy], workflows: Self.workflows)
         let answer = await McpRequestHandler(desktop: desktop).answer(set("fintropy", "Repository", secrets: [("api_key", "a")], variables: [("API_KEY", "b")]))
@@ -304,4 +380,24 @@ final class FakeMcpDesktop: McpDesktop {
     @Test func theSettingIsFoundBySearch() {
         #expect(SettingsIndex.items.contains { $0.section == .mcp && $0.keywords.contains("codex") })
     }
+}
+
+/// Saves as the in-memory store does once released, so a test can act while
+/// a save is under way.
+@MainActor
+final class SlowValueStore: LocalRunValueStoring {
+    private let store = InMemoryLocalRunValueStore()
+    private var released = false
+
+    func release() { released = true }
+
+    func save(workspaceID: UUID, key: LocalRunValueKey, value: String) async throws {
+        while !released { try await Task.sleep(for: .milliseconds(5)) }
+        try await store.save(workspaceID: workspaceID, key: key, value: value)
+    }
+
+    func value(workspaceID: UUID, key: LocalRunValueKey) async throws -> String? { try await store.value(workspaceID: workspaceID, key: key) }
+    func keys(workspaceID: UUID) async throws -> Set<LocalRunValueKey> { try await store.keys(workspaceID: workspaceID) }
+    func remove(workspaceID: UUID, key: LocalRunValueKey) async throws { try await store.remove(workspaceID: workspaceID, key: key) }
+    func removeAll(workspaceID: UUID) async throws { try await store.removeAll(workspaceID: workspaceID) }
 }

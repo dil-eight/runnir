@@ -512,3 +512,27 @@ func TestALocalRunPlansTheScenarioAndTheWorkflowsItLeavesOut(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// An answer holds a bounded share of the lines; the app asks again after
+// the last one given until no more lines follow.
+func TestOutputAnswersHoldABoundedShareOfTheLines(t *testing.T) {
+	var lines []localrun.Line
+	for i := uint64(1); i <= 10; i++ {
+		lines = append(lines, localrun.Line{Sequence: i, Workflow: "ci.yml", JobID: "lint", Text: strings.Repeat("x", 100)})
+	}
+	out := &corev1.GetLocalRunOutputResponse{LastSequence: 10}
+	answerLines(out, lines, 450)
+	if len(out.Lines) != 3 || !out.MoreLines || out.LastSequence != 3 {
+		t.Fatalf("lines %d, more %v, last %d", len(out.Lines), out.MoreLines, out.LastSequence)
+	}
+	out = &corev1.GetLocalRunOutputResponse{LastSequence: 10}
+	answerLines(out, lines, 10)
+	if len(out.Lines) != 1 || !out.MoreLines || out.LastSequence != 1 {
+		t.Fatalf("a line longer than the room still goes: %d, %v, %d", len(out.Lines), out.MoreLines, out.LastSequence)
+	}
+	out = &corev1.GetLocalRunOutputResponse{LastSequence: 10}
+	answerLines(out, lines, maxOutputAnswerBytes)
+	if len(out.Lines) != 10 || out.MoreLines || out.LastSequence != 10 {
+		t.Fatalf("lines %d, more %v, last %d", len(out.Lines), out.MoreLines, out.LastSequence)
+	}
+}

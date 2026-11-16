@@ -443,6 +443,23 @@ func (s *service) ConfirmLocalRun(_ context.Context, request *corev1.ConfirmLoca
 	}}, nil
 }
 
+// maxOutputAnswerBytes bounds the lines of one GetLocalRunOutput answer,
+// well under what the app takes in one message; the app asks again for the
+// rest (more_lines).
+const maxOutputAnswerBytes = 8 << 20
+
+// answerLines puts lines into an answer up to about room bytes, at least
+// one; the rest wait for the next call (more_lines, last_sequence).
+func answerLines(out *corev1.GetLocalRunOutputResponse, lines []localrun.Line, room int) {
+	for i, line := range lines {
+		if room -= len(line.Text) + len(line.Workflow) + len(line.JobID) + 32; room < 0 && i > 0 {
+			out.MoreLines, out.LastSequence = true, lines[i-1].Sequence
+			return
+		}
+		out.Lines = append(out.Lines, &corev1.LocalRunLine{Sequence: line.Sequence, WorkflowId: line.Workflow, JobId: line.JobID, Text: line.Text, Error: line.Error})
+	}
+}
+
 func (s *service) GetLocalRunOutput(_ context.Context, request *corev1.GetLocalRunOutputRequest) (*corev1.GetLocalRunOutputResponse, error) {
 	snap, ok := s.localOutputs.Since(request.GetExecutionId(), request.GetAfterSequence())
 	if !ok {
@@ -457,9 +474,7 @@ func (s *service) GetLocalRunOutput(_ context.Context, request *corev1.GetLocalR
 		ExitCode: int32(snap.ExitCode), Message: snap.Message, CleanupProblem: snap.CleanupProblem,
 		StartedBy: snap.StartedBy,
 	}
-	for _, line := range snap.Lines {
-		out.Lines = append(out.Lines, &corev1.LocalRunLine{Sequence: line.Sequence, WorkflowId: line.Workflow, JobId: line.JobID, Text: line.Text, Error: line.Error})
-	}
+	answerLines(out, snap.Lines, maxOutputAnswerBytes)
 	for _, source := range snap.DiscardedJobs {
 		out.DiscardedJobs = append(out.DiscardedJobs, &corev1.LocalRunLineSource{WorkflowId: source.Workflow, JobId: source.JobID})
 	}

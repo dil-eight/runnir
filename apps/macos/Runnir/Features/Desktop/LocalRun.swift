@@ -192,6 +192,8 @@ final class LocalRunModel {
     var selectedJobID: String?
 
     @ObservationIgnored private var lastSequence: UInt64 = 0
+    /// The Core has more lines than its last answer held.
+    @ObservationIgnored private var linesPending = false
     @ObservationIgnored private var followTask: Task<Void, Never>?
     /// Called once when the Core reports the run finished.
     @ObservationIgnored var onFinish: (@MainActor (LocalRunModel) -> Void)?
@@ -255,9 +257,11 @@ final class LocalRunModel {
         if output.discarded { discarded = true }
         // Only the jobs the Core dropped lines of, so a job that writes a lot
         // does not make another's output look cut.
-        discardedJobs.formUnion(output.discardedJobs.map { JobKey(workflowID: $0.workflowID, jobID: $0.jobID) })
+        // Only what changed is set: every change redraws the run view.
+        let dropped = output.discardedJobs.map { JobKey(workflowID: $0.workflowID, jobID: $0.jobID) }
+        if !dropped.allSatisfy(discardedJobs.contains) { discardedJobs.formUnion(dropped) }
         let fresh = output.lines.filter { $0.sequence > lastSequence }
-        lines.append(contentsOf: fresh)
+        if !fresh.isEmpty { lines.append(contentsOf: fresh) }
         if lines.count > Self.maxLines {
             lines.removeFirst(lines.count - Self.maxLines)
             discarded = true
@@ -275,6 +279,7 @@ final class LocalRunModel {
             }
         }
         lastSequence = max(lastSequence, output.lastSequence, fresh.last?.sequence ?? 0)
+        linesPending = output.moreLines
         if !output.jobs.isEmpty { jobs = output.jobs }
         plan = output.plan.lanes.isEmpty ? plan : output.plan
         state = output.state
@@ -296,11 +301,13 @@ final class LocalRunModel {
         }
     }
 
-    /// Reads the run from the Core until it finishes or the Core forgets it.
+    /// Reads the run from the Core until it finishes and every line is
+    /// read, or the Core forgets it. Lines one answer does not hold are
+    /// asked for at once.
     func follow(hub: CoreHub) {
         followTask?.cancel()
         followTask = Task { [weak self, weak hub] in
-            while let self, let hub, !Task.isCancelled, !self.isFinished {
+            while let self, let hub, !Task.isCancelled, !self.isFinished || self.linesPending, self.lostMessage == nil {
                 do {
                     self.apply(try await hub.localRunOutput(executionID: self.executionID, after: self.lastSequence))
                     self.failedReads = 0
@@ -315,6 +322,7 @@ final class LocalRunModel {
                         self.readProblem = Self.readProblem(error)
                     }
                 }
+                if self.linesPending, self.failedReads == 0 { continue }
                 if self.isFinished { break }
                 try? await Task.sleep(for: self.pollInterval)
             }

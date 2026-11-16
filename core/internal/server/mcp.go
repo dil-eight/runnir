@@ -185,6 +185,18 @@ func (s *service) SubscribeMcpRequests(_ *corev1.SubscribeMcpRequestsRequest, st
 	}
 }
 
+func (s *service) ClaimMcpRequest(_ context.Context, request *corev1.ClaimMcpRequestRequest) (*corev1.ClaimMcpRequestResponse, error) {
+	if s.mcp == nil {
+		return nil, status.Error(codes.Unavailable, "MCP is not served")
+	}
+	if err := s.mcp.Claim(request.GetId()); errors.Is(err, mcpbridge.ErrUnknownRequest) {
+		return nil, status.Error(codes.NotFound, "the request is no longer waiting")
+	} else if err != nil {
+		return nil, status.Error(codes.Internal, "the request could not be claimed")
+	}
+	return &corev1.ClaimMcpRequestResponse{}, nil
+}
+
 func (s *service) AnswerMcpRequest(_ context.Context, request *corev1.AnswerMcpRequestRequest) (*corev1.AnswerMcpRequestResponse, error) {
 	if s.mcp == nil {
 		return nil, status.Error(codes.Unavailable, "MCP is not served")
