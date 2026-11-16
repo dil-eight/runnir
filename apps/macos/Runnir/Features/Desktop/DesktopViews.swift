@@ -711,6 +711,8 @@ struct DesktopWorkspaceView: View {
         }
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: windowID)
+        // Inside the host, which draws its dialog over the whole window.
+        .githubAccessAlert($accessHelp, github: desktop.github)
         .dropdownHost()
         .sheet(isPresented: $reportingBug) {
             BugReportSheet(draft: BugReportDraft.current(coreVersion: desktop.core?.status.coreVersion))
@@ -777,7 +779,6 @@ struct DesktopWorkspaceView: View {
                 }
             }
         }
-        .githubAccessAlert($accessHelp, github: desktop.github)
         // What the repository allows (push, the owner's installation) is read
         // once GitHub answers, and again after a new sign-in.
         .task(id: "\(session?.githubAccess == .ok)|\(desktop.core?.credentialGeneration ?? 0)") {

@@ -395,8 +395,8 @@ struct GitHubAccessNotice: View {
     }
 }
 
-/// An action GitHub refused, or one known to be refused, as an alert with
-/// the step that fixes it.
+/// An action GitHub refused, or one known to be refused, as Runnir's own
+/// alert (`.dialog`) with the step that fixes it.
 struct GitHubAccessAlert: ViewModifier {
     @Binding var help: GitHubAccessHelp?
     let github: GitHubSession?
@@ -406,15 +406,22 @@ struct GitHubAccessAlert: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .alert(help?.title ?? "", isPresented: Binding(get: { help != nil }, set: { if !$0 { help = nil } }), presenting: help) { help in
-                if let title = help.fix.buttonTitle, help.fix != .retry {
-                    Button(title) { perform(help.fix) }
-                    Button("Cancel", role: .cancel) {}
-                } else {
-                    Button("OK", role: .cancel) {}
+            .dialog(isPresented: Binding(get: { help != nil }, set: { if !$0 { help = nil } })) {
+                if let shown = help {
+                    DialogPanel(title: shown.title, message: shown.message) {
+                        if let title = shown.fix.buttonTitle, shown.fix != .retry {
+                            Button("Cancel") { help = nil }
+                            Button(title) {
+                                help = nil
+                                perform(shown.fix)
+                            }
+                            .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
+                        } else {
+                            Button("OK") { help = nil }
+                                .buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
+                        }
+                    }
                 }
-            } message: { help in
-                Text(help.message)
             }
             .sheet(isPresented: $showingConnect) { if let github { GitHubConnectView(session: github) } }
     }

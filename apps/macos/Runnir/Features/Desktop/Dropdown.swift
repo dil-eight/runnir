@@ -12,8 +12,11 @@ import SwiftUI
 //   confirm) instead of a system alert or confirmation dialog.
 // - .hoverTip(_:): a panel under a view while the pointer rests on it, which
 //   never takes a click.
-// - .dropdownHost(): at the root of every window and sheet; it draws the open
-//   panel above everything, so a list or a scroll view never clips it.
+// - .dialog(isPresented:) with DialogPanel: a question or a notice in the
+//   middle of a dimmed window instead of a system alert.
+// - .dropdownHost(): at the root of every window and sheet, outside every
+//   .dropdown and .dialog; it draws the open panel or dialog above
+//   everything, so a list or a scroll view never clips it.
 
 extension View {
     /// The panel's look.
@@ -41,10 +44,73 @@ extension View {
         modifier(HoverTip(tip: tip))
     }
 
-    /// Draws the open dropdown of a view inside this one. A click outside
-    /// the panel or Escape closes it, and the click does nothing else, as
-    /// with a menu.
+    /// Shows `content`, a DialogPanel, in the middle of the window over the
+    /// dimmed window while `isPresented`, as Runnir's own alert. This view
+    /// takes no clicks or keys meanwhile; Escape closes the dialog, and a
+    /// click outside it does nothing, as with an alert.
+    func dialog<Content: View>(isPresented: Binding<Bool>, @ViewBuilder content: @escaping () -> Content) -> some View {
+        let request = isPresented.wrappedValue
+            ? DialogRequest(content: AnyView(content()), close: { isPresented.wrappedValue = false }) : nil
+        return disabled(request != nil)
+            // A dialog of a view inside this one goes first.
+            .transformPreference(DialogKey.self) { value in value = value ?? request }
+    }
+
+    /// Draws the open dropdown or dialog of a view inside this one. A click
+    /// outside a panel or Escape closes it, and the click does nothing else,
+    /// as with a menu.
     func dropdownHost() -> some View { modifier(DropdownHost()) }
+}
+
+private struct DialogRequest {
+    let content: AnyView
+    let close: @MainActor () -> Void
+}
+
+private struct DialogKey: PreferenceKey {
+    static var defaultValue: DialogRequest? { nil }
+    static func reduce(value: inout DialogRequest?, nextValue: () -> DialogRequest?) { value = value ?? nextValue() }
+}
+
+/// Runnir's alert, drawn as its panels over a window are: a title, a line or
+/// two that explain, then the buttons on the right, the action last.
+struct DialogPanel<Buttons: View>: View {
+    let title: String
+    let message: String
+    var systemImage: String?
+    var tint: Color = RunnirTheme.warning
+    @ViewBuilder var buttons: Buttons
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                if let systemImage {
+                    Image(systemName: systemImage).font(.system(size: 14)).foregroundStyle(tint).accessibilityHidden(true)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title).font(.system(size: 14, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
+                    Text(message).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 20).padding(.vertical, 16)
+            DesignDivider()
+            HStack(spacing: 8) {
+                Spacer()
+                buttons
+            }
+            .buttonStyle(DesignButtonStyle())
+            .padding(.horizontal, 20).padding(.vertical, 12)
+        }
+        .frame(width: 420)
+        .background(RunnirTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(RunnirTheme.border))
+        .shadow(color: .black.opacity(0.35), radius: 20, y: 10)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(title)
+    }
 }
 
 private struct DropdownRequest {
@@ -119,8 +185,21 @@ private struct DropdownHost: ViewModifier {
                     }
                 }
             }
-            // An outer host does not draw this host's dropdown again.
+            .overlayPreferenceValue(DialogKey.self) { request in
+                if let request {
+                    ZStack {
+                        // A click outside the dialog does nothing, as with an alert.
+                        Color.black.opacity(0.22).contentShape(Rectangle()).accessibilityHidden(true)
+                        request.content
+                        Button("Close", action: request.close)
+                            .keyboardShortcut(.cancelAction).buttonStyle(.hit).opacity(0).frame(width: 0, height: 0)
+                            .accessibilityHidden(true)
+                    }
+                }
+            }
+            // An outer host does not draw this host's dropdown or dialog again.
             .transformPreference(DropdownKey.self) { $0 = nil }
+            .transformPreference(DialogKey.self) { $0 = nil }
     }
 }
 
