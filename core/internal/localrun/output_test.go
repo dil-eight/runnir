@@ -2,6 +2,7 @@ package localrun
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -61,8 +62,8 @@ func TestEachJobKeepsItsOwnNewestLines(t *testing.T) {
 		}
 	})
 	snap, _ := o.Since("e1", 0)
-	if len(snap.Lines) != MaxLines+3 || !snap.Discarded {
-		t.Fatalf("lines=%d discarded=%v", len(snap.Lines), snap.Discarded)
+	if len(snap.Lines) != MaxLines+3 || !snap.Discarded || !slices.Equal(snap.DiscardedJobs, []LineSource{{Workflow: "ci.yml", JobID: "test"}}) {
+		t.Fatalf("lines=%d discarded=%v jobs=%v", len(snap.Lines), snap.Discarded, snap.DiscardedJobs)
 	}
 	var lint []string
 	for i, line := range snap.Lines {
@@ -78,8 +79,47 @@ func TestEachJobKeepsItsOwnNewestLines(t *testing.T) {
 	}
 	// Only the noisy job's lines were dropped: reading after them loses nothing.
 	later, _ := o.Since("e1", 3+10)
-	if len(later.Lines) != MaxLines || later.Discarded {
-		t.Fatalf("after the dropped lines = %d lines, discarded %v", len(later.Lines), later.Discarded)
+	if len(later.Lines) != MaxLines || later.Discarded || later.DiscardedJobs != nil {
+		t.Fatalf("after the dropped lines = %d lines, discarded %v %v", len(later.Lines), later.Discarded, later.DiscardedJobs)
+	}
+}
+
+// The Core says whose lines were dropped after the sequence asked, so a job
+// that lost nothing is not said to: act's own messages count as a job with
+// no id, and a job of another workflow with the same id is another job.
+func TestDroppedLinesNameTheirJobs(t *testing.T) {
+	o := NewOutputs()
+	newRun(o, "e1")
+	o.update("e1", func(r *run) {
+		// act's own messages: 1 to MaxLines+2, the first 2 dropped.
+		for i := 1; i <= MaxLines+2; i++ {
+			r.consume(fmt.Sprintf("act %d", i), time.Now(), false)
+		}
+		// test: the next MaxLines+5, the first 5 dropped.
+		for i := 1; i <= MaxLines+5; i++ {
+			r.consume(fmt.Sprintf(`{"jobID":"test","job":"CI/test","msg":"test %d"}`, i), time.Now(), false)
+		}
+		r.consume(`{"jobID":"lint","job":"CI/lint","msg":"lint"}`, time.Now(), false)
+	})
+	o.startLane("e1", "release.yml", time.Now())
+	o.update("e1", func(r *run) {
+		r.consume(`{"jobID":"test","job":"Release/test","msg":"test"}`, time.Now(), false)
+	})
+	act, test := LineSource{Workflow: "ci.yml"}, LineSource{Workflow: "ci.yml", JobID: "test"}
+	for _, c := range []struct {
+		after uint64
+		want  []LineSource
+	}{
+		{0, []LineSource{act, test}},
+		{1, []LineSource{act, test}},
+		{2, []LineSource{test}},
+		{MaxLines + 6, []LineSource{test}},
+		{MaxLines + 7, nil},
+	} {
+		snap, _ := o.Since("e1", c.after)
+		if snap.Discarded != (c.want != nil) || !slices.Equal(snap.DiscardedJobs, c.want) {
+			t.Fatalf("after %d: discarded %v, jobs %v; want %v", c.after, snap.Discarded, snap.DiscardedJobs, c.want)
+		}
 	}
 }
 

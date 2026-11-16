@@ -477,6 +477,27 @@ func TestALocalRunIsReadInPages(t *testing.T) {
 	}
 }
 
+// Asked for one job, the answer says lines were dropped only when that job
+// lost some; a job that writes a lot does not make another look cut.
+func TestALocalRunSaysWhoseLinesWereDropped(t *testing.T) {
+	run := localOutput(corev1.LocalRunPhase_LOCAL_RUN_PHASE_RUNNING, 9000,
+		&corev1.LocalRunLine{Sequence: 1, WorkflowId: ".github/workflows/ci.yml", JobId: "test", Text: "test"},
+		&corev1.LocalRunLine{Sequence: 9000, WorkflowId: ".github/workflows/ci.yml", JobId: "build", Text: "build"})
+	run.Discarded = true
+	run.DiscardedJobs = []*corev1.LocalRunLineSource{{WorkflowId: ".github/workflows/ci.yml", JobId: "build"}}
+	core := &fakeCore{outputs: []*corev1.GetLocalRunOutputResponse{run}}
+	tl, _ := tools(core, &fakeApp{})
+	for args, want := range map[string]any{
+		`{"repository":"shop","execution_id":"exec_1"}`:               true,
+		`{"repository":"shop","execution_id":"exec_1","job":"build"}`: true,
+		`{"repository":"shop","execution_id":"exec_1","job":"test"}`:  nil,
+	} {
+		if out := structured(t, invoke(t, tl, GetLocalRun, args)); out["earlier_lines_dropped"] != want {
+			t.Fatalf("%s: earlier_lines_dropped = %v", args, out["earlier_lines_dropped"])
+		}
+	}
+}
+
 func TestWaitingForALocalRun(t *testing.T) {
 	running := localOutput(corev1.LocalRunPhase_LOCAL_RUN_PHASE_RUNNING, 4)
 	withOutput := localOutput(corev1.LocalRunPhase_LOCAL_RUN_PHASE_RUNNING, 5, &corev1.LocalRunLine{Sequence: 5, Text: "new"})

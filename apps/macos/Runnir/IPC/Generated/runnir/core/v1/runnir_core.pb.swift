@@ -5395,6 +5395,22 @@ nonisolated struct Runnir_Core_V1_LocalRunLine: Sendable {
   init() {}
 }
 
+/// A job of a local run, whose newest lines the Core keeps on their own.
+nonisolated struct Runnir_Core_V1_LocalRunLineSource: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var workflowID: String = String()
+
+  /// Empty for act's own messages of the workflow.
+  var jobID: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
 nonisolated struct Runnir_Core_V1_GetLocalRunOutputRequest: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -5444,6 +5460,13 @@ nonisolated struct Runnir_Core_V1_GetLocalRunOutputResponse: @unchecked Sendable
   var discarded: Bool {
     get {_storage._discarded}
     set {_uniqueStorage()._discarded = newValue}
+  }
+
+  /// The jobs those dropped lines were from, by workflow and job id; a job
+  /// that lost no lines after `after_sequence` is not listed.
+  var discardedJobs: [Runnir_Core_V1_LocalRunLineSource] {
+    get {_storage._discardedJobs}
+    set {_uniqueStorage()._discardedJobs = newValue}
   }
 
   /// The highest sequence number so far.
@@ -13369,6 +13392,41 @@ nonisolated extension Runnir_Core_V1_LocalRunLine: SwiftProtobuf.Message, SwiftP
   }
 }
 
+nonisolated extension Runnir_Core_V1_LocalRunLineSource: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".LocalRunLineSource"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}workflow_id\0\u{3}job_id\0")
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.workflowID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.workflowID.isEmpty {
+      try visitor.visitSingularStringField(value: self.workflowID, fieldNumber: 1)
+    }
+    if !self.jobID.isEmpty {
+      try visitor.visitSingularStringField(value: self.jobID, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Runnir_Core_V1_LocalRunLineSource, rhs: Runnir_Core_V1_LocalRunLineSource) -> Bool {
+    if lhs.workflowID != rhs.workflowID {return false}
+    if lhs.jobID != rhs.jobID {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
 nonisolated extension Runnir_Core_V1_GetLocalRunOutputRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".GetLocalRunOutputRequest"
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}execution_id\0\u{3}after_sequence\0")
@@ -13406,7 +13464,7 @@ nonisolated extension Runnir_Core_V1_GetLocalRunOutputRequest: SwiftProtobuf.Mes
 
 nonisolated extension Runnir_Core_V1_GetLocalRunOutputResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".GetLocalRunOutputResponse"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}execution_id\0\u{3}repository_id\0\u{1}state\0\u{1}phase\0\u{1}lines\0\u{1}discarded\0\u{3}last_sequence\0\u{1}jobs\0\u{1}plan\0\u{3}started_at\0\u{3}finished_at\0\u{3}exit_code\0\u{1}message\0\u{3}cleanup_problem\0\u{3}started_by\0")
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}execution_id\0\u{3}repository_id\0\u{1}state\0\u{1}phase\0\u{1}lines\0\u{1}discarded\0\u{3}last_sequence\0\u{1}jobs\0\u{1}plan\0\u{3}started_at\0\u{3}finished_at\0\u{3}exit_code\0\u{1}message\0\u{3}cleanup_problem\0\u{3}started_by\0\u{3}discarded_jobs\0")
 
   fileprivate class _StorageClass {
     var _executionID: String = String()
@@ -13415,6 +13473,7 @@ nonisolated extension Runnir_Core_V1_GetLocalRunOutputResponse: SwiftProtobuf.Me
     var _phase: Runnir_Core_V1_LocalRunPhase = .unspecified
     var _lines: [Runnir_Core_V1_LocalRunLine] = []
     var _discarded: Bool = false
+    var _discardedJobs: [Runnir_Core_V1_LocalRunLineSource] = []
     var _lastSequence: UInt64 = 0
     var _jobs: [Runnir_Core_V1_LocalRunJobStatus] = []
     var _plan: Runnir_Core_V1_LocalRunPlan? = nil
@@ -13440,6 +13499,7 @@ nonisolated extension Runnir_Core_V1_GetLocalRunOutputResponse: SwiftProtobuf.Me
       _phase = source._phase
       _lines = source._lines
       _discarded = source._discarded
+      _discardedJobs = source._discardedJobs
       _lastSequence = source._lastSequence
       _jobs = source._jobs
       _plan = source._plan
@@ -13482,6 +13542,7 @@ nonisolated extension Runnir_Core_V1_GetLocalRunOutputResponse: SwiftProtobuf.Me
         case 13: try { try decoder.decodeSingularStringField(value: &_storage._message) }()
         case 14: try { try decoder.decodeSingularStringField(value: &_storage._cleanupProblem) }()
         case 15: try { try decoder.decodeSingularStringField(value: &_storage._startedBy) }()
+        case 16: try { try decoder.decodeRepeatedMessageField(value: &_storage._discardedJobs) }()
         default: break
         }
       }
@@ -13539,6 +13600,9 @@ nonisolated extension Runnir_Core_V1_GetLocalRunOutputResponse: SwiftProtobuf.Me
       if !_storage._startedBy.isEmpty {
         try visitor.visitSingularStringField(value: _storage._startedBy, fieldNumber: 15)
       }
+      if !_storage._discardedJobs.isEmpty {
+        try visitor.visitRepeatedMessageField(value: _storage._discardedJobs, fieldNumber: 16)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -13554,6 +13618,7 @@ nonisolated extension Runnir_Core_V1_GetLocalRunOutputResponse: SwiftProtobuf.Me
         if _storage._phase != rhs_storage._phase {return false}
         if _storage._lines != rhs_storage._lines {return false}
         if _storage._discarded != rhs_storage._discarded {return false}
+        if _storage._discardedJobs != rhs_storage._discardedJobs {return false}
         if _storage._lastSequence != rhs_storage._lastSequence {return false}
         if _storage._jobs != rhs_storage._jobs {return false}
         if _storage._plan != rhs_storage._plan {return false}

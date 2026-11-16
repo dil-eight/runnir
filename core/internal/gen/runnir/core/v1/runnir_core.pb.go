@@ -11463,6 +11463,60 @@ func (x *LocalRunLine) GetError() bool {
 	return false
 }
 
+// A job of a local run, whose newest lines the Core keeps on their own.
+type LocalRunLineSource struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	WorkflowId string                 `protobuf:"bytes,1,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	// Empty for act's own messages of the workflow.
+	JobId         string `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LocalRunLineSource) Reset() {
+	*x = LocalRunLineSource{}
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[130]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LocalRunLineSource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LocalRunLineSource) ProtoMessage() {}
+
+func (x *LocalRunLineSource) ProtoReflect() protoreflect.Message {
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[130]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LocalRunLineSource.ProtoReflect.Descriptor instead.
+func (*LocalRunLineSource) Descriptor() ([]byte, []int) {
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{130}
+}
+
+func (x *LocalRunLineSource) GetWorkflowId() string {
+	if x != nil {
+		return x.WorkflowId
+	}
+	return ""
+}
+
+func (x *LocalRunLineSource) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
 type GetLocalRunOutputRequest struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	ExecutionId string                 `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
@@ -11474,7 +11528,7 @@ type GetLocalRunOutputRequest struct {
 
 func (x *GetLocalRunOutputRequest) Reset() {
 	*x = GetLocalRunOutputRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[130]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11486,7 +11540,7 @@ func (x *GetLocalRunOutputRequest) String() string {
 func (*GetLocalRunOutputRequest) ProtoMessage() {}
 
 func (x *GetLocalRunOutputRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[130]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11499,7 +11553,7 @@ func (x *GetLocalRunOutputRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLocalRunOutputRequest.ProtoReflect.Descriptor instead.
 func (*GetLocalRunOutputRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{130}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{131}
 }
 
 func (x *GetLocalRunOutputRequest) GetExecutionId() string {
@@ -11525,6 +11579,9 @@ type GetLocalRunOutputResponse struct {
 	Lines        []*LocalRunLine        `protobuf:"bytes,5,rep,name=lines,proto3" json:"lines,omitempty"`
 	// Lines after `after_sequence` were dropped to stay within the bound.
 	Discarded bool `protobuf:"varint,6,opt,name=discarded,proto3" json:"discarded,omitempty"`
+	// The jobs those dropped lines were from, by workflow and job id; a job
+	// that lost no lines after `after_sequence` is not listed.
+	DiscardedJobs []*LocalRunLineSource `protobuf:"bytes,16,rep,name=discarded_jobs,json=discardedJobs,proto3" json:"discarded_jobs,omitempty"`
 	// The highest sequence number so far.
 	LastSequence uint64                 `protobuf:"varint,7,opt,name=last_sequence,json=lastSequence,proto3" json:"last_sequence,omitempty"`
 	Jobs         []*LocalRunJobStatus   `protobuf:"bytes,8,rep,name=jobs,proto3" json:"jobs,omitempty"`
@@ -11545,7 +11602,7 @@ type GetLocalRunOutputResponse struct {
 
 func (x *GetLocalRunOutputResponse) Reset() {
 	*x = GetLocalRunOutputResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[131]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11557,7 +11614,7 @@ func (x *GetLocalRunOutputResponse) String() string {
 func (*GetLocalRunOutputResponse) ProtoMessage() {}
 
 func (x *GetLocalRunOutputResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[131]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11570,7 +11627,7 @@ func (x *GetLocalRunOutputResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLocalRunOutputResponse.ProtoReflect.Descriptor instead.
 func (*GetLocalRunOutputResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{131}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *GetLocalRunOutputResponse) GetExecutionId() string {
@@ -11613,6 +11670,13 @@ func (x *GetLocalRunOutputResponse) GetDiscarded() bool {
 		return x.Discarded
 	}
 	return false
+}
+
+func (x *GetLocalRunOutputResponse) GetDiscardedJobs() []*LocalRunLineSource {
+	if x != nil {
+		return x.DiscardedJobs
+	}
+	return nil
 }
 
 func (x *GetLocalRunOutputResponse) GetLastSequence() uint64 {
@@ -11687,7 +11751,7 @@ type CancelExecutionRequest struct {
 
 func (x *CancelExecutionRequest) Reset() {
 	*x = CancelExecutionRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[132]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[133]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11699,7 +11763,7 @@ func (x *CancelExecutionRequest) String() string {
 func (*CancelExecutionRequest) ProtoMessage() {}
 
 func (x *CancelExecutionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[132]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[133]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11712,7 +11776,7 @@ func (x *CancelExecutionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelExecutionRequest.ProtoReflect.Descriptor instead.
 func (*CancelExecutionRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{132}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{133}
 }
 
 func (x *CancelExecutionRequest) GetExecutionId() string {
@@ -11730,7 +11794,7 @@ type CancelExecutionResponse struct {
 
 func (x *CancelExecutionResponse) Reset() {
 	*x = CancelExecutionResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[133]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[134]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11742,7 +11806,7 @@ func (x *CancelExecutionResponse) String() string {
 func (*CancelExecutionResponse) ProtoMessage() {}
 
 func (x *CancelExecutionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[133]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[134]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11755,7 +11819,7 @@ func (x *CancelExecutionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelExecutionResponse.ProtoReflect.Descriptor instead.
 func (*CancelExecutionResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{133}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{134}
 }
 
 type SaveWorkflowFileRequest struct {
@@ -11775,7 +11839,7 @@ type SaveWorkflowFileRequest struct {
 
 func (x *SaveWorkflowFileRequest) Reset() {
 	*x = SaveWorkflowFileRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[134]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[135]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11787,7 +11851,7 @@ func (x *SaveWorkflowFileRequest) String() string {
 func (*SaveWorkflowFileRequest) ProtoMessage() {}
 
 func (x *SaveWorkflowFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[134]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[135]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11800,7 +11864,7 @@ func (x *SaveWorkflowFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveWorkflowFileRequest.ProtoReflect.Descriptor instead.
 func (*SaveWorkflowFileRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{134}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{135}
 }
 
 func (x *SaveWorkflowFileRequest) GetRepositoryId() string {
@@ -11851,7 +11915,7 @@ type SaveWorkflowFileResponse struct {
 
 func (x *SaveWorkflowFileResponse) Reset() {
 	*x = SaveWorkflowFileResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[135]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[136]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11863,7 +11927,7 @@ func (x *SaveWorkflowFileResponse) String() string {
 func (*SaveWorkflowFileResponse) ProtoMessage() {}
 
 func (x *SaveWorkflowFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[135]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[136]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11876,7 +11940,7 @@ func (x *SaveWorkflowFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveWorkflowFileResponse.ProtoReflect.Descriptor instead.
 func (*SaveWorkflowFileResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{135}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{136}
 }
 
 func (x *SaveWorkflowFileResponse) GetSha256() string {
@@ -11909,7 +11973,7 @@ type CreateWorkflowFileRequest struct {
 
 func (x *CreateWorkflowFileRequest) Reset() {
 	*x = CreateWorkflowFileRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[136]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[137]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11921,7 +11985,7 @@ func (x *CreateWorkflowFileRequest) String() string {
 func (*CreateWorkflowFileRequest) ProtoMessage() {}
 
 func (x *CreateWorkflowFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[136]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[137]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11934,7 +11998,7 @@ func (x *CreateWorkflowFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateWorkflowFileRequest.ProtoReflect.Descriptor instead.
 func (*CreateWorkflowFileRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{136}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{137}
 }
 
 func (x *CreateWorkflowFileRequest) GetRepositoryId() string {
@@ -11968,7 +12032,7 @@ type CreateWorkflowFileResponse struct {
 
 func (x *CreateWorkflowFileResponse) Reset() {
 	*x = CreateWorkflowFileResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[137]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[138]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11980,7 +12044,7 @@ func (x *CreateWorkflowFileResponse) String() string {
 func (*CreateWorkflowFileResponse) ProtoMessage() {}
 
 func (x *CreateWorkflowFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[137]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[138]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11993,7 +12057,7 @@ func (x *CreateWorkflowFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateWorkflowFileResponse.ProtoReflect.Descriptor instead.
 func (*CreateWorkflowFileResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{137}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{138}
 }
 
 func (x *CreateWorkflowFileResponse) GetWorkflowId() string {
@@ -12015,7 +12079,7 @@ type RenameWorkflowFileRequest struct {
 
 func (x *RenameWorkflowFileRequest) Reset() {
 	*x = RenameWorkflowFileRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[138]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[139]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12027,7 +12091,7 @@ func (x *RenameWorkflowFileRequest) String() string {
 func (*RenameWorkflowFileRequest) ProtoMessage() {}
 
 func (x *RenameWorkflowFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[138]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[139]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12040,7 +12104,7 @@ func (x *RenameWorkflowFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameWorkflowFileRequest.ProtoReflect.Descriptor instead.
 func (*RenameWorkflowFileRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{138}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{139}
 }
 
 func (x *RenameWorkflowFileRequest) GetRepositoryId() string {
@@ -12074,7 +12138,7 @@ type RenameWorkflowFileResponse struct {
 
 func (x *RenameWorkflowFileResponse) Reset() {
 	*x = RenameWorkflowFileResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[139]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[140]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12086,7 +12150,7 @@ func (x *RenameWorkflowFileResponse) String() string {
 func (*RenameWorkflowFileResponse) ProtoMessage() {}
 
 func (x *RenameWorkflowFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[139]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[140]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12099,7 +12163,7 @@ func (x *RenameWorkflowFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameWorkflowFileResponse.ProtoReflect.Descriptor instead.
 func (*RenameWorkflowFileResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{139}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{140}
 }
 
 func (x *RenameWorkflowFileResponse) GetWorkflowId() string {
@@ -12120,7 +12184,7 @@ type GetWorkspaceActivityRequest struct {
 
 func (x *GetWorkspaceActivityRequest) Reset() {
 	*x = GetWorkspaceActivityRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[140]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[141]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12132,7 +12196,7 @@ func (x *GetWorkspaceActivityRequest) String() string {
 func (*GetWorkspaceActivityRequest) ProtoMessage() {}
 
 func (x *GetWorkspaceActivityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[140]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[141]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12145,7 +12209,7 @@ func (x *GetWorkspaceActivityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorkspaceActivityRequest.ProtoReflect.Descriptor instead.
 func (*GetWorkspaceActivityRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{140}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{141}
 }
 
 func (x *GetWorkspaceActivityRequest) GetRepositoryId() string {
@@ -12173,7 +12237,7 @@ type RefreshWorkspaceActivityRequest struct {
 
 func (x *RefreshWorkspaceActivityRequest) Reset() {
 	*x = RefreshWorkspaceActivityRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[141]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[142]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12185,7 +12249,7 @@ func (x *RefreshWorkspaceActivityRequest) String() string {
 func (*RefreshWorkspaceActivityRequest) ProtoMessage() {}
 
 func (x *RefreshWorkspaceActivityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[141]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[142]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12198,7 +12262,7 @@ func (x *RefreshWorkspaceActivityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefreshWorkspaceActivityRequest.ProtoReflect.Descriptor instead.
 func (*RefreshWorkspaceActivityRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{141}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{142}
 }
 
 func (x *RefreshWorkspaceActivityRequest) GetRepositoryId() string {
@@ -12246,7 +12310,7 @@ type WorkspaceActivity struct {
 
 func (x *WorkspaceActivity) Reset() {
 	*x = WorkspaceActivity{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[142]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[143]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12258,7 +12322,7 @@ func (x *WorkspaceActivity) String() string {
 func (*WorkspaceActivity) ProtoMessage() {}
 
 func (x *WorkspaceActivity) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[142]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[143]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12271,7 +12335,7 @@ func (x *WorkspaceActivity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceActivity.ProtoReflect.Descriptor instead.
 func (*WorkspaceActivity) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{142}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{143}
 }
 
 func (x *WorkspaceActivity) GetRuns() []*WorkflowRun {
@@ -12352,7 +12416,7 @@ type StorageNotice struct {
 
 func (x *StorageNotice) Reset() {
 	*x = StorageNotice{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[143]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[144]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12364,7 +12428,7 @@ func (x *StorageNotice) String() string {
 func (*StorageNotice) ProtoMessage() {}
 
 func (x *StorageNotice) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[143]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[144]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12377,7 +12441,7 @@ func (x *StorageNotice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StorageNotice.ProtoReflect.Descriptor instead.
 func (*StorageNotice) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{143}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{144}
 }
 
 func (x *StorageNotice) GetState() StorageState {
@@ -12415,7 +12479,7 @@ type Saving struct {
 
 func (x *Saving) Reset() {
 	*x = Saving{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[144]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[145]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12427,7 +12491,7 @@ func (x *Saving) String() string {
 func (*Saving) ProtoMessage() {}
 
 func (x *Saving) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[144]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[145]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12440,7 +12504,7 @@ func (x *Saving) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Saving.ProtoReflect.Descriptor instead.
 func (*Saving) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{144}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{145}
 }
 
 func (x *Saving) GetKind() SavingKind {
@@ -12492,7 +12556,7 @@ type ActivityFreshness struct {
 
 func (x *ActivityFreshness) Reset() {
 	*x = ActivityFreshness{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[145]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[146]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12504,7 +12568,7 @@ func (x *ActivityFreshness) String() string {
 func (*ActivityFreshness) ProtoMessage() {}
 
 func (x *ActivityFreshness) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[145]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[146]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12517,7 +12581,7 @@ func (x *ActivityFreshness) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivityFreshness.ProtoReflect.Descriptor instead.
 func (*ActivityFreshness) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{145}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{146}
 }
 
 func (x *ActivityFreshness) GetSource() ActivitySource {
@@ -12579,7 +12643,7 @@ type RunLink struct {
 
 func (x *RunLink) Reset() {
 	*x = RunLink{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[146]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[147]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12591,7 +12655,7 @@ func (x *RunLink) String() string {
 func (*RunLink) ProtoMessage() {}
 
 func (x *RunLink) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[146]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[147]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12604,7 +12668,7 @@ func (x *RunLink) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunLink.ProtoReflect.Descriptor instead.
 func (*RunLink) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{146}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{147}
 }
 
 func (x *RunLink) GetKind() RunLinkKind {
@@ -12643,7 +12707,7 @@ type RunChange struct {
 
 func (x *RunChange) Reset() {
 	*x = RunChange{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[147]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[148]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12655,7 +12719,7 @@ func (x *RunChange) String() string {
 func (*RunChange) ProtoMessage() {}
 
 func (x *RunChange) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[147]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[148]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12668,7 +12732,7 @@ func (x *RunChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunChange.ProtoReflect.Descriptor instead.
 func (*RunChange) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{147}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{148}
 }
 
 func (x *RunChange) GetId() string {
@@ -12738,7 +12802,7 @@ type ChangePullRequest struct {
 
 func (x *ChangePullRequest) Reset() {
 	*x = ChangePullRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[148]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[149]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12750,7 +12814,7 @@ func (x *ChangePullRequest) String() string {
 func (*ChangePullRequest) ProtoMessage() {}
 
 func (x *ChangePullRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[148]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[149]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12763,7 +12827,7 @@ func (x *ChangePullRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChangePullRequest.ProtoReflect.Descriptor instead.
 func (*ChangePullRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{148}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{149}
 }
 
 func (x *ChangePullRequest) GetNumber() int64 {
@@ -12845,7 +12909,7 @@ type RunChangeSection struct {
 
 func (x *RunChangeSection) Reset() {
 	*x = RunChangeSection{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[149]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[150]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12857,7 +12921,7 @@ func (x *RunChangeSection) String() string {
 func (*RunChangeSection) ProtoMessage() {}
 
 func (x *RunChangeSection) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[149]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[150]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12870,7 +12934,7 @@ func (x *RunChangeSection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunChangeSection.ProtoReflect.Descriptor instead.
 func (*RunChangeSection) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{149}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{150}
 }
 
 func (x *RunChangeSection) GetKind() RunChangeSectionKind {
@@ -12933,7 +12997,7 @@ type ConcurrencyHint struct {
 
 func (x *ConcurrencyHint) Reset() {
 	*x = ConcurrencyHint{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[150]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[151]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12945,7 +13009,7 @@ func (x *ConcurrencyHint) String() string {
 func (*ConcurrencyHint) ProtoMessage() {}
 
 func (x *ConcurrencyHint) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[150]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[151]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12958,7 +13022,7 @@ func (x *ConcurrencyHint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConcurrencyHint.ProtoReflect.Descriptor instead.
 func (*ConcurrencyHint) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{150}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{151}
 }
 
 func (x *ConcurrencyHint) GetWorkflowId() int64 {
@@ -13012,7 +13076,7 @@ type LoadOlderRunsRequest struct {
 
 func (x *LoadOlderRunsRequest) Reset() {
 	*x = LoadOlderRunsRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[151]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[152]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13024,7 +13088,7 @@ func (x *LoadOlderRunsRequest) String() string {
 func (*LoadOlderRunsRequest) ProtoMessage() {}
 
 func (x *LoadOlderRunsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[151]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[152]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13037,7 +13101,7 @@ func (x *LoadOlderRunsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadOlderRunsRequest.ProtoReflect.Descriptor instead.
 func (*LoadOlderRunsRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{151}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{152}
 }
 
 func (x *LoadOlderRunsRequest) GetRepositoryId() string {
@@ -13060,7 +13124,7 @@ type LoadOlderRunsResponse struct {
 
 func (x *LoadOlderRunsResponse) Reset() {
 	*x = LoadOlderRunsResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[152]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[153]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13072,7 +13136,7 @@ func (x *LoadOlderRunsResponse) String() string {
 func (*LoadOlderRunsResponse) ProtoMessage() {}
 
 func (x *LoadOlderRunsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[152]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[153]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13085,7 +13149,7 @@ func (x *LoadOlderRunsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadOlderRunsResponse.ProtoReflect.Descriptor instead.
 func (*LoadOlderRunsResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{152}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{153}
 }
 
 func (x *LoadOlderRunsResponse) GetStatus() *GitHubStatus {
@@ -13128,7 +13192,7 @@ type SearchRunsRequest struct {
 
 func (x *SearchRunsRequest) Reset() {
 	*x = SearchRunsRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[153]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[154]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13140,7 +13204,7 @@ func (x *SearchRunsRequest) String() string {
 func (*SearchRunsRequest) ProtoMessage() {}
 
 func (x *SearchRunsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[153]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[154]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13153,7 +13217,7 @@ func (x *SearchRunsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchRunsRequest.ProtoReflect.Descriptor instead.
 func (*SearchRunsRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{153}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{154}
 }
 
 func (x *SearchRunsRequest) GetRepositoryId() string {
@@ -13195,7 +13259,7 @@ type SearchRunsResponse struct {
 
 func (x *SearchRunsResponse) Reset() {
 	*x = SearchRunsResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[154]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[155]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13207,7 +13271,7 @@ func (x *SearchRunsResponse) String() string {
 func (*SearchRunsResponse) ProtoMessage() {}
 
 func (x *SearchRunsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[154]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[155]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13220,7 +13284,7 @@ func (x *SearchRunsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchRunsResponse.ProtoReflect.Descriptor instead.
 func (*SearchRunsResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{154}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{155}
 }
 
 func (x *SearchRunsResponse) GetCachedRunIds() []int64 {
@@ -13273,7 +13337,7 @@ type SearchRunsOnGitHubRequest struct {
 
 func (x *SearchRunsOnGitHubRequest) Reset() {
 	*x = SearchRunsOnGitHubRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[155]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[156]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13285,7 +13349,7 @@ func (x *SearchRunsOnGitHubRequest) String() string {
 func (*SearchRunsOnGitHubRequest) ProtoMessage() {}
 
 func (x *SearchRunsOnGitHubRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[155]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[156]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13298,7 +13362,7 @@ func (x *SearchRunsOnGitHubRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchRunsOnGitHubRequest.ProtoReflect.Descriptor instead.
 func (*SearchRunsOnGitHubRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{155}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{156}
 }
 
 func (x *SearchRunsOnGitHubRequest) GetRepositoryId() string {
@@ -13347,7 +13411,7 @@ type SearchRunsOnGitHubResponse struct {
 
 func (x *SearchRunsOnGitHubResponse) Reset() {
 	*x = SearchRunsOnGitHubResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[156]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[157]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13359,7 +13423,7 @@ func (x *SearchRunsOnGitHubResponse) String() string {
 func (*SearchRunsOnGitHubResponse) ProtoMessage() {}
 
 func (x *SearchRunsOnGitHubResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[156]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[157]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13372,7 +13436,7 @@ func (x *SearchRunsOnGitHubResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchRunsOnGitHubResponse.ProtoReflect.Descriptor instead.
 func (*SearchRunsOnGitHubResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{156}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{157}
 }
 
 func (x *SearchRunsOnGitHubResponse) GetStatus() *GitHubStatus {
@@ -13444,7 +13508,7 @@ type SearchWorkspacesRequest struct {
 
 func (x *SearchWorkspacesRequest) Reset() {
 	*x = SearchWorkspacesRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[157]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[158]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13456,7 +13520,7 @@ func (x *SearchWorkspacesRequest) String() string {
 func (*SearchWorkspacesRequest) ProtoMessage() {}
 
 func (x *SearchWorkspacesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[157]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[158]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13469,7 +13533,7 @@ func (x *SearchWorkspacesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchWorkspacesRequest.ProtoReflect.Descriptor instead.
 func (*SearchWorkspacesRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{157}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{158}
 }
 
 func (x *SearchWorkspacesRequest) GetQuery() string {
@@ -13507,7 +13571,7 @@ type SearchWorkspacesResponse struct {
 
 func (x *SearchWorkspacesResponse) Reset() {
 	*x = SearchWorkspacesResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[158]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[159]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13519,7 +13583,7 @@ func (x *SearchWorkspacesResponse) String() string {
 func (*SearchWorkspacesResponse) ProtoMessage() {}
 
 func (x *SearchWorkspacesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[158]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[159]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13532,7 +13596,7 @@ func (x *SearchWorkspacesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchWorkspacesResponse.ProtoReflect.Descriptor instead.
 func (*SearchWorkspacesResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{158}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{159}
 }
 
 func (x *SearchWorkspacesResponse) GetWorkspaces() []*WorkspaceSearchHits {
@@ -13582,7 +13646,7 @@ type WorkspaceSearchHits struct {
 
 func (x *WorkspaceSearchHits) Reset() {
 	*x = WorkspaceSearchHits{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[159]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[160]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13594,7 +13658,7 @@ func (x *WorkspaceSearchHits) String() string {
 func (*WorkspaceSearchHits) ProtoMessage() {}
 
 func (x *WorkspaceSearchHits) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[159]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[160]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13607,7 +13671,7 @@ func (x *WorkspaceSearchHits) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceSearchHits.ProtoReflect.Descriptor instead.
 func (*WorkspaceSearchHits) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{159}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{160}
 }
 
 func (x *WorkspaceSearchHits) GetWorkspaceId() string {
@@ -13720,7 +13784,7 @@ type SearchedPullRequest struct {
 
 func (x *SearchedPullRequest) Reset() {
 	*x = SearchedPullRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[160]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[161]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13732,7 +13796,7 @@ func (x *SearchedPullRequest) String() string {
 func (*SearchedPullRequest) ProtoMessage() {}
 
 func (x *SearchedPullRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[160]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[161]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13745,7 +13809,7 @@ func (x *SearchedPullRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchedPullRequest.ProtoReflect.Descriptor instead.
 func (*SearchedPullRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{160}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{161}
 }
 
 func (x *SearchedPullRequest) GetNumber() int64 {
@@ -13829,7 +13893,7 @@ type SearchedLocalRun struct {
 
 func (x *SearchedLocalRun) Reset() {
 	*x = SearchedLocalRun{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[161]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[162]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13841,7 +13905,7 @@ func (x *SearchedLocalRun) String() string {
 func (*SearchedLocalRun) ProtoMessage() {}
 
 func (x *SearchedLocalRun) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[161]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[162]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13854,7 +13918,7 @@ func (x *SearchedLocalRun) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchedLocalRun.ProtoReflect.Descriptor instead.
 func (*SearchedLocalRun) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{161}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{162}
 }
 
 func (x *SearchedLocalRun) GetExecutionId() string {
@@ -13909,7 +13973,7 @@ type ClearRunIndexRequest struct {
 
 func (x *ClearRunIndexRequest) Reset() {
 	*x = ClearRunIndexRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[162]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[163]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13921,7 +13985,7 @@ func (x *ClearRunIndexRequest) String() string {
 func (*ClearRunIndexRequest) ProtoMessage() {}
 
 func (x *ClearRunIndexRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[162]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[163]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13934,7 +13998,7 @@ func (x *ClearRunIndexRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearRunIndexRequest.ProtoReflect.Descriptor instead.
 func (*ClearRunIndexRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{162}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{163}
 }
 
 func (x *ClearRunIndexRequest) GetWorkspaceIds() []string {
@@ -13953,7 +14017,7 @@ type ClearRunIndexResponse struct {
 
 func (x *ClearRunIndexResponse) Reset() {
 	*x = ClearRunIndexResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[163]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[164]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13965,7 +14029,7 @@ func (x *ClearRunIndexResponse) String() string {
 func (*ClearRunIndexResponse) ProtoMessage() {}
 
 func (x *ClearRunIndexResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[163]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[164]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13978,7 +14042,7 @@ func (x *ClearRunIndexResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearRunIndexResponse.ProtoReflect.Descriptor instead.
 func (*ClearRunIndexResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{163}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{164}
 }
 
 func (x *ClearRunIndexResponse) GetWorkspaces() []*WorkspaceStorage {
@@ -13999,7 +14063,7 @@ type InsertWorkflowConcurrencyRequest struct {
 
 func (x *InsertWorkflowConcurrencyRequest) Reset() {
 	*x = InsertWorkflowConcurrencyRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[164]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[165]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14011,7 +14075,7 @@ func (x *InsertWorkflowConcurrencyRequest) String() string {
 func (*InsertWorkflowConcurrencyRequest) ProtoMessage() {}
 
 func (x *InsertWorkflowConcurrencyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[164]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[165]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14024,7 +14088,7 @@ func (x *InsertWorkflowConcurrencyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InsertWorkflowConcurrencyRequest.ProtoReflect.Descriptor instead.
 func (*InsertWorkflowConcurrencyRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{164}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{165}
 }
 
 func (x *InsertWorkflowConcurrencyRequest) GetRepositoryId() string {
@@ -14055,7 +14119,7 @@ type InsertWorkflowConcurrencyResponse struct {
 
 func (x *InsertWorkflowConcurrencyResponse) Reset() {
 	*x = InsertWorkflowConcurrencyResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[165]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[166]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14067,7 +14131,7 @@ func (x *InsertWorkflowConcurrencyResponse) String() string {
 func (*InsertWorkflowConcurrencyResponse) ProtoMessage() {}
 
 func (x *InsertWorkflowConcurrencyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[165]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[166]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14080,7 +14144,7 @@ func (x *InsertWorkflowConcurrencyResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use InsertWorkflowConcurrencyResponse.ProtoReflect.Descriptor instead.
 func (*InsertWorkflowConcurrencyResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{165}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{166}
 }
 
 func (x *InsertWorkflowConcurrencyResponse) GetContent() string {
@@ -14135,7 +14199,7 @@ type WorkspaceStorage struct {
 
 func (x *WorkspaceStorage) Reset() {
 	*x = WorkspaceStorage{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[166]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[167]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14147,7 +14211,7 @@ func (x *WorkspaceStorage) String() string {
 func (*WorkspaceStorage) ProtoMessage() {}
 
 func (x *WorkspaceStorage) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[166]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[167]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14160,7 +14224,7 @@ func (x *WorkspaceStorage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceStorage.ProtoReflect.Descriptor instead.
 func (*WorkspaceStorage) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{166}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{167}
 }
 
 func (x *WorkspaceStorage) GetWorkspaceId() string {
@@ -14249,7 +14313,7 @@ type GetStorageUsageRequest struct {
 
 func (x *GetStorageUsageRequest) Reset() {
 	*x = GetStorageUsageRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[167]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[168]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14261,7 +14325,7 @@ func (x *GetStorageUsageRequest) String() string {
 func (*GetStorageUsageRequest) ProtoMessage() {}
 
 func (x *GetStorageUsageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[167]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[168]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14274,7 +14338,7 @@ func (x *GetStorageUsageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStorageUsageRequest.ProtoReflect.Descriptor instead.
 func (*GetStorageUsageRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{167}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{168}
 }
 
 func (x *GetStorageUsageRequest) GetWorkspaceIds() []string {
@@ -14294,7 +14358,7 @@ type GetStorageUsageResponse struct {
 
 func (x *GetStorageUsageResponse) Reset() {
 	*x = GetStorageUsageResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[168]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[169]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14306,7 +14370,7 @@ func (x *GetStorageUsageResponse) String() string {
 func (*GetStorageUsageResponse) ProtoMessage() {}
 
 func (x *GetStorageUsageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[168]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[169]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14319,7 +14383,7 @@ func (x *GetStorageUsageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStorageUsageResponse.ProtoReflect.Descriptor instead.
 func (*GetStorageUsageResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{168}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{169}
 }
 
 func (x *GetStorageUsageResponse) GetWorkspaces() []*WorkspaceStorage {
@@ -14346,7 +14410,7 @@ type ClearWorkspaceCacheRequest struct {
 
 func (x *ClearWorkspaceCacheRequest) Reset() {
 	*x = ClearWorkspaceCacheRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[169]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[170]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14358,7 +14422,7 @@ func (x *ClearWorkspaceCacheRequest) String() string {
 func (*ClearWorkspaceCacheRequest) ProtoMessage() {}
 
 func (x *ClearWorkspaceCacheRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[169]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[170]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14371,7 +14435,7 @@ func (x *ClearWorkspaceCacheRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearWorkspaceCacheRequest.ProtoReflect.Descriptor instead.
 func (*ClearWorkspaceCacheRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{169}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{170}
 }
 
 func (x *ClearWorkspaceCacheRequest) GetWorkspaceIds() []string {
@@ -14390,7 +14454,7 @@ type ClearWorkspaceCacheResponse struct {
 
 func (x *ClearWorkspaceCacheResponse) Reset() {
 	*x = ClearWorkspaceCacheResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[170]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[171]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14402,7 +14466,7 @@ func (x *ClearWorkspaceCacheResponse) String() string {
 func (*ClearWorkspaceCacheResponse) ProtoMessage() {}
 
 func (x *ClearWorkspaceCacheResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[170]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[171]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14415,7 +14479,7 @@ func (x *ClearWorkspaceCacheResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearWorkspaceCacheResponse.ProtoReflect.Descriptor instead.
 func (*ClearWorkspaceCacheResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{170}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{171}
 }
 
 func (x *ClearWorkspaceCacheResponse) GetWorkspaces() []*WorkspaceStorage {
@@ -14434,7 +14498,7 @@ type DeleteWorkspaceDataRequest struct {
 
 func (x *DeleteWorkspaceDataRequest) Reset() {
 	*x = DeleteWorkspaceDataRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[171]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[172]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14446,7 +14510,7 @@ func (x *DeleteWorkspaceDataRequest) String() string {
 func (*DeleteWorkspaceDataRequest) ProtoMessage() {}
 
 func (x *DeleteWorkspaceDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[171]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[172]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14459,7 +14523,7 @@ func (x *DeleteWorkspaceDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteWorkspaceDataRequest.ProtoReflect.Descriptor instead.
 func (*DeleteWorkspaceDataRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{171}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{172}
 }
 
 func (x *DeleteWorkspaceDataRequest) GetWorkspaceId() string {
@@ -14477,7 +14541,7 @@ type DeleteWorkspaceDataResponse struct {
 
 func (x *DeleteWorkspaceDataResponse) Reset() {
 	*x = DeleteWorkspaceDataResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[172]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[173]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14489,7 +14553,7 @@ func (x *DeleteWorkspaceDataResponse) String() string {
 func (*DeleteWorkspaceDataResponse) ProtoMessage() {}
 
 func (x *DeleteWorkspaceDataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[172]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[173]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14502,7 +14566,7 @@ func (x *DeleteWorkspaceDataResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteWorkspaceDataResponse.ProtoReflect.Descriptor instead.
 func (*DeleteWorkspaceDataResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{172}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{173}
 }
 
 type DeleteRecoveryCopiesRequest struct {
@@ -14515,7 +14579,7 @@ type DeleteRecoveryCopiesRequest struct {
 
 func (x *DeleteRecoveryCopiesRequest) Reset() {
 	*x = DeleteRecoveryCopiesRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[173]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[174]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14527,7 +14591,7 @@ func (x *DeleteRecoveryCopiesRequest) String() string {
 func (*DeleteRecoveryCopiesRequest) ProtoMessage() {}
 
 func (x *DeleteRecoveryCopiesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[173]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[174]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14540,7 +14604,7 @@ func (x *DeleteRecoveryCopiesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRecoveryCopiesRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRecoveryCopiesRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{173}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{174}
 }
 
 func (x *DeleteRecoveryCopiesRequest) GetWorkspaceIds() []string {
@@ -14559,7 +14623,7 @@ type DeleteRecoveryCopiesResponse struct {
 
 func (x *DeleteRecoveryCopiesResponse) Reset() {
 	*x = DeleteRecoveryCopiesResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[174]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[175]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14571,7 +14635,7 @@ func (x *DeleteRecoveryCopiesResponse) String() string {
 func (*DeleteRecoveryCopiesResponse) ProtoMessage() {}
 
 func (x *DeleteRecoveryCopiesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[174]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[175]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14584,7 +14648,7 @@ func (x *DeleteRecoveryCopiesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRecoveryCopiesResponse.ProtoReflect.Descriptor instead.
 func (*DeleteRecoveryCopiesResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{174}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{175}
 }
 
 func (x *DeleteRecoveryCopiesResponse) GetWorkspaces() []*WorkspaceStorage {
@@ -14605,7 +14669,7 @@ type SetStoragePreferencesRequest struct {
 
 func (x *SetStoragePreferencesRequest) Reset() {
 	*x = SetStoragePreferencesRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[175]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[176]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14617,7 +14681,7 @@ func (x *SetStoragePreferencesRequest) String() string {
 func (*SetStoragePreferencesRequest) ProtoMessage() {}
 
 func (x *SetStoragePreferencesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[175]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[176]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14630,7 +14694,7 @@ func (x *SetStoragePreferencesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetStoragePreferencesRequest.ProtoReflect.Descriptor instead.
 func (*SetStoragePreferencesRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{175}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{176}
 }
 
 func (x *SetStoragePreferencesRequest) GetKeepJobLogs() bool {
@@ -14655,7 +14719,7 @@ type SetStoragePreferencesResponse struct {
 
 func (x *SetStoragePreferencesResponse) Reset() {
 	*x = SetStoragePreferencesResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[176]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[177]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14667,7 +14731,7 @@ func (x *SetStoragePreferencesResponse) String() string {
 func (*SetStoragePreferencesResponse) ProtoMessage() {}
 
 func (x *SetStoragePreferencesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[176]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[177]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14680,7 +14744,7 @@ func (x *SetStoragePreferencesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetStoragePreferencesResponse.ProtoReflect.Descriptor instead.
 func (*SetStoragePreferencesResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{176}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{177}
 }
 
 type ParseEnvFileRequest struct {
@@ -14693,7 +14757,7 @@ type ParseEnvFileRequest struct {
 
 func (x *ParseEnvFileRequest) Reset() {
 	*x = ParseEnvFileRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[177]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[178]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14705,7 +14769,7 @@ func (x *ParseEnvFileRequest) String() string {
 func (*ParseEnvFileRequest) ProtoMessage() {}
 
 func (x *ParseEnvFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[177]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[178]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14718,7 +14782,7 @@ func (x *ParseEnvFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ParseEnvFileRequest.ProtoReflect.Descriptor instead.
 func (*ParseEnvFileRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{177}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{178}
 }
 
 func (x *ParseEnvFileRequest) GetContent() []byte {
@@ -14742,7 +14806,7 @@ type EnvEntry struct {
 
 func (x *EnvEntry) Reset() {
 	*x = EnvEntry{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[178]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[179]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14754,7 +14818,7 @@ func (x *EnvEntry) String() string {
 func (*EnvEntry) ProtoMessage() {}
 
 func (x *EnvEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[178]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[179]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14767,7 +14831,7 @@ func (x *EnvEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnvEntry.ProtoReflect.Descriptor instead.
 func (*EnvEntry) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{178}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{179}
 }
 
 func (x *EnvEntry) GetName() string {
@@ -14808,7 +14872,7 @@ type EnvProblem struct {
 
 func (x *EnvProblem) Reset() {
 	*x = EnvProblem{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[179]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[180]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14820,7 +14884,7 @@ func (x *EnvProblem) String() string {
 func (*EnvProblem) ProtoMessage() {}
 
 func (x *EnvProblem) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[179]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[180]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14833,7 +14897,7 @@ func (x *EnvProblem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnvProblem.ProtoReflect.Descriptor instead.
 func (*EnvProblem) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{179}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{180}
 }
 
 func (x *EnvProblem) GetLine() uint32 {
@@ -14861,7 +14925,7 @@ type ParseEnvFileResponse struct {
 
 func (x *ParseEnvFileResponse) Reset() {
 	*x = ParseEnvFileResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[180]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[181]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14873,7 +14937,7 @@ func (x *ParseEnvFileResponse) String() string {
 func (*ParseEnvFileResponse) ProtoMessage() {}
 
 func (x *ParseEnvFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[180]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[181]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14886,7 +14950,7 @@ func (x *ParseEnvFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ParseEnvFileResponse.ProtoReflect.Descriptor instead.
 func (*ParseEnvFileResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{180}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{181}
 }
 
 func (x *ParseEnvFileResponse) GetEntries() []*EnvEntry {
@@ -14912,7 +14976,7 @@ type ListEnvFilesRequest struct {
 
 func (x *ListEnvFilesRequest) Reset() {
 	*x = ListEnvFilesRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[181]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[182]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14924,7 +14988,7 @@ func (x *ListEnvFilesRequest) String() string {
 func (*ListEnvFilesRequest) ProtoMessage() {}
 
 func (x *ListEnvFilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[181]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[182]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14937,7 +15001,7 @@ func (x *ListEnvFilesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEnvFilesRequest.ProtoReflect.Descriptor instead.
 func (*ListEnvFilesRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{181}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{182}
 }
 
 func (x *ListEnvFilesRequest) GetRepositoryId() string {
@@ -14959,7 +15023,7 @@ type RepositoryEnvFile struct {
 
 func (x *RepositoryEnvFile) Reset() {
 	*x = RepositoryEnvFile{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[182]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[183]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14971,7 +15035,7 @@ func (x *RepositoryEnvFile) String() string {
 func (*RepositoryEnvFile) ProtoMessage() {}
 
 func (x *RepositoryEnvFile) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[182]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[183]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14984,7 +15048,7 @@ func (x *RepositoryEnvFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RepositoryEnvFile.ProtoReflect.Descriptor instead.
 func (*RepositoryEnvFile) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{182}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{183}
 }
 
 func (x *RepositoryEnvFile) GetPath() string {
@@ -15010,7 +15074,7 @@ type ListEnvFilesResponse struct {
 
 func (x *ListEnvFilesResponse) Reset() {
 	*x = ListEnvFilesResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[183]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[184]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15022,7 +15086,7 @@ func (x *ListEnvFilesResponse) String() string {
 func (*ListEnvFilesResponse) ProtoMessage() {}
 
 func (x *ListEnvFilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[183]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[184]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15035,7 +15099,7 @@ func (x *ListEnvFilesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEnvFilesResponse.ProtoReflect.Descriptor instead.
 func (*ListEnvFilesResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{183}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{184}
 }
 
 func (x *ListEnvFilesResponse) GetFiles() []*RepositoryEnvFile {
@@ -15054,7 +15118,7 @@ type ListEnvironmentsRequest struct {
 
 func (x *ListEnvironmentsRequest) Reset() {
 	*x = ListEnvironmentsRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[184]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[185]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15066,7 +15130,7 @@ func (x *ListEnvironmentsRequest) String() string {
 func (*ListEnvironmentsRequest) ProtoMessage() {}
 
 func (x *ListEnvironmentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[184]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[185]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15079,7 +15143,7 @@ func (x *ListEnvironmentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEnvironmentsRequest.ProtoReflect.Descriptor instead.
 func (*ListEnvironmentsRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{184}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{185}
 }
 
 func (x *ListEnvironmentsRequest) GetRepositoryId() string {
@@ -15100,7 +15164,7 @@ type ListEnvironmentsResponse struct {
 
 func (x *ListEnvironmentsResponse) Reset() {
 	*x = ListEnvironmentsResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[185]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[186]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15112,7 +15176,7 @@ func (x *ListEnvironmentsResponse) String() string {
 func (*ListEnvironmentsResponse) ProtoMessage() {}
 
 func (x *ListEnvironmentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[185]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[186]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15125,7 +15189,7 @@ func (x *ListEnvironmentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEnvironmentsResponse.ProtoReflect.Descriptor instead.
 func (*ListEnvironmentsResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{185}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{186}
 }
 
 func (x *ListEnvironmentsResponse) GetNames() []string {
@@ -15145,7 +15209,7 @@ type AnalyticsCounter struct {
 
 func (x *AnalyticsCounter) Reset() {
 	*x = AnalyticsCounter{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[186]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[187]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15157,7 +15221,7 @@ func (x *AnalyticsCounter) String() string {
 func (*AnalyticsCounter) ProtoMessage() {}
 
 func (x *AnalyticsCounter) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[186]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[187]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15170,7 +15234,7 @@ func (x *AnalyticsCounter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnalyticsCounter.ProtoReflect.Descriptor instead.
 func (*AnalyticsCounter) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{186}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{187}
 }
 
 func (x *AnalyticsCounter) GetName() string {
@@ -15209,7 +15273,7 @@ type Analytics struct {
 
 func (x *Analytics) Reset() {
 	*x = Analytics{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[187]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[188]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15221,7 +15285,7 @@ func (x *Analytics) String() string {
 func (*Analytics) ProtoMessage() {}
 
 func (x *Analytics) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[187]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[188]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15234,7 +15298,7 @@ func (x *Analytics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Analytics.ProtoReflect.Descriptor instead.
 func (*Analytics) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{187}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{188}
 }
 
 func (x *Analytics) GetLevel() AnalyticsLevel {
@@ -15294,7 +15358,7 @@ type GetAnalyticsRequest struct {
 
 func (x *GetAnalyticsRequest) Reset() {
 	*x = GetAnalyticsRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[188]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[189]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15306,7 +15370,7 @@ func (x *GetAnalyticsRequest) String() string {
 func (*GetAnalyticsRequest) ProtoMessage() {}
 
 func (x *GetAnalyticsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[188]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[189]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15319,7 +15383,7 @@ func (x *GetAnalyticsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAnalyticsRequest.ProtoReflect.Descriptor instead.
 func (*GetAnalyticsRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{188}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{189}
 }
 
 type SetAnalyticsLevelRequest struct {
@@ -15333,7 +15397,7 @@ type SetAnalyticsLevelRequest struct {
 
 func (x *SetAnalyticsLevelRequest) Reset() {
 	*x = SetAnalyticsLevelRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[189]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[190]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15345,7 +15409,7 @@ func (x *SetAnalyticsLevelRequest) String() string {
 func (*SetAnalyticsLevelRequest) ProtoMessage() {}
 
 func (x *SetAnalyticsLevelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[189]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[190]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15358,7 +15422,7 @@ func (x *SetAnalyticsLevelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetAnalyticsLevelRequest.ProtoReflect.Descriptor instead.
 func (*SetAnalyticsLevelRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{189}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{190}
 }
 
 func (x *SetAnalyticsLevelRequest) GetLevel() AnalyticsLevel {
@@ -15384,7 +15448,7 @@ type RecordUsageRequest struct {
 
 func (x *RecordUsageRequest) Reset() {
 	*x = RecordUsageRequest{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[190]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[191]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15396,7 +15460,7 @@ func (x *RecordUsageRequest) String() string {
 func (*RecordUsageRequest) ProtoMessage() {}
 
 func (x *RecordUsageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[190]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[191]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15409,7 +15473,7 @@ func (x *RecordUsageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordUsageRequest.ProtoReflect.Descriptor instead.
 func (*RecordUsageRequest) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{190}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{191}
 }
 
 func (x *RecordUsageRequest) GetEvent() UsageEvent {
@@ -15427,7 +15491,7 @@ type RecordUsageResponse struct {
 
 func (x *RecordUsageResponse) Reset() {
 	*x = RecordUsageResponse{}
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[191]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[192]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15439,7 +15503,7 @@ func (x *RecordUsageResponse) String() string {
 func (*RecordUsageResponse) ProtoMessage() {}
 
 func (x *RecordUsageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[191]
+	mi := &file_runnir_core_v1_runnir_core_proto_msgTypes[192]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15452,7 +15516,7 @@ func (x *RecordUsageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordUsageResponse.ProtoReflect.Descriptor instead.
 func (*RecordUsageResponse) Descriptor() ([]byte, []int) {
-	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{191}
+	return file_runnir_core_v1_runnir_core_proto_rawDescGZIP(), []int{192}
 }
 
 var File_runnir_core_v1_runnir_core_proto protoreflect.FileDescriptor
@@ -16241,17 +16305,22 @@ const file_runnir_core_v1_runnir_core_proto_rawDesc = "" +
 	"\vworkflow_id\x18\x05 \x01(\tR\n" +
 	"workflowId\x12\x12\n" +
 	"\x04text\x18\x03 \x01(\tR\x04text\x12\x14\n" +
-	"\x05error\x18\x04 \x01(\bR\x05error\"d\n" +
+	"\x05error\x18\x04 \x01(\bR\x05error\"L\n" +
+	"\x12LocalRunLineSource\x12\x1f\n" +
+	"\vworkflow_id\x18\x01 \x01(\tR\n" +
+	"workflowId\x12\x15\n" +
+	"\x06job_id\x18\x02 \x01(\tR\x05jobId\"d\n" +
 	"\x18GetLocalRunOutputRequest\x12!\n" +
 	"\fexecution_id\x18\x01 \x01(\tR\vexecutionId\x12%\n" +
-	"\x0eafter_sequence\x18\x02 \x01(\x04R\rafterSequence\"\xa5\x05\n" +
+	"\x0eafter_sequence\x18\x02 \x01(\x04R\rafterSequence\"\xf0\x05\n" +
 	"\x19GetLocalRunOutputResponse\x12!\n" +
 	"\fexecution_id\x18\x01 \x01(\tR\vexecutionId\x12#\n" +
 	"\rrepository_id\x18\x02 \x01(\tR\frepositoryId\x124\n" +
 	"\x05state\x18\x03 \x01(\x0e2\x1e.runnir.core.v1.ExecutionStateR\x05state\x123\n" +
 	"\x05phase\x18\x04 \x01(\x0e2\x1d.runnir.core.v1.LocalRunPhaseR\x05phase\x122\n" +
 	"\x05lines\x18\x05 \x03(\v2\x1c.runnir.core.v1.LocalRunLineR\x05lines\x12\x1c\n" +
-	"\tdiscarded\x18\x06 \x01(\bR\tdiscarded\x12#\n" +
+	"\tdiscarded\x18\x06 \x01(\bR\tdiscarded\x12I\n" +
+	"\x0ediscarded_jobs\x18\x10 \x03(\v2\".runnir.core.v1.LocalRunLineSourceR\rdiscardedJobs\x12#\n" +
 	"\rlast_sequence\x18\a \x01(\x04R\flastSequence\x125\n" +
 	"\x04jobs\x18\b \x03(\v2!.runnir.core.v1.LocalRunJobStatusR\x04jobs\x120\n" +
 	"\x04plan\x18\t \x01(\v2\x1c.runnir.core.v1.LocalRunPlanR\x04plan\x129\n" +
@@ -16895,7 +16964,7 @@ func file_runnir_core_v1_runnir_core_proto_rawDescGZIP() []byte {
 }
 
 var file_runnir_core_v1_runnir_core_proto_enumTypes = make([]protoimpl.EnumInfo, 31)
-var file_runnir_core_v1_runnir_core_proto_msgTypes = make([]protoimpl.MessageInfo, 199)
+var file_runnir_core_v1_runnir_core_proto_msgTypes = make([]protoimpl.MessageInfo, 200)
 var file_runnir_core_v1_runnir_core_proto_goTypes = []any{
 	(McpTool)(0),                              // 0: runnir.core.v1.McpTool
 	(McpValueState)(0),                        // 1: runnir.core.v1.McpValueState
@@ -17058,76 +17127,77 @@ var file_runnir_core_v1_runnir_core_proto_goTypes = []any{
 	(*ConfirmLocalRunResponse)(nil),           // 158: runnir.core.v1.ConfirmLocalRunResponse
 	(*LocalRunJobStatus)(nil),                 // 159: runnir.core.v1.LocalRunJobStatus
 	(*LocalRunLine)(nil),                      // 160: runnir.core.v1.LocalRunLine
-	(*GetLocalRunOutputRequest)(nil),          // 161: runnir.core.v1.GetLocalRunOutputRequest
-	(*GetLocalRunOutputResponse)(nil),         // 162: runnir.core.v1.GetLocalRunOutputResponse
-	(*CancelExecutionRequest)(nil),            // 163: runnir.core.v1.CancelExecutionRequest
-	(*CancelExecutionResponse)(nil),           // 164: runnir.core.v1.CancelExecutionResponse
-	(*SaveWorkflowFileRequest)(nil),           // 165: runnir.core.v1.SaveWorkflowFileRequest
-	(*SaveWorkflowFileResponse)(nil),          // 166: runnir.core.v1.SaveWorkflowFileResponse
-	(*CreateWorkflowFileRequest)(nil),         // 167: runnir.core.v1.CreateWorkflowFileRequest
-	(*CreateWorkflowFileResponse)(nil),        // 168: runnir.core.v1.CreateWorkflowFileResponse
-	(*RenameWorkflowFileRequest)(nil),         // 169: runnir.core.v1.RenameWorkflowFileRequest
-	(*RenameWorkflowFileResponse)(nil),        // 170: runnir.core.v1.RenameWorkflowFileResponse
-	(*GetWorkspaceActivityRequest)(nil),       // 171: runnir.core.v1.GetWorkspaceActivityRequest
-	(*RefreshWorkspaceActivityRequest)(nil),   // 172: runnir.core.v1.RefreshWorkspaceActivityRequest
-	(*WorkspaceActivity)(nil),                 // 173: runnir.core.v1.WorkspaceActivity
-	(*StorageNotice)(nil),                     // 174: runnir.core.v1.StorageNotice
-	(*Saving)(nil),                            // 175: runnir.core.v1.Saving
-	(*ActivityFreshness)(nil),                 // 176: runnir.core.v1.ActivityFreshness
-	(*RunLink)(nil),                           // 177: runnir.core.v1.RunLink
-	(*RunChange)(nil),                         // 178: runnir.core.v1.RunChange
-	(*ChangePullRequest)(nil),                 // 179: runnir.core.v1.ChangePullRequest
-	(*RunChangeSection)(nil),                  // 180: runnir.core.v1.RunChangeSection
-	(*ConcurrencyHint)(nil),                   // 181: runnir.core.v1.ConcurrencyHint
-	(*LoadOlderRunsRequest)(nil),              // 182: runnir.core.v1.LoadOlderRunsRequest
-	(*LoadOlderRunsResponse)(nil),             // 183: runnir.core.v1.LoadOlderRunsResponse
-	(*SearchRunsRequest)(nil),                 // 184: runnir.core.v1.SearchRunsRequest
-	(*SearchRunsResponse)(nil),                // 185: runnir.core.v1.SearchRunsResponse
-	(*SearchRunsOnGitHubRequest)(nil),         // 186: runnir.core.v1.SearchRunsOnGitHubRequest
-	(*SearchRunsOnGitHubResponse)(nil),        // 187: runnir.core.v1.SearchRunsOnGitHubResponse
-	(*SearchWorkspacesRequest)(nil),           // 188: runnir.core.v1.SearchWorkspacesRequest
-	(*SearchWorkspacesResponse)(nil),          // 189: runnir.core.v1.SearchWorkspacesResponse
-	(*WorkspaceSearchHits)(nil),               // 190: runnir.core.v1.WorkspaceSearchHits
-	(*SearchedPullRequest)(nil),               // 191: runnir.core.v1.SearchedPullRequest
-	(*SearchedLocalRun)(nil),                  // 192: runnir.core.v1.SearchedLocalRun
-	(*ClearRunIndexRequest)(nil),              // 193: runnir.core.v1.ClearRunIndexRequest
-	(*ClearRunIndexResponse)(nil),             // 194: runnir.core.v1.ClearRunIndexResponse
-	(*InsertWorkflowConcurrencyRequest)(nil),  // 195: runnir.core.v1.InsertWorkflowConcurrencyRequest
-	(*InsertWorkflowConcurrencyResponse)(nil), // 196: runnir.core.v1.InsertWorkflowConcurrencyResponse
-	(*WorkspaceStorage)(nil),                  // 197: runnir.core.v1.WorkspaceStorage
-	(*GetStorageUsageRequest)(nil),            // 198: runnir.core.v1.GetStorageUsageRequest
-	(*GetStorageUsageResponse)(nil),           // 199: runnir.core.v1.GetStorageUsageResponse
-	(*ClearWorkspaceCacheRequest)(nil),        // 200: runnir.core.v1.ClearWorkspaceCacheRequest
-	(*ClearWorkspaceCacheResponse)(nil),       // 201: runnir.core.v1.ClearWorkspaceCacheResponse
-	(*DeleteWorkspaceDataRequest)(nil),        // 202: runnir.core.v1.DeleteWorkspaceDataRequest
-	(*DeleteWorkspaceDataResponse)(nil),       // 203: runnir.core.v1.DeleteWorkspaceDataResponse
-	(*DeleteRecoveryCopiesRequest)(nil),       // 204: runnir.core.v1.DeleteRecoveryCopiesRequest
-	(*DeleteRecoveryCopiesResponse)(nil),      // 205: runnir.core.v1.DeleteRecoveryCopiesResponse
-	(*SetStoragePreferencesRequest)(nil),      // 206: runnir.core.v1.SetStoragePreferencesRequest
-	(*SetStoragePreferencesResponse)(nil),     // 207: runnir.core.v1.SetStoragePreferencesResponse
-	(*ParseEnvFileRequest)(nil),               // 208: runnir.core.v1.ParseEnvFileRequest
-	(*EnvEntry)(nil),                          // 209: runnir.core.v1.EnvEntry
-	(*EnvProblem)(nil),                        // 210: runnir.core.v1.EnvProblem
-	(*ParseEnvFileResponse)(nil),              // 211: runnir.core.v1.ParseEnvFileResponse
-	(*ListEnvFilesRequest)(nil),               // 212: runnir.core.v1.ListEnvFilesRequest
-	(*RepositoryEnvFile)(nil),                 // 213: runnir.core.v1.RepositoryEnvFile
-	(*ListEnvFilesResponse)(nil),              // 214: runnir.core.v1.ListEnvFilesResponse
-	(*ListEnvironmentsRequest)(nil),           // 215: runnir.core.v1.ListEnvironmentsRequest
-	(*ListEnvironmentsResponse)(nil),          // 216: runnir.core.v1.ListEnvironmentsResponse
-	(*AnalyticsCounter)(nil),                  // 217: runnir.core.v1.AnalyticsCounter
-	(*Analytics)(nil),                         // 218: runnir.core.v1.Analytics
-	(*GetAnalyticsRequest)(nil),               // 219: runnir.core.v1.GetAnalyticsRequest
-	(*SetAnalyticsLevelRequest)(nil),          // 220: runnir.core.v1.SetAnalyticsLevelRequest
-	(*RecordUsageRequest)(nil),                // 221: runnir.core.v1.RecordUsageRequest
-	(*RecordUsageResponse)(nil),               // 222: runnir.core.v1.RecordUsageResponse
-	nil,                                       // 223: runnir.core.v1.Job.ManualInputsEntry
-	nil,                                       // 224: runnir.core.v1.LaunchPreset.InputsEntry
-	nil,                                       // 225: runnir.core.v1.FlowJob.ManualInputsEntry
-	nil,                                       // 226: runnir.core.v1.PrepareWorkflowDispatchRequest.InputsEntry
-	nil,                                       // 227: runnir.core.v1.DispatchRecord.InputsEntry
-	nil,                                       // 228: runnir.core.v1.ConfirmLocalRunRequest.SecretsEntry
-	nil,                                       // 229: runnir.core.v1.ConfirmLocalRunRequest.VariablesEntry
-	(*timestamppb.Timestamp)(nil),             // 230: google.protobuf.Timestamp
+	(*LocalRunLineSource)(nil),                // 161: runnir.core.v1.LocalRunLineSource
+	(*GetLocalRunOutputRequest)(nil),          // 162: runnir.core.v1.GetLocalRunOutputRequest
+	(*GetLocalRunOutputResponse)(nil),         // 163: runnir.core.v1.GetLocalRunOutputResponse
+	(*CancelExecutionRequest)(nil),            // 164: runnir.core.v1.CancelExecutionRequest
+	(*CancelExecutionResponse)(nil),           // 165: runnir.core.v1.CancelExecutionResponse
+	(*SaveWorkflowFileRequest)(nil),           // 166: runnir.core.v1.SaveWorkflowFileRequest
+	(*SaveWorkflowFileResponse)(nil),          // 167: runnir.core.v1.SaveWorkflowFileResponse
+	(*CreateWorkflowFileRequest)(nil),         // 168: runnir.core.v1.CreateWorkflowFileRequest
+	(*CreateWorkflowFileResponse)(nil),        // 169: runnir.core.v1.CreateWorkflowFileResponse
+	(*RenameWorkflowFileRequest)(nil),         // 170: runnir.core.v1.RenameWorkflowFileRequest
+	(*RenameWorkflowFileResponse)(nil),        // 171: runnir.core.v1.RenameWorkflowFileResponse
+	(*GetWorkspaceActivityRequest)(nil),       // 172: runnir.core.v1.GetWorkspaceActivityRequest
+	(*RefreshWorkspaceActivityRequest)(nil),   // 173: runnir.core.v1.RefreshWorkspaceActivityRequest
+	(*WorkspaceActivity)(nil),                 // 174: runnir.core.v1.WorkspaceActivity
+	(*StorageNotice)(nil),                     // 175: runnir.core.v1.StorageNotice
+	(*Saving)(nil),                            // 176: runnir.core.v1.Saving
+	(*ActivityFreshness)(nil),                 // 177: runnir.core.v1.ActivityFreshness
+	(*RunLink)(nil),                           // 178: runnir.core.v1.RunLink
+	(*RunChange)(nil),                         // 179: runnir.core.v1.RunChange
+	(*ChangePullRequest)(nil),                 // 180: runnir.core.v1.ChangePullRequest
+	(*RunChangeSection)(nil),                  // 181: runnir.core.v1.RunChangeSection
+	(*ConcurrencyHint)(nil),                   // 182: runnir.core.v1.ConcurrencyHint
+	(*LoadOlderRunsRequest)(nil),              // 183: runnir.core.v1.LoadOlderRunsRequest
+	(*LoadOlderRunsResponse)(nil),             // 184: runnir.core.v1.LoadOlderRunsResponse
+	(*SearchRunsRequest)(nil),                 // 185: runnir.core.v1.SearchRunsRequest
+	(*SearchRunsResponse)(nil),                // 186: runnir.core.v1.SearchRunsResponse
+	(*SearchRunsOnGitHubRequest)(nil),         // 187: runnir.core.v1.SearchRunsOnGitHubRequest
+	(*SearchRunsOnGitHubResponse)(nil),        // 188: runnir.core.v1.SearchRunsOnGitHubResponse
+	(*SearchWorkspacesRequest)(nil),           // 189: runnir.core.v1.SearchWorkspacesRequest
+	(*SearchWorkspacesResponse)(nil),          // 190: runnir.core.v1.SearchWorkspacesResponse
+	(*WorkspaceSearchHits)(nil),               // 191: runnir.core.v1.WorkspaceSearchHits
+	(*SearchedPullRequest)(nil),               // 192: runnir.core.v1.SearchedPullRequest
+	(*SearchedLocalRun)(nil),                  // 193: runnir.core.v1.SearchedLocalRun
+	(*ClearRunIndexRequest)(nil),              // 194: runnir.core.v1.ClearRunIndexRequest
+	(*ClearRunIndexResponse)(nil),             // 195: runnir.core.v1.ClearRunIndexResponse
+	(*InsertWorkflowConcurrencyRequest)(nil),  // 196: runnir.core.v1.InsertWorkflowConcurrencyRequest
+	(*InsertWorkflowConcurrencyResponse)(nil), // 197: runnir.core.v1.InsertWorkflowConcurrencyResponse
+	(*WorkspaceStorage)(nil),                  // 198: runnir.core.v1.WorkspaceStorage
+	(*GetStorageUsageRequest)(nil),            // 199: runnir.core.v1.GetStorageUsageRequest
+	(*GetStorageUsageResponse)(nil),           // 200: runnir.core.v1.GetStorageUsageResponse
+	(*ClearWorkspaceCacheRequest)(nil),        // 201: runnir.core.v1.ClearWorkspaceCacheRequest
+	(*ClearWorkspaceCacheResponse)(nil),       // 202: runnir.core.v1.ClearWorkspaceCacheResponse
+	(*DeleteWorkspaceDataRequest)(nil),        // 203: runnir.core.v1.DeleteWorkspaceDataRequest
+	(*DeleteWorkspaceDataResponse)(nil),       // 204: runnir.core.v1.DeleteWorkspaceDataResponse
+	(*DeleteRecoveryCopiesRequest)(nil),       // 205: runnir.core.v1.DeleteRecoveryCopiesRequest
+	(*DeleteRecoveryCopiesResponse)(nil),      // 206: runnir.core.v1.DeleteRecoveryCopiesResponse
+	(*SetStoragePreferencesRequest)(nil),      // 207: runnir.core.v1.SetStoragePreferencesRequest
+	(*SetStoragePreferencesResponse)(nil),     // 208: runnir.core.v1.SetStoragePreferencesResponse
+	(*ParseEnvFileRequest)(nil),               // 209: runnir.core.v1.ParseEnvFileRequest
+	(*EnvEntry)(nil),                          // 210: runnir.core.v1.EnvEntry
+	(*EnvProblem)(nil),                        // 211: runnir.core.v1.EnvProblem
+	(*ParseEnvFileResponse)(nil),              // 212: runnir.core.v1.ParseEnvFileResponse
+	(*ListEnvFilesRequest)(nil),               // 213: runnir.core.v1.ListEnvFilesRequest
+	(*RepositoryEnvFile)(nil),                 // 214: runnir.core.v1.RepositoryEnvFile
+	(*ListEnvFilesResponse)(nil),              // 215: runnir.core.v1.ListEnvFilesResponse
+	(*ListEnvironmentsRequest)(nil),           // 216: runnir.core.v1.ListEnvironmentsRequest
+	(*ListEnvironmentsResponse)(nil),          // 217: runnir.core.v1.ListEnvironmentsResponse
+	(*AnalyticsCounter)(nil),                  // 218: runnir.core.v1.AnalyticsCounter
+	(*Analytics)(nil),                         // 219: runnir.core.v1.Analytics
+	(*GetAnalyticsRequest)(nil),               // 220: runnir.core.v1.GetAnalyticsRequest
+	(*SetAnalyticsLevelRequest)(nil),          // 221: runnir.core.v1.SetAnalyticsLevelRequest
+	(*RecordUsageRequest)(nil),                // 222: runnir.core.v1.RecordUsageRequest
+	(*RecordUsageResponse)(nil),               // 223: runnir.core.v1.RecordUsageResponse
+	nil,                                       // 224: runnir.core.v1.Job.ManualInputsEntry
+	nil,                                       // 225: runnir.core.v1.LaunchPreset.InputsEntry
+	nil,                                       // 226: runnir.core.v1.FlowJob.ManualInputsEntry
+	nil,                                       // 227: runnir.core.v1.PrepareWorkflowDispatchRequest.InputsEntry
+	nil,                                       // 228: runnir.core.v1.DispatchRecord.InputsEntry
+	nil,                                       // 229: runnir.core.v1.ConfirmLocalRunRequest.SecretsEntry
+	nil,                                       // 230: runnir.core.v1.ConfirmLocalRunRequest.VariablesEntry
+	(*timestamppb.Timestamp)(nil),             // 231: google.protobuf.Timestamp
 }
 var file_runnir_core_v1_runnir_core_proto_depIdxs = []int32{
 	0,   // 0: runnir.core.v1.McpRequest.tool:type_name -> runnir.core.v1.McpTool
@@ -17147,38 +17217,38 @@ var file_runnir_core_v1_runnir_core_proto_depIdxs = []int32{
 	40,  // 14: runnir.core.v1.AnswerMcpRequestRequest.workspace:type_name -> runnir.core.v1.McpOpenedWorkspace
 	41,  // 15: runnir.core.v1.AnswerMcpRequestRequest.started:type_name -> runnir.core.v1.McpLocalRunStarted
 	55,  // 16: runnir.core.v1.RepositoryResponse.repository:type_name -> runnir.core.v1.Repository
-	230, // 17: runnir.core.v1.Repository.last_refresh:type_name -> google.protobuf.Timestamp
+	231, // 17: runnir.core.v1.Repository.last_refresh:type_name -> google.protobuf.Timestamp
 	58,  // 18: runnir.core.v1.ListWorkflowsResponse.workflows:type_name -> runnir.core.v1.Workflow
 	59,  // 19: runnir.core.v1.Workflow.jobs:type_name -> runnir.core.v1.Job
 	121, // 20: runnir.core.v1.Workflow.dispatch_inputs:type_name -> runnir.core.v1.DispatchInput
-	223, // 21: runnir.core.v1.Job.manual_inputs:type_name -> runnir.core.v1.Job.ManualInputsEntry
+	224, // 21: runnir.core.v1.Job.manual_inputs:type_name -> runnir.core.v1.Job.ManualInputsEntry
 	62,  // 22: runnir.core.v1.ListLaunchPresetsResponse.presets:type_name -> runnir.core.v1.LaunchPreset
-	224, // 23: runnir.core.v1.LaunchPreset.inputs:type_name -> runnir.core.v1.LaunchPreset.InputsEntry
+	225, // 23: runnir.core.v1.LaunchPreset.inputs:type_name -> runnir.core.v1.LaunchPreset.InputsEntry
 	2,   // 24: runnir.core.v1.ExecutionResponse.state:type_name -> runnir.core.v1.ExecutionState
 	3,   // 25: runnir.core.v1.CoreEvent.type:type_name -> runnir.core.v1.CoreEventType
 	2,   // 26: runnir.core.v1.CoreEvent.execution_state:type_name -> runnir.core.v1.ExecutionState
-	230, // 27: runnir.core.v1.CoreEvent.occurred_at:type_name -> google.protobuf.Timestamp
+	231, // 27: runnir.core.v1.CoreEvent.occurred_at:type_name -> google.protobuf.Timestamp
 	68,  // 28: runnir.core.v1.SetGitHubCredentialRequest.server:type_name -> runnir.core.v1.GithubServer
 	4,   // 29: runnir.core.v1.SetGitHubCredentialResponse.kind:type_name -> runnir.core.v1.GithubCredentialKind
 	68,  // 30: runnir.core.v1.CheckGitHubTokenRequest.server:type_name -> runnir.core.v1.GithubServer
 	75,  // 31: runnir.core.v1.CheckGitHubTokenResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	4,   // 32: runnir.core.v1.CheckGitHubTokenResponse.kind:type_name -> runnir.core.v1.GithubCredentialKind
-	230, // 33: runnir.core.v1.CheckGitHubTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
+	231, // 33: runnir.core.v1.CheckGitHubTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
 	72,  // 34: runnir.core.v1.CheckGitHubTokenResponse.checks:type_name -> runnir.core.v1.GitHubTokenCheck
 	5,   // 35: runnir.core.v1.GitHubTokenCheck.state:type_name -> runnir.core.v1.GithubTokenCheckState
 	6,   // 36: runnir.core.v1.GitHubStatus.access:type_name -> runnir.core.v1.GithubAccess
-	230, // 37: runnir.core.v1.GitHubStatus.retry_after:type_name -> google.protobuf.Timestamp
+	231, // 37: runnir.core.v1.GitHubStatus.retry_after:type_name -> google.protobuf.Timestamp
 	77,  // 38: runnir.core.v1.WorkflowValidation.diagnostics:type_name -> runnir.core.v1.WorkflowDiagnostic
 	78,  // 39: runnir.core.v1.ValidateWorkflowsResponse.workflows:type_name -> runnir.core.v1.WorkflowValidation
 	75,  // 40: runnir.core.v1.GetGitHubRepositoryResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	96,  // 41: runnir.core.v1.GetGitHubRepositoryResponse.installation:type_name -> runnir.core.v1.GitHubInstallation
-	230, // 42: runnir.core.v1.ListPullRequestsRequest.closed_since:type_name -> google.protobuf.Timestamp
+	231, // 42: runnir.core.v1.ListPullRequestsRequest.closed_since:type_name -> google.protobuf.Timestamp
 	75,  // 43: runnir.core.v1.ListPullRequestsResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	85,  // 44: runnir.core.v1.ListPullRequestsResponse.open:type_name -> runnir.core.v1.PullRequest
 	85,  // 45: runnir.core.v1.ListPullRequestsResponse.closed:type_name -> runnir.core.v1.PullRequest
 	96,  // 46: runnir.core.v1.ListPullRequestsResponse.pending_installations:type_name -> runnir.core.v1.GitHubInstallation
-	230, // 47: runnir.core.v1.PullRequest.updated_at:type_name -> google.protobuf.Timestamp
-	230, // 48: runnir.core.v1.PullRequest.closed_at:type_name -> google.protobuf.Timestamp
+	231, // 47: runnir.core.v1.PullRequest.updated_at:type_name -> google.protobuf.Timestamp
+	231, // 48: runnir.core.v1.PullRequest.closed_at:type_name -> google.protobuf.Timestamp
 	7,   // 49: runnir.core.v1.PullRequest.ci:type_name -> runnir.core.v1.PullRequestCi
 	87,  // 50: runnir.core.v1.ListWatchedRunsRequest.repositories:type_name -> runnir.core.v1.WatchedRepository
 	89,  // 51: runnir.core.v1.ListWatchedRunsResponse.repositories:type_name -> runnir.core.v1.WatchedRuns
@@ -17187,25 +17257,25 @@ var file_runnir_core_v1_runnir_core_proto_depIdxs = []int32{
 	75,  // 54: runnir.core.v1.WatchedRuns.status:type_name -> runnir.core.v1.GitHubStatus
 	102, // 55: runnir.core.v1.WatchedRuns.failed:type_name -> runnir.core.v1.WorkflowRun
 	102, // 56: runnir.core.v1.WatchedRuns.running:type_name -> runnir.core.v1.WorkflowRun
-	230, // 57: runnir.core.v1.WatchedRuns.read_at:type_name -> google.protobuf.Timestamp
-	230, // 58: runnir.core.v1.ServerPause.until:type_name -> google.protobuf.Timestamp
+	231, // 57: runnir.core.v1.WatchedRuns.read_at:type_name -> google.protobuf.Timestamp
+	231, // 58: runnir.core.v1.ServerPause.until:type_name -> google.protobuf.Timestamp
 	93,  // 59: runnir.core.v1.GetGitHubOriginsResponse.origins:type_name -> runnir.core.v1.GitHubOrigin
 	75,  // 60: runnir.core.v1.ListGitHubRepositoriesResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	96,  // 61: runnir.core.v1.ListGitHubRepositoriesResponse.installations:type_name -> runnir.core.v1.GitHubInstallation
 	97,  // 62: runnir.core.v1.ListGitHubRepositoriesResponse.repositories:type_name -> runnir.core.v1.GitHubAccountRepository
 	4,   // 63: runnir.core.v1.ListGitHubRepositoriesResponse.credential_kind:type_name -> runnir.core.v1.GithubCredentialKind
-	230, // 64: runnir.core.v1.GitHubAccountRepository.pushed_at:type_name -> google.protobuf.Timestamp
+	231, // 64: runnir.core.v1.GitHubAccountRepository.pushed_at:type_name -> google.protobuf.Timestamp
 	75,  // 65: runnir.core.v1.ListGitHubWorkflowsResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	99,  // 66: runnir.core.v1.ListGitHubWorkflowsResponse.workflows:type_name -> runnir.core.v1.GitHubWorkflow
 	75,  // 67: runnir.core.v1.ListWorkflowRunsResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	102, // 68: runnir.core.v1.ListWorkflowRunsResponse.runs:type_name -> runnir.core.v1.WorkflowRun
-	230, // 69: runnir.core.v1.WorkflowRun.created_at:type_name -> google.protobuf.Timestamp
-	230, // 70: runnir.core.v1.WorkflowRun.updated_at:type_name -> google.protobuf.Timestamp
-	177, // 71: runnir.core.v1.WorkflowRun.link:type_name -> runnir.core.v1.RunLink
+	231, // 69: runnir.core.v1.WorkflowRun.created_at:type_name -> google.protobuf.Timestamp
+	231, // 70: runnir.core.v1.WorkflowRun.updated_at:type_name -> google.protobuf.Timestamp
+	178, // 71: runnir.core.v1.WorkflowRun.link:type_name -> runnir.core.v1.RunLink
 	9,   // 72: runnir.core.v1.WorkflowRun.status_group:type_name -> runnir.core.v1.RunStatusGroup
 	103, // 73: runnir.core.v1.WorkflowRun.runnir_starts:type_name -> runnir.core.v1.RunnirStart
 	8,   // 74: runnir.core.v1.RunnirStart.kind:type_name -> runnir.core.v1.RunnirStartKind
-	230, // 75: runnir.core.v1.RunnirStart.sent_at:type_name -> google.protobuf.Timestamp
+	231, // 75: runnir.core.v1.RunnirStart.sent_at:type_name -> google.protobuf.Timestamp
 	75,  // 76: runnir.core.v1.GetRunWorkflowResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	59,  // 77: runnir.core.v1.GetRunWorkflowResponse.jobs:type_name -> runnir.core.v1.Job
 	108, // 78: runnir.core.v1.GetRunWorkflowResponse.skips:type_name -> runnir.core.v1.JobSkip
@@ -17213,7 +17283,7 @@ var file_runnir_core_v1_runnir_core_proto_depIdxs = []int32{
 	107, // 80: runnir.core.v1.JobSkip.values:type_name -> runnir.core.v1.ConditionValue
 	110, // 81: runnir.core.v1.GetFlowRequest.scenario:type_name -> runnir.core.v1.Scenario
 	11,  // 82: runnir.core.v1.Scenario.kind:type_name -> runnir.core.v1.ScenarioKind
-	225, // 83: runnir.core.v1.FlowJob.manual_inputs:type_name -> runnir.core.v1.FlowJob.ManualInputsEntry
+	226, // 83: runnir.core.v1.FlowJob.manual_inputs:type_name -> runnir.core.v1.FlowJob.ManualInputsEntry
 	12,  // 84: runnir.core.v1.FlowLane.kind:type_name -> runnir.core.v1.LaneKind
 	112, // 85: runnir.core.v1.FlowLane.jobs:type_name -> runnir.core.v1.FlowJob
 	102, // 86: runnir.core.v1.FlowLane.run:type_name -> runnir.core.v1.WorkflowRun
@@ -17224,22 +17294,22 @@ var file_runnir_core_v1_runnir_core_proto_depIdxs = []int32{
 	114, // 91: runnir.core.v1.GetFlowResponse.skipped:type_name -> runnir.core.v1.SkippedWorkflow
 	75,  // 92: runnir.core.v1.ListRunJobsResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	117, // 93: runnir.core.v1.ListRunJobsResponse.jobs:type_name -> runnir.core.v1.RunJob
-	230, // 94: runnir.core.v1.RunJob.started_at:type_name -> google.protobuf.Timestamp
-	230, // 95: runnir.core.v1.RunJob.completed_at:type_name -> google.protobuf.Timestamp
+	231, // 94: runnir.core.v1.RunJob.started_at:type_name -> google.protobuf.Timestamp
+	231, // 95: runnir.core.v1.RunJob.completed_at:type_name -> google.protobuf.Timestamp
 	118, // 96: runnir.core.v1.RunJob.steps:type_name -> runnir.core.v1.RunStep
-	230, // 97: runnir.core.v1.RunStep.started_at:type_name -> google.protobuf.Timestamp
-	230, // 98: runnir.core.v1.RunStep.completed_at:type_name -> google.protobuf.Timestamp
+	231, // 97: runnir.core.v1.RunStep.started_at:type_name -> google.protobuf.Timestamp
+	231, // 98: runnir.core.v1.RunStep.completed_at:type_name -> google.protobuf.Timestamp
 	75,  // 99: runnir.core.v1.ListGitHubRefsResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	13,  // 100: runnir.core.v1.DispatchInput.type:type_name -> runnir.core.v1.DispatchInputType
 	75,  // 101: runnir.core.v1.DescribeWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
 	121, // 102: runnir.core.v1.DescribeWorkflowDispatchResponse.inputs:type_name -> runnir.core.v1.DispatchInput
-	226, // 103: runnir.core.v1.PrepareWorkflowDispatchRequest.inputs:type_name -> runnir.core.v1.PrepareWorkflowDispatchRequest.InputsEntry
+	227, // 103: runnir.core.v1.PrepareWorkflowDispatchRequest.inputs:type_name -> runnir.core.v1.PrepareWorkflowDispatchRequest.InputsEntry
 	75,  // 104: runnir.core.v1.PrepareWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	230, // 105: runnir.core.v1.PrepareWorkflowDispatchResponse.expires_at:type_name -> google.protobuf.Timestamp
+	231, // 105: runnir.core.v1.PrepareWorkflowDispatchResponse.expires_at:type_name -> google.protobuf.Timestamp
 	75,  // 106: runnir.core.v1.ConfirmWorkflowDispatchResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	230, // 107: runnir.core.v1.ConfirmWorkflowDispatchResponse.dispatched_at:type_name -> google.protobuf.Timestamp
-	227, // 108: runnir.core.v1.DispatchRecord.inputs:type_name -> runnir.core.v1.DispatchRecord.InputsEntry
-	230, // 109: runnir.core.v1.DispatchRecord.sent_at:type_name -> google.protobuf.Timestamp
+	231, // 107: runnir.core.v1.ConfirmWorkflowDispatchResponse.dispatched_at:type_name -> google.protobuf.Timestamp
+	228, // 108: runnir.core.v1.DispatchRecord.inputs:type_name -> runnir.core.v1.DispatchRecord.InputsEntry
+	231, // 109: runnir.core.v1.DispatchRecord.sent_at:type_name -> google.protobuf.Timestamp
 	128, // 110: runnir.core.v1.ListDispatchHistoryResponse.records:type_name -> runnir.core.v1.DispatchRecord
 	15,  // 111: runnir.core.v1.LogLine.kind:type_name -> runnir.core.v1.LogLineKind
 	75,  // 112: runnir.core.v1.GetJobLogResponse.status:type_name -> runnir.core.v1.GitHubStatus
@@ -17249,18 +17319,18 @@ var file_runnir_core_v1_runnir_core_proto_depIdxs = []int32{
 	14,  // 116: runnir.core.v1.SaveJobLogResponse.availability:type_name -> runnir.core.v1.JobLogAvailability
 	16,  // 117: runnir.core.v1.PrepareRunActionRequest.action:type_name -> runnir.core.v1.RunAction
 	75,  // 118: runnir.core.v1.PrepareRunActionResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	230, // 119: runnir.core.v1.PrepareRunActionResponse.expires_at:type_name -> google.protobuf.Timestamp
+	231, // 119: runnir.core.v1.PrepareRunActionResponse.expires_at:type_name -> google.protobuf.Timestamp
 	102, // 120: runnir.core.v1.PrepareRunActionResponse.run:type_name -> runnir.core.v1.WorkflowRun
 	117, // 121: runnir.core.v1.PrepareRunActionResponse.job:type_name -> runnir.core.v1.RunJob
 	75,  // 122: runnir.core.v1.ConfirmRunActionResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	230, // 123: runnir.core.v1.ConfirmRunActionResponse.accepted_at:type_name -> google.protobuf.Timestamp
+	231, // 123: runnir.core.v1.ConfirmRunActionResponse.accepted_at:type_name -> google.protobuf.Timestamp
 	17,  // 124: runnir.core.v1.ToolStatus.state:type_name -> runnir.core.v1.ToolState
 	17,  // 125: runnir.core.v1.ContainerEngine.state:type_name -> runnir.core.v1.ToolState
 	144, // 126: runnir.core.v1.ToolReadiness.bundled_act:type_name -> runnir.core.v1.ToolStatus
 	144, // 127: runnir.core.v1.ToolReadiness.installed_act:type_name -> runnir.core.v1.ToolStatus
 	144, // 128: runnir.core.v1.ToolReadiness.docker_cli:type_name -> runnir.core.v1.ToolStatus
 	145, // 129: runnir.core.v1.ToolReadiness.engine:type_name -> runnir.core.v1.ContainerEngine
-	230, // 130: runnir.core.v1.ToolReadiness.checked_at:type_name -> google.protobuf.Timestamp
+	231, // 130: runnir.core.v1.ToolReadiness.checked_at:type_name -> google.protobuf.Timestamp
 	146, // 131: runnir.core.v1.GetToolReadinessResponse.readiness:type_name -> runnir.core.v1.ToolReadiness
 	18,  // 132: runnir.core.v1.LocalRunJob.support:type_name -> runnir.core.v1.LocalJobSupport
 	19,  // 133: runnir.core.v1.LocalRunLane.kind:type_name -> runnir.core.v1.LocalRunLaneKind
@@ -17274,204 +17344,205 @@ var file_runnir_core_v1_runnir_core_proto_depIdxs = []int32{
 	155, // 141: runnir.core.v1.PrepareLocalRunRequest.limits:type_name -> runnir.core.v1.LocalRunLimits
 	146, // 142: runnir.core.v1.PrepareLocalRunResponse.readiness:type_name -> runnir.core.v1.ToolReadiness
 	152, // 143: runnir.core.v1.PrepareLocalRunResponse.plan:type_name -> runnir.core.v1.LocalRunPlan
-	230, // 144: runnir.core.v1.PrepareLocalRunResponse.expires_at:type_name -> google.protobuf.Timestamp
-	228, // 145: runnir.core.v1.ConfirmLocalRunRequest.secrets:type_name -> runnir.core.v1.ConfirmLocalRunRequest.SecretsEntry
-	229, // 146: runnir.core.v1.ConfirmLocalRunRequest.variables:type_name -> runnir.core.v1.ConfirmLocalRunRequest.VariablesEntry
+	231, // 144: runnir.core.v1.PrepareLocalRunResponse.expires_at:type_name -> google.protobuf.Timestamp
+	229, // 145: runnir.core.v1.ConfirmLocalRunRequest.secrets:type_name -> runnir.core.v1.ConfirmLocalRunRequest.SecretsEntry
+	230, // 146: runnir.core.v1.ConfirmLocalRunRequest.variables:type_name -> runnir.core.v1.ConfirmLocalRunRequest.VariablesEntry
 	64,  // 147: runnir.core.v1.ConfirmLocalRunResponse.execution:type_name -> runnir.core.v1.ExecutionResponse
 	21,  // 148: runnir.core.v1.LocalRunJobStatus.state:type_name -> runnir.core.v1.LocalJobState
-	230, // 149: runnir.core.v1.LocalRunJobStatus.started_at:type_name -> google.protobuf.Timestamp
-	230, // 150: runnir.core.v1.LocalRunJobStatus.finished_at:type_name -> google.protobuf.Timestamp
+	231, // 149: runnir.core.v1.LocalRunJobStatus.started_at:type_name -> google.protobuf.Timestamp
+	231, // 150: runnir.core.v1.LocalRunJobStatus.finished_at:type_name -> google.protobuf.Timestamp
 	2,   // 151: runnir.core.v1.GetLocalRunOutputResponse.state:type_name -> runnir.core.v1.ExecutionState
 	20,  // 152: runnir.core.v1.GetLocalRunOutputResponse.phase:type_name -> runnir.core.v1.LocalRunPhase
 	160, // 153: runnir.core.v1.GetLocalRunOutputResponse.lines:type_name -> runnir.core.v1.LocalRunLine
-	159, // 154: runnir.core.v1.GetLocalRunOutputResponse.jobs:type_name -> runnir.core.v1.LocalRunJobStatus
-	152, // 155: runnir.core.v1.GetLocalRunOutputResponse.plan:type_name -> runnir.core.v1.LocalRunPlan
-	230, // 156: runnir.core.v1.GetLocalRunOutputResponse.started_at:type_name -> google.protobuf.Timestamp
-	230, // 157: runnir.core.v1.GetLocalRunOutputResponse.finished_at:type_name -> google.protobuf.Timestamp
-	102, // 158: runnir.core.v1.WorkspaceActivity.runs:type_name -> runnir.core.v1.WorkflowRun
-	99,  // 159: runnir.core.v1.WorkspaceActivity.workflows:type_name -> runnir.core.v1.GitHubWorkflow
-	176, // 160: runnir.core.v1.WorkspaceActivity.freshness:type_name -> runnir.core.v1.ActivityFreshness
-	178, // 161: runnir.core.v1.WorkspaceActivity.changes:type_name -> runnir.core.v1.RunChange
-	181, // 162: runnir.core.v1.WorkspaceActivity.concurrency_hints:type_name -> runnir.core.v1.ConcurrencyHint
-	175, // 163: runnir.core.v1.WorkspaceActivity.savings:type_name -> runnir.core.v1.Saving
-	174, // 164: runnir.core.v1.WorkspaceActivity.storage_notice:type_name -> runnir.core.v1.StorageNotice
-	28,  // 165: runnir.core.v1.StorageNotice.state:type_name -> runnir.core.v1.StorageState
-	22,  // 166: runnir.core.v1.Saving.kind:type_name -> runnir.core.v1.SavingKind
-	230, // 167: runnir.core.v1.Saving.since:type_name -> google.protobuf.Timestamp
-	23,  // 168: runnir.core.v1.ActivityFreshness.source:type_name -> runnir.core.v1.ActivitySource
-	75,  // 169: runnir.core.v1.ActivityFreshness.status:type_name -> runnir.core.v1.GitHubStatus
-	230, // 170: runnir.core.v1.ActivityFreshness.checked_at:type_name -> google.protobuf.Timestamp
-	230, // 171: runnir.core.v1.ActivityFreshness.synced_at:type_name -> google.protobuf.Timestamp
-	230, // 172: runnir.core.v1.ActivityFreshness.changed_at:type_name -> google.protobuf.Timestamp
-	6,   // 173: runnir.core.v1.ActivityFreshness.pull_requests_access:type_name -> runnir.core.v1.GithubAccess
-	24,  // 174: runnir.core.v1.RunLink.kind:type_name -> runnir.core.v1.RunLinkKind
-	179, // 175: runnir.core.v1.RunChange.pull_request:type_name -> runnir.core.v1.ChangePullRequest
-	7,   // 176: runnir.core.v1.RunChange.status:type_name -> runnir.core.v1.PullRequestCi
-	230, // 177: runnir.core.v1.RunChange.latest_at:type_name -> google.protobuf.Timestamp
-	180, // 178: runnir.core.v1.RunChange.sections:type_name -> runnir.core.v1.RunChangeSection
-	230, // 179: runnir.core.v1.ChangePullRequest.merged_at:type_name -> google.protobuf.Timestamp
-	25,  // 180: runnir.core.v1.RunChangeSection.kind:type_name -> runnir.core.v1.RunChangeSectionKind
-	75,  // 181: runnir.core.v1.LoadOlderRunsResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	102, // 182: runnir.core.v1.SearchRunsResponse.indexed_runs:type_name -> runnir.core.v1.WorkflowRun
-	230, // 183: runnir.core.v1.SearchRunsOnGitHubRequest.cursor:type_name -> google.protobuf.Timestamp
-	75,  // 184: runnir.core.v1.SearchRunsOnGitHubResponse.status:type_name -> runnir.core.v1.GitHubStatus
-	102, // 185: runnir.core.v1.SearchRunsOnGitHubResponse.runs:type_name -> runnir.core.v1.WorkflowRun
-	230, // 186: runnir.core.v1.SearchRunsOnGitHubResponse.next_cursor:type_name -> google.protobuf.Timestamp
-	230, // 187: runnir.core.v1.SearchRunsOnGitHubResponse.looked_back_to:type_name -> google.protobuf.Timestamp
-	26,  // 188: runnir.core.v1.SearchRunsOnGitHubResponse.stop:type_name -> runnir.core.v1.SearchStop
-	190, // 189: runnir.core.v1.SearchWorkspacesResponse.workspaces:type_name -> runnir.core.v1.WorkspaceSearchHits
-	230, // 190: runnir.core.v1.WorkspaceSearchHits.saved_at:type_name -> google.protobuf.Timestamp
-	102, // 191: runnir.core.v1.WorkspaceSearchHits.runs:type_name -> runnir.core.v1.WorkflowRun
-	191, // 192: runnir.core.v1.WorkspaceSearchHits.pull_requests:type_name -> runnir.core.v1.SearchedPullRequest
-	99,  // 193: runnir.core.v1.WorkspaceSearchHits.workflows:type_name -> runnir.core.v1.GitHubWorkflow
-	192, // 194: runnir.core.v1.WorkspaceSearchHits.local_runs:type_name -> runnir.core.v1.SearchedLocalRun
-	230, // 195: runnir.core.v1.SearchedPullRequest.updated_at:type_name -> google.protobuf.Timestamp
-	230, // 196: runnir.core.v1.SearchedLocalRun.started_at:type_name -> google.protobuf.Timestamp
-	197, // 197: runnir.core.v1.ClearRunIndexResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
-	27,  // 198: runnir.core.v1.InsertWorkflowConcurrencyResponse.refusal:type_name -> runnir.core.v1.ConcurrencyRefusal
-	28,  // 199: runnir.core.v1.WorkspaceStorage.state:type_name -> runnir.core.v1.StorageState
-	197, // 200: runnir.core.v1.GetStorageUsageResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
-	197, // 201: runnir.core.v1.ClearWorkspaceCacheResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
-	197, // 202: runnir.core.v1.DeleteRecoveryCopiesResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
-	209, // 203: runnir.core.v1.ParseEnvFileResponse.entries:type_name -> runnir.core.v1.EnvEntry
-	210, // 204: runnir.core.v1.ParseEnvFileResponse.problems:type_name -> runnir.core.v1.EnvProblem
-	213, // 205: runnir.core.v1.ListEnvFilesResponse.files:type_name -> runnir.core.v1.RepositoryEnvFile
-	29,  // 206: runnir.core.v1.Analytics.level:type_name -> runnir.core.v1.AnalyticsLevel
-	217, // 207: runnir.core.v1.Analytics.sealed:type_name -> runnir.core.v1.AnalyticsCounter
-	217, // 208: runnir.core.v1.Analytics.today:type_name -> runnir.core.v1.AnalyticsCounter
-	29,  // 209: runnir.core.v1.SetAnalyticsLevelRequest.level:type_name -> runnir.core.v1.AnalyticsLevel
-	30,  // 210: runnir.core.v1.RecordUsageRequest.event:type_name -> runnir.core.v1.UsageEvent
-	48,  // 211: runnir.core.v1.RunnirCore.HealthCheck:input_type -> runnir.core.v1.HealthCheckRequest
-	50,  // 212: runnir.core.v1.RunnirCore.OpenRepository:input_type -> runnir.core.v1.OpenRepositoryRequest
-	51,  // 213: runnir.core.v1.RunnirCore.CloseRepository:input_type -> runnir.core.v1.CloseRepositoryRequest
-	53,  // 214: runnir.core.v1.RunnirCore.RefreshRepository:input_type -> runnir.core.v1.RefreshRepositoryRequest
-	171, // 215: runnir.core.v1.RunnirCore.GetWorkspaceActivity:input_type -> runnir.core.v1.GetWorkspaceActivityRequest
-	172, // 216: runnir.core.v1.RunnirCore.RefreshWorkspaceActivity:input_type -> runnir.core.v1.RefreshWorkspaceActivityRequest
-	182, // 217: runnir.core.v1.RunnirCore.LoadOlderRuns:input_type -> runnir.core.v1.LoadOlderRunsRequest
-	184, // 218: runnir.core.v1.RunnirCore.SearchRuns:input_type -> runnir.core.v1.SearchRunsRequest
-	186, // 219: runnir.core.v1.RunnirCore.SearchRunsOnGitHub:input_type -> runnir.core.v1.SearchRunsOnGitHubRequest
-	188, // 220: runnir.core.v1.RunnirCore.SearchWorkspaces:input_type -> runnir.core.v1.SearchWorkspacesRequest
-	193, // 221: runnir.core.v1.RunnirCore.ClearRunIndex:input_type -> runnir.core.v1.ClearRunIndexRequest
-	198, // 222: runnir.core.v1.RunnirCore.GetStorageUsage:input_type -> runnir.core.v1.GetStorageUsageRequest
-	200, // 223: runnir.core.v1.RunnirCore.ClearWorkspaceCache:input_type -> runnir.core.v1.ClearWorkspaceCacheRequest
-	202, // 224: runnir.core.v1.RunnirCore.DeleteWorkspaceData:input_type -> runnir.core.v1.DeleteWorkspaceDataRequest
-	204, // 225: runnir.core.v1.RunnirCore.DeleteRecoveryCopies:input_type -> runnir.core.v1.DeleteRecoveryCopiesRequest
-	206, // 226: runnir.core.v1.RunnirCore.SetStoragePreferences:input_type -> runnir.core.v1.SetStoragePreferencesRequest
-	219, // 227: runnir.core.v1.RunnirCore.GetAnalytics:input_type -> runnir.core.v1.GetAnalyticsRequest
-	220, // 228: runnir.core.v1.RunnirCore.SetAnalyticsLevel:input_type -> runnir.core.v1.SetAnalyticsLevelRequest
-	221, // 229: runnir.core.v1.RunnirCore.RecordUsage:input_type -> runnir.core.v1.RecordUsageRequest
-	56,  // 230: runnir.core.v1.RunnirCore.ListWorkflows:input_type -> runnir.core.v1.ListWorkflowsRequest
-	60,  // 231: runnir.core.v1.RunnirCore.ListLaunchPresets:input_type -> runnir.core.v1.ListLaunchPresetsRequest
-	76,  // 232: runnir.core.v1.RunnirCore.ValidateWorkflows:input_type -> runnir.core.v1.ValidateWorkflowsRequest
-	165, // 233: runnir.core.v1.RunnirCore.SaveWorkflowFile:input_type -> runnir.core.v1.SaveWorkflowFileRequest
-	167, // 234: runnir.core.v1.RunnirCore.CreateWorkflowFile:input_type -> runnir.core.v1.CreateWorkflowFileRequest
-	169, // 235: runnir.core.v1.RunnirCore.RenameWorkflowFile:input_type -> runnir.core.v1.RenameWorkflowFileRequest
-	195, // 236: runnir.core.v1.RunnirCore.InsertWorkflowConcurrency:input_type -> runnir.core.v1.InsertWorkflowConcurrencyRequest
-	63,  // 237: runnir.core.v1.RunnirCore.StartWorkflow:input_type -> runnir.core.v1.StartWorkflowRequest
-	65,  // 238: runnir.core.v1.RunnirCore.SubscribeEvents:input_type -> runnir.core.v1.SubscribeEventsRequest
-	67,  // 239: runnir.core.v1.RunnirCore.SetGitHubCredential:input_type -> runnir.core.v1.SetGitHubCredentialRequest
-	73,  // 240: runnir.core.v1.RunnirCore.ClearGitHubCredential:input_type -> runnir.core.v1.ClearGitHubCredentialRequest
-	70,  // 241: runnir.core.v1.RunnirCore.CheckGitHubToken:input_type -> runnir.core.v1.CheckGitHubTokenRequest
-	83,  // 242: runnir.core.v1.RunnirCore.ListPullRequests:input_type -> runnir.core.v1.ListPullRequestsRequest
-	86,  // 243: runnir.core.v1.RunnirCore.ListWatchedRuns:input_type -> runnir.core.v1.ListWatchedRunsRequest
-	91,  // 244: runnir.core.v1.RunnirCore.GetGitHubOrigins:input_type -> runnir.core.v1.GetGitHubOriginsRequest
-	94,  // 245: runnir.core.v1.RunnirCore.ListGitHubRepositories:input_type -> runnir.core.v1.ListGitHubRepositoriesRequest
-	82,  // 246: runnir.core.v1.RunnirCore.ListGitHubWorkflows:input_type -> runnir.core.v1.ListGitHubWorkflowsRequest
-	80,  // 247: runnir.core.v1.RunnirCore.GetGitHubRepository:input_type -> runnir.core.v1.GetGitHubRepositoryRequest
-	100, // 248: runnir.core.v1.RunnirCore.ListWorkflowRuns:input_type -> runnir.core.v1.ListWorkflowRunsRequest
-	104, // 249: runnir.core.v1.RunnirCore.ListRunJobs:input_type -> runnir.core.v1.ListRunJobsRequest
-	105, // 250: runnir.core.v1.RunnirCore.GetRunWorkflow:input_type -> runnir.core.v1.GetRunWorkflowRequest
-	109, // 251: runnir.core.v1.RunnirCore.GetFlow:input_type -> runnir.core.v1.GetFlowRequest
-	119, // 252: runnir.core.v1.RunnirCore.ListGitHubRefs:input_type -> runnir.core.v1.ListGitHubRefsRequest
-	122, // 253: runnir.core.v1.RunnirCore.DescribeWorkflowDispatch:input_type -> runnir.core.v1.DescribeWorkflowDispatchRequest
-	124, // 254: runnir.core.v1.RunnirCore.PrepareWorkflowDispatch:input_type -> runnir.core.v1.PrepareWorkflowDispatchRequest
-	126, // 255: runnir.core.v1.RunnirCore.ConfirmWorkflowDispatch:input_type -> runnir.core.v1.ConfirmWorkflowDispatchRequest
-	129, // 256: runnir.core.v1.RunnirCore.ListDispatchHistory:input_type -> runnir.core.v1.ListDispatchHistoryRequest
-	131, // 257: runnir.core.v1.RunnirCore.ClearDispatchHistory:input_type -> runnir.core.v1.ClearDispatchHistoryRequest
-	133, // 258: runnir.core.v1.RunnirCore.LinkDispatchRun:input_type -> runnir.core.v1.LinkDispatchRunRequest
-	135, // 259: runnir.core.v1.RunnirCore.GetJobLog:input_type -> runnir.core.v1.GetJobLogRequest
-	138, // 260: runnir.core.v1.RunnirCore.SaveJobLog:input_type -> runnir.core.v1.SaveJobLogRequest
-	140, // 261: runnir.core.v1.RunnirCore.PrepareRunAction:input_type -> runnir.core.v1.PrepareRunActionRequest
-	142, // 262: runnir.core.v1.RunnirCore.ConfirmRunAction:input_type -> runnir.core.v1.ConfirmRunActionRequest
-	147, // 263: runnir.core.v1.RunnirCore.GetToolReadiness:input_type -> runnir.core.v1.GetToolReadinessRequest
-	154, // 264: runnir.core.v1.RunnirCore.PrepareLocalRun:input_type -> runnir.core.v1.PrepareLocalRunRequest
-	157, // 265: runnir.core.v1.RunnirCore.ConfirmLocalRun:input_type -> runnir.core.v1.ConfirmLocalRunRequest
-	161, // 266: runnir.core.v1.RunnirCore.GetLocalRunOutput:input_type -> runnir.core.v1.GetLocalRunOutputRequest
-	163, // 267: runnir.core.v1.RunnirCore.CancelExecution:input_type -> runnir.core.v1.CancelExecutionRequest
-	208, // 268: runnir.core.v1.RunnirCore.ParseEnvFile:input_type -> runnir.core.v1.ParseEnvFileRequest
-	212, // 269: runnir.core.v1.RunnirCore.ListEnvFiles:input_type -> runnir.core.v1.ListEnvFilesRequest
-	215, // 270: runnir.core.v1.RunnirCore.ListEnvironments:input_type -> runnir.core.v1.ListEnvironmentsRequest
-	34,  // 271: runnir.core.v1.RunnirCore.SubscribeMcpRequests:input_type -> runnir.core.v1.SubscribeMcpRequestsRequest
-	46,  // 272: runnir.core.v1.RunnirCore.AnswerMcpRequest:input_type -> runnir.core.v1.AnswerMcpRequestRequest
-	31,  // 273: runnir.core.v1.McpBridge.CallTool:input_type -> runnir.core.v1.McpBridgeCallToolRequest
-	49,  // 274: runnir.core.v1.RunnirCore.HealthCheck:output_type -> runnir.core.v1.HealthCheckResponse
-	54,  // 275: runnir.core.v1.RunnirCore.OpenRepository:output_type -> runnir.core.v1.RepositoryResponse
-	52,  // 276: runnir.core.v1.RunnirCore.CloseRepository:output_type -> runnir.core.v1.CloseRepositoryResponse
-	54,  // 277: runnir.core.v1.RunnirCore.RefreshRepository:output_type -> runnir.core.v1.RepositoryResponse
-	173, // 278: runnir.core.v1.RunnirCore.GetWorkspaceActivity:output_type -> runnir.core.v1.WorkspaceActivity
-	173, // 279: runnir.core.v1.RunnirCore.RefreshWorkspaceActivity:output_type -> runnir.core.v1.WorkspaceActivity
-	183, // 280: runnir.core.v1.RunnirCore.LoadOlderRuns:output_type -> runnir.core.v1.LoadOlderRunsResponse
-	185, // 281: runnir.core.v1.RunnirCore.SearchRuns:output_type -> runnir.core.v1.SearchRunsResponse
-	187, // 282: runnir.core.v1.RunnirCore.SearchRunsOnGitHub:output_type -> runnir.core.v1.SearchRunsOnGitHubResponse
-	189, // 283: runnir.core.v1.RunnirCore.SearchWorkspaces:output_type -> runnir.core.v1.SearchWorkspacesResponse
-	194, // 284: runnir.core.v1.RunnirCore.ClearRunIndex:output_type -> runnir.core.v1.ClearRunIndexResponse
-	199, // 285: runnir.core.v1.RunnirCore.GetStorageUsage:output_type -> runnir.core.v1.GetStorageUsageResponse
-	201, // 286: runnir.core.v1.RunnirCore.ClearWorkspaceCache:output_type -> runnir.core.v1.ClearWorkspaceCacheResponse
-	203, // 287: runnir.core.v1.RunnirCore.DeleteWorkspaceData:output_type -> runnir.core.v1.DeleteWorkspaceDataResponse
-	205, // 288: runnir.core.v1.RunnirCore.DeleteRecoveryCopies:output_type -> runnir.core.v1.DeleteRecoveryCopiesResponse
-	207, // 289: runnir.core.v1.RunnirCore.SetStoragePreferences:output_type -> runnir.core.v1.SetStoragePreferencesResponse
-	218, // 290: runnir.core.v1.RunnirCore.GetAnalytics:output_type -> runnir.core.v1.Analytics
-	218, // 291: runnir.core.v1.RunnirCore.SetAnalyticsLevel:output_type -> runnir.core.v1.Analytics
-	222, // 292: runnir.core.v1.RunnirCore.RecordUsage:output_type -> runnir.core.v1.RecordUsageResponse
-	57,  // 293: runnir.core.v1.RunnirCore.ListWorkflows:output_type -> runnir.core.v1.ListWorkflowsResponse
-	61,  // 294: runnir.core.v1.RunnirCore.ListLaunchPresets:output_type -> runnir.core.v1.ListLaunchPresetsResponse
-	79,  // 295: runnir.core.v1.RunnirCore.ValidateWorkflows:output_type -> runnir.core.v1.ValidateWorkflowsResponse
-	166, // 296: runnir.core.v1.RunnirCore.SaveWorkflowFile:output_type -> runnir.core.v1.SaveWorkflowFileResponse
-	168, // 297: runnir.core.v1.RunnirCore.CreateWorkflowFile:output_type -> runnir.core.v1.CreateWorkflowFileResponse
-	170, // 298: runnir.core.v1.RunnirCore.RenameWorkflowFile:output_type -> runnir.core.v1.RenameWorkflowFileResponse
-	196, // 299: runnir.core.v1.RunnirCore.InsertWorkflowConcurrency:output_type -> runnir.core.v1.InsertWorkflowConcurrencyResponse
-	64,  // 300: runnir.core.v1.RunnirCore.StartWorkflow:output_type -> runnir.core.v1.ExecutionResponse
-	66,  // 301: runnir.core.v1.RunnirCore.SubscribeEvents:output_type -> runnir.core.v1.CoreEvent
-	69,  // 302: runnir.core.v1.RunnirCore.SetGitHubCredential:output_type -> runnir.core.v1.SetGitHubCredentialResponse
-	74,  // 303: runnir.core.v1.RunnirCore.ClearGitHubCredential:output_type -> runnir.core.v1.ClearGitHubCredentialResponse
-	71,  // 304: runnir.core.v1.RunnirCore.CheckGitHubToken:output_type -> runnir.core.v1.CheckGitHubTokenResponse
-	84,  // 305: runnir.core.v1.RunnirCore.ListPullRequests:output_type -> runnir.core.v1.ListPullRequestsResponse
-	88,  // 306: runnir.core.v1.RunnirCore.ListWatchedRuns:output_type -> runnir.core.v1.ListWatchedRunsResponse
-	92,  // 307: runnir.core.v1.RunnirCore.GetGitHubOrigins:output_type -> runnir.core.v1.GetGitHubOriginsResponse
-	95,  // 308: runnir.core.v1.RunnirCore.ListGitHubRepositories:output_type -> runnir.core.v1.ListGitHubRepositoriesResponse
-	98,  // 309: runnir.core.v1.RunnirCore.ListGitHubWorkflows:output_type -> runnir.core.v1.ListGitHubWorkflowsResponse
-	81,  // 310: runnir.core.v1.RunnirCore.GetGitHubRepository:output_type -> runnir.core.v1.GetGitHubRepositoryResponse
-	101, // 311: runnir.core.v1.RunnirCore.ListWorkflowRuns:output_type -> runnir.core.v1.ListWorkflowRunsResponse
-	116, // 312: runnir.core.v1.RunnirCore.ListRunJobs:output_type -> runnir.core.v1.ListRunJobsResponse
-	106, // 313: runnir.core.v1.RunnirCore.GetRunWorkflow:output_type -> runnir.core.v1.GetRunWorkflowResponse
-	115, // 314: runnir.core.v1.RunnirCore.GetFlow:output_type -> runnir.core.v1.GetFlowResponse
-	120, // 315: runnir.core.v1.RunnirCore.ListGitHubRefs:output_type -> runnir.core.v1.ListGitHubRefsResponse
-	123, // 316: runnir.core.v1.RunnirCore.DescribeWorkflowDispatch:output_type -> runnir.core.v1.DescribeWorkflowDispatchResponse
-	125, // 317: runnir.core.v1.RunnirCore.PrepareWorkflowDispatch:output_type -> runnir.core.v1.PrepareWorkflowDispatchResponse
-	127, // 318: runnir.core.v1.RunnirCore.ConfirmWorkflowDispatch:output_type -> runnir.core.v1.ConfirmWorkflowDispatchResponse
-	130, // 319: runnir.core.v1.RunnirCore.ListDispatchHistory:output_type -> runnir.core.v1.ListDispatchHistoryResponse
-	132, // 320: runnir.core.v1.RunnirCore.ClearDispatchHistory:output_type -> runnir.core.v1.ClearDispatchHistoryResponse
-	134, // 321: runnir.core.v1.RunnirCore.LinkDispatchRun:output_type -> runnir.core.v1.LinkDispatchRunResponse
-	137, // 322: runnir.core.v1.RunnirCore.GetJobLog:output_type -> runnir.core.v1.GetJobLogResponse
-	139, // 323: runnir.core.v1.RunnirCore.SaveJobLog:output_type -> runnir.core.v1.SaveJobLogResponse
-	141, // 324: runnir.core.v1.RunnirCore.PrepareRunAction:output_type -> runnir.core.v1.PrepareRunActionResponse
-	143, // 325: runnir.core.v1.RunnirCore.ConfirmRunAction:output_type -> runnir.core.v1.ConfirmRunActionResponse
-	148, // 326: runnir.core.v1.RunnirCore.GetToolReadiness:output_type -> runnir.core.v1.GetToolReadinessResponse
-	156, // 327: runnir.core.v1.RunnirCore.PrepareLocalRun:output_type -> runnir.core.v1.PrepareLocalRunResponse
-	158, // 328: runnir.core.v1.RunnirCore.ConfirmLocalRun:output_type -> runnir.core.v1.ConfirmLocalRunResponse
-	162, // 329: runnir.core.v1.RunnirCore.GetLocalRunOutput:output_type -> runnir.core.v1.GetLocalRunOutputResponse
-	164, // 330: runnir.core.v1.RunnirCore.CancelExecution:output_type -> runnir.core.v1.CancelExecutionResponse
-	211, // 331: runnir.core.v1.RunnirCore.ParseEnvFile:output_type -> runnir.core.v1.ParseEnvFileResponse
-	214, // 332: runnir.core.v1.RunnirCore.ListEnvFiles:output_type -> runnir.core.v1.ListEnvFilesResponse
-	216, // 333: runnir.core.v1.RunnirCore.ListEnvironments:output_type -> runnir.core.v1.ListEnvironmentsResponse
-	35,  // 334: runnir.core.v1.RunnirCore.SubscribeMcpRequests:output_type -> runnir.core.v1.McpRequest
-	47,  // 335: runnir.core.v1.RunnirCore.AnswerMcpRequest:output_type -> runnir.core.v1.AnswerMcpRequestResponse
-	32,  // 336: runnir.core.v1.McpBridge.CallTool:output_type -> runnir.core.v1.McpBridgeCallToolResponse
-	274, // [274:337] is the sub-list for method output_type
-	211, // [211:274] is the sub-list for method input_type
-	211, // [211:211] is the sub-list for extension type_name
-	211, // [211:211] is the sub-list for extension extendee
-	0,   // [0:211] is the sub-list for field type_name
+	161, // 154: runnir.core.v1.GetLocalRunOutputResponse.discarded_jobs:type_name -> runnir.core.v1.LocalRunLineSource
+	159, // 155: runnir.core.v1.GetLocalRunOutputResponse.jobs:type_name -> runnir.core.v1.LocalRunJobStatus
+	152, // 156: runnir.core.v1.GetLocalRunOutputResponse.plan:type_name -> runnir.core.v1.LocalRunPlan
+	231, // 157: runnir.core.v1.GetLocalRunOutputResponse.started_at:type_name -> google.protobuf.Timestamp
+	231, // 158: runnir.core.v1.GetLocalRunOutputResponse.finished_at:type_name -> google.protobuf.Timestamp
+	102, // 159: runnir.core.v1.WorkspaceActivity.runs:type_name -> runnir.core.v1.WorkflowRun
+	99,  // 160: runnir.core.v1.WorkspaceActivity.workflows:type_name -> runnir.core.v1.GitHubWorkflow
+	177, // 161: runnir.core.v1.WorkspaceActivity.freshness:type_name -> runnir.core.v1.ActivityFreshness
+	179, // 162: runnir.core.v1.WorkspaceActivity.changes:type_name -> runnir.core.v1.RunChange
+	182, // 163: runnir.core.v1.WorkspaceActivity.concurrency_hints:type_name -> runnir.core.v1.ConcurrencyHint
+	176, // 164: runnir.core.v1.WorkspaceActivity.savings:type_name -> runnir.core.v1.Saving
+	175, // 165: runnir.core.v1.WorkspaceActivity.storage_notice:type_name -> runnir.core.v1.StorageNotice
+	28,  // 166: runnir.core.v1.StorageNotice.state:type_name -> runnir.core.v1.StorageState
+	22,  // 167: runnir.core.v1.Saving.kind:type_name -> runnir.core.v1.SavingKind
+	231, // 168: runnir.core.v1.Saving.since:type_name -> google.protobuf.Timestamp
+	23,  // 169: runnir.core.v1.ActivityFreshness.source:type_name -> runnir.core.v1.ActivitySource
+	75,  // 170: runnir.core.v1.ActivityFreshness.status:type_name -> runnir.core.v1.GitHubStatus
+	231, // 171: runnir.core.v1.ActivityFreshness.checked_at:type_name -> google.protobuf.Timestamp
+	231, // 172: runnir.core.v1.ActivityFreshness.synced_at:type_name -> google.protobuf.Timestamp
+	231, // 173: runnir.core.v1.ActivityFreshness.changed_at:type_name -> google.protobuf.Timestamp
+	6,   // 174: runnir.core.v1.ActivityFreshness.pull_requests_access:type_name -> runnir.core.v1.GithubAccess
+	24,  // 175: runnir.core.v1.RunLink.kind:type_name -> runnir.core.v1.RunLinkKind
+	180, // 176: runnir.core.v1.RunChange.pull_request:type_name -> runnir.core.v1.ChangePullRequest
+	7,   // 177: runnir.core.v1.RunChange.status:type_name -> runnir.core.v1.PullRequestCi
+	231, // 178: runnir.core.v1.RunChange.latest_at:type_name -> google.protobuf.Timestamp
+	181, // 179: runnir.core.v1.RunChange.sections:type_name -> runnir.core.v1.RunChangeSection
+	231, // 180: runnir.core.v1.ChangePullRequest.merged_at:type_name -> google.protobuf.Timestamp
+	25,  // 181: runnir.core.v1.RunChangeSection.kind:type_name -> runnir.core.v1.RunChangeSectionKind
+	75,  // 182: runnir.core.v1.LoadOlderRunsResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	102, // 183: runnir.core.v1.SearchRunsResponse.indexed_runs:type_name -> runnir.core.v1.WorkflowRun
+	231, // 184: runnir.core.v1.SearchRunsOnGitHubRequest.cursor:type_name -> google.protobuf.Timestamp
+	75,  // 185: runnir.core.v1.SearchRunsOnGitHubResponse.status:type_name -> runnir.core.v1.GitHubStatus
+	102, // 186: runnir.core.v1.SearchRunsOnGitHubResponse.runs:type_name -> runnir.core.v1.WorkflowRun
+	231, // 187: runnir.core.v1.SearchRunsOnGitHubResponse.next_cursor:type_name -> google.protobuf.Timestamp
+	231, // 188: runnir.core.v1.SearchRunsOnGitHubResponse.looked_back_to:type_name -> google.protobuf.Timestamp
+	26,  // 189: runnir.core.v1.SearchRunsOnGitHubResponse.stop:type_name -> runnir.core.v1.SearchStop
+	191, // 190: runnir.core.v1.SearchWorkspacesResponse.workspaces:type_name -> runnir.core.v1.WorkspaceSearchHits
+	231, // 191: runnir.core.v1.WorkspaceSearchHits.saved_at:type_name -> google.protobuf.Timestamp
+	102, // 192: runnir.core.v1.WorkspaceSearchHits.runs:type_name -> runnir.core.v1.WorkflowRun
+	192, // 193: runnir.core.v1.WorkspaceSearchHits.pull_requests:type_name -> runnir.core.v1.SearchedPullRequest
+	99,  // 194: runnir.core.v1.WorkspaceSearchHits.workflows:type_name -> runnir.core.v1.GitHubWorkflow
+	193, // 195: runnir.core.v1.WorkspaceSearchHits.local_runs:type_name -> runnir.core.v1.SearchedLocalRun
+	231, // 196: runnir.core.v1.SearchedPullRequest.updated_at:type_name -> google.protobuf.Timestamp
+	231, // 197: runnir.core.v1.SearchedLocalRun.started_at:type_name -> google.protobuf.Timestamp
+	198, // 198: runnir.core.v1.ClearRunIndexResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
+	27,  // 199: runnir.core.v1.InsertWorkflowConcurrencyResponse.refusal:type_name -> runnir.core.v1.ConcurrencyRefusal
+	28,  // 200: runnir.core.v1.WorkspaceStorage.state:type_name -> runnir.core.v1.StorageState
+	198, // 201: runnir.core.v1.GetStorageUsageResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
+	198, // 202: runnir.core.v1.ClearWorkspaceCacheResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
+	198, // 203: runnir.core.v1.DeleteRecoveryCopiesResponse.workspaces:type_name -> runnir.core.v1.WorkspaceStorage
+	210, // 204: runnir.core.v1.ParseEnvFileResponse.entries:type_name -> runnir.core.v1.EnvEntry
+	211, // 205: runnir.core.v1.ParseEnvFileResponse.problems:type_name -> runnir.core.v1.EnvProblem
+	214, // 206: runnir.core.v1.ListEnvFilesResponse.files:type_name -> runnir.core.v1.RepositoryEnvFile
+	29,  // 207: runnir.core.v1.Analytics.level:type_name -> runnir.core.v1.AnalyticsLevel
+	218, // 208: runnir.core.v1.Analytics.sealed:type_name -> runnir.core.v1.AnalyticsCounter
+	218, // 209: runnir.core.v1.Analytics.today:type_name -> runnir.core.v1.AnalyticsCounter
+	29,  // 210: runnir.core.v1.SetAnalyticsLevelRequest.level:type_name -> runnir.core.v1.AnalyticsLevel
+	30,  // 211: runnir.core.v1.RecordUsageRequest.event:type_name -> runnir.core.v1.UsageEvent
+	48,  // 212: runnir.core.v1.RunnirCore.HealthCheck:input_type -> runnir.core.v1.HealthCheckRequest
+	50,  // 213: runnir.core.v1.RunnirCore.OpenRepository:input_type -> runnir.core.v1.OpenRepositoryRequest
+	51,  // 214: runnir.core.v1.RunnirCore.CloseRepository:input_type -> runnir.core.v1.CloseRepositoryRequest
+	53,  // 215: runnir.core.v1.RunnirCore.RefreshRepository:input_type -> runnir.core.v1.RefreshRepositoryRequest
+	172, // 216: runnir.core.v1.RunnirCore.GetWorkspaceActivity:input_type -> runnir.core.v1.GetWorkspaceActivityRequest
+	173, // 217: runnir.core.v1.RunnirCore.RefreshWorkspaceActivity:input_type -> runnir.core.v1.RefreshWorkspaceActivityRequest
+	183, // 218: runnir.core.v1.RunnirCore.LoadOlderRuns:input_type -> runnir.core.v1.LoadOlderRunsRequest
+	185, // 219: runnir.core.v1.RunnirCore.SearchRuns:input_type -> runnir.core.v1.SearchRunsRequest
+	187, // 220: runnir.core.v1.RunnirCore.SearchRunsOnGitHub:input_type -> runnir.core.v1.SearchRunsOnGitHubRequest
+	189, // 221: runnir.core.v1.RunnirCore.SearchWorkspaces:input_type -> runnir.core.v1.SearchWorkspacesRequest
+	194, // 222: runnir.core.v1.RunnirCore.ClearRunIndex:input_type -> runnir.core.v1.ClearRunIndexRequest
+	199, // 223: runnir.core.v1.RunnirCore.GetStorageUsage:input_type -> runnir.core.v1.GetStorageUsageRequest
+	201, // 224: runnir.core.v1.RunnirCore.ClearWorkspaceCache:input_type -> runnir.core.v1.ClearWorkspaceCacheRequest
+	203, // 225: runnir.core.v1.RunnirCore.DeleteWorkspaceData:input_type -> runnir.core.v1.DeleteWorkspaceDataRequest
+	205, // 226: runnir.core.v1.RunnirCore.DeleteRecoveryCopies:input_type -> runnir.core.v1.DeleteRecoveryCopiesRequest
+	207, // 227: runnir.core.v1.RunnirCore.SetStoragePreferences:input_type -> runnir.core.v1.SetStoragePreferencesRequest
+	220, // 228: runnir.core.v1.RunnirCore.GetAnalytics:input_type -> runnir.core.v1.GetAnalyticsRequest
+	221, // 229: runnir.core.v1.RunnirCore.SetAnalyticsLevel:input_type -> runnir.core.v1.SetAnalyticsLevelRequest
+	222, // 230: runnir.core.v1.RunnirCore.RecordUsage:input_type -> runnir.core.v1.RecordUsageRequest
+	56,  // 231: runnir.core.v1.RunnirCore.ListWorkflows:input_type -> runnir.core.v1.ListWorkflowsRequest
+	60,  // 232: runnir.core.v1.RunnirCore.ListLaunchPresets:input_type -> runnir.core.v1.ListLaunchPresetsRequest
+	76,  // 233: runnir.core.v1.RunnirCore.ValidateWorkflows:input_type -> runnir.core.v1.ValidateWorkflowsRequest
+	166, // 234: runnir.core.v1.RunnirCore.SaveWorkflowFile:input_type -> runnir.core.v1.SaveWorkflowFileRequest
+	168, // 235: runnir.core.v1.RunnirCore.CreateWorkflowFile:input_type -> runnir.core.v1.CreateWorkflowFileRequest
+	170, // 236: runnir.core.v1.RunnirCore.RenameWorkflowFile:input_type -> runnir.core.v1.RenameWorkflowFileRequest
+	196, // 237: runnir.core.v1.RunnirCore.InsertWorkflowConcurrency:input_type -> runnir.core.v1.InsertWorkflowConcurrencyRequest
+	63,  // 238: runnir.core.v1.RunnirCore.StartWorkflow:input_type -> runnir.core.v1.StartWorkflowRequest
+	65,  // 239: runnir.core.v1.RunnirCore.SubscribeEvents:input_type -> runnir.core.v1.SubscribeEventsRequest
+	67,  // 240: runnir.core.v1.RunnirCore.SetGitHubCredential:input_type -> runnir.core.v1.SetGitHubCredentialRequest
+	73,  // 241: runnir.core.v1.RunnirCore.ClearGitHubCredential:input_type -> runnir.core.v1.ClearGitHubCredentialRequest
+	70,  // 242: runnir.core.v1.RunnirCore.CheckGitHubToken:input_type -> runnir.core.v1.CheckGitHubTokenRequest
+	83,  // 243: runnir.core.v1.RunnirCore.ListPullRequests:input_type -> runnir.core.v1.ListPullRequestsRequest
+	86,  // 244: runnir.core.v1.RunnirCore.ListWatchedRuns:input_type -> runnir.core.v1.ListWatchedRunsRequest
+	91,  // 245: runnir.core.v1.RunnirCore.GetGitHubOrigins:input_type -> runnir.core.v1.GetGitHubOriginsRequest
+	94,  // 246: runnir.core.v1.RunnirCore.ListGitHubRepositories:input_type -> runnir.core.v1.ListGitHubRepositoriesRequest
+	82,  // 247: runnir.core.v1.RunnirCore.ListGitHubWorkflows:input_type -> runnir.core.v1.ListGitHubWorkflowsRequest
+	80,  // 248: runnir.core.v1.RunnirCore.GetGitHubRepository:input_type -> runnir.core.v1.GetGitHubRepositoryRequest
+	100, // 249: runnir.core.v1.RunnirCore.ListWorkflowRuns:input_type -> runnir.core.v1.ListWorkflowRunsRequest
+	104, // 250: runnir.core.v1.RunnirCore.ListRunJobs:input_type -> runnir.core.v1.ListRunJobsRequest
+	105, // 251: runnir.core.v1.RunnirCore.GetRunWorkflow:input_type -> runnir.core.v1.GetRunWorkflowRequest
+	109, // 252: runnir.core.v1.RunnirCore.GetFlow:input_type -> runnir.core.v1.GetFlowRequest
+	119, // 253: runnir.core.v1.RunnirCore.ListGitHubRefs:input_type -> runnir.core.v1.ListGitHubRefsRequest
+	122, // 254: runnir.core.v1.RunnirCore.DescribeWorkflowDispatch:input_type -> runnir.core.v1.DescribeWorkflowDispatchRequest
+	124, // 255: runnir.core.v1.RunnirCore.PrepareWorkflowDispatch:input_type -> runnir.core.v1.PrepareWorkflowDispatchRequest
+	126, // 256: runnir.core.v1.RunnirCore.ConfirmWorkflowDispatch:input_type -> runnir.core.v1.ConfirmWorkflowDispatchRequest
+	129, // 257: runnir.core.v1.RunnirCore.ListDispatchHistory:input_type -> runnir.core.v1.ListDispatchHistoryRequest
+	131, // 258: runnir.core.v1.RunnirCore.ClearDispatchHistory:input_type -> runnir.core.v1.ClearDispatchHistoryRequest
+	133, // 259: runnir.core.v1.RunnirCore.LinkDispatchRun:input_type -> runnir.core.v1.LinkDispatchRunRequest
+	135, // 260: runnir.core.v1.RunnirCore.GetJobLog:input_type -> runnir.core.v1.GetJobLogRequest
+	138, // 261: runnir.core.v1.RunnirCore.SaveJobLog:input_type -> runnir.core.v1.SaveJobLogRequest
+	140, // 262: runnir.core.v1.RunnirCore.PrepareRunAction:input_type -> runnir.core.v1.PrepareRunActionRequest
+	142, // 263: runnir.core.v1.RunnirCore.ConfirmRunAction:input_type -> runnir.core.v1.ConfirmRunActionRequest
+	147, // 264: runnir.core.v1.RunnirCore.GetToolReadiness:input_type -> runnir.core.v1.GetToolReadinessRequest
+	154, // 265: runnir.core.v1.RunnirCore.PrepareLocalRun:input_type -> runnir.core.v1.PrepareLocalRunRequest
+	157, // 266: runnir.core.v1.RunnirCore.ConfirmLocalRun:input_type -> runnir.core.v1.ConfirmLocalRunRequest
+	162, // 267: runnir.core.v1.RunnirCore.GetLocalRunOutput:input_type -> runnir.core.v1.GetLocalRunOutputRequest
+	164, // 268: runnir.core.v1.RunnirCore.CancelExecution:input_type -> runnir.core.v1.CancelExecutionRequest
+	209, // 269: runnir.core.v1.RunnirCore.ParseEnvFile:input_type -> runnir.core.v1.ParseEnvFileRequest
+	213, // 270: runnir.core.v1.RunnirCore.ListEnvFiles:input_type -> runnir.core.v1.ListEnvFilesRequest
+	216, // 271: runnir.core.v1.RunnirCore.ListEnvironments:input_type -> runnir.core.v1.ListEnvironmentsRequest
+	34,  // 272: runnir.core.v1.RunnirCore.SubscribeMcpRequests:input_type -> runnir.core.v1.SubscribeMcpRequestsRequest
+	46,  // 273: runnir.core.v1.RunnirCore.AnswerMcpRequest:input_type -> runnir.core.v1.AnswerMcpRequestRequest
+	31,  // 274: runnir.core.v1.McpBridge.CallTool:input_type -> runnir.core.v1.McpBridgeCallToolRequest
+	49,  // 275: runnir.core.v1.RunnirCore.HealthCheck:output_type -> runnir.core.v1.HealthCheckResponse
+	54,  // 276: runnir.core.v1.RunnirCore.OpenRepository:output_type -> runnir.core.v1.RepositoryResponse
+	52,  // 277: runnir.core.v1.RunnirCore.CloseRepository:output_type -> runnir.core.v1.CloseRepositoryResponse
+	54,  // 278: runnir.core.v1.RunnirCore.RefreshRepository:output_type -> runnir.core.v1.RepositoryResponse
+	174, // 279: runnir.core.v1.RunnirCore.GetWorkspaceActivity:output_type -> runnir.core.v1.WorkspaceActivity
+	174, // 280: runnir.core.v1.RunnirCore.RefreshWorkspaceActivity:output_type -> runnir.core.v1.WorkspaceActivity
+	184, // 281: runnir.core.v1.RunnirCore.LoadOlderRuns:output_type -> runnir.core.v1.LoadOlderRunsResponse
+	186, // 282: runnir.core.v1.RunnirCore.SearchRuns:output_type -> runnir.core.v1.SearchRunsResponse
+	188, // 283: runnir.core.v1.RunnirCore.SearchRunsOnGitHub:output_type -> runnir.core.v1.SearchRunsOnGitHubResponse
+	190, // 284: runnir.core.v1.RunnirCore.SearchWorkspaces:output_type -> runnir.core.v1.SearchWorkspacesResponse
+	195, // 285: runnir.core.v1.RunnirCore.ClearRunIndex:output_type -> runnir.core.v1.ClearRunIndexResponse
+	200, // 286: runnir.core.v1.RunnirCore.GetStorageUsage:output_type -> runnir.core.v1.GetStorageUsageResponse
+	202, // 287: runnir.core.v1.RunnirCore.ClearWorkspaceCache:output_type -> runnir.core.v1.ClearWorkspaceCacheResponse
+	204, // 288: runnir.core.v1.RunnirCore.DeleteWorkspaceData:output_type -> runnir.core.v1.DeleteWorkspaceDataResponse
+	206, // 289: runnir.core.v1.RunnirCore.DeleteRecoveryCopies:output_type -> runnir.core.v1.DeleteRecoveryCopiesResponse
+	208, // 290: runnir.core.v1.RunnirCore.SetStoragePreferences:output_type -> runnir.core.v1.SetStoragePreferencesResponse
+	219, // 291: runnir.core.v1.RunnirCore.GetAnalytics:output_type -> runnir.core.v1.Analytics
+	219, // 292: runnir.core.v1.RunnirCore.SetAnalyticsLevel:output_type -> runnir.core.v1.Analytics
+	223, // 293: runnir.core.v1.RunnirCore.RecordUsage:output_type -> runnir.core.v1.RecordUsageResponse
+	57,  // 294: runnir.core.v1.RunnirCore.ListWorkflows:output_type -> runnir.core.v1.ListWorkflowsResponse
+	61,  // 295: runnir.core.v1.RunnirCore.ListLaunchPresets:output_type -> runnir.core.v1.ListLaunchPresetsResponse
+	79,  // 296: runnir.core.v1.RunnirCore.ValidateWorkflows:output_type -> runnir.core.v1.ValidateWorkflowsResponse
+	167, // 297: runnir.core.v1.RunnirCore.SaveWorkflowFile:output_type -> runnir.core.v1.SaveWorkflowFileResponse
+	169, // 298: runnir.core.v1.RunnirCore.CreateWorkflowFile:output_type -> runnir.core.v1.CreateWorkflowFileResponse
+	171, // 299: runnir.core.v1.RunnirCore.RenameWorkflowFile:output_type -> runnir.core.v1.RenameWorkflowFileResponse
+	197, // 300: runnir.core.v1.RunnirCore.InsertWorkflowConcurrency:output_type -> runnir.core.v1.InsertWorkflowConcurrencyResponse
+	64,  // 301: runnir.core.v1.RunnirCore.StartWorkflow:output_type -> runnir.core.v1.ExecutionResponse
+	66,  // 302: runnir.core.v1.RunnirCore.SubscribeEvents:output_type -> runnir.core.v1.CoreEvent
+	69,  // 303: runnir.core.v1.RunnirCore.SetGitHubCredential:output_type -> runnir.core.v1.SetGitHubCredentialResponse
+	74,  // 304: runnir.core.v1.RunnirCore.ClearGitHubCredential:output_type -> runnir.core.v1.ClearGitHubCredentialResponse
+	71,  // 305: runnir.core.v1.RunnirCore.CheckGitHubToken:output_type -> runnir.core.v1.CheckGitHubTokenResponse
+	84,  // 306: runnir.core.v1.RunnirCore.ListPullRequests:output_type -> runnir.core.v1.ListPullRequestsResponse
+	88,  // 307: runnir.core.v1.RunnirCore.ListWatchedRuns:output_type -> runnir.core.v1.ListWatchedRunsResponse
+	92,  // 308: runnir.core.v1.RunnirCore.GetGitHubOrigins:output_type -> runnir.core.v1.GetGitHubOriginsResponse
+	95,  // 309: runnir.core.v1.RunnirCore.ListGitHubRepositories:output_type -> runnir.core.v1.ListGitHubRepositoriesResponse
+	98,  // 310: runnir.core.v1.RunnirCore.ListGitHubWorkflows:output_type -> runnir.core.v1.ListGitHubWorkflowsResponse
+	81,  // 311: runnir.core.v1.RunnirCore.GetGitHubRepository:output_type -> runnir.core.v1.GetGitHubRepositoryResponse
+	101, // 312: runnir.core.v1.RunnirCore.ListWorkflowRuns:output_type -> runnir.core.v1.ListWorkflowRunsResponse
+	116, // 313: runnir.core.v1.RunnirCore.ListRunJobs:output_type -> runnir.core.v1.ListRunJobsResponse
+	106, // 314: runnir.core.v1.RunnirCore.GetRunWorkflow:output_type -> runnir.core.v1.GetRunWorkflowResponse
+	115, // 315: runnir.core.v1.RunnirCore.GetFlow:output_type -> runnir.core.v1.GetFlowResponse
+	120, // 316: runnir.core.v1.RunnirCore.ListGitHubRefs:output_type -> runnir.core.v1.ListGitHubRefsResponse
+	123, // 317: runnir.core.v1.RunnirCore.DescribeWorkflowDispatch:output_type -> runnir.core.v1.DescribeWorkflowDispatchResponse
+	125, // 318: runnir.core.v1.RunnirCore.PrepareWorkflowDispatch:output_type -> runnir.core.v1.PrepareWorkflowDispatchResponse
+	127, // 319: runnir.core.v1.RunnirCore.ConfirmWorkflowDispatch:output_type -> runnir.core.v1.ConfirmWorkflowDispatchResponse
+	130, // 320: runnir.core.v1.RunnirCore.ListDispatchHistory:output_type -> runnir.core.v1.ListDispatchHistoryResponse
+	132, // 321: runnir.core.v1.RunnirCore.ClearDispatchHistory:output_type -> runnir.core.v1.ClearDispatchHistoryResponse
+	134, // 322: runnir.core.v1.RunnirCore.LinkDispatchRun:output_type -> runnir.core.v1.LinkDispatchRunResponse
+	137, // 323: runnir.core.v1.RunnirCore.GetJobLog:output_type -> runnir.core.v1.GetJobLogResponse
+	139, // 324: runnir.core.v1.RunnirCore.SaveJobLog:output_type -> runnir.core.v1.SaveJobLogResponse
+	141, // 325: runnir.core.v1.RunnirCore.PrepareRunAction:output_type -> runnir.core.v1.PrepareRunActionResponse
+	143, // 326: runnir.core.v1.RunnirCore.ConfirmRunAction:output_type -> runnir.core.v1.ConfirmRunActionResponse
+	148, // 327: runnir.core.v1.RunnirCore.GetToolReadiness:output_type -> runnir.core.v1.GetToolReadinessResponse
+	156, // 328: runnir.core.v1.RunnirCore.PrepareLocalRun:output_type -> runnir.core.v1.PrepareLocalRunResponse
+	158, // 329: runnir.core.v1.RunnirCore.ConfirmLocalRun:output_type -> runnir.core.v1.ConfirmLocalRunResponse
+	163, // 330: runnir.core.v1.RunnirCore.GetLocalRunOutput:output_type -> runnir.core.v1.GetLocalRunOutputResponse
+	165, // 331: runnir.core.v1.RunnirCore.CancelExecution:output_type -> runnir.core.v1.CancelExecutionResponse
+	212, // 332: runnir.core.v1.RunnirCore.ParseEnvFile:output_type -> runnir.core.v1.ParseEnvFileResponse
+	215, // 333: runnir.core.v1.RunnirCore.ListEnvFiles:output_type -> runnir.core.v1.ListEnvFilesResponse
+	217, // 334: runnir.core.v1.RunnirCore.ListEnvironments:output_type -> runnir.core.v1.ListEnvironmentsResponse
+	35,  // 335: runnir.core.v1.RunnirCore.SubscribeMcpRequests:output_type -> runnir.core.v1.McpRequest
+	47,  // 336: runnir.core.v1.RunnirCore.AnswerMcpRequest:output_type -> runnir.core.v1.AnswerMcpRequestResponse
+	32,  // 337: runnir.core.v1.McpBridge.CallTool:output_type -> runnir.core.v1.McpBridgeCallToolResponse
+	275, // [275:338] is the sub-list for method output_type
+	212, // [212:275] is the sub-list for method input_type
+	212, // [212:212] is the sub-list for extension type_name
+	212, // [212:212] is the sub-list for extension extendee
+	0,   // [0:212] is the sub-list for field type_name
 }
 
 func init() { file_runnir_core_v1_runnir_core_proto_init() }
@@ -17493,7 +17564,7 @@ func file_runnir_core_v1_runnir_core_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_runnir_core_v1_runnir_core_proto_rawDesc), len(file_runnir_core_v1_runnir_core_proto_rawDesc)),
 			NumEnums:      31,
-			NumMessages:   199,
+			NumMessages:   200,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

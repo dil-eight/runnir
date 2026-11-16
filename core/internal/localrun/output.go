@@ -72,7 +72,8 @@ type Snapshot struct {
 	State          corev1.ExecutionState
 	Phase          Phase
 	Lines          []Line
-	Discarded      bool // lines after the requested sequence were dropped
+	Discarded      bool         // lines after the requested sequence were dropped
+	DiscardedJobs  []LineSource // the jobs those lines were from, sorted
 	Jobs           []JobStatus
 	Plan           Plan
 	ActVersion     string
@@ -100,7 +101,7 @@ type run struct {
 	lanes map[string]laneTimes
 	// outputs keeps each job's newest lines, so a job that writes a lot
 	// never pushes out what another one wrote.
-	outputs map[lineSource]*ring
+	outputs map[LineSource]*ring
 	next    uint64
 	// masks are the secret values hidden in kept lines while the run goes.
 	masks []string
@@ -373,18 +374,27 @@ func (o *Outputs) Since(executionID string, after uint64) (Snapshot, bool) {
 	snap := r.snap
 	snap.Jobs = append([]JobStatus(nil), r.snap.Jobs...)
 	snap.LastSequence = r.next
-	for _, output := range r.outputs {
+	for source, output := range r.outputs {
 		if output.dropped > after {
 			snap.Discarded = true
+			snap.DiscardedJobs = append(snap.DiscardedJobs, source)
 		}
 		snap.Lines = output.since(after, snap.Lines)
 	}
 	sort.Slice(snap.Lines, func(i, j int) bool { return snap.Lines[i].Sequence < snap.Lines[j].Sequence })
+	sort.Slice(snap.DiscardedJobs, func(i, j int) bool {
+		a, b := snap.DiscardedJobs[i], snap.DiscardedJobs[j]
+		return a.Workflow < b.Workflow || (a.Workflow == b.Workflow && a.JobID < b.JobID)
+	})
 	return snap, true
 }
 
-// lineSource is the job a line is from; job is empty for act's own messages.
-type lineSource struct{ workflow, job string }
+// LineSource is the job a line is from: its workflow and its id, empty for
+// act's own messages of that workflow.
+type LineSource struct {
+	Workflow string
+	JobID    string
+}
 
 // ring keeps the newest MaxLines lines of one job.
 type ring struct {
@@ -436,12 +446,12 @@ func (r *run) append(jobID, text string, isError bool) {
 		text = text[:cut] + " …"
 	}
 	r.next++
-	source := lineSource{workflow: workflow, job: jobID}
+	source := LineSource{Workflow: workflow, JobID: jobID}
 	output := r.outputs[source]
 	if output == nil {
 		output = &ring{}
 		if r.outputs == nil {
-			r.outputs = map[lineSource]*ring{}
+			r.outputs = map[LineSource]*ring{}
 		}
 		r.outputs[source] = output
 	}

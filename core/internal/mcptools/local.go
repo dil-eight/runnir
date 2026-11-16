@@ -1,6 +1,7 @@
 package mcptools
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -192,6 +193,11 @@ func (t *Tools) getLocalRun(c *call) (Result, error) {
 	job := ""
 	if a.Job != nil {
 		job = *a.Job
+	}
+	if job != "" {
+		// Only that job's dropped lines count: another job that writes a lot
+		// leaves its output whole.
+		result.Discarded = slices.ContainsFunc(out.GetDiscardedJobs(), func(s *corev1.LocalRunLineSource) bool { return s.GetJobId() == job })
 	}
 	size := 0
 	for _, l := range out.GetLines() {

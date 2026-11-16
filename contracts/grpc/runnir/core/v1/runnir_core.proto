@@ -1770,6 +1770,13 @@ message LocalRunLine {
   bool error = 4;
 }
 
+// A job of a local run, whose newest lines the Core keeps on their own.
+message LocalRunLineSource {
+  string workflow_id = 1;
+  // Empty for act's own messages of the workflow.
+  string job_id = 2;
+}
+
 message GetLocalRunOutputRequest {
   string execution_id = 1;
   // Lines after this sequence number; 0 for all that are kept.
@@ -1784,6 +1791,9 @@ message GetLocalRunOutputResponse {
   repeated LocalRunLine lines = 5;
   // Lines after `after_sequence` were dropped to stay within the bound.
   bool discarded = 6;
+  // The jobs those dropped lines were from, by workflow and job id; a job
+  // that lost no lines after `after_sequence` is not listed.
+  repeated LocalRunLineSource discarded_jobs = 16;
   // The highest sequence number so far.
   uint64 last_sequence = 7;
   repeated LocalRunJobStatus jobs = 8;

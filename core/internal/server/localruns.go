@@ -460,6 +460,9 @@ func (s *service) GetLocalRunOutput(_ context.Context, request *corev1.GetLocalR
 	for _, line := range snap.Lines {
 		out.Lines = append(out.Lines, &corev1.LocalRunLine{Sequence: line.Sequence, WorkflowId: line.Workflow, JobId: line.JobID, Text: line.Text, Error: line.Error})
 	}
+	for _, source := range snap.DiscardedJobs {
+		out.DiscardedJobs = append(out.DiscardedJobs, &corev1.LocalRunLineSource{WorkflowId: source.Workflow, JobId: source.JobID})
+	}
 	for _, job := range snap.Jobs {
 		out.Jobs = append(out.Jobs, &corev1.LocalRunJobStatus{
 			WorkflowId: job.Workflow, Id: job.ID, Name: job.Name, State: jobStateMessage(job.State), Reason: job.Reason,
