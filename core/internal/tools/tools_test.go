@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -371,7 +372,11 @@ func TestAnEngineCheckThatRunsOutOfTimeIsAFailedCheck(t *testing.T) {
 	}
 }
 
+// Node.js is looked for only for jobs that run on a Mac.
 func TestNodeIsFoundOnThePathOrInNvm(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("macOS jobs run on a Mac")
+	}
 	home := t.TempDir()
 	for _, version := range []string{"v18.20.4", "v24.13.1", "v9.11.2", "vnext"} {
 		bin := filepath.Join(home, ".nvm", "versions", "node", version, "bin")

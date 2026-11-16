@@ -548,6 +548,9 @@ func TestMacJobsRunInTheSandboxWithTheShims(t *testing.T) {
 }
 
 func TestTheSandboxProfileClosesTheHomeButForWhatTheRunNeeds(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("macOS jobs run on a Mac")
+	}
 	profile := sandboxProfile(sandboxRoots{Home: "/Users/me", Readable: []string{"/Users/me/code/app", `/Users/me/odd "name"`},
 		Writable: []string{"/private/var/folders/x/T/runnir-act-1/0"}})
 	for _, want := range []string{
@@ -601,6 +604,9 @@ func TestMacJobsAskedToRunWithoutTheSandboxRunAsActAlone(t *testing.T) {
 // the script's path at spaces, so a lane with Mac jobs keeps act's cache off
 // a path with one ("Runnir Local") and on the run's own folder.
 func TestHostLanesKeepActsCacheOffPathsWithSpaces(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("macOS jobs run on a Mac")
+	}
 	spec := &Spec{CacheDir: "/Users/me/Library/Caches/Runnir Local", DockerHost: "unix:///tmp/engine.sock"}
 	env := strings.Join(hostEnv(actEnv(spec, "/tmp/runnir-act-1"), "/tmp/runnir-act-1", ""), "\n")
 	if !strings.Contains(env, "XDG_CACHE_HOME=/tmp/runnir-act-1/cache\n") || strings.Contains(env, "Runnir Local") {
