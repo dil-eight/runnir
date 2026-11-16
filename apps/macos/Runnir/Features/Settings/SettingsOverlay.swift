@@ -52,6 +52,7 @@ extension EnvironmentValues {
 /// button or a click outside closes it.
 struct SettingsOverlay: View {
     let desktop: DesktopCoordinator
+    let windowID: UUID
     /// A license shown in Runnir's panel over Settings (About › View License).
     @State private var license: SettingsLicenseText?
 
@@ -70,6 +71,8 @@ struct SettingsOverlay: View {
                 .frame(maxWidth: 900, maxHeight: 640)
                 .padding(24)
                 .environment(\.showSettingsLicense) { license = $0 }
+                // Rows of the form ask in the window's own dialog.
+                .environment(\.dialogAsker, desktop.asker(for: windowID == DesktopCoordinator.managerWindowID ? nil : windowID))
         }
         .ignoresSafeArea()
         .transition(.opacity)
@@ -184,7 +187,7 @@ extension View {
         return blur(radius: shown ? 8 : 0)
             .accessibilityHidden(shown)
             .overlay {
-                if shown { SettingsOverlay(desktop: desktop) }
+                if shown { SettingsOverlay(desktop: desktop, windowID: windowID) }
             }
             .animation(.easeOut(duration: 0.15), value: shown)
         .environment(\.openRunnirSettings) { section in desktop.showSettings(in: windowID, section: section) }

@@ -123,26 +123,16 @@ struct LocalRunStopPrompt: Equatable {
         }
     }
 
-    /// The alert for the prompt. The stop button comes first and is marked
-    /// destructive, so macOS gives it no Return key; Cancel takes Escape and
-    /// the keyboard focus, so a stray Space keeps the run going.
-    @MainActor static func alert(for prompt: LocalRunStopPrompt) -> NSAlert {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = prompt.title
-        alert.informativeText = prompt.detail
-        let confirm = alert.addButton(withTitle: prompt.confirmTitle)
-        confirm.hasDestructiveAction = true
-        let cancel = alert.addButton(withTitle: "Cancel")
-        cancel.keyEquivalent = "\u{1b}"
-        alert.window.initialFirstResponder = cancel
-        return alert
+    /// The question in Runnir's own dialog: Cancel, then the stop, which is
+    /// red and takes no Return, so a stray key keeps the run going. Escape
+    /// cancels.
+    var question: DialogAsker.Question {
+        DialogAsker.Question(title: title, message: detail,
+                             choices: [DialogChoice(title: "Cancel"), DialogChoice(title: confirmTitle, kind: .destructive)], cancel: 0)
     }
 
-    /// Shows the prompt as an alert; true when the user chose to stop.
-    @MainActor static func ask(_ prompt: LocalRunStopPrompt) -> Bool {
-        alert(for: prompt).runModal() == .alertFirstButtonReturn
-    }
+    /// Whether the answer to `question` stops the run.
+    static func stops(_ answer: Int) -> Bool { answer == 1 }
 }
 
 /// The user's choice in Settings: run with the act installed on this Mac

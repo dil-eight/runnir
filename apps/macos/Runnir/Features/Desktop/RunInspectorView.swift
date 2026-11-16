@@ -334,18 +334,16 @@ struct RunInspectorView: View {
         }
         .onDisappear { actions.stopFollowing() }
         .githubAccessAlert(Binding(get: { actions.accessHelp }, set: { actions.accessHelp = $0 }), github: github)
-        .confirmationDialog(confirmationTitle, isPresented: confirmationShown, titleVisibility: .visible) {
+        .dialog(isPresented: confirmationShown) {
             if let pending = actions.pending {
                 let text = RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run, job: pending.prepared.job)
-                Button(text.button, role: pending.action == .cancel ? .destructive : nil) {
-                    guard let confirmed = actions.takeConfirmation() else { return }
-                    Task { await actions.send(confirmed, current: run) }
+                DialogPanel(title: text.title, message: text.message) {
+                    DialogButton(choice: DialogChoice(title: pending.action == .cancel ? "Keep Running" : "Not Now")) { actions.dismiss() }
+                    DialogButton(choice: DialogChoice(title: text.button, kind: pending.action == .cancel ? .destructive : .action)) {
+                        guard let confirmed = actions.takeConfirmation() else { return }
+                        Task { await actions.send(confirmed, current: run) }
+                    }
                 }
-                Button(pending.action == .cancel ? "Keep Running" : "Not Now", role: .cancel) { actions.dismiss() }
-            }
-        } message: {
-            if let pending = actions.pending {
-                Text(RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run, job: pending.prepared.job).message)
             }
         }
     }
@@ -354,10 +352,6 @@ struct RunInspectorView: View {
         Binding(get: { actions.pending != nil }, set: { shown in if !shown, actions.pending != nil { actions.dismiss() } })
     }
 
-    private var confirmationTitle: String {
-        guard let pending = actions.pending else { return "" }
-        return RunActionModel.confirmation(for: pending.action, run: pending.prepared.run ?? run, job: pending.prepared.job).title
-    }
 
     // MARK: Header
 

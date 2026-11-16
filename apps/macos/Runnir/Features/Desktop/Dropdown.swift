@@ -13,7 +13,9 @@ import SwiftUI
 // - .hoverTip(_:): a panel under a view while the pointer rests on it, which
 //   never takes a click.
 // - .dialog(isPresented:) with DialogPanel: a question or a notice in the
-//   middle of a dimmed window instead of a system alert.
+//   middle of a dimmed window instead of a system alert or confirmation
+//   dialog; .dialog(asking:) shows the question of a DialogAsker, which code
+//   that waits for the answer (closing a window, quitting) asks.
 // - .dropdownHost(): at the root of every window and sheet, outside every
 //   .dropdown and .dialog; it draws the open panel or dialog above
 //   everything, so a list or a scroll view never clips it.
@@ -70,6 +72,103 @@ private struct DialogRequest {
 private struct DialogKey: PreferenceKey {
     static var defaultValue: DialogRequest? { nil }
     static func reduce(value: inout DialogRequest?, nextValue: () -> DialogRequest?) { value = value ?? nextValue() }
+}
+
+/// A question in Runnir's own dialog from code that waits for its answer,
+/// such as closing a window or quitting. The view that shows it attaches
+/// `.dialog(asking:)`; Escape answers with the question's cancel choice.
+@MainActor
+@Observable
+final class DialogAsker {
+    struct Question: Equatable {
+        let title: String
+        let message: String
+        /// The buttons, left to right.
+        let choices: [DialogChoice]
+        /// The choice Escape answers with.
+        let cancel: Int
+    }
+
+    private(set) var question: Question?
+    @ObservationIgnored private var waiting: CheckedContinuation<Int, Never>?
+
+    /// Asks and waits for the index of the choice. A question still open is
+    /// answered with its cancel choice first.
+    func ask(_ question: Question) async -> Int {
+        if let open = self.question { answer(open.cancel) }
+        self.question = question
+        return await withCheckedContinuation { waiting = $0 }
+    }
+
+    func answer(_ choice: Int) {
+        let waiting = waiting
+        self.waiting = nil
+        question = nil
+        waiting?.resume(returning: choice)
+    }
+
+    func cancel() {
+        if let question { answer(question.cancel) }
+    }
+}
+
+extension EnvironmentValues {
+    /// Where a view asks its questions when it cannot put a dialog over the
+    /// window itself, such as a row of a Settings form: the window's own.
+    @Entry var dialogAsker: DialogAsker? = nil
+}
+
+/// One button of a dialog.
+struct DialogChoice: Equatable {
+    enum Kind: Equatable {
+        /// Cancel, or a choice beside the action such as Don't Save.
+        case plain
+        /// The action: Return takes it.
+        case action
+        /// One that stops, removes or loses something: red, never Return.
+        case destructive
+    }
+
+    let title: String
+    var kind: Kind = .plain
+    /// A key with Command, such as D for Don't Save.
+    var commandKey: Character?
+}
+
+/// A button of a DialogPanel, styled by its kind.
+struct DialogButton: View {
+    let choice: DialogChoice
+    let action: () -> Void
+
+    var body: some View {
+        switch choice.kind {
+        case .action:
+            Button(choice.title, action: action).buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
+        case .destructive:
+            Button(action: action) { Text(choice.title).foregroundStyle(RunnirTheme.destructive) }.buttonStyle(DesignButtonStyle())
+        case .plain:
+            if let key = choice.commandKey {
+                Button(choice.title, action: action).buttonStyle(DesignButtonStyle()).keyboardShortcut(KeyEquivalent(key), modifiers: .command)
+            } else {
+                Button(choice.title, action: action).buttonStyle(DesignButtonStyle())
+            }
+        }
+    }
+}
+
+extension View {
+    /// Shows the question `asker` asks in Runnir's own dialog.
+    func dialog(asking asker: DialogAsker) -> some View {
+        dialog(isPresented: Binding(get: { asker.question != nil }, set: { if !$0 { asker.cancel() } })) {
+            if let question = asker.question {
+                DialogPanel(title: question.title, message: question.message) {
+                    ForEach(Array(question.choices.enumerated()), id: \.offset) { index, choice in
+                        DialogButton(choice: choice) { asker.answer(index) }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Runnir's alert, drawn as its panels over a window are: a title, a line or

@@ -86,7 +86,7 @@ Local execution: review -> authorized -> preparing -> running -> stop requested 
 | O13 Restoration/persistence recovery | Invalid session, failed critical close write, missing monitor/root or corrupt DB | Non-blocking scoped recovery, retry/locate/keep open; never resurrect committed closed windows |
 | O10 Analytics question | A banner at the top of the first workspace window: Help improve Runnir, what Basic sends, what Usage analytics adds, what is never sent, PostHog in the US | Basic Counts Only / Share Usage Analytics, equal weight; shown once, again in a later window only if unanswered |
 
-Do not create custom replicas of native file pickers/alerts just to make a new design surface. Show their placement/transition and annotate expected system behavior outside the app viewport.
+Do not create custom replicas of native file pickers just to make a new design surface. Show their placement/transition and annotate expected system behavior outside the app viewport. Alerts and confirmations are Runnir's own dialog over the dimmed window (`DialogPanel`): a title, a line or two of explanation and Runnir's buttons, the action last, a red one for what stops, deletes or loses something.
 
 ## First Frame Set
 

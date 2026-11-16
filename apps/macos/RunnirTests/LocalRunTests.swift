@@ -619,19 +619,15 @@ struct LocalRunTests {
         #expect(LocalRunStopPrompt(action: .switchWorkspace, runs: ["CI in a"]).title == "Switch workspaces and stop the local run?")
     }
 
-    @Test func stopAlertKeepsTheRunOnEscapeAndSpace() {
-        let alert = LocalRunStopPrompt.alert(for: LocalRunStopPrompt(action: .quit, runs: ["CI in a"]))
-        #expect(alert.buttons.map(\.title) == ["Stop and Quit", "Cancel"])
-        #expect(alert.buttons[0].hasDestructiveAction)
-        #expect(alert.buttons[1].keyEquivalent == "\u{1b}")
-        #expect(alert.window.initialFirstResponder === alert.buttons[1])
-        // macOS keeps Return off a destructive button even though its key
-        // equivalent still reads "\r": the alert does not handle it.
-        alert.layout()
-        let returnKey = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
-                                         windowNumber: alert.window.windowNumber, context: nil, characters: "\r",
-                                         charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36)
-        #expect(returnKey.map { alert.window.performKeyEquivalent(with: $0) } == false)
+    /// The stop is red and takes no Return, so a stray key keeps the run
+    /// going; Escape answers Cancel.
+    @Test func stopQuestionKeepsTheRunOnEscapeAndReturn() {
+        let question = LocalRunStopPrompt(action: .quit, runs: ["CI in a"]).question
+        #expect(question.title == "Quit Runnir and stop the local run?")
+        #expect(question.choices == [DialogChoice(title: "Cancel"), DialogChoice(title: "Stop and Quit", kind: .destructive)])
+        #expect(!question.choices.contains { $0.kind == .action }, "no choice takes Return")
+        #expect(!LocalRunStopPrompt.stops(question.cancel))
+        #expect(LocalRunStopPrompt.stops(1))
     }
 
     /// A hub with workspace /repo/a open in `window` and a run going in it.
@@ -673,15 +669,16 @@ struct LocalRunTests {
         let (hub, _, run) = try await runningHub(window: window)
         let desktop = DesktopCoordinator(core: hub)
         var asked: [LocalRunStopPrompt] = []
-        desktop.confirmStoppingLocalRuns = { asked.append($0); return false }
+        desktop.confirmStoppingLocalRuns = { _, prompt, _ in asked.append(prompt); return false }
 
-        #expect(!desktop.confirmQuitStopsLocalRuns())
-        #expect(!desktop.shouldClose(window))
+        #expect(!(await desktop.confirmQuitStopsLocalRuns()))
+        #expect(!desktop.shouldClose(window), "the window stays while Runnir asks")
+        _ = await eventually { asked.count == 2 }
         #expect(asked == [LocalRunStopPrompt(action: .quit, runs: ["CI in a"]),
                           LocalRunStopPrompt(action: .closeWindow, runs: ["CI in a"])])
 
-        desktop.confirmStoppingLocalRuns = { _ in true }
-        #expect(desktop.confirmQuitStopsLocalRuns())
+        desktop.confirmStoppingLocalRuns = { _, _, _ in true }
+        #expect(await desktop.confirmQuitStopsLocalRuns())
         run.stopFollowing()
     }
 
@@ -716,8 +713,9 @@ struct LocalRunTests {
         let (hub, _, _) = await hub()
         let desktop = DesktopCoordinator(core: hub)
         var asked = false
-        desktop.confirmStoppingLocalRuns = { _ in asked = true; return false }
-        #expect(desktop.confirmQuitStopsLocalRuns())
+        desktop.confirmStoppingLocalRuns = { _, _, _ in asked = true; return false }
+        #expect(await desktop.confirmQuitStopsLocalRuns())
+        #expect(!desktop.quitAsks)
         #expect(!asked)
     }
 }

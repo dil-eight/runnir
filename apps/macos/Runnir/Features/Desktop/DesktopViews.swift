@@ -191,7 +191,7 @@ struct WorkspaceManagerView: View {
                     Image(systemName: "exclamationmark.triangle").foregroundStyle(RunnirTheme.warning)
                     Text(notice.text).font(.callout).frame(maxWidth: .infinity, alignment: .leading)
                     if desktop.persistenceBlocked {
-                        Button("Back Up and Reset...") { desktop.resetUnreadableSession() }
+                        Button("Back Up and Reset...") { Task { await desktop.resetUnreadableSession() } }
                     } else {
                         if let workspaceID = notice.locate {
                             Button("Locate...") { desktop.importRepository(relinkID: workspaceID) }
@@ -245,6 +245,7 @@ struct WorkspaceManagerView: View {
         .tint(RunnirTheme.primary)
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: DesktopCoordinator.managerWindowID)
+        .dialog(asking: desktop.asker(for: nil))
         .dropdownHost()
     }
 }
@@ -711,8 +712,9 @@ struct DesktopWorkspaceView: View {
         }
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: windowID)
-        // Inside the host, which draws its dialog over the whole window.
+        // Inside the host, which draws its dialogs over the whole window.
         .githubAccessAlert($accessHelp, github: desktop.github)
+        .dialog(asking: desktop.asker(for: windowID))
         .dropdownHost()
         .sheet(isPresented: $reportingBug) {
             BugReportSheet(draft: BugReportDraft.current(coreVersion: desktop.core?.status.coreVersion))
@@ -805,13 +807,13 @@ struct DesktopWorkspaceView: View {
         Task { await files.validate(hub: hub, workspaceID: workspace.id) }
     }
 
-    /// Opens a file in the editor, asking first, in a sheet on this window,
+    /// Opens a file in the editor, asking first, in this window's dialog,
     /// when the open one has unsaved edits; true once that file is loaded.
     private func openAndLoad(_ file: LocalWorkflowFile) async -> Bool {
         guard let reader else { return false }
         if file != files.selected {
             if files.isDirty, let current = files.selected {
-                let choice = await UnsavedChangesPrompt.ask(fileName: current.name, sheetOn: desktop.window(windowID))
+                let choice = await desktop.confirmUnsavedChanges(desktop, [current.name], windowID)
                 // Answered for the file that was open when asked.
                 guard files.selected == current else { return false }
                 switch choice {

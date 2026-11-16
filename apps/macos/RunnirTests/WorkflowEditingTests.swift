@@ -308,18 +308,19 @@ struct WorkflowEditingTests {
         #expect(CodeEditor.lineStarts(of: "é\n👋\n") == [0, 2, 5])
     }
 
+    /// The Mac's usual question, in Runnir's own dialog: Save takes Return,
+    /// Don't Save Command-D, and Escape cancels.
     @Test func unsavedPromptIsTheMacOne() {
-        let alert = UnsavedChangesPrompt.alert(for: ["ci.yml"])
-        #expect(alert.messageText == "Do you want to save the changes you made to ci.yml?")
-        #expect(alert.informativeText == "Your changes will be lost if you don't save them.")
-        #expect(alert.buttons.map(\.title) == ["Save", "Don't Save", "Cancel"])
-        #expect(alert.buttons[0].keyEquivalent == "\r")
+        let question = UnsavedChangesPrompt.question(for: ["ci.yml"])
+        #expect(question.title == "Do you want to save the changes you made to ci.yml?")
+        #expect(question.message == "Your changes will be lost if you don't save them.")
+        #expect(question.choices == [DialogChoice(title: "Don't Save", commandKey: "d"), DialogChoice(title: "Cancel"),
+                                     DialogChoice(title: "Save", kind: .action)])
         #expect(UnsavedChangesPrompt.title(for: ["ci.yml", "release.yml"]) == "Do you want to save the changes you made to 2 workflow files?")
         #expect(UnsavedChangesPrompt.title(for: ["ci.yml", "Secrets and Variables"]) == "Do you want to save the changes you made to 2 items?")
-        #expect(UnsavedChangesPrompt.choice(.alertFirstButtonReturn) == .save)
-        #expect(UnsavedChangesPrompt.choice(.alertSecondButtonReturn) == .discard)
-        #expect(UnsavedChangesPrompt.choice(.alertThirdButtonReturn) == .cancel)
-        #expect(UnsavedChangesPrompt.choice(.abort) == .cancel)
+        #expect(UnsavedChangesPrompt.choice(2) == .save)
+        #expect(UnsavedChangesPrompt.choice(0) == .discard)
+        #expect(UnsavedChangesPrompt.choice(question.cancel) == .cancel)
     }
 
     @Test func tokenizerKeepsTheOldColors() {

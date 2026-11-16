@@ -153,11 +153,23 @@ final class DesktopCoordinator {
     @ObservationIgnored private var geometryTask: Task<Void, Never>?
     @ObservationIgnored private var bootTask: Task<Void, Never>?
     @ObservationIgnored var terminationInProgress = false
-    /// Asks before quitting or closing a window stops a local run; tests
-    /// replace it.
-    @ObservationIgnored var confirmStoppingLocalRuns: @MainActor (LocalRunStopPrompt) -> Bool = LocalRunStopPrompt.ask
-    /// Asks before unsaved workflow edits would be lost; tests replace it.
-    @ObservationIgnored var confirmUnsavedChanges: @MainActor ([String]) -> UnsavedChoice = UnsavedChangesPrompt.ask(files:)
+    /// Asks before quitting, closing or switching a window stops a local
+    /// run, in Runnir's own dialog in that window; tests replace it.
+    @ObservationIgnored var confirmStoppingLocalRuns: @MainActor (DesktopCoordinator, LocalRunStopPrompt, UUID?) async -> Bool = { desktop, prompt, windowID in
+        LocalRunStopPrompt.stops(await desktop.ask(prompt.question, in: windowID))
+    }
+    /// Asks before unsaved workflow edits would be lost, in Runnir's own
+    /// dialog in that window; tests replace it.
+    @ObservationIgnored var confirmUnsavedChanges: @MainActor (DesktopCoordinator, [String], UUID?) async -> UnsavedChoice = { desktop, files, windowID in
+        UnsavedChangesPrompt.choice(await desktop.ask(UnsavedChangesPrompt.question(for: files), in: windowID))
+    }
+    /// The questions each window shows in its own dialog; nil is the
+    /// Workspace Manager.
+    @ObservationIgnored private var askers: [UUID?: DialogAsker] = [:]
+    /// Windows whose closing, or switching to another workspace, was already
+    /// asked about and answered yes.
+    @ObservationIgnored private var closeConfirmed: Set<UUID> = []
+    @ObservationIgnored private var switchConfirmed: Set<UUID> = []
     /// Brings the Workspace Manager forward, so a notice about a workspace
     /// that did not open is seen from the switcher or the menu bar too;
     /// tests replace it.
@@ -457,26 +469,17 @@ final class DesktopCoordinator {
             candidate.workspaces[index].lastOpenedAt = Date()
         }
         if let reuseWindowID, let current = windows[reuseWindowID] {
-            if current.record.workspaceID != workspace.id, case let names = current.unsavedNames, !names.isEmpty {
-                switch confirmUnsavedChanges(names) {
-                case .cancel:
-                    grant.stop()
-                    return
-                case .save:
-                    grant.stop()
-                    Task {
-                        if await current.saveUnsavedChanges() { openRegistered(workspace, reuseWindowID: reuseWindowID) }
-                    }
-                    return
-                case .discard:
-                    break
-                }
-            }
-            // Another workspace in this window closes the current one when
-            // this was its last window, which stops its local run.
-            if current.record.workspaceID != workspace.id, let core, let run = core.localRunEnding(withWindow: reuseWindowID),
-               !confirmStoppingLocalRuns(LocalRunStopPrompt(action: .switchWorkspace, runs: [core.describe(run)])) {
+            // Another workspace in this window first asks what switching
+            // would lose, then opens again with the answer.
+            if current.record.workspaceID != workspace.id, switchConfirmed.remove(reuseWindowID) == nil,
+               asksBeforeLeaving(reuseWindowID) {
                 grant.stop()
+                Task {
+                    if await confirmLeaving(reuseWindowID, action: .switchWorkspace) {
+                        switchConfirmed.insert(reuseWindowID)
+                        openRegistered(workspace, reuseWindowID: reuseWindowID)
+                    }
+                }
                 return
             }
             candidate.associate(windowID: reuseWindowID, workspaceID: workspace.id)
@@ -715,36 +718,54 @@ final class DesktopCoordinator {
         catch { message = "Window navigation could not be saved." }
     }
 
+    /// Whether the window closes now. One with unsaved edits or the local
+    /// run of its workspace stays open while Runnir asks in its dialog, and
+    /// closes once the answer lets it.
     func shouldClose(_ id: UUID) -> Bool {
         if terminationInProgress { return true }
-        if let controller = windows[id], case let names = controller.unsavedNames, !names.isEmpty {
-            switch confirmUnsavedChanges(names) {
-            case .cancel:
-                return false
-            case .save:
-                // The window closes once the file is saved; a failed save
-                // keeps it open with the reason in the editor.
-                Task {
-                    if await controller.saveUnsavedChanges() { controller.window?.performClose(nil) }
+        if closeConfirmed.remove(id) == nil, asksBeforeLeaving(id) {
+            Task {
+                if await confirmLeaving(id, action: .closeWindow) {
+                    closeConfirmed.insert(id)
+                    windows[id]?.window?.performClose(nil)
                 }
-                return false
-            case .discard:
-                break
             }
-        }
-        // The workspace's last window closes the repository in the Core,
-        // which stops its local run.
-        if let core, let run = core.localRunEnding(withWindow: id),
-           !confirmStoppingLocalRuns(LocalRunStopPrompt(action: .closeWindow, runs: [core.describe(run)])) {
             return false
         }
         var candidate = snapshot
         candidate.closeWindow(id)
         do { try commit(candidate); return true }
         catch {
-            showPersistenceAlert("The window could not be removed from the saved session. It will stay open so you can retry.")
+            tell("The window could not be removed from the saved session. It will stay open so you can retry.", in: id)
             return false
         }
+    }
+
+    /// Whether closing the window, or opening another workspace in it, asks
+    /// first: it has unsaved edits, or it is its workspace's last window
+    /// and the workspace has a local run going.
+    private func asksBeforeLeaving(_ id: UUID) -> Bool {
+        !(windows[id]?.unsavedNames.isEmpty ?? true) || core?.localRunEnding(withWindow: id) != nil
+    }
+
+    /// Asks, in the window's dialog, what closing it or opening another
+    /// workspace in it would lose: its unsaved edits, saved first when the
+    /// answer is Save (a failed save keeps the window with the reason in the
+    /// editor), and the local run that leaving the workspace's last window
+    /// stops. True when the window may go on.
+    func confirmLeaving(_ id: UUID, action: LocalRunStopPrompt.Action) async -> Bool {
+        if let controller = windows[id], case let names = controller.unsavedNames, !names.isEmpty {
+            switch await confirmUnsavedChanges(self, names, id) {
+            case .cancel: return false
+            case .save: guard await controller.saveUnsavedChanges() else { return false }
+            case .discard: break
+            }
+        }
+        if let core, let run = core.localRunEnding(withWindow: id),
+           !(await confirmStoppingLocalRuns(self, LocalRunStopPrompt(action: action, runs: [core.describe(run)]), id)) {
+            return false
+        }
+        return true
     }
 
     func didClose(_ id: UUID) {
@@ -783,12 +804,30 @@ final class DesktopCoordinator {
         case proceed, cancel, saveFirst
     }
 
+    /// Whether quitting asks first: some window has unsaved workflow edits,
+    /// or a local run is going.
+    var quitAsks: Bool {
+        windows.values.contains { !$0.unsavedNames.isEmpty } || !(core?.activeLocalRuns.isEmpty ?? true)
+    }
+
+    /// Asks what quitting would lose, saves the edits when asked, and
+    /// prepares to quit; true when Runnir may quit.
+    func confirmQuitting() async -> Bool {
+        switch await unsavedEditsQuitDecision() {
+        case .cancel: return false
+        case .saveFirst: guard await saveAllUnsavedWorkflows() else { return false }
+        case .proceed: break
+        }
+        return await confirmQuitStopsLocalRuns() && prepareToQuit()
+    }
+
     /// Whether quitting can go ahead with the unsaved workflow edits of all
-    /// windows: asks once for all of them.
-    func unsavedEditsQuitDecision() -> QuitDecision {
+    /// windows: asks once for all of them, in a window that has some.
+    func unsavedEditsQuitDecision() async -> QuitDecision {
         let names = windows.values.flatMap(\.unsavedNames).sorted()
         guard !names.isEmpty else { return .proceed }
-        switch confirmUnsavedChanges(names) {
+        let windowID = windows.first { !$0.value.unsavedNames.isEmpty }?.key
+        switch await confirmUnsavedChanges(self, names, windowID) {
         case .save: return .saveFirst
         case .discard: return .proceed
         case .cancel: return .cancel
@@ -804,12 +843,13 @@ final class DesktopCoordinator {
         return saved
     }
 
-    /// Quitting stops the Core and with it every local run; asks first.
-    func confirmQuitStopsLocalRuns() -> Bool {
+    /// Quitting stops the Core and with it every local run; asks first, in
+    /// the workspace window in front.
+    func confirmQuitStopsLocalRuns() async -> Bool {
         guard let core else { return true }
         let runs = core.activeLocalRuns
         guard !runs.isEmpty else { return true }
-        return confirmStoppingLocalRuns(LocalRunStopPrompt(action: .quit, runs: runs.map(core.describe)))
+        return await confirmStoppingLocalRuns(self, LocalRunStopPrompt(action: .quit, runs: runs.map(core.describe)), frontWorkspaceWindowID)
     }
 
     func prepareToQuit() -> Bool {
@@ -821,7 +861,7 @@ final class DesktopCoordinator {
             terminationInProgress = true
             return true
         } catch {
-            showPersistenceAlert("The current session could not be saved. Quit was cancelled; retry after checking available storage.")
+            tell("The current session could not be saved. Quit was cancelled; retry after checking available storage.", in: frontWorkspaceWindowID)
             return false
         }
     }
@@ -832,14 +872,13 @@ final class DesktopCoordinator {
         snapshot = candidate
     }
 
-    func resetUnreadableSession() {
+    func resetUnreadableSession() async {
         guard persistenceBlocked, let fileStore = store as? FileDesktopStateStore else { return }
-        let alert = NSAlert()
-        alert.messageText = "Reset local workspace registration and session?"
-        alert.informativeText = "The unreadable file will be preserved as a backup. Repository files, Keychain and other workspace data will not be deleted."
-        alert.addButton(withTitle: "Back Up and Reset")
-        alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let question = DialogAsker.Question(
+            title: "Reset local workspace registration and session?",
+            message: "The unreadable file will be preserved as a backup. Repository files, Keychain and other workspace data will not be deleted.",
+            choices: [DialogChoice(title: "Cancel"), DialogChoice(title: "Back Up and Reset", kind: .destructive)], cancel: 0)
+        guard await ask(question, in: nil) == 1, persistenceBlocked else { return }
         do {
             try fileStore.preserveUnreadable()
             try fileStore.save(DesktopSnapshot())
@@ -849,11 +888,37 @@ final class DesktopCoordinator {
         } catch { message = "The backup/reset failed. The original session has been preserved." }
     }
 
-    private func showPersistenceAlert(_ text: String) {
-        let alert = NSAlert()
-        alert.messageText = "Could not save session"
-        alert.informativeText = text
-        alert.runModal()
+    /// The dialog a window shows the questions of; nil is the Workspace
+    /// Manager.
+    func asker(for windowID: UUID?) -> DialogAsker {
+        if let asker = askers[windowID] { return asker }
+        let asker = DialogAsker()
+        askers[windowID] = asker
+        return asker
+    }
+
+    /// Asks in Runnir's own dialog in the workspace window, brought to the
+    /// front; in the Workspace Manager when there is no such window.
+    func ask(_ question: DialogAsker.Question, in windowID: UUID?) async -> Int {
+        if let windowID, let controller = windows[windowID] {
+            controller.window?.makeKeyAndOrderFront(nil)
+            return await asker(for: windowID).ask(question)
+        }
+        showManager()
+        return await asker(for: nil).ask(question)
+    }
+
+    /// Says that the session could not be saved, without waiting for OK.
+    private func tell(_ text: String, in windowID: UUID?) {
+        let question = DialogAsker.Question(title: "Could not save session", message: text,
+                                            choices: [DialogChoice(title: "OK", kind: .action)], cancel: 0)
+        Task { _ = await ask(question, in: windowID) }
+    }
+
+    /// The id of the workspace window nearest the front.
+    private var frontWorkspaceWindowID: UUID? {
+        guard let front = frontWorkspaceWindow else { return windows.keys.first }
+        return windows.first { $0.value.window === front }?.key
     }
 
     private func makeWindow(size: NSSize, title: String, borderless: Bool = false) -> NSWindow {
@@ -1144,25 +1209,15 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        switch desktop.unsavedEditsQuitDecision() {
-        case .cancel:
-            return quitCancelled()
-        case .proceed:
-            return finishTermination() ? .terminateNow : quitCancelled()
-        case .saveFirst:
-            // Saving goes through the Core; quit waits for it.
-            Task { @MainActor in
-                let saved = await desktop.saveAllUnsavedWorkflows()
-                let quits = saved && finishTermination()
-                if !quits { _ = quitCancelled() }
-                sender.reply(toApplicationShouldTerminate: quits)
-            }
-            return .terminateLater
+        guard desktop.quitAsks else { return desktop.prepareToQuit() ? .terminateNow : quitCancelled() }
+        // Unsaved edits and local runs are asked about in Runnir's own
+        // dialog, and saving goes through the Core; quitting waits for both.
+        Task { @MainActor in
+            let quits = await desktop.confirmQuitting()
+            if !quits { _ = quitCancelled() }
+            sender.reply(toApplicationShouldTerminate: quits)
         }
-    }
-
-    private func finishTermination() -> Bool {
-        desktop.confirmQuitStopsLocalRuns() && desktop.prepareToQuit()
+        return .terminateLater
     }
 
     /// Quitting stops here; an update asked for by Update waits for the next

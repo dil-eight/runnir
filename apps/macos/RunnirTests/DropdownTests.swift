@@ -53,7 +53,7 @@ import Testing
                 found.append("\(file.lastPathComponent):\(line)")
             }
         }
-        #expect(found.isEmpty, "System alerts where Runnir's own belongs (.dialog with DialogPanel): \(found.sorted().joined(separator: ", "))")
+        #expect(found.isEmpty, "System alerts where Runnir's own dialog belongs (.dialog, DialogAsker): \(found.sorted().joined(separator: ", "))")
     }
 
     @Test func theAuditFindsSystemAlerts() {
@@ -62,8 +62,11 @@ import Testing
         content.dialog(isPresented: $shown) { DialogPanel(title: "A", message: "B") { Button("OK") {} } }
         // .alert("in a comment") is fine.
             .alert(isPresented: $shown) { Alert(title: Text("A")) }
+            .confirmationDialog("Remove?", isPresented: $removing) { Button("Remove") {} }
+        let alert = NSAlert()
+        await asker.ask(question)
         """##
-        #expect(SystemAlertAudit.lines(in: source) == [1, 4])
+        #expect(SystemAlertAudit.lines(in: source) == [1, 4, 5, 6])
     }
 
     @Test func theAuditFindsSystemDropdowns() {
@@ -114,10 +117,11 @@ enum SystemDropdownAudit {
     }
 }
 
-/// SwiftUI's alerts, which Runnir draws as its own dialog (`.dialog` with
-/// DialogPanel) over a dimmed window.
+/// SwiftUI's alerts and confirmation dialogs and AppKit's NSAlert, which
+/// Runnir draws as its own dialog (`.dialog`, DialogAsker) over a dimmed
+/// window.
 enum SystemAlertAudit {
-    private static let alert = try! NSRegularExpression(pattern: #"\.alert\("#)
+    private static let alert = try! NSRegularExpression(pattern: #"\.alert\(|\.confirmationDialog\(|(?<![\w.])NSAlert\("#)
 
     /// 1-based lines of system alerts.
     static func lines(in source: String) -> [Int] {

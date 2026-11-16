@@ -21,6 +21,8 @@ struct ScenarioFlowView: View {
     /// What starting a manual job did, by workflow path.
     @State private var manualMessages: [String: String] = [:]
     @State private var startingJobID: String?
+    /// Asks before a manual job starts.
+    @State private var asker = DialogAsker()
     /// The width the view has, for the layout below.
     @State private var width: CGFloat = 0
 
@@ -39,6 +41,7 @@ struct ScenarioFlowView: View {
             content
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .dialog(asking: asker)
     }
 
     /// How wide a lane's jobs are: their columns of nodes with the arrows between.
@@ -316,7 +319,8 @@ struct ScenarioFlowView: View {
             guard let hub, startingJobID == nil else { return }
             startingJobID = job.id
             Task {
-                if let message = await ManualJobRunner.start(start, jobName: name, workflowName: lane.name, workspaceID: workspaceID, hub: hub) {
+                if let message = await ManualJobRunner.start(start, jobName: name, workflowName: lane.name, workspaceID: workspaceID, hub: hub,
+                                                             ask: { title, detail, button in await ManualJobRunner.ask(asker, title, detail, button) }) {
                     manualMessages[lane.path] = message
                 }
                 startingJobID = nil
