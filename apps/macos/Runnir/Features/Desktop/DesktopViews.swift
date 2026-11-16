@@ -191,7 +191,7 @@ struct WorkspaceManagerView: View {
                     Image(systemName: "exclamationmark.triangle").foregroundStyle(RunnirTheme.warning)
                     Text(notice.text).font(.callout).frame(maxWidth: .infinity, alignment: .leading)
                     if desktop.persistenceBlocked {
-                        Button("Back Up and Reset...") { desktop.resetUnreadableSession() }
+                        Button("Back Up and Reset...") { Task { await desktop.resetUnreadableSession() } }
                     } else {
                         if let workspaceID = notice.locate {
                             Button("Locate...") { desktop.importRepository(relinkID: workspaceID) }
@@ -246,6 +246,7 @@ struct WorkspaceManagerView: View {
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: DesktopCoordinator.managerWindowID)
         .dropdownHost()
+        .environment(\.dialogAsker, desktop.asker(for: nil))
     }
 }
 
@@ -701,9 +702,14 @@ struct DesktopWorkspaceView: View {
         }
         .ignoresSafeArea()
         .settingsOverlay(desktop: desktop, windowID: windowID)
+        // Inside the host, which draws its dialogs over the whole window,
+        // Settings included; the window's own questions come from the
+        // environment's asker.
+        .mcpPrompts(desktop: desktop, windowID: windowID)
+        .githubAccessAlert($accessHelp, github: desktop.github)
         .dropdownHost()
         .sheet(isPresented: $reportingBug) {
-            BugReportSheet(draft: BugReportDraft.current(coreVersion: desktop.core?.status.coreVersion))
+            BugReportSheet(draft: BugReportDraft.current(coreVersion: desktop.core?.status.coreVersion)).dropdownHost()
         }
         .task { if let reader { await files.load(reader) } }
         .onChange(of: state.selectedSection) { _, value in desktop.selectSection(value, windowID: windowID) }
@@ -733,15 +739,15 @@ struct DesktopWorkspaceView: View {
                         .buttonStyle(DesignButtonStyle())
                 }
                 .padding(20).frame(width: 420)
+                .dropdownHost()
             }
         }
         .sheet(item: Binding(get: { state.localRunRequest }, set: { state.localRunRequest = $0 })) { request in
             if let session, let hub = desktop.core {
-                LocalRunSheet(model: LocalRunReviewModel(workspaceID: workspace.id, workflowID: request.workflowID,
-                                                         jobs: session.workflows.first { $0.id == request.workflowID }?.jobs ?? [],
-                                                         jobID: request.jobID, hub: hub, values: desktop.localRunValues),
+                LocalRunSheet(model: LocalRunReviewModel(workspaceID: workspace.id, scenario: request.scenario, selection: request.selection,
+                                                         hub: hub, values: desktop.localRunValues),
                               repositoryPath: session.path,
-                              unsavedFile: files.isDirty && files.selected?.relativePath == request.workflowID ? files.selected?.name : nil,
+                              unsavedFile: files.isDirty ? files.selected.map { UnsavedWorkflow(path: $0.relativePath, name: $0.name) } : nil,
                               manageValues: { state.selectedSection = .secrets }) { _ in
                     state.selectedSection = .workspace
                     state.workspaceTab = .localRun
@@ -754,6 +760,7 @@ struct DesktopWorkspaceView: View {
                         .buttonStyle(DesignButtonStyle())
                 }
                 .padding(20).frame(width: 420)
+                .dropdownHost()
             }
         }
         .sheet(item: $fileNameRequest, onDismiss: {
@@ -767,13 +774,16 @@ struct DesktopWorkspaceView: View {
                 case .rename: await renameSelected(to: name)
                 }
             }
+            .dropdownHost()
         }
-        .githubAccessAlert($accessHelp, github: desktop.github)
         // What the repository allows (push, the owner's installation) is read
         // once GitHub answers, and again after a new sign-in.
         .task(id: "\(session?.githubAccess == .ok)|\(desktop.core?.credentialGeneration ?? 0)") {
             if session?.githubAccess == .ok { await desktop.core?.githubRepository(workspaceID: workspace.id) }
         }
+        // The window's questions (closing it, quitting): its root and its
+        // sheets show them, whichever is in front (.dropdownHost()).
+        .environment(\.dialogAsker, desktop.asker(for: windowID))
     }
 
     private var session: RepositorySession? { desktop.core?.session(for: workspace.id) }
@@ -795,13 +805,13 @@ struct DesktopWorkspaceView: View {
         Task { await files.validate(hub: hub, workspaceID: workspace.id) }
     }
 
-    /// Opens a file in the editor, asking first, in a sheet on this window,
+    /// Opens a file in the editor, asking first, in this window's dialog,
     /// when the open one has unsaved edits; true once that file is loaded.
     private func openAndLoad(_ file: LocalWorkflowFile) async -> Bool {
         guard let reader else { return false }
         if file != files.selected {
             if files.isDirty, let current = files.selected {
-                let choice = await UnsavedChangesPrompt.ask(fileName: current.name, sheetOn: desktop.window(windowID))
+                let choice = await desktop.confirmUnsavedChanges(desktop, [current.name], windowID)
                 // Answered for the file that was open when asked.
                 guard files.selected == current else { return false }
                 switch choice {
@@ -1042,7 +1052,7 @@ struct DesktopWorkspaceView: View {
     @ViewBuilder private var localRunButtons: some View {
         if state.workspaceTab == .localRun, let run = localRun {
             if run.isFinished {
-                Button { state.localRunRequest = LocalRunRequest(workflowID: run.plan.workflowID, jobID: run.plan.jobID.isEmpty ? nil : run.plan.jobID) } label: {
+                Button { state.localRunRequest = .again(run.plan) } label: {
                     Label("Run Again...", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(DesignButtonStyle(primary: true)).disabled(!canValidate)
@@ -1055,11 +1065,9 @@ struct DesktopWorkspaceView: View {
                 .help("Stop act and remove this run's containers")
             }
         } else {
-            Button {
-                if let file = files.selected { state.localRunRequest = LocalRunRequest(workflowID: file.relativePath, jobID: nil) }
-            } label: { Label("Run Locally...", systemImage: "play.fill") }
+            Button { state.localRunRequest = LocalRunRequest() } label: { Label("Run Locally...", systemImage: "play.fill") }
                 .buttonStyle(DesignButtonStyle(primary: true))
-                .disabled(!canValidate || files.selected == nil || localRun.map { !$0.isFinished } == true)
+                .disabled(!canValidate || localRun.map { !$0.isFinished } == true)
                 .help(runLocallyHelp)
         }
     }
@@ -1067,8 +1075,7 @@ struct DesktopWorkspaceView: View {
     private var runLocallyHelp: String {
         if localRun.map({ !$0.isFinished }) == true { return "A local run of this workspace is in progress" }
         if !canValidate { return "Local runs start in Runnir Core, which has not opened this repository yet" }
-        if files.selected == nil { return "Choose a workflow file first" }
-        return "Review tools, compatibility and access, then run this workflow with act"
+        return "Review what a push, a pull request or another scenario starts, then run it with act (beta)"
     }
 
     /// Editor and Local run tabs of the Workspace section.
@@ -1087,6 +1094,7 @@ struct DesktopWorkspaceView: View {
                         LocalJobIcon(state: run.isFinished ? (run.state == .succeeded ? .succeeded : run.state == .cancelled ? .cancelled : .failed) : .running)
                             .font(.system(size: 11))
                         Text("Local run")
+                        BetaBadge()
                     }
                 }.buttonStyle(WorkflowTabStyle(selected: state.workspaceTab == .localRun))
                 Spacer()

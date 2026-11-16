@@ -249,6 +249,7 @@ extension SettingsSection {
         case .notifications: .overlaySettingsNotifications
         case .pullRequests: .overlaySettingsPullRequests
         case .tools: .overlaySettingsTools
+        case .mcp: .overlaySettingsMcp
         case .storage: .overlaySettingsStorage
         case .privacy: .overlaySettingsPrivacy
         case .about: .overlaySettingsAbout

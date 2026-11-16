@@ -1,5 +1,7 @@
-# Local agent skills copied from design/source projects.
-/.agents/
+# Local agent skills copied from design/source projects. .agents/plugins is
+# Codex's marketplace of the Runnir plugin (plugins/runnir).
+/.agents/*
+!/.agents/plugins/
 /.claude/
 /.codex/
 /.cursor/

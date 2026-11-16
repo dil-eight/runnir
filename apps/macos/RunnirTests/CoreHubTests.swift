@@ -601,14 +601,14 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         installedAct: CoreToolStatus(state: .missing, detail: "No act is installed on this Mac."),
         dockerCLI: CoreToolStatus(state: .found, version: "29.0.1", path: "/usr/local/bin/docker"),
         engine: CoreContainerEngine(state: .found, name: "OrbStack", context: "orbstack", local: true, cpus: 8, memoryBytes: 16 << 30),
-        checkedAt: Date(), testedActVersion: "0.2.89", minimumActVersion: "0.2.60")
+        checkedAt: Date(), testedActVersion: "0.2.89", minimumActVersion: "0.2.78")
     var readiness = FakeCore.readyTools
     private var _readinessRefreshes = 0
     var readinessRefreshes: Int { lock.withLock { _readinessRefreshes } }
     /// What PrepareLocalRun answers; nil throws `.unavailable`.
     var preparedLocalRun: CorePreparedLocalRun?
-    private var _localRunRequests: [(workflowID: String, jobID: String?, event: String?, installed: Bool)] = []
-    var localRunRequests: [(workflowID: String, jobID: String?, event: String?, installed: Bool)] { lock.withLock { _localRunRequests } }
+    private var _localRunRequests: [(scenario: CoreScenario?, selection: CoreLocalRunSelection?, installed: Bool, unsandboxed: Bool)] = []
+    var localRunRequests: [(scenario: CoreScenario?, selection: CoreLocalRunSelection?, installed: Bool, unsandboxed: Bool)] { lock.withLock { _localRunRequests } }
     var confirmLocalRunError: CoreServiceError?
     private var _confirmedLocalRuns: [String] = []
     var confirmedLocalRuns: [String] { lock.withLock { _confirmedLocalRuns } }
@@ -636,17 +636,22 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
     private var _localRunLimits: [(limits: CoreLocalRunLimits?, reset: Bool)] = []
     /// The limits each review asked for.
     var localRunLimits: [(limits: CoreLocalRunLimits?, reset: Bool)] { lock.withLock { _localRunLimits } }
-    func prepareLocalRun(repositoryID: String, workflowID: String, jobID: String?, event: String?,
+    func prepareLocalRun(repositoryID: String, scenario: CoreScenario?, selection: CoreLocalRunSelection?, hostUnsandboxed: Bool,
                          useInstalledAct: Bool, limits: CoreLocalRunLimits?, resetLimits: Bool) async throws -> CorePreparedLocalRun {
         try lock.withLock {
-            _localRunRequests.append((workflowID, jobID, event, useInstalledAct))
+            _localRunRequests.append((scenario, selection, useInstalledAct, hostUnsandboxed))
             _localRunLimits.append((limits, resetLimits))
             guard let preparedLocalRun else { throw CoreServiceError.unavailable }
             return preparedLocalRun
         }
     }
-    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String]) async throws -> CoreExecution {
+    private var _startedBy: [String?] = []
+    /// Who each confirmed run was started by.
+    var startedBy: [String?] { lock.withLock { _startedBy } }
+    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String],
+                         startedBy: String?) async throws -> CoreExecution {
         try lock.withLock {
+            _startedBy.append(startedBy)
             if let confirmLocalRunError { throw confirmLocalRunError }
             guard !_confirmedLocalRuns.contains(confirmationID) else { throw CoreServiceError.failedPrecondition("used") }
             _confirmedLocalRuns.append(confirmationID)
@@ -697,6 +702,55 @@ final class FakeCore: CoreServicing, @unchecked Sendable {
         let (stream, continuation) = AsyncThrowingStream.makeStream(of: CoreEvent.self, throwing: (any Error).self)
         lock.withLock { _subscriptions += 1; continuations.append(continuation) }
         return stream
+    }
+
+    // MARK: MCP requests
+
+    private var mcpContinuations: [UUID: AsyncThrowingStream<CoreMcpRequest, any Error>.Continuation] = [:]
+    private var mcpLatest: UUID?
+    private var mcpPending: [CoreMcpRequest] = []
+    private var _mcpSubscriptions = 0
+    private var _mcpAnswers: [(id: String, answer: CoreMcpAnswer)] = []
+    var mcpSubscriptions: Int { lock.withLock { _mcpSubscriptions } }
+    var mcpAnswers: [(id: String, answer: CoreMcpAnswer)] { lock.withLock { _mcpAnswers } }
+    func mcpRequests() -> AsyncThrowingStream<CoreMcpRequest, any Error> {
+        let (stream, continuation) = AsyncThrowingStream.makeStream(of: CoreMcpRequest.self, throwing: (any Error).self)
+        let id = UUID()
+        continuation.onTermination = { [weak self] _ in
+            guard let self else { return }
+            self.lock.withLock { self.mcpContinuations[id] = nil }
+        }
+        let pending: [CoreMcpRequest] = lock.withLock {
+            _mcpSubscriptions += 1
+            mcpContinuations[id] = continuation
+            mcpLatest = id
+            defer { mcpPending = [] }
+            return mcpPending
+        }
+        for request in pending { continuation.yield(request) }
+        return stream
+    }
+    /// Sends a request to the latest MCP subscriber, as the Core does; one
+    /// sent while none listens waits for the next.
+    func sendMcp(_ request: CoreMcpRequest) {
+        let continuation = lock.withLock { mcpLatest.flatMap { mcpContinuations[$0] } }
+        if let continuation, case .enqueued = continuation.yield(request) { return }
+        lock.withLock { mcpPending.append(request) }
+    }
+    func answerMcpRequest(id: String, answer: CoreMcpAnswer) async throws {
+        lock.withLock { _mcpAnswers.append((id, answer)) }
+    }
+    private var _mcpClaims: [String] = []
+    private var _mcpGone: Set<String> = []
+    /// The requests the app claimed before acting on them.
+    var mcpClaims: [String] { lock.withLock { _mcpClaims } }
+    /// Makes a request no longer wait, as when its client went away.
+    func endMcpRequest(_ id: String) { lock.withLock { _ = _mcpGone.insert(id) } }
+    func claimMcpRequest(id: String) async throws {
+        try lock.withLock {
+            guard !_mcpGone.contains(id) else { throw CoreServiceError.notFound }
+            _mcpClaims.append(id)
+        }
     }
 }
 
@@ -1440,5 +1494,68 @@ struct CoreHubTests {
                           executionState: .unspecified, message: "disk full", date: Date())
         provider.core.push(event)
         #expect(await eventually { hub.lastCoreMessage == "disk full" })
+    }
+}
+
+@MainActor
+@Suite struct CoreHubMcpTests {
+    private func readyHub() async -> (CoreHub, FakeProvider) {
+        let provider = FakeProvider()
+        let hub = CoreHub(provider: provider)
+        hub.startMonitoring()
+        provider.ready()
+        _ = await eventually { hub.status == .ready(version: "fake") }
+        _ = await eventually { provider.core.mcpSubscriptions >= 1 }
+        return (hub, provider)
+    }
+
+    private static let list = CoreMcpRequest(id: "mcp_1", client: "codex", tool: .listValueSets,
+                                             repository: "/r", set: "", secrets: [], variables: [])
+
+    @Test func theHandlerAnswersEachRequest() async {
+        let (hub, provider) = await readyHub()
+        var seen: [CoreMcpRequest] = []
+        hub.mcpRequestHandler = { request in
+            seen.append(request)
+            return .sets(CoreMcpValueSets(workspace: "r", sets: []))
+        }
+        provider.core.sendMcp(Self.list)
+        #expect(await eventually { provider.core.mcpAnswers.count == 1 })
+        #expect(seen == [Self.list])
+        #expect(provider.core.mcpAnswers.first?.id == "mcp_1")
+        #expect(provider.core.mcpAnswers.first?.answer == .sets(CoreMcpValueSets(workspace: "r", sets: [])))
+    }
+
+    @Test func withoutAHandlerARequestIsRefused() async {
+        let (hub, provider) = await readyHub()
+        provider.core.sendMcp(Self.list)
+        #expect(await eventually { provider.core.mcpAnswers.count == 1 })
+        withExtendedLifetime(hub) {}
+        guard case .refusal(let reason)? = provider.core.mcpAnswers.first?.answer else {
+            Issue.record("not a refusal")
+            return
+        }
+        #expect(reason.contains("starting"))
+    }
+
+    @Test func aWaitingAnswerDoesNotHoldTheNext() async {
+        let (hub, provider) = await readyHub()
+        var release: CheckedContinuation<Void, Never>?
+        hub.mcpRequestHandler = { request in
+            if request.tool == .setValues { await withCheckedContinuation { release = $0 } }
+            return .refusal(request.id)
+        }
+        provider.core.sendMcp(CoreMcpRequest(id: "mcp_set", client: "c", tool: .setValues, repository: "/r", set: "Repository",
+                                             secrets: [CoreMcpValue(name: "A", value: "x")], variables: []))
+        provider.core.sendMcp(Self.list)
+        #expect(await eventually { provider.core.mcpAnswers.map(\.id) == ["mcp_1"] })
+        release?.resume()
+        #expect(await eventually { provider.core.mcpAnswers.count == 2 })
+    }
+
+    @Test func aRequestNeverPrintsASecret() {
+        let value = CoreMcpValue(name: "API_KEY", value: "s3cr3t-VALUE")
+        #expect(!"\(value)".contains("s3cr3t"))
+        #expect(!String(describing: [value]).contains("s3cr3t"))
     }
 }

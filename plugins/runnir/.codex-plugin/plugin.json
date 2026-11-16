@@ -1,0 +1,33 @@
+{
+  "name": "runnir",
+  "version": "0.2.0",
+  "description": "Drive Runnir from Codex: read GitHub Actions runs and logs, plan what a pull request or push starts, run workflows locally with act, and fill in the values of local runs.",
+  "author": {
+    "name": "Runnir",
+    "url": "https://runnir.com"
+  },
+  "homepage": "https://runnir.com",
+  "repository": "https://github.com/dil-eight/runnir",
+  "license": "Apache-2.0",
+  "keywords": ["github-actions", "ci", "act", "local-runs", "secrets", "macos"],
+  "skills": "./skills/",
+  "mcpServers": "./codex.mcp.json",
+  "interface": {
+    "displayName": "Runnir",
+    "shortDescription": "GitHub Actions runs, logs and local runs from Codex",
+    "longDescription": "Runnir is a macOS app for GitHub Actions. With this plugin Codex reads a workspace's runs on GitHub with their jobs and logs, plans what a pull request, push, merge or tag starts, runs those workflows on your Mac with act and follows them, starts, cancels and re-runs workflows on GitHub, and saves the secrets and variables of local runs after you confirm them in Runnir. Needs Runnir in /Applications.",
+    "developerName": "Runnir",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://runnir.com",
+    "privacyPolicyURL": "https://runnir.com/privacy",
+    "termsOfServiceURL": "https://runnir.com/terms",
+    "defaultPrompt": [
+      "Why did the last CI run of this branch fail?",
+      "Run this branch's pull request workflows locally with Runnir.",
+      "Set up the secrets and variables Runnir's local runs of this repository need."
+    ],
+    "logo": "./assets/runnir.png",
+    "screenshots": []
+  }
+}

@@ -5,20 +5,25 @@
 package localrun
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
-	"slices"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/rhysd/actionlint"
+	"go.yaml.in/yaml/v3"
 
+	"runnir/core/internal/flow"
 	"runnir/core/internal/references"
 	"runnir/core/internal/tools"
+	"runnir/core/internal/yamlnode"
 )
 
 // Limits every local run gets, lowered to what the engine has.
@@ -39,18 +44,20 @@ var Platforms = map[string]string{
 	"ubuntu-22.04-arm": "catthehacker/ubuntu:act-22.04",
 }
 
-var (
-	ErrUnknownJob   = errors.New("the workflow has no job with this id")
-	ErrUnknownEvent = errors.New("the workflow is not triggered by this event")
-)
+// ErrUnknownJob: a selection names a job its workflow does not have.
+var ErrUnknownJob = errors.New("the workflow has no job with this id")
 
-// The shapes GitHub allows for event names and job ids. act gets the event
-// and the chosen job on its command line, so nothing else from a workflow
-// file may reach it there.
-var (
-	eventNamePattern = regexp.MustCompile(`^[a-z][a-z_]*$`)
-	jobIDPattern     = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
-)
+// The shape GitHub allows for event names. act gets a lane's event on its
+// command line, so nothing else from a workflow file may reach it there.
+var eventNamePattern = regexp.MustCompile(`^[a-z][a-z_]*$`)
+
+// macOSLabel is a GitHub-hosted macOS runner label act can run on a Mac
+// itself (macos-latest, macos-15, macos-26-xlarge). It reaches act's
+// command line, so only this shape counts.
+var macOSLabel = regexp.MustCompile(`^macos-[a-z0-9][a-z0-9.-]*$`)
+
+// hostOS is the system the Core runs on: on a Mac, macOS jobs run here.
+var hostOS = runtime.GOOS
 
 type Support int
 
@@ -62,6 +69,9 @@ const (
 	// Unknown: act decides when the job starts, for example when runs-on is
 	// an expression.
 	Unknown
+	// Host: a macOS runner on a Mac. act runs the job on this Mac in the
+	// macOS sandbox, not in a container. Never ticked by default.
+	Host
 )
 
 type JobPlan struct {
@@ -71,6 +81,15 @@ type JobPlan struct {
 	Image   string
 	Support Support
 	Reason  string
+	// Needs are the jobs it needs, by id as the file spells them.
+	Needs []string
+	// Selected: ticked, so it runs.
+	Selected bool
+	// Skipped says why the scenario skips it on GitHub; empty when it runs there.
+	Skipped string
+	// GitHubOnly: it uses an action that works only on GitHub, or needs a
+	// job that does. Unsupported, with the reason; never run locally.
+	GitHubOnly bool
 }
 
 type Limits struct {
@@ -84,27 +103,75 @@ type Image struct {
 	Present bool
 }
 
-type Plan struct {
+// LaneKind says why a workflow is in a run's scenario.
+type LaneKind int
+
+const (
+	// Direct: the scenario's event starts it.
+	Direct LaneKind = iota + 1
+	// Chained: workflow_run starts it after another lane.
+	Chained
+	// Manual: it starts only by hand.
+	Manual
+	// Outside: the scenario does not start it.
+	Outside
+)
+
+// Lane is one workflow of a run. act runs it on its own, after the lanes
+// before it, with a copy of its file that holds only the selected jobs and
+// the jobs they need.
+type Lane struct {
 	WorkflowID   string
 	WorkflowName string
-	// Events are the workflow's triggers; Event is the one this run uses.
-	Events []string
-	Event  string
-	// JobID is the chosen job; empty runs every job of the workflow. A
-	// chosen job brings the jobs it needs.
-	JobID  string
-	Jobs   []JobPlan
+	Kind         LaneKind
+	// Event is the event act gets; Why says what starts the lane in the
+	// scenario, Skipped why the scenario does not (an Outside lane).
+	Event, Why, Skipped string
+	// After is the workflow a Chained lane follows.
+	After      string
+	ParseError string
+	// Dispatchable: GitHub can start the workflow by hand.
+	Dispatchable bool
+	// HostLabels are the macOS runner labels of the lane's selected jobs,
+	// which act runs on this Mac.
+	HostLabels []string
+	Jobs       []JobPlan
+	// Digest is the SHA-256 of the file as reviewed; Copy is that file with
+	// only the selected jobs, which act runs; Payload is the event act gets,
+	// written by the server once the scenario's refs are known.
+	Digest  string
+	Copy    []byte
+	Payload []byte
+}
+
+// Selected reports whether any of the lane's jobs runs.
+func (l Lane) Selected() bool {
+	for _, job := range l.Jobs {
+		if job.Selected {
+			return true
+		}
+	}
+	return false
+}
+
+// Plan is a local run of a scenario: a lane per workflow of the repository,
+// and what the selected jobs together need.
+type Plan struct {
+	Scenarios []flow.Scenario
+	Scenario  flow.Scenario
+	// Lanes: the scenario's in run order, then those it does not start.
+	Lanes  []Lane
 	Images []Image
-	// Secrets and Variables the workflow reads, upper-cased. The values the
-	// user sets travel in Spec, never in the plan.
+	// Secrets and Variables the selected jobs read, upper-cased. The values
+	// the user sets travel in Spec, never in the plan.
 	Secrets   []string
 	Variables []string
-	// UnnamedSecrets: the workflow also reads secrets it does not name.
+	// UnnamedSecrets: a workflow also reads secrets it does not name.
 	UnnamedSecrets bool
 	// Environment is the environment whose values the run takes before the
 	// Repository's; empty for the Repository's alone or when the user
-	// chooses. act gives every job of a run the same values, so for a run of
-	// jobs in several environments, or in one an expression picks,
+	// chooses. act gives every job the same values, so for a run of jobs in
+	// several environments, or in one an expression picks,
 	// EnvironmentChoice says why the user chooses among Environments, which
 	// the server fills from ListEnvironments.
 	Environment       string
@@ -112,7 +179,12 @@ type Plan struct {
 	Environments      []string
 	Notes             []string
 	Blockers          []string
-	Limits            Limits
+	// HostJobs are the selected jobs that run on this Mac, as "CI ›
+	// build-ios": in the macOS sandbox, or without it when HostUnsandboxed.
+	HostJobs        []string
+	HostUnsandboxed bool
+	// Limits apply to each lane; the timeout is per workflow.
+	Limits Limits
 	// Ceiling is the most the engine allows; OwnLimits: the limits are the
 	// workspace's, not the defaults. LimitWarnings say what they risk and
 	// LimitNote what is worth reading about the engine; neither blocks a run.
@@ -120,78 +192,121 @@ type Plan struct {
 	OwnLimits     bool
 	LimitWarnings []string
 	LimitNote     string
-	// Digest is the SHA-256 of the workflow file the plan was made from.
-	Digest string
 }
 
 // Runnable reports whether the plan may be confirmed.
 func (p Plan) Runnable() bool { return len(p.Blockers) == 0 }
 
-// Request is what the user asked to run.
-type Request struct {
-	WorkflowID string
-	Source     []byte
-	JobID      string
-	Event      string
+// Selected are the lanes that run, in order.
+func (p Plan) Selected() []Lane {
+	var lanes []Lane
+	for _, lane := range p.Lanes {
+		if lane.Selected() {
+			lanes = append(lanes, lane)
+		}
+	}
+	return lanes
 }
 
-// NewPlan reads the workflow and decides what a run would do with limits
+// LaneInput is one workflow of the repository as the scenario sees it.
+type LaneInput struct {
+	WorkflowID string
+	Source     []byte
+	Kind       LaneKind
+	Event      string
+	Why        string
+	Skipped    string
+	After      string
+	// ParseError is the planner's; actionlint's errors also stop the lane.
+	ParseError string
+	// Order lists job ids as the scenario draws them; other jobs follow in
+	// the file's order.
+	Order []string
+	// JobSkipped says why the scenario skips a job, by id.
+	JobSkipped map[string]string
+	// Selected are the ticked job ids, used when the request is Chosen.
+	Selected []string
+}
+
+// Request is what the user asked to run.
+type Request struct {
+	Scenarios []flow.Scenario
+	Scenario  flow.Scenario
+	Lanes     []LaneInput
+	// Chosen: the lanes' Selected are the user's ticks; otherwise the run
+	// takes what the scenario starts that can run here.
+	Chosen bool
+	// HostUnsandboxed runs the selected macOS jobs without the macOS
+	// sandbox, as the user asked for this run.
+	HostUnsandboxed bool
+}
+
+// NewPlan reads the workflows and decides what a run would do with limits
 // (`Choose` makes them). imagePresent is only asked when the tools are ready,
-// and may be nil. It returns ErrUnknownJob or ErrUnknownEvent for a request
-// that does not fit the workflow.
+// and may be nil. It returns ErrUnknownJob for a selection of a job its
+// workflow does not have.
 func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePresent func(string) bool, limits Limits) (Plan, error) {
-	digest := sha256.Sum256(request.Source)
-	plan := Plan{WorkflowID: request.WorkflowID, JobID: request.JobID, Digest: hex.EncodeToString(digest[:]), Limits: limits}
+	plan := Plan{Scenarios: request.Scenarios, Scenario: request.Scenario, Limits: limits}
 	plan.Blockers = toolBlockers(report, useInstalledAct)
 	if !report.Ready(useInstalledAct) {
 		imagePresent = nil
 	}
-
-	workflow, errs := actionlint.Parse(request.Source)
-	if workflow == nil || len(errs) > 0 {
-		plan.Blockers = append(plan.Blockers, fmt.Sprintf("The workflow file has %s. Fix %s in the Workspace before running it locally.",
-			plural(len(errs), "syntax error", "syntax errors"), pronoun(len(errs))))
-		return plan, nil
-	}
-	if workflow.Name != nil {
-		plan.WorkflowName = workflow.Name.Value
-	}
-
-	for _, event := range workflow.On {
-		if name := event.EventName(); eventNamePattern.MatchString(name) && !slices.Contains(plan.Events, name) {
-			plan.Events = append(plan.Events, name)
-		}
-	}
-	plan.Event = request.Event
-	if plan.Event == "" {
-		plan.Event = defaultEvent(plan.Events)
-	} else if !slices.Contains(plan.Events, plan.Event) {
-		return Plan{}, ErrUnknownEvent
-	}
-	if plan.Event == "" {
-		plan.Blockers = append(plan.Blockers, "The workflow has no trigger to run it with.")
-	}
-
-	ids, err := jobsToRun(workflow, request.JobID)
-	if err != nil {
-		return Plan{}, err
-	}
-	if request.JobID != "" {
-		// act matches job ids exactly; use the id as the file spells it.
-		plan.JobID = planJob(strings.ToLower(request.JobID), workflow.Jobs[strings.ToLower(request.JobID)]).ID
-		if !jobIDPattern.MatchString(plan.JobID) {
-			plan.Blockers = append(plan.Blockers, fmt.Sprintf("Job id %q is not a valid GitHub job id.", plan.JobID))
-		}
-	}
 	images := map[string]bool{}
-	containerJobs := []string{}
-	services := []string{}
-	runnable := 0
-	for _, id := range ids {
-		job := workflow.Jobs[id]
-		jp := planJob(id, job)
-		if jp.Support != Unsupported {
+	var containerJobs, services, unparsed, sudo, xcodeTests []string
+	var copies [][]byte
+	var picks []environmentPick
+	secrets, variables := map[string]bool{}, map[string]bool{}
+	selected, runnable := 0, 0
+	for _, in := range request.Lanes {
+		lane, workflow, err := planLane(in, request.Chosen)
+		if err != nil {
+			return Plan{}, err
+		}
+		plan.Lanes = append(plan.Lanes, lane)
+		if lane.ParseError != "" && in.Kind != Outside && in.Kind != Manual {
+			unparsed = append(unparsed, lane.WorkflowID)
+		}
+		if !lane.Selected() {
+			continue
+		}
+		if !eventNamePattern.MatchString(lane.Event) {
+			plan.Blockers = append(plan.Blockers, fmt.Sprintf("%s has no event act can run it with.", lane.WorkflowID))
+		}
+		copies = append(copies, lane.Copy)
+		names := references.Find(lane.Copy)
+		for _, name := range names.Secrets {
+			secrets[name] = true
+		}
+		for _, name := range names.Variables {
+			variables[name] = true
+		}
+		plan.UnnamedSecrets = plan.UnnamedSecrets || names.UnnamedSecrets
+		var ids []string
+		for _, jp := range lane.Jobs {
+			if !jp.Selected {
+				continue
+			}
+			selected++
+			key := strings.ToLower(jp.ID)
+			ids = append(ids, key)
+			if jp.GitHubOnly {
+				plan.Blockers = append(plan.Blockers, fmt.Sprintf("%s › %s cannot run locally. %s", laneTitle(lane), jp.ID, jp.Reason))
+			}
+			if jp.Support == Unsupported {
+				continue
+			}
 			runnable++
+			if jp.Support == Host {
+				plan.HostJobs = append(plan.HostJobs, laneTitle(lane)+" › "+jp.ID)
+				if usesSudo(workflow.Jobs[key]) {
+					sudo = append(sudo, jp.ID)
+				}
+				if runsXcodeTests(workflow.Jobs[key]) {
+					xcodeTests = append(xcodeTests, jp.ID)
+				}
+				continue
+			}
+			job := workflow.Jobs[key]
 			if jp.Image != "" {
 				images[jp.Image] = true
 			}
@@ -203,23 +318,30 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 			for _, name := range serviceImages(job) {
 				images[name] = true
 			}
-			for _, name := range serviceNames(job) {
-				services = append(services, name)
-			}
+			services = append(services, serviceNames(job)...)
 			for _, name := range dockerSteps(job) {
 				images[name] = true
 			}
 		}
-		plan.Jobs = append(plan.Jobs, jp)
+		picks = append(picks, environmentPick{workflow: workflow, ids: ids})
 	}
-
-	if plan.JobID != "" {
-		if chosen := plan.job(plan.JobID); chosen != nil && chosen.Support == Unsupported {
-			plan.Blockers = append(plan.Blockers, fmt.Sprintf("Job %s can't run locally: %s.", plan.JobID, lowerFirst(chosen.Reason)))
+	plan.HostUnsandboxed = request.HostUnsandboxed && len(plan.HostJobs) > 0
+	if len(plan.HostJobs) > 0 && !plan.HostUnsandboxed {
+		if _, err := os.Stat(SandboxExec); err != nil {
+			plan.Blockers = append(plan.Blockers, "macOS jobs run in the macOS sandbox, and this Mac has no sandbox-exec.")
+		}
+		for _, lane := range plan.Lanes {
+			if !lane.Selected() || len(lane.HostLabels) == 0 {
+				continue
+			}
+			plan.Blockers = append(plan.Blockers, crossingReads(lane)...)
 		}
 	}
-	if len(ids) > 0 && runnable == 0 && request.JobID == "" {
-		plan.Blockers = append(plan.Blockers, "None of this workflow's jobs can run locally.")
+	switch {
+	case selected == 0:
+		plan.Blockers = append(plan.Blockers, "Tick at least one job to run.")
+	case runnable == 0:
+		plan.Blockers = append(plan.Blockers, "None of the ticked jobs can run locally.")
 	}
 
 	for ref := range images {
@@ -230,41 +352,419 @@ func NewPlan(request Request, report tools.Report, useInstalledAct bool, imagePr
 		plan.Images = append(plan.Images, Image{Ref: ref, Present: present})
 	}
 	sort.Slice(plan.Images, func(i, j int) bool { return plan.Images[i].Ref < plan.Images[j].Ref })
-
-	names := references.Find(request.Source)
-	plan.Secrets, plan.Variables, plan.UnnamedSecrets = names.Secrets, names.Variables, names.UnnamedSecrets
-	plan.Notes = notes(plan, report, containerJobs, services, request.Source)
+	plan.Secrets, plan.Variables = sortedKeys(secrets), sortedKeys(variables)
+	sort.Strings(services)
+	plan.Notes = notes(plan.UnnamedSecrets, runnable > len(plan.HostJobs), report, containerJobs, services, copies)
+	if len(sudo) > 0 {
+		plan.Notes = append(plan.Notes, fmt.Sprintf("%s %s sudo. A job on this Mac gets no root: sudo xcode-select -s selects that Xcode for the next steps, any other sudo fails.",
+			andList(sudo), map[bool]string{true: "runs", false: "run"}[len(sudo) == 1]))
+	}
+	if len(xcodeTests) > 0 && !plan.HostUnsandboxed {
+		plan.Notes = append(plan.Notes, fmt.Sprintf("%s %s xcodebuild test, which cannot run in the macOS sandbox: Xcode's tests cannot reach Xcode from inside it, so that step fails. swift test works.",
+			andList(xcodeTests), map[bool]string{true: "runs", false: "run"}[len(xcodeTests) == 1]))
+	}
+	if len(unparsed) > 0 {
+		plan.Notes = append(plan.Notes, fmt.Sprintf("%s cannot run: fix the syntax errors in the Workspace first.", andList(unparsed)))
+	}
+	if plan.Scenario.Kind == flow.Merge && selected > 0 {
+		plan.Notes = append(plan.Notes, fmt.Sprintf("The run uses this working tree as if merged into %s; a real merge can differ when %s has moved on.",
+			plan.Scenario.Target, plan.Scenario.Target))
+	}
 	var environmentNote string
-	plan.Environment, plan.EnvironmentChoice, environmentNote = runEnvironment(workflow, ids)
+	plan.Environment, plan.EnvironmentChoice, environmentNote = runEnvironment(picks)
 	if environmentNote != "" {
 		plan.Notes = append(plan.Notes, environmentNote)
 	}
 	return plan, nil
 }
 
+// planLane plans one workflow: its jobs, which are selected, and the copy
+// of its file act runs.
+func planLane(in LaneInput, chosen bool) (Lane, *actionlint.Workflow, error) {
+	digest := sha256.Sum256(in.Source)
+	lane := Lane{WorkflowID: in.WorkflowID, Kind: in.Kind, Event: in.Event, Why: in.Why, Skipped: in.Skipped, After: in.After,
+		ParseError: in.ParseError, Digest: hex.EncodeToString(digest[:])}
+	workflow, errs := actionlint.Parse(in.Source)
+	if workflow == nil || len(errs) > 0 {
+		if lane.ParseError == "" {
+			lane.ParseError = fmt.Sprintf("The file has %s.", plural(len(errs), "syntax error", "syntax errors"))
+		}
+		if chosen && len(in.Selected) > 0 {
+			return Lane{}, nil, ErrUnknownJob
+		}
+		return lane, nil, nil
+	}
+	if workflow.Name != nil {
+		lane.WorkflowName = workflow.Name.Value
+	}
+	for _, event := range workflow.On {
+		if event.EventName() == "workflow_dispatch" {
+			lane.Dispatchable = true
+		}
+	}
+	for _, key := range jobOrder(workflow, in.Order) {
+		job := workflow.Jobs[key]
+		jp := planJob(key, job)
+		for _, need := range job.Needs {
+			if need != nil && workflow.Jobs[strings.ToLower(need.Value)] != nil {
+				jp.Needs = append(jp.Needs, planJob(strings.ToLower(need.Value), workflow.Jobs[strings.ToLower(need.Value)]).ID)
+			}
+		}
+		jp.Skipped = skippedReason(in.JobSkipped, jp.ID)
+		lane.Jobs = append(lane.Jobs, jp)
+	}
+	markGitHubOnly(lane.Jobs, workflow)
+
+	var ticked []string
+	if chosen {
+		for _, id := range in.Selected {
+			if workflow.Jobs[strings.ToLower(id)] == nil {
+				return Lane{}, nil, ErrUnknownJob
+			}
+			ticked = append(ticked, strings.ToLower(id))
+		}
+	} else if in.Kind == Direct || in.Kind == Chained {
+		// macOS jobs run only when ticked, so neither they nor the jobs
+		// that need one are ticked by default.
+		support := map[string]Support{}
+		for _, jp := range lane.Jobs {
+			support[strings.ToLower(jp.ID)] = jp.Support
+		}
+		for _, jp := range lane.Jobs {
+			if jp.Support != Unsupported && jp.Support != Host && jp.Skipped == "" && !needsHost(workflow, jp.ID, support) {
+				ticked = append(ticked, strings.ToLower(jp.ID))
+			}
+		}
+	}
+	keep := Closure(workflow, ticked)
+	labels := map[string]bool{}
+	for i := range lane.Jobs {
+		job := &lane.Jobs[i]
+		job.Selected = keep[strings.ToLower(job.ID)]
+		if job.Selected && job.Support == Host {
+			for _, label := range job.RunsOn {
+				if macOSLabel.MatchString(strings.ToLower(label)) {
+					labels[strings.ToLower(label)] = true
+				}
+			}
+		}
+	}
+	lane.HostLabels = sortedKeys(labels)
+	if lane.Selected() {
+		copied, err := Trim(in.Source, keep)
+		if err != nil {
+			lane.ParseError = "The file could not be copied for act."
+			for i := range lane.Jobs {
+				lane.Jobs[i].Selected = false
+			}
+		}
+		lane.Copy = copied
+	}
+	return lane, workflow, nil
+}
+
+// usesSudo reports a job with a run step that calls sudo.
+func usesSudo(job *actionlint.Job) bool {
+	for _, step := range job.Steps {
+		if step == nil {
+			continue
+		}
+		if run, ok := step.Exec.(*actionlint.ExecRun); ok && run.Run != nil && sudoCall.MatchString(run.Run.Value) {
+			return true
+		}
+	}
+	return false
+}
+
+var sudoCall = regexp.MustCompile(`(^|[\s;&|(])sudo\s`)
+
+// runsXcodeTests reports a job with a run step that runs xcodebuild's tests.
+func runsXcodeTests(job *actionlint.Job) bool {
+	for _, step := range job.Steps {
+		if step == nil {
+			continue
+		}
+		if run, ok := step.Exec.(*actionlint.ExecRun); ok && run.Run != nil && xcodeTestCall.MatchString(run.Run.Value) {
+			return true
+		}
+	}
+	return false
+}
+
+var xcodeTestCall = regexp.MustCompile(`xcodebuild\b[^\n;&|]*\s(test|test-without-building)(\s|$)`)
+
+func skippedReason(skipped map[string]string, id string) string {
+	for key, reason := range skipped {
+		if strings.EqualFold(key, id) {
+			return reason
+		}
+	}
+	return ""
+}
+
+// jobOrder lists the workflow's job keys as the scenario draws them, then
+// the rest in the file's order.
+func jobOrder(workflow *actionlint.Workflow, order []string) []string {
+	seen := map[string]bool{}
+	var keys []string
+	for _, id := range order {
+		key := strings.ToLower(id)
+		if workflow.Jobs[key] != nil && !seen[key] {
+			seen[key] = true
+			keys = append(keys, key)
+		}
+	}
+	var rest []string
+	for key := range workflow.Jobs {
+		if !seen[key] {
+			rest = append(rest, key)
+		}
+	}
+	sort.Slice(rest, func(i, j int) bool { return position(workflow.Jobs[rest[i]]) < position(workflow.Jobs[rest[j]]) })
+	return append(keys, rest...)
+}
+
+// needsHost reports a job that needs a macOS job (Host), directly or
+// through other jobs.
+func needsHost(workflow *actionlint.Workflow, id string, support map[string]Support) bool {
+	for key := range Closure(workflow, []string{id}) {
+		if support[key] == Host {
+			return true
+		}
+	}
+	return false
+}
+
+// LanePart is one act of a lane in the macOS sandbox: ticked jobs, by
+// lower-cased key, that all run on this Mac (Host) or all not.
+type LanePart struct {
+	Host bool
+	Jobs map[string]bool
+}
+
+// Parts splits a lane's ticked jobs into the acts that run them in the
+// macOS sandbox, in order. Jobs on this Mac run in acts of their own, apart
+// from the container engine, which a job in the sandbox could otherwise use
+// to start a container that mounts the home folder; jobs in a container or
+// that act places when they start (Unknown) run in the others. A job that
+// needs a job on the other side runs in a later act; no job needs one of a
+// later act.
+func Parts(lane Lane) []LanePart {
+	host := map[string]bool{}
+	var order []string
+	for _, job := range lane.Jobs {
+		if job.Selected {
+			key := strings.ToLower(job.ID)
+			host[key] = job.Support == Host
+			order = append(order, key)
+		}
+	}
+	needs := laneNeeds(lane)
+	phase := map[string]int{}
+	var visit func(key string, seen map[string]bool) int
+	visit = func(key string, seen map[string]bool) int {
+		if p, ok := phase[key]; ok {
+			return p
+		}
+		if seen[key] {
+			return 0 // a cycle, which actionlint refuses
+		}
+		seen[key] = true
+		p := 0
+		for _, need := range needs[key] {
+			q := visit(need, seen)
+			if host[need] != host[key] {
+				q++
+			}
+			p = max(p, q)
+		}
+		phase[key] = p
+		return p
+	}
+	last := 0
+	for _, key := range order {
+		last = max(last, visit(key, map[string]bool{}))
+	}
+	var parts []LanePart
+	for p := 0; p <= last; p++ {
+		for _, onMac := range []bool{false, true} {
+			part := LanePart{Host: onMac, Jobs: map[string]bool{}}
+			for _, key := range order {
+				if phase[key] == p && host[key] == onMac {
+					part.Jobs[key] = true
+				}
+			}
+			if len(part.Jobs) > 0 {
+				parts = append(parts, part)
+			}
+		}
+	}
+	return parts
+}
+
+// laneNeeds is what each ticked job needs among the ticked jobs, by
+// lower-cased key.
+func laneNeeds(lane Lane) map[string][]string {
+	ticked := map[string]bool{}
+	for _, job := range lane.Jobs {
+		if job.Selected {
+			ticked[strings.ToLower(job.ID)] = true
+		}
+	}
+	needs := map[string][]string{}
+	for _, job := range lane.Jobs {
+		if !job.Selected {
+			continue
+		}
+		key := strings.ToLower(job.ID)
+		for _, need := range job.Needs {
+			if ticked[strings.ToLower(need)] {
+				needs[key] = append(needs[key], strings.ToLower(need))
+			}
+		}
+	}
+	return needs
+}
+
+// readsNeeds finds a job that reads the needs context, or whose if reads a
+// needed job's result through always(), failure() or cancelled().
+var (
+	readsNeeds   = regexp.MustCompile(`(?i)\bneeds\b`)
+	statusChecks = regexp.MustCompile(`(?i)\b(always|failure|cancelled)\s*\(`)
+)
+
+// crossingReads says, for the macOS sandbox, which ticked jobs read what a
+// job on the other side did: that job runs in another act (Parts), whose
+// outputs and result do not reach them.
+func crossingReads(lane Lane) []string {
+	var document yaml.Node
+	if yaml.Unmarshal(lane.Copy, &document) != nil || len(document.Content) != 1 {
+		return nil
+	}
+	sources := map[string]map[string]any{}
+	root := yamlnode.Resolve(document.Content[0])
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value != "jobs" {
+			continue
+		}
+		jobs := yamlnode.Resolve(root.Content[i+1])
+		for j := 0; j+1 < len(jobs.Content); j += 2 {
+			var body map[string]any
+			if jobs.Content[j+1].Decode(&body) == nil {
+				sources[strings.ToLower(jobs.Content[j].Value)] = body
+			}
+		}
+	}
+	host, ids := map[string]bool{}, map[string]string{}
+	for _, job := range lane.Jobs {
+		if job.Selected {
+			host[strings.ToLower(job.ID)], ids[strings.ToLower(job.ID)] = job.Support == Host, job.ID
+		}
+	}
+	needs := laneNeeds(lane)
+	var problems []string
+	for _, job := range lane.Jobs {
+		key := strings.ToLower(job.ID)
+		if !job.Selected {
+			continue
+		}
+		var across []string
+		for _, need := range needs[key] {
+			if host[need] != host[key] {
+				across = append(across, ids[need])
+			}
+		}
+		if len(across) == 0 || !readsWhatItNeeds(sources[key]) {
+			continue
+		}
+		where := map[bool]string{true: "on this Mac", false: "in a container"}
+		problems = append(problems, fmt.Sprintf("%s › %s reads the result or outputs of %s, which %s %s while it runs %s. "+
+			"In the macOS sandbox jobs on this Mac run in an act apart from the container engine, so those do not reach it: run the macOS jobs without the sandbox.",
+			laneTitle(lane), job.ID, andList(across), map[bool]string{true: "runs", false: "run"}[len(across) == 1], where[!host[key]], where[host[key]]))
+	}
+	return problems
+}
+
+// readsWhatItNeeds reports a job definition that reads the needs context
+// anywhere but in its needs, or whose if checks the result of what it needs.
+func readsWhatItNeeds(body map[string]any) bool {
+	if body == nil {
+		return false
+	}
+	rest := map[string]any{}
+	for key, value := range body {
+		if !strings.EqualFold(key, "needs") {
+			rest[key] = value
+		}
+	}
+	text, err := yaml.Marshal(rest)
+	if err != nil {
+		return true
+	}
+	if condition, ok := body["if"].(string); ok && statusChecks.MatchString(condition) {
+		return true
+	}
+	return readsNeeds.Match(text)
+}
+
+// Closure is the jobs given and every job they need, all the way down, by
+// lower-cased key.
+func Closure(workflow *actionlint.Workflow, ids []string) map[string]bool {
+	include := map[string]bool{}
+	queue := append([]string(nil), ids...)
+	for len(queue) > 0 {
+		id := strings.ToLower(queue[0])
+		queue = queue[1:]
+		job := workflow.Jobs[id]
+		if include[id] || job == nil {
+			continue
+		}
+		include[id] = true
+		for _, need := range job.Needs {
+			if need != nil {
+				queue = append(queue, need.Value)
+			}
+		}
+	}
+	return include
+}
+
+func sortedKeys(set map[string]bool) []string {
+	keys := make([]string, 0, len(set))
+	for key := range set {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// environmentPick is the selected jobs of one workflow.
+type environmentPick struct {
+	workflow *actionlint.Workflow
+	ids      []string
+}
+
 // runEnvironment is the environment whose values a run of these jobs takes,
 // or why the user chooses it, and a note when the run's jobs do not all get
 // what GitHub would give them.
-func runEnvironment(workflow *actionlint.Workflow, ids []string) (environment, choice, note string) {
+func runEnvironment(picks []environmentPick) (environment, choice, note string) {
 	names := map[string]bool{}
 	var picked []string
 	without := false
-	for _, id := range ids {
-		job := workflow.Jobs[id]
-		switch {
-		case job.Environment == nil || job.Environment.Name == nil || job.Environment.Name.Value == "":
-			without = true
-		case job.Environment.Name.ContainsExpression():
-			picked = append(picked, planJob(id, job).ID)
-		default:
-			names[job.Environment.Name.Value] = true
+	for _, pick := range picks {
+		for _, id := range pick.ids {
+			job := pick.workflow.Jobs[id]
+			switch {
+			case job.Environment == nil || job.Environment.Name == nil || job.Environment.Name.Value == "":
+				without = true
+			case job.Environment.Name.ContainsExpression():
+				picked = append(picked, planJob(id, job).ID)
+			default:
+				names[job.Environment.Name.Value] = true
+			}
 		}
 	}
-	list := make([]string, 0, len(names))
-	for name := range names {
-		list = append(list, name)
-	}
-	sort.Strings(list)
+	list := sortedKeys(names)
 	sort.Strings(picked)
 	switch {
 	case len(picked) == 1:
@@ -279,15 +779,6 @@ func runEnvironment(workflow *actionlint.Workflow, ids []string) (environment, c
 		return list[0], "", ""
 	}
 	return "", "", ""
-}
-
-func (p *Plan) job(id string) *JobPlan {
-	for i := range p.Jobs {
-		if p.Jobs[i].ID == id {
-			return &p.Jobs[i]
-		}
-	}
-	return nil
 }
 
 func toolBlockers(report tools.Report, useInstalledAct bool) []string {
@@ -307,56 +798,6 @@ func toolBlockers(report tools.Report, useInstalledAct bool) []string {
 		blockers = append(blockers, engine.Detail)
 	}
 	return blockers
-}
-
-func defaultEvent(events []string) string {
-	for _, preferred := range []string{"push", "pull_request", "workflow_dispatch"} {
-		if slices.Contains(events, preferred) {
-			return preferred
-		}
-	}
-	if len(events) > 0 {
-		return events[0]
-	}
-	return ""
-}
-
-// jobsToRun returns the chosen job and every job it needs, or all jobs, in
-// the order they appear in the file.
-func jobsToRun(workflow *actionlint.Workflow, chosen string) ([]string, error) {
-	include := map[string]bool{}
-	if chosen == "" {
-		for id := range workflow.Jobs {
-			include[id] = true
-		}
-	} else {
-		key := strings.ToLower(chosen)
-		if workflow.Jobs[key] == nil {
-			return nil, ErrUnknownJob
-		}
-		queue := []string{key}
-		for len(queue) > 0 {
-			id := queue[0]
-			queue = queue[1:]
-			if include[id] {
-				continue
-			}
-			include[id] = true
-			if job := workflow.Jobs[id]; job != nil {
-				for _, need := range job.Needs {
-					if need != nil && workflow.Jobs[strings.ToLower(need.Value)] != nil {
-						queue = append(queue, strings.ToLower(need.Value))
-					}
-				}
-			}
-		}
-	}
-	ids := make([]string, 0, len(include))
-	for id := range include {
-		ids = append(ids, id)
-	}
-	sort.Slice(ids, func(i, j int) bool { return position(workflow.Jobs[ids[i]]) < position(workflow.Jobs[ids[j]]) })
-	return ids, nil
 }
 
 func position(job *actionlint.Job) int {
@@ -387,8 +828,7 @@ func planJob(key string, job *actionlint.Job) JobPlan {
 	}
 	if runner.LabelsExpr != nil {
 		jp.RunsOn = []string{runner.LabelsExpr.Value}
-		jp.Support = Unknown
-		jp.Reason = "runs-on is an expression; act decides when the job starts"
+		jp.Support, jp.Reason = expressionRunner(runner.LabelsExpr.Value)
 		return jp
 	}
 	for _, label := range runner.Labels {
@@ -403,12 +843,16 @@ func planJob(key string, job *actionlint.Job) JobPlan {
 	}
 	for _, label := range jp.RunsOn {
 		if strings.Contains(label, "${{") {
-			jp.Support = Unknown
-			jp.Reason = "runs-on is an expression; act decides when the job starts"
+			jp.Support, jp.Reason = expressionRunner(label)
 			return jp
 		}
 	}
 	for _, label := range jp.RunsOn {
+		if hostOS == "darwin" && macOSLabel.MatchString(strings.ToLower(label)) {
+			jp.Support = Host
+			jp.Reason = "Runs on this Mac in the macOS sandbox, not in a container"
+			return jp
+		}
 		if image, ok := Platforms[strings.ToLower(label)]; ok {
 			jp.Image = image
 			jp.Support = Supported
@@ -423,6 +867,20 @@ func planJob(key string, job *actionlint.Job) JobPlan {
 	jp.Support = Unsupported
 	jp.Reason = unsupportedReason(jp.RunsOn)
 	return jp
+}
+
+// matrixRunner finds a runs-on expression that reads the matrix.
+var matrixRunner = regexp.MustCompile(`\bmatrix\s*\.`)
+
+// expressionRunner is the support of a job whose runs-on is an expression.
+// act evaluates one from the matrix in the job shared by every entry, so all
+// entries get the runner of the first one evaluated: an entry is skipped or
+// runs on the wrong runner (act#5971; the fix in act#6050 is not merged).
+func expressionRunner(expression string) (Support, string) {
+	if matrixRunner.MatchString(expression) {
+		return Unsupported, "Not supported locally: act gives every matrix entry the runner of the first one, so runs-on from the matrix runs on the wrong runner"
+	}
+	return Unknown, "runs-on is an expression; act decides when the job starts"
 }
 
 func unsupportedReason(labels []string) string {
@@ -491,13 +949,13 @@ func dockerSteps(job *actionlint.Job) []string {
 	return images
 }
 
-func notes(plan Plan, report tools.Report, containerJobs, services []string, source []byte) []string {
+func notes(unnamedSecrets, contained bool, report tools.Report, containerJobs, services []string, sources [][]byte) []string {
 	var notes []string
-	if plan.UnnamedSecrets {
-		notes = append(notes, "This workflow reads secrets it does not name; only the listed ones are passed.")
+	if unnamedSecrets {
+		notes = append(notes, "A workflow of this run reads secrets it does not name; only the listed ones are passed.")
 	}
-	if arch := strings.ToLower(report.Engine.Architecture); arch == "aarch64" || arch == "arm64" {
-		notes = append(notes, "Jobs run as linux/arm64 on this Mac. Steps that download x64-only tools may fail.")
+	if arch := strings.ToLower(report.Engine.Architecture); contained && (arch == "aarch64" || arch == "arm64") {
+		notes = append(notes, "Jobs in containers run as linux/arm64 on this Mac. Steps that download x64-only tools may fail.")
 	}
 	if len(services) > 0 {
 		notes = append(notes, "act starts service containers: "+strings.Join(services, ", ")+".")
@@ -508,7 +966,7 @@ func notes(plan Plan, report tools.Report, containerJobs, services []string, sou
 			strings.Join(containerJobs, ", "), map[bool]string{true: "s", false: ""}[one],
 			map[bool]string{true: "its", false: "their"}[one], map[bool]string{true: "it", false: "them"}[one]))
 	}
-	text := string(source)
+	text := string(bytes.Join(sources, []byte("\n")))
 	if strings.Contains(text, "actions/upload-artifact") || strings.Contains(text, "actions/download-artifact") {
 		notes = append(notes, "Artifact upload and download steps fail locally: Runnir does not start act's artifact server.")
 	}

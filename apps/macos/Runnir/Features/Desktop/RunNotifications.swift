@@ -37,10 +37,13 @@ struct RunNotification: Equatable, Sendable {
     /// tells nothing worth a notification.
     @MainActor static func localRunFinished(_ run: LocalRunModel, workspaceName: String) -> RunNotification? {
         guard run.phase == .finished, run.lostMessage == nil, !run.stopRequested else { return nil }
-        let plan = run.plan
-        let workflow = plan.workflowName.isEmpty ? (plan.workflowID as NSString).lastPathComponent : plan.workflowName
-        let job = plan.jobs.first { $0.id == plan.jobID }?.name
-        let what = job.map { "\(workflow) › \($0)" } ?? workflow
+        let lanes = run.plan.selectedLanes
+        var what = run.plan.scenario.map { "\(run.title) (\($0.title))" } ?? run.title
+        if lanes.count == 1, let lane = lanes.first {
+            // One job of a workflow with more is named too.
+            let ticked = lane.jobs.filter(\.selected)
+            what = ticked.count == 1 && lane.jobs.count > 1 ? "\(lane.title) › \(ticked[0].name.isEmpty ? ticked[0].id : ticked[0].name)" : lane.title
+        }
         let duration = run.startedAt.flatMap { start in run.finishedAt.map { Self.duration($0.timeIntervalSince(start)) } }
         switch run.state {
         case .succeeded:
@@ -49,7 +52,8 @@ struct RunNotification: Equatable, Sendable {
                                    title: "Local run passed · \(workspaceName)", body: body, workspaceID: run.workspaceID)
         case .failed:
             var body = duration.map { "\(what) stopped after \($0)" } ?? "\(what) failed"
-            body += run.exitCode.map { ": the job exited with code \($0)." } ?? "."
+            let failed = lanes.count > 1 ? run.failure : nil
+            body += failed.map { ": \($0)." } ?? run.exitCode.map { ": the job exited with code \($0)." } ?? "."
             return RunNotification(id: "local:\(run.executionID)", kind: .localRun, succeeded: false,
                                    title: "Local run failed · \(workspaceName)", body: body, workspaceID: run.workspaceID)
         default:

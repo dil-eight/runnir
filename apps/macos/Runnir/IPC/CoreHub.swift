@@ -183,6 +183,13 @@ final class CoreHub {
     @ObservationIgnored private var windowWorkspace: [UUID: UUID] = [:]
     @ObservationIgnored private var monitor: Task<Void, Never>?
     @ObservationIgnored private var eventTask: Task<Void, Never>?
+    @ObservationIgnored private var mcpTask: Task<Void, Never>?
+    /// Answers the calls of MCP clients (the desktop sets it). Without it
+    /// every call is refused.
+    @ObservationIgnored var mcpRequestHandler: (@MainActor (CoreMcpRequest) async -> CoreMcpAnswer)?
+    /// Takes down what asks about a request that no longer waits, by id
+    /// (the desktop sets it).
+    @ObservationIgnored var mcpWithdrawHandler: (@MainActor (String) -> Void)?
     /// Ids this hub closed itself; their REPOSITORY_CLOSED events are not
     /// "someone else closed it" and must not trigger a reopen.
     @ObservationIgnored private var ownCloses: Set<String> = []
@@ -223,6 +230,8 @@ final class CoreHub {
         monitor = nil
         eventTask?.cancel()
         eventTask = nil
+        mcpTask?.cancel()
+        mcpTask = nil
     }
 
     /// Restarts a lost or failed Core. Attached repositories reopen themselves
@@ -245,6 +254,8 @@ final class CoreHub {
             status = .stopped
             eventTask?.cancel()
             eventTask = nil
+            mcpTask?.cancel()
+            mcpTask = nil
             for session in sessions.values { session.phase = .waitingForCore }
         case .starting:
             if !isReady { status = .starting }
@@ -253,6 +264,7 @@ final class CoreHub {
             // Close events of a previous Core process will never arrive.
             ownCloses.removeAll()
             startEvents()
+            startMcpRequests()
             // A new Core process starts without a token or storage preferences.
             schedulePush()
             Task { await pushStoragePreferences() }
@@ -278,6 +290,8 @@ final class CoreHub {
     private func markUnavailable() {
         eventTask?.cancel()
         eventTask = nil
+        mcpTask?.cancel()
+        mcpTask = nil
         for session in sessions.values { session.phase = .unavailable }
     }
 
@@ -1096,18 +1110,18 @@ final class CoreHub {
         case failed(String)
     }
 
-    /// Reviews a local run in the Core. Nothing starts.
-    func prepareLocalRun(workspaceID: UUID, workflowID: String, jobID: String?, event: String?,
+    /// Reviews a local run of a scenario in the Core. Nothing starts.
+    func prepareLocalRun(workspaceID: UUID, scenario: CoreScenario?, selection: CoreLocalRunSelection?, hostUnsandboxed: Bool = false,
                          useInstalledAct: Bool, limits: CoreLocalRunLimits? = nil, resetLimits: Bool = false) async -> LocalRunPreparation {
         guard let (service, coreID) = await serviceAndCoreID(workspaceID) else {
             return .failed("Runnir Core is not ready. Local runs are reviewed and started by the Core.")
         }
         do {
-            return .prepared(try await service.prepareLocalRun(repositoryID: coreID, workflowID: workflowID, jobID: jobID,
-                                                               event: event, useInstalledAct: useInstalledAct,
+            return .prepared(try await service.prepareLocalRun(repositoryID: coreID, scenario: scenario, selection: selection,
+                                                               hostUnsandboxed: hostUnsandboxed, useInstalledAct: useInstalledAct,
                                                                limits: limits, resetLimits: resetLimits))
         } catch {
-            return .failed(Self.refusal(error, notFound: "This workflow or job is no longer in the working tree. Refresh and review again."))
+            return .failed(Self.refusal(error, notFound: "A ticked workflow or job is no longer in the working tree. Review the run again."))
         }
     }
 
@@ -1118,8 +1132,9 @@ final class CoreHub {
 
     /// Starts a reviewed run once with the values for its secrets and
     /// variables, and makes it the workspace's local run.
+    /// `startedBy`: the MCP client that starts it; nil for the user.
     func startLocalRun(workspaceID: UUID, prepared: CorePreparedLocalRun,
-                       secrets: [String: String] = [:], variables: [String: String] = [:]) async -> LocalRunStart {
+                       secrets: [String: String] = [:], variables: [String: String] = [:], startedBy: String? = nil) async -> LocalRunStart {
         guard let confirmationID = prepared.confirmationID else { return .failed("This run can't start yet.") }
         // Another window of this workspace may have started one meanwhile;
         // replacing it would hide a run that keeps going.
@@ -1130,9 +1145,10 @@ final class CoreHub {
             return .failed("Runnir Core is not ready. Nothing was started.")
         }
         do {
-            let execution = try await service.confirmLocalRun(confirmationID: confirmationID, secrets: secrets, variables: variables)
+            let execution = try await service.confirmLocalRun(confirmationID: confirmationID, secrets: secrets, variables: variables,
+                                                              startedBy: startedBy)
             guard let session = sessions[workspaceID] else { return .failed("The workspace was closed.") }
-            let model = LocalRunModel(executionID: execution.id, workspaceID: workspaceID, plan: prepared.plan)
+            let model = LocalRunModel(executionID: execution.id, workspaceID: workspaceID, plan: prepared.plan, startedBy: startedBy)
             let name = (session.path as NSString).lastPathComponent
             model.onFinish = { [weak self] run in self?.onLocalRunFinished?(run, name) }
             session.localRun?.stopFollowing()
@@ -1164,11 +1180,10 @@ final class CoreHub {
         return run
     }
 
-    /// "ci.yml in mobile-app", for prompts.
+    /// "CI in mobile-app" or "3 workflows in mobile-app", for prompts.
     func describe(_ run: LocalRunModel) -> String {
-        let file = URL(fileURLWithPath: run.plan.workflowID).lastPathComponent
-        guard let path = sessions[run.workspaceID]?.path else { return file }
-        return "\(file) in \(URL(fileURLWithPath: path).lastPathComponent)"
+        guard let path = sessions[run.workspaceID]?.path else { return run.title }
+        return "\(run.title) in \(URL(fileURLWithPath: path).lastPathComponent)"
     }
 
     func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput {
@@ -1478,6 +1493,57 @@ final class CoreHub {
                 }
             }
         }
+    }
+
+    /// Takes the Core's MCP requests for as long as it runs, subscribing
+    /// again when the stream ends. Each request is answered on its own, so a
+    /// change waiting for Save does not hold up a list.
+    private func startMcpRequests() {
+        mcpTask?.cancel()
+        let provider = provider
+        let firstDelay = eventRetryDelay
+        mcpTask = Task { [weak self] in
+            var delay = firstDelay
+            while !Task.isCancelled {
+                do {
+                    let service = try await provider.service()
+                    for try await request in service.mcpRequests() {
+                        guard let self else { return }
+                        delay = firstDelay
+                        if request.withdrawn {
+                            self.mcpWithdrawHandler?(request.id)
+                        } else {
+                            Task { await self.answer(request, with: service) }
+                        }
+                    }
+                } catch is CancellationError {
+                    return
+                } catch {
+                    // The stream ended: the Core went away or restarts it.
+                }
+                guard !Task.isCancelled, self?.isReady == true else { return }
+                try? await Task.sleep(for: delay)
+                delay = min(delay * 2, .seconds(30))
+            }
+        }
+    }
+
+    /// Claims an MCP request before the app acts on it; false when it no
+    /// longer waits (its client was told nothing happened) or the Core is
+    /// out of reach, and the app must not act.
+    func claimMcpRequest(id: String) async -> Bool {
+        guard isReady, let service = try? await provider.service() else { return false }
+        do {
+            try await service.claimMcpRequest(id: id)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func answer(_ request: CoreMcpRequest, with service: any CoreServicing) async {
+        let answer = await mcpRequestHandler?(request) ?? .refusal("Runnir is still starting. Try again in a moment.")
+        try? await service.answerMcpRequest(id: request.id, answer: answer)
     }
 
     private func resync() async {

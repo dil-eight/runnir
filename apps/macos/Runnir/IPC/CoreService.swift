@@ -278,18 +278,23 @@ protocol CoreServicing: Sendable {
     /// act, the Docker CLI and the container engine as found on this Mac.
     /// Read-only; `refresh` checks again instead of reusing the last result.
     func toolReadiness(refresh: Bool) async throws -> CoreToolReadiness
-    /// Checks the tools and the workflow file and returns the plan, with a
-    /// single-use confirmation when nothing blocks it. Starts nothing.
-    /// `limits` asks for limits (nil: the workspace's, else the defaults);
-    /// `resetLimits` plans the defaults and forgets the workspace's once the
-    /// run is confirmed.
-    func prepareLocalRun(repositoryID: String, workflowID: String, jobID: String?, event: String?,
+    /// Plans a local run of a scenario (nil: the branch's default) with the
+    /// jobs ticked in `selection` (nil: what the scenario starts that can run
+    /// here), checks the tools and returns the plan, with a single-use
+    /// confirmation when nothing blocks it. Starts nothing. `limits` asks for
+    /// limits (nil: the workspace's, else the defaults); `resetLimits` plans
+    /// the defaults and forgets the workspace's once the run is confirmed.
+    /// `hostUnsandboxed` runs the ticked macOS jobs without the macOS
+    /// sandbox, for this run only.
+    func prepareLocalRun(repositoryID: String, scenario: CoreScenario?, selection: CoreLocalRunSelection?, hostUnsandboxed: Bool,
                          useInstalledAct: Bool, limits: CoreLocalRunLimits?, resetLimits: Bool) async throws -> CorePreparedLocalRun
     /// Starts a prepared local run once with the values for the plan's
     /// secrets and variables. Throws `.failedPrecondition` when the
     /// confirmation expired or was used, or the file changed after the
     /// review, and `.invalidArgument` for a name the plan does not read.
-    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String]) async throws -> CoreExecution
+    /// `startedBy`: the MCP client that starts the run; nil for the user.
+    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String],
+                         startedBy: String?) async throws -> CoreExecution
     /// Parses the bytes of a .env file the user chose; values encrypted by
     /// dotenvx are flagged. The Core reads no path for this.
     func parseEnvFile(content: Data) async throws -> CoreEnvFile
@@ -307,6 +312,16 @@ protocol CoreServicing: Sendable {
     /// `.resourceExhausted` when the subscriber falls behind and with
     /// `.unavailable` when the Core goes away; callers resubscribe and reload.
     func events(repositoryIDs: [String]) -> AsyncThrowingStream<CoreEvent, any Error>
+    /// The calls of MCP clients for the app to answer. Ends with
+    /// `.unavailable` when the Core goes away or another subscriber takes
+    /// them; callers subscribe again.
+    func mcpRequests() -> AsyncThrowingStream<CoreMcpRequest, any Error>
+    /// Claims an MCP request before acting on it, so the Core no longer
+    /// lets it expire; `.notFound` when it no longer waits, and its client
+    /// was told nothing happened.
+    func claimMcpRequest(id: String) async throws
+    /// The answer to one MCP request; `.notFound` when it no longer waits.
+    func answerMcpRequest(id: String, answer: CoreMcpAnswer) async throws
 }
 
 /// The GitHub repository a call is about.
@@ -318,6 +333,18 @@ enum CoreGitHubTarget: Hashable, Sendable {
 }
 
 extension CoreServicing {
+    func mcpRequests() -> AsyncThrowingStream<CoreMcpRequest, any Error> {
+        AsyncThrowingStream { $0.finish(throwing: CoreServiceError.unavailable) }
+    }
+
+    func claimMcpRequest(id: String) async throws {
+        throw CoreServiceError.unavailable
+    }
+
+    func answerMcpRequest(id: String, answer: CoreMcpAnswer) async throws {
+        throw CoreServiceError.unavailable
+    }
+
     func openRepository(path: String) async throws -> CoreRepository {
         try await openRepository(path: path, workspaceID: nil)
     }

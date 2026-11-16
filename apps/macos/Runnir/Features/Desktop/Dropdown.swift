@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // Runnir's own dropdowns, as drawn in Pen: an opaque panel under its button,
@@ -12,8 +13,15 @@ import SwiftUI
 //   confirm) instead of a system alert or confirmation dialog.
 // - .hoverTip(_:): a panel under a view while the pointer rests on it, which
 //   never takes a click.
-// - .dropdownHost(): at the root of every window and sheet; it draws the open
-//   panel above everything, so a list or a scroll view never clips it.
+// - .dialog(isPresented:) with DialogPanel: a question or a notice in the
+//   middle of a dimmed window instead of a system alert or confirmation
+//   dialog; .dialog(asking:) shows the question of a DialogAsker, which code
+//   that waits for the answer (closing a window, quitting) asks.
+// - .dropdownHost(): at the root of every window and sheet, outside every
+//   .dropdown and .dialog; it draws the open panel or dialog above
+//   everything, so a list or a scroll view never clips it. The roots of a
+//   window and of its sheets also show the questions of the environment's
+//   dialogAsker (closing the window, quitting): the one in front does.
 
 extension View {
     /// The panel's look.
@@ -41,10 +49,244 @@ extension View {
         modifier(HoverTip(tip: tip))
     }
 
-    /// Draws the open dropdown of a view inside this one. A click outside
-    /// the panel or Escape closes it, and the click does nothing else, as
-    /// with a menu.
-    func dropdownHost() -> some View { modifier(DropdownHost()) }
+    /// Shows `content`, a DialogPanel, in the middle of the window over the
+    /// dimmed window while `isPresented`, as Runnir's own alert. This view
+    /// takes no clicks or keys meanwhile; Escape closes the dialog, and a
+    /// click outside it does nothing, as with an alert.
+    func dialog<Content: View>(isPresented: Binding<Bool>, @ViewBuilder content: @escaping () -> Content) -> some View {
+        let request = isPresented.wrappedValue
+            ? DialogRequest(content: AnyView(content()), close: { isPresented.wrappedValue = false }) : nil
+        return disabled(request != nil)
+            // A dialog of a view inside this one goes first.
+            .transformPreference(DialogKey.self) { value in value = value ?? request }
+    }
+
+    /// Draws the open dropdown or dialog of a view inside this one. A click
+    /// outside a panel or Escape closes it, and the click does nothing else,
+    /// as with a menu. At the root of a window or a sheet, it shows the
+    /// question of the environment's dialogAsker while it is in front.
+    func dropdownHost() -> some View { modifier(DropdownHost(root: true)) }
+}
+
+private struct DialogRequest {
+    let content: AnyView
+    let close: @MainActor () -> Void
+}
+
+private struct DialogKey: PreferenceKey {
+    static var defaultValue: DialogRequest? { nil }
+    static func reduce(value: inout DialogRequest?, nextValue: () -> DialogRequest?) { value = value ?? nextValue() }
+}
+
+/// A question in Runnir's own dialog from code that waits for its answer,
+/// such as closing a window or quitting. The view that shows it attaches
+/// `.dialog(asking:)`; Escape answers with the question's cancel choice.
+@MainActor
+@Observable
+final class DialogAsker {
+    struct Question: Equatable {
+        let title: String
+        let message: String
+        /// The buttons, left to right.
+        let choices: [DialogChoice]
+        /// The choice Escape answers with.
+        let cancel: Int
+    }
+
+    private(set) var question: Question?
+    /// The roots that can show the question, a window's and its sheets', in
+    /// the order they appeared: the last, in front, shows it.
+    private(set) var hosts: [UUID] = []
+    @ObservationIgnored private var waiting: CheckedContinuation<Int, Never>?
+
+    func appeared(_ host: UUID) {
+        hosts.removeAll { $0 == host }
+        hosts.append(host)
+    }
+
+    func disappeared(_ host: UUID) { hosts.removeAll { $0 == host } }
+
+    /// Whether `host` shows the open question.
+    func shows(in host: UUID) -> Bool { question != nil && hosts.last == host }
+
+    /// Asks and waits for the index of the choice. A question still open is
+    /// answered with its cancel choice first.
+    func ask(_ question: Question) async -> Int {
+        if let open = self.question { answer(open.cancel) }
+        self.question = question
+        return await withCheckedContinuation { waiting = $0 }
+    }
+
+    func answer(_ choice: Int) {
+        let waiting = waiting
+        self.waiting = nil
+        question = nil
+        waiting?.resume(returning: choice)
+    }
+
+    func cancel() {
+        if let question { answer(question.cancel) }
+    }
+}
+
+extension EnvironmentValues {
+    /// Where a view asks its questions when it cannot put a dialog over the
+    /// window itself, such as a row of a Settings form: the window's own.
+    @Entry var dialogAsker: DialogAsker? = nil
+}
+
+/// One button of a dialog.
+struct DialogChoice: Equatable {
+    enum Kind: Equatable {
+        /// Cancel, or a choice beside the action such as Don't Save.
+        case plain
+        /// The action: Return takes it.
+        case action
+        /// One that stops, removes or loses something: red, never Return.
+        case destructive
+    }
+
+    let title: String
+    var kind: Kind = .plain
+    /// A key with Command, such as D for Don't Save.
+    var commandKey: Character?
+}
+
+/// A button of a DialogPanel, styled by its kind.
+struct DialogButton: View {
+    let choice: DialogChoice
+    let action: () -> Void
+
+    var body: some View {
+        switch choice.kind {
+        case .action:
+            Button(choice.title, action: action).buttonStyle(DesignButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
+        case .destructive:
+            Button(action: action) { Text(choice.title).foregroundStyle(RunnirTheme.destructive) }.buttonStyle(DesignButtonStyle())
+        case .plain:
+            if let key = choice.commandKey {
+                Button(choice.title, action: action).buttonStyle(DesignButtonStyle()).keyboardShortcut(KeyEquivalent(key), modifiers: .command)
+            } else {
+                Button(choice.title, action: action).buttonStyle(DesignButtonStyle())
+            }
+        }
+    }
+}
+
+extension View {
+    /// Shows the question `asker` asks in Runnir's own dialog: an asker of
+    /// this view's own, not a window's, which the window's roots show.
+    func dialog(asking asker: DialogAsker) -> some View {
+        dialog(isPresented: Binding(get: { asker.question != nil }, set: { if !$0 { asker.cancel() } })) {
+            if let question = asker.question { QuestionPanel(question: question, asker: asker) }
+        }
+    }
+}
+
+/// The dialog of a DialogAsker's question.
+private struct QuestionPanel: View {
+    let question: DialogAsker.Question
+    let asker: DialogAsker
+
+    var body: some View {
+        DialogPanel(title: question.title, message: question.message) {
+            ForEach(Array(question.choices.enumerated()), id: \.offset) { index, choice in
+                DialogButton(choice: choice) { asker.answer(index) }
+            }
+        }
+    }
+}
+
+/// A dialog over the dimmed window: a click outside it does nothing, as with
+/// an alert, and Escape closes it.
+private struct DialogLayer: View {
+    let content: AnyView
+    let close: @MainActor () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.22).contentShape(Rectangle()).accessibilityHidden(true)
+            content
+            Button("Close", action: close)
+                .keyboardShortcut(.cancelAction).buttonStyle(.hit).opacity(0).frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+            DialogKeys().frame(width: 0, height: 0).accessibilityHidden(true)
+        }
+    }
+}
+
+/// Takes the keys from the window's text fields and editors while a dialog
+/// shows, as an alert does, so typing never changes what is under it; they
+/// get them back afterwards.
+private struct DialogKeys: NSViewRepresentable {
+    func makeNSView(context: Context) -> Holder { Holder() }
+    func updateNSView(_ nsView: Holder, context: Context) {}
+    static func dismantleNSView(_ nsView: Holder, coordinator: ()) { nsView.giveBack() }
+
+    final class Holder: NSView {
+        private weak var owner: NSWindow?
+        private weak var previous: NSResponder?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window, owner == nil else { return }
+            owner = window
+            var responder = window.firstResponder
+            // A text field edits in the window's field editor.
+            if let editor = responder as? NSTextView, editor.isFieldEditor, let field = editor.delegate as? NSResponder {
+                responder = field
+            }
+            previous = responder === window ? nil : responder
+            window.makeFirstResponder(nil)
+        }
+
+        func giveBack() {
+            guard let window = owner, let previous, window.firstResponder === window,
+                  (previous as? NSView)?.window.map({ $0 === window }) ?? true else { return }
+            window.makeFirstResponder(previous)
+        }
+    }
+}
+
+/// Runnir's alert, drawn as its panels over a window are: a title, a line or
+/// two that explain, then the buttons on the right, the action last.
+struct DialogPanel<Buttons: View>: View {
+    let title: String
+    let message: String
+    var systemImage: String?
+    var tint: Color = RunnirTheme.warning
+    @ViewBuilder var buttons: Buttons
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                if let systemImage {
+                    Image(systemName: systemImage).font(.system(size: 14)).foregroundStyle(tint).accessibilityHidden(true)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title).font(.system(size: 14, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
+                    Text(message).font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 20).padding(.vertical, 16)
+            DesignDivider()
+            HStack(spacing: 8) {
+                Spacer()
+                buttons
+            }
+            .buttonStyle(DesignButtonStyle())
+            .padding(.horizontal, 20).padding(.vertical, 12)
+        }
+        .frame(width: 420)
+        .background(RunnirTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(RunnirTheme.border))
+        .shadow(color: .black.opacity(0.35), radius: 20, y: 10)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(title)
+    }
 }
 
 private struct DropdownRequest {
@@ -84,10 +326,19 @@ enum DropdownPlacement {
 }
 
 private struct DropdownHost: ViewModifier {
+    /// A window's or a sheet's root, which shows the questions of the
+    /// environment's dialogAsker while it is in front; not the host inside
+    /// a dropdown's panel.
+    var root = false
+    @Environment(\.dialogAsker) private var asker
     @State private var panelSize: CGSize = .zero
+    @State private var id = UUID()
 
     func body(content: Content) -> some View {
+        let asking = root && asker?.shows(in: id) == true
         content
+            // The window takes no clicks or keys while its question shows.
+            .disabled(asking)
             .overlayPreferenceValue(DropdownKey.self) { request in
                 if let request {
                     GeometryReader { proxy in
@@ -119,8 +370,19 @@ private struct DropdownHost: ViewModifier {
                     }
                 }
             }
-            // An outer host does not draw this host's dropdown again.
+            .overlayPreferenceValue(DialogKey.self) { request in
+                // A view's own dialog first; the window's question waits.
+                if let request {
+                    DialogLayer(content: request.content, close: request.close)
+                } else if asking, let asker, let question = asker.question {
+                    DialogLayer(content: AnyView(QuestionPanel(question: question, asker: asker)), close: { asker.cancel() })
+                }
+            }
+            // An outer host does not draw this host's dropdown or dialog again.
             .transformPreference(DropdownKey.self) { $0 = nil }
+            .transformPreference(DialogKey.self) { $0 = nil }
+            .onAppear { if root { asker?.appeared(id) } }
+            .onDisappear { if root { asker?.disappeared(id) } }
     }
 }
 

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"runnir/core/internal/buildinfo"
 )
 
 func TestVersion(t *testing.T) {
@@ -105,8 +107,52 @@ func TestLicensesPrintsRunnirsLicenseAndTheNotices(t *testing.T) {
 
 func TestUnknownCommand(t *testing.T) {
 	var out, diagnostics bytes.Buffer
-	if run([]string{"mcp"}, strings.NewReader(""), &out, &diagnostics) != 2 || out.Len() != 0 {
-		t.Fatal("unimplemented command accepted")
+	if run([]string{"bogus"}, strings.NewReader(""), &out, &diagnostics) != 2 || out.Len() != 0 {
+		t.Fatal("unknown command accepted")
+	}
+}
+
+func TestMcpUsage(t *testing.T) {
+	for _, args := range [][]string{{"mcp", "--data-dir"}, {"mcp", "--data-dir", "relative"}, {"mcp", "--data-dir", "/tmp/x", "extra"}, {"mcp", "extra"}} {
+		var out, diagnostics bytes.Buffer
+		if code := run(args, strings.NewReader(""), &out, &diagnostics); code != 2 || out.Len() != 0 {
+			t.Fatalf("%v: code=%d out=%q", args, code, out.String())
+		}
+	}
+}
+
+func TestMcpWithoutADataFolderUsesItsBuilds(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	config, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := mcpDataDir(""); err != nil || got != filepath.Join(config, buildinfo.SupportFolder()) {
+		t.Fatalf("default = %q, %v", got, err)
+	}
+	if got, err := mcpDataDir("/some/folder"); err != nil || got != "/some/folder" {
+		t.Fatalf("given = %q, %v", got, err)
+	}
+	var out, diagnostics bytes.Buffer
+	input := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"runnir_list_value_sets","arguments":{"repository":"/r"}}}` + "\n"
+	if code := run([]string{"mcp"}, strings.NewReader(input), &out, &diagnostics); code != 0 || !strings.Contains(out.String(), "Runnir is not running") {
+		t.Fatalf("code=%d out=%s %q", code, out.String(), diagnostics.String())
+	}
+}
+
+func TestMcpWithoutRunnirAnswersTheProtocolAndSaysSo(t *testing.T) {
+	var out, diagnostics bytes.Buffer
+	input := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"runnir_list_value_sets","arguments":{"repository":"/r"}}}`,
+	}, "\n") + "\n"
+	if code := run([]string{"mcp", "--data-dir", t.TempDir()}, strings.NewReader(input), &out, &diagnostics); code != 0 {
+		t.Fatalf("code=%d %q", code, diagnostics.String())
+	}
+	text := out.String()
+	if !strings.Contains(text, `"runnir_set_values"`) || !strings.Contains(text, "Runnir is not running") || !strings.Contains(text, `"isError":true`) {
+		t.Fatalf("out = %s", text)
 	}
 }
 

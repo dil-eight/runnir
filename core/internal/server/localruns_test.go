@@ -57,6 +57,11 @@ func readyTools() *fakeTools {
 	}, images: map[string]bool{"catthehacker/ubuntu:act-latest": true}}
 }
 
+// pick ticks jobs of one workflow in .github/workflows.
+func pick(file string, jobs ...string) []*corev1.LocalRunSelection {
+	return []*corev1.LocalRunSelection{{WorkflowId: ".github/workflows/" + file, JobIds: jobs}}
+}
+
 const localWorkflow = "name: CI\non: [push, workflow_dispatch]\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n  ios:\n    runs-on: macos-latest\n    steps:\n      - run: echo hi\n"
 
 func TestLocalRunIsPreparedConfirmedAndCancelled(t *testing.T) {
@@ -83,15 +88,20 @@ func TestLocalRunIsPreparedConfirmedAndCancelled(t *testing.T) {
 	}
 	repo := opened.Repository.Id
 
-	prepared, err := client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: repo, WorkflowId: ".github/workflows/ci.yml", JobId: "lint"})
+	prepared, err := client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: repo, Selection: pick("ci.yml", "lint")})
 	if err != nil {
 		t.Fatal(err)
 	}
 	plan := prepared.Plan
-	if prepared.ConfirmationId == "" || len(plan.Blockers) != 0 || plan.Event != "push" || plan.JobId != "lint" || plan.ActVersion != "0.2.89" || plan.InstalledAct {
+	// Outside git, the default branch's merge is the scenario: a push to main.
+	if prepared.ConfirmationId == "" || len(plan.Blockers) != 0 || plan.Scenario.GetTitle() != "Merge into main" || len(plan.Scenarios) != 2 ||
+		plan.ActVersion != "0.2.89" || plan.InstalledAct {
 		t.Fatalf("prepared = %v", prepared)
 	}
-	if len(plan.Jobs) != 1 || plan.Jobs[0].Support != corev1.LocalJobSupport_LOCAL_JOB_SUPPORT_SUPPORTED || plan.Cpus != 4 || plan.TimeoutSeconds != 1800 {
+	lane := plan.Lanes[0]
+	if len(plan.Lanes) != 1 || lane.Event != "push" || !lane.Selected || lane.Kind != corev1.LocalRunLaneKind_LOCAL_RUN_LANE_KIND_DIRECT ||
+		len(lane.Jobs) != 2 || !lane.Jobs[0].Selected || lane.Jobs[1].Selected ||
+		lane.Jobs[0].Support != corev1.LocalJobSupport_LOCAL_JOB_SUPPORT_SUPPORTED || plan.Cpus != 4 || plan.TimeoutSeconds != 1800 {
 		t.Fatalf("plan = %v", plan)
 	}
 	if len(plan.Images) != 1 || !plan.Images[0].Present || plan.EngineName != "OrbStack" || plan.EngineContext != "orbstack" {
@@ -108,7 +118,8 @@ func TestLocalRunIsPreparedConfirmedAndCancelled(t *testing.T) {
 	id := confirmed.Execution.ExecutionId
 	<-started
 	if spec == nil || spec.ActPath != "/App/Contents/Helpers/act" || spec.RepositoryPath != root || spec.UserHome != "/Users/me" ||
-		spec.CacheDir != "/cache/act" || spec.DockerHost != "unix:///Users/me/.orbstack/run/docker.sock" || spec.Plan.JobID != "lint" {
+		spec.CacheDir != "/cache/act" || spec.DockerHost != "unix:///Users/me/.orbstack/run/docker.sock" ||
+		!strings.Contains(string(spec.Plan.Lanes[0].Payload), `"ref":"refs/heads/main"`) || strings.Contains(string(spec.Plan.Lanes[0].Copy), "ios:") {
 		t.Fatalf("spec = %+v", spec)
 	}
 	if _, err := client.ConfirmLocalRun(ctx, &corev1.ConfirmLocalRunRequest{ConfirmationId: prepared.ConfirmationId}); status.Code(err) != codes.FailedPrecondition {
@@ -120,7 +131,8 @@ func TestLocalRunIsPreparedConfirmedAndCancelled(t *testing.T) {
 		t.Fatal(err)
 	}
 	if output.State != corev1.ExecutionState_EXECUTION_STATE_RUNNING || output.Phase != corev1.LocalRunPhase_LOCAL_RUN_PHASE_RUNNING ||
-		output.ExitCode != -1 || len(output.Jobs) != 1 || output.Plan.ActVersion != "0.2.89" || output.StartedAt == nil {
+		output.ExitCode != -1 || len(output.Jobs) != 1 || output.Jobs[0].WorkflowId != ".github/workflows/ci.yml" ||
+		output.Plan.ActVersion != "0.2.89" || output.StartedAt == nil {
 		t.Fatalf("output = %v", output)
 	}
 
@@ -157,7 +169,7 @@ func TestOptedInInstalledActIsUsed(t *testing.T) {
 		t.Fatal(err)
 	}
 	prepared, err := client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: opened.Repository.Id,
-		WorkflowId: ".github/workflows/ci.yml", JobId: "lint", UseInstalledAct: true})
+		Selection: pick("ci.yml", "lint"), UseInstalledAct: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +185,7 @@ func TestLocalRunIsRefusedWhenTheFileChangedAfterReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	prepared, err := client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: opened.Repository.Id, WorkflowId: ".github/workflows/ci.yml"})
+	prepared, err := client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: opened.Repository.Id})
 	if err != nil || prepared.ConfirmationId == "" {
 		t.Fatalf("prepare = %v %v", prepared, err)
 	}
@@ -200,7 +212,7 @@ func TestBlockedPlanHasNoConfirmation(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo := opened.Repository.Id
-	prepared, err := client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: repo, WorkflowId: ".github/workflows/ci.yml"})
+	prepared, err := client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: repo})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,10 +224,9 @@ func TestBlockedPlanHasNoConfirmation(t *testing.T) {
 		request *corev1.PrepareLocalRunRequest
 		want    codes.Code
 	}{
-		"unknown repository": {&corev1.PrepareLocalRunRequest{RepositoryId: "repo_nope", WorkflowId: ".github/workflows/ci.yml"}, codes.NotFound},
-		"unknown workflow":   {&corev1.PrepareLocalRunRequest{RepositoryId: repo, WorkflowId: "../../etc/passwd"}, codes.NotFound},
-		"unknown job":        {&corev1.PrepareLocalRunRequest{RepositoryId: repo, WorkflowId: ".github/workflows/ci.yml", JobId: "deploy"}, codes.NotFound},
-		"unknown event":      {&corev1.PrepareLocalRunRequest{RepositoryId: repo, WorkflowId: ".github/workflows/ci.yml", Event: "release"}, codes.InvalidArgument},
+		"unknown repository": {&corev1.PrepareLocalRunRequest{RepositoryId: "repo_nope"}, codes.NotFound},
+		"unknown workflow":   {&corev1.PrepareLocalRunRequest{RepositoryId: repo, Selection: pick("../../../etc/passwd", "a")}, codes.NotFound},
+		"unknown job":        {&corev1.PrepareLocalRunRequest{RepositoryId: repo, Selection: pick("ci.yml", "deploy")}, codes.NotFound},
 	} {
 		if _, err := client.PrepareLocalRun(ctx, tc.request); status.Code(err) != tc.want {
 			t.Errorf("%s: %v, want %v", name, err, tc.want)
@@ -270,7 +281,7 @@ func TestLocalRunTakesValuesForPlanNamesOnly(t *testing.T) {
 	}
 	prepare := func() *corev1.PrepareLocalRunResponse {
 		t.Helper()
-		prepared, err := client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: opened.Repository.Id, WorkflowId: ".github/workflows/ci.yml"})
+		prepared, err := client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: opened.Repository.Id})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -327,7 +338,7 @@ func TestLocalRunLimitsAreAskedCappedAndKeptForTheWorkspace(t *testing.T) {
 	}
 	prepare := func(request *corev1.PrepareLocalRunRequest) *corev1.PrepareLocalRunResponse {
 		t.Helper()
-		request.RepositoryId, request.WorkflowId, request.JobId = opened.Repository.Id, ".github/workflows/ci.yml", "lint"
+		request.RepositoryId, request.Selection = opened.Repository.Id, pick("ci.yml", "lint")
 		prepared, err := client.PrepareLocalRun(ctx, request)
 		if err != nil {
 			t.Fatal(err)
@@ -391,7 +402,7 @@ func TestJobsSayTheirEnvironmentAndAPlanTakesIt(t *testing.T) {
 		t.Fatalf("production = %v", production)
 	}
 	prepared, err := client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: opened.Repository.Id,
-		WorkflowId: ".github/workflows/deploy.yml", JobId: "production"})
+		Selection: pick("deploy.yml", "production")})
 	if err != nil || prepared.Plan.Environment != "production" {
 		t.Fatalf("plan = %v, %v", prepared.GetPlan(), err)
 	}
@@ -423,7 +434,7 @@ func TestAJobAnExpressionPlacesChoosesAmongTheRepositorysEnvironments(t *testing
 		t.Fatal(err)
 	}
 	id := opened.Repository.Id
-	prepare := &corev1.PrepareLocalRunRequest{RepositoryId: id, WorkflowId: ".github/workflows/deploy.yml", JobId: "deploy"}
+	prepare := &corev1.PrepareLocalRunRequest{RepositoryId: id, Selection: pick("deploy.yml", "deploy")}
 
 	// Signed out, Runnir knows no environment, and the run gets the Repository's values.
 	listed, err := client.ListEnvironments(ctx, &corev1.ListEnvironmentsRequest{RepositoryId: id})
@@ -454,5 +465,74 @@ func TestAJobAnExpressionPlacesChoosesAmongTheRepositorysEnvironments(t *testing
 	}
 	if _, err := client.ListEnvironments(ctx, &corev1.ListEnvironmentsRequest{RepositoryId: id}); err != nil || asked.Load() != 2 {
 		t.Fatalf("asked GitHub %d times, %v", asked.Load(), err)
+	}
+}
+
+func TestALocalRunPlansTheScenarioAndTheWorkflowsItLeavesOut(t *testing.T) {
+	client, ctx := servedWith(t, Options{Runner: execution.RunnerFunc(func(context.Context, execution.Job) error { return nil }), Tools: readyTools()})
+	release := "name: Release\non:\n  push:\n    tags: [\"v*\"]\njobs:\n  publish:\n    runs-on: ubuntu-latest\n    steps: [{run: echo}]\n"
+	notify := "name: Notify\non:\n  workflow_run:\n    workflows: [CI]\njobs:\n  tell:\n    runs-on: ubuntu-latest\n    steps: [{run: echo}]\n"
+	root := repoWithWorkflows(t, map[string]string{"ci.yml": localWorkflow, "release.yml": release, "notify.yml": notify})
+	opened, err := client.OpenRepository(ctx, &corev1.OpenRepositoryRequest{Path: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: opened.Repository.Id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lanes := map[string]*corev1.LocalRunLane{}
+	var order []string
+	for _, lane := range prepared.Plan.Lanes {
+		lanes[lane.WorkflowId], order = lane, append(order, lane.WorkflowId)
+	}
+	ci, chained, outside := lanes[".github/workflows/ci.yml"], lanes[".github/workflows/notify.yml"], lanes[".github/workflows/release.yml"]
+	if len(order) != 3 || order[0] != ".github/workflows/ci.yml" || order[1] != ".github/workflows/notify.yml" {
+		t.Fatalf("order = %v", order)
+	}
+	if !ci.Selected || ci.Why == "" || !chained.Selected || chained.Kind != corev1.LocalRunLaneKind_LOCAL_RUN_LANE_KIND_CHAINED ||
+		chained.After != ".github/workflows/ci.yml" || chained.Event != "workflow_run" {
+		t.Fatalf("scenario lanes = %v %v", ci, chained)
+	}
+	if outside.Selected || outside.Kind != corev1.LocalRunLaneKind_LOCAL_RUN_LANE_KIND_OUTSIDE || outside.Skipped != "runs on tag pushes" || outside.Event != "push" {
+		t.Fatalf("release = %v", outside)
+	}
+
+	// Ticked by hand, it runs alone.
+	prepared, err = client.PrepareLocalRun(ctx, &corev1.PrepareLocalRunRequest{RepositoryId: opened.Repository.Id, Selection: pick("release.yml", "publish")})
+	if err != nil || prepared.ConfirmationId == "" {
+		t.Fatalf("prepared = %v, %v", prepared, err)
+	}
+	for _, lane := range prepared.Plan.Lanes {
+		if lane.Selected != (lane.WorkflowId == ".github/workflows/release.yml") {
+			t.Fatalf("lanes = %v", prepared.Plan.Lanes)
+		}
+	}
+	if _, err := client.ConfirmLocalRun(ctx, &corev1.ConfirmLocalRunRequest{ConfirmationId: prepared.ConfirmationId}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// An answer holds a bounded share of the lines; the app asks again after
+// the last one given until no more lines follow.
+func TestOutputAnswersHoldABoundedShareOfTheLines(t *testing.T) {
+	var lines []localrun.Line
+	for i := uint64(1); i <= 10; i++ {
+		lines = append(lines, localrun.Line{Sequence: i, Workflow: "ci.yml", JobID: "lint", Text: strings.Repeat("x", 100)})
+	}
+	out := &corev1.GetLocalRunOutputResponse{LastSequence: 10}
+	answerLines(out, lines, 450)
+	if len(out.Lines) != 3 || !out.MoreLines || out.LastSequence != 3 {
+		t.Fatalf("lines %d, more %v, last %d", len(out.Lines), out.MoreLines, out.LastSequence)
+	}
+	out = &corev1.GetLocalRunOutputResponse{LastSequence: 10}
+	answerLines(out, lines, 10)
+	if len(out.Lines) != 1 || !out.MoreLines || out.LastSequence != 1 {
+		t.Fatalf("a line longer than the room still goes: %d, %v, %d", len(out.Lines), out.MoreLines, out.LastSequence)
+	}
+	out = &corev1.GetLocalRunOutputResponse{LastSequence: 10}
+	answerLines(out, lines, maxOutputAnswerBytes)
+	if len(out.Lines) != 10 || out.MoreLines || out.LastSequence != 10 {
+		t.Fatalf("lines %d, more %v, last %d", len(out.Lines), out.MoreLines, out.LastSequence)
 	}
 }

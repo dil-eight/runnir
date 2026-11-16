@@ -48,9 +48,10 @@ func TestLocalRunCountsCompareWithGitHub(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	summary := localrun.Summary{WorkflowID: ".github/workflows/ci.yml", WholeWorkflow: true, StartedAt: t0, FinishedAt: t0.Add(150 * time.Second),
+	lane := localrun.LaneSummary{WorkflowID: ".github/workflows/ci.yml", WholeWorkflow: true, StartedAt: t0, FinishedAt: t0.Add(150 * time.Second),
 		Jobs: []localrun.JobStatus{job("lint", localrun.JobSucceeded, 61), job("test", localrun.JobFailed, 120),
 			job("deploy", localrun.JobCancelled, 5), {ID: "macos", Name: "macos", State: localrun.JobUnsupported}}}
+	summary := localrun.Summary{Lanes: []localrun.LaneSummary{lane}}
 	got := localRunCounts(ctx, st, summary, store.LocalFailed, true, 4)
 	want := analytics.Counts{
 		localRunFailed:      1,
@@ -73,13 +74,13 @@ func TestLocalRunCountsCompareWithGitHub(t *testing.T) {
 		}
 	}
 	// A workflow GitHub can start by hand has no without-dispatch counts.
-	summary.Dispatchable = true
+	summary.Lanes[0].Dispatchable = true
 	if got := localRunCounts(ctx, st, summary, store.LocalFailed, true, 4); got[analytics.LocalRunsWithoutDispatch] != 0 ||
 		got[analytics.LocalBilledMinutesWithoutDispatch] != 0 || got[analytics.LocalBilledMinutes] != 4 {
 		t.Fatalf("dispatchable = %+v", got)
 	}
 	// One job of a workflow, cancelled, nothing saved: only its jobs and its end count.
-	one := localrun.Summary{WorkflowID: ".github/workflows/ci.yml", Jobs: []localrun.JobStatus{job("lint", localrun.JobCancelled, 3)}}
+	one := localrun.Summary{Lanes: []localrun.LaneSummary{{WorkflowID: ".github/workflows/ci.yml", Jobs: []localrun.JobStatus{job("lint", localrun.JobCancelled, 3)}}}}
 	if got := localRunCounts(ctx, st, one, store.LocalCancelled, false, 0); len(got) != 3 ||
 		got[analytics.LocalJobsCancelled] != 1 || got[localRunCancelled] != 1 {
 		t.Fatalf("one cancelled job = %+v", got)
@@ -97,7 +98,7 @@ func TestFinishedLocalRunsAreCountedForAnalytics(t *testing.T) {
 	m := New(Options{DataDir: t.TempDir(), Intervals: testIntervals(),
 		BilledMinutes: func(string) int64 { return 2 },
 		RunSummary: func(id string) (localrun.Summary, bool) {
-			return localrun.Summary{WorkflowID: ".github/workflows/x.yml", Jobs: []localrun.JobStatus{job("a", localrun.JobSucceeded, 70)}}, id == "exec_1"
+			return localrun.Summary{Lanes: []localrun.LaneSummary{{WorkflowID: ".github/workflows/x.yml", Jobs: []localrun.JobStatus{job("a", localrun.JobSucceeded, 70)}}}}, id == "exec_1"
 		},
 		Analytics: func(_ time.Time, c analytics.Counts) { mu.Lock(); counted = append(counted, c); mu.Unlock() }})
 	t.Cleanup(m.Shutdown)

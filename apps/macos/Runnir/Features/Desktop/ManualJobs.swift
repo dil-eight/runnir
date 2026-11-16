@@ -42,15 +42,15 @@ enum ManualJobStart: Equatable {
 @MainActor
 enum ManualJobRunner {
     /// Asks the question of a confirmation; true to go on.
-    typealias Ask = @MainActor (_ title: String, _ detail: String, _ button: String) -> Bool
+    typealias Ask = @MainActor (_ title: String, _ detail: String, _ button: String) async -> Bool
 
     static func start(_ start: ManualJobStart, jobName: String, workflowName: String, workspaceID: UUID, hub: CoreHub,
-                      ask: Ask = ManualJobRunner.askInAlert,
+                      ask: Ask,
                       confirmOwner: @MainActor (String) async -> OwnerConfirmation = { await OwnerConfirmation.ifEnabled(reason: $0) }) async -> String? {
         switch start {
         case .dispatch(let workflowID, let ref, let inputs):
             let with = inputs.isEmpty ? "" : " with \(ManualJobStart.describe(inputs))"
-            guard ask("Run \(workflowName) on \(ref)?",
+            guard await ask("Run \(workflowName) on \(ref)?",
                       "\(jobName) runs in a new run of \(workflowName)\(with). Other inputs keep their defaults.", "Run") else { return nil }
             switch await confirmOwner("start \u{201C}\(workflowName)\u{201D} on \(ref)") {
             case .confirmed: break
@@ -83,7 +83,7 @@ enum ManualJobRunner {
             if !prepared.problems.isEmpty { return prepared.problems.joined(separator: " ") }
             guard let actionID = prepared.actionID else { return "Not approved." }
             let environments = ListFormatter.localizedString(byJoining: prepared.environments)
-            guard ask("Approve the deployment to \(environments)?",
+            guard await ask("Approve the deployment to \(environments)?",
                       "Run #\(runNumber) of \(workflowName) waits for it; \(jobName) and the jobs after it go on.", "Approve") else { return nil }
             guard let result = await hub.confirmRunAction(workspaceID: workspaceID, actionID: actionID) else {
                 return "Runnir could not confirm the approval: the confirmation expired or Runnir Core did not answer. "
@@ -96,12 +96,9 @@ enum ManualJobRunner {
         }
     }
 
-    static func askInAlert(title: String, detail: String, button: String) -> Bool {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = detail
-        alert.addButton(withTitle: button)
-        alert.addButton(withTitle: "Cancel")
-        return alert.runModal() == .alertFirstButtonReturn
+    /// Asks in Runnir's own dialog: Cancel, then the action, which Return takes.
+    static func ask(_ asker: DialogAsker, _ title: String, _ detail: String, _ button: String) async -> Bool {
+        await asker.ask(DialogAsker.Question(title: title, message: detail,
+                                             choices: [DialogChoice(title: "Cancel"), DialogChoice(title: button, kind: .action)], cancel: 0)) == 1
     }
 }

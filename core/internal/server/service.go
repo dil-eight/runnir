@@ -22,6 +22,7 @@ import (
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
 	"runnir/core/internal/localrun"
+	"runnir/core/internal/mcpbridge"
 	"runnir/core/internal/repository"
 	"runnir/core/internal/store"
 	"runnir/core/internal/validate"
@@ -53,6 +54,9 @@ type service struct {
 	// service by hand. analyticsSending: this build sends it.
 	analytics        *analytics.Ledger
 	analyticsSending bool
+	// mcp holds the calls of MCP clients until the app answers them; nil
+	// only in tests that build a service by hand.
+	mcp *mcpbridge.Broker
 	// home is the user's home directory and actCache act's cache of
 	// actions, kept between runs.
 	home     string

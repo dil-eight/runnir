@@ -72,6 +72,18 @@ struct GRPCCoreService: CoreServicing {
         return options
     }
 
+    /// Options of a call whose answers can be larger than gRPC's default 4
+    /// MiB. grpc-swift-nio-transport 2.11 limits the messages a client
+    /// receives with maxRequestMessageBytes, not maxResponseMessageBytes, so
+    /// both are set.
+    private static func options(_ timeout: Duration?, receiving bytes: Int) -> CallOptions {
+        var options = CallOptions.defaults
+        options.timeout = timeout
+        options.maxRequestMessageBytes = bytes
+        options.maxResponseMessageBytes = bytes
+        return options
+    }
+
     func healthCheck() async throws -> CoreHealth {
         let response = try await call { try await client.healthCheck(.init(), options: Self.options(Self.healthTimeout)) }
         return CoreHealth(
@@ -160,7 +172,7 @@ struct GRPCCoreService: CoreServicing {
             pullRequestsMatched: Int(hits.pullRequestsMatched),
             workflows: hits.workflows.map(Self.map), workflowsMatched: Int(hits.workflowsMatched),
             localRuns: hits.localRuns.map {
-                CoreSearchedLocalRun(executionID: $0.executionID, workflowPath: $0.workflowPath, jobID: $0.jobID, state: $0.state,
+                CoreSearchedLocalRun(executionID: $0.executionID, scenario: $0.scenario, workflowPaths: $0.workflowPaths, state: $0.state,
                                      message: $0.message, startedAt: $0.hasStartedAt ? $0.startedAt.date : nil)
             },
             localRunsMatched: Int(hits.localRunsMatched))
@@ -595,8 +607,7 @@ struct GRPCCoreService: CoreServicing {
     }
 
     func listPullRequests(server: String, closedSince: Date) async throws -> CorePullRequests {
-        var options = Self.options(.seconds(60))
-        options.maxResponseMessageBytes = 4 << 20
+        let options = Self.options(.seconds(60), receiving: 8 << 20)
         let response = try await call {
             try await client.listPullRequests(.with {
                 $0.closedSince = .init(date: closedSince)
@@ -617,8 +628,7 @@ struct GRPCCoreService: CoreServicing {
     }
 
     func listWatchedRuns(_ repositories: [CoreWatchedRepository], refresh: Bool) async throws -> CoreWatchedRunsList {
-        var options = Self.options(.seconds(60))
-        options.maxResponseMessageBytes = 8 << 20
+        let options = Self.options(.seconds(60), receiving: 8 << 20)
         let response = try await call {
             try await client.listWatchedRuns(.with {
                 $0.repositories = repositories.map { sent in
@@ -655,8 +665,7 @@ struct GRPCCoreService: CoreServicing {
 
     func listGitHubRepositories(server: String) async throws -> CoreGitHubAccount {
         // Up to 1,000 repositories over several GitHub pages.
-        var options = Self.options(.seconds(60))
-        options.maxResponseMessageBytes = 8 << 20
+        let options = Self.options(.seconds(60), receiving: 8 << 20)
         let response = try await call { try await client.listGitHubRepositories(.with { $0.githubServer = server }, options: options) }
         return CoreGitHubAccount(
             access: Self.map(response.status),
@@ -973,9 +982,7 @@ struct GRPCCoreService: CoreServicing {
     /// A log of up to 50,000 lines can exceed gRPC's default 4 MiB message
     /// limit on the wire, so this call allows more.
     func jobLog(repositoryID: String, jobID: Int64) async throws -> CoreJobLog {
-        var options = Self.options(.seconds(150))
-        options.maxRequestMessageBytes = 16 << 20
-        options.maxResponseMessageBytes = 16 << 20
+        let options = Self.options(.seconds(150), receiving: 16 << 20)
         let response = try await call {
             try await client.getJobLog(.with {
                 $0.repositoryID = repositoryID
@@ -1049,14 +1056,26 @@ struct GRPCCoreService: CoreServicing {
         return Self.map(response.readiness)
     }
 
-    func prepareLocalRun(repositoryID: String, workflowID: String, jobID: String?, event: String?,
+    func prepareLocalRun(repositoryID: String, scenario: CoreScenario?, selection: CoreLocalRunSelection?, hostUnsandboxed: Bool,
                          useInstalledAct: Bool, limits: CoreLocalRunLimits?, resetLimits: Bool) async throws -> CorePreparedLocalRun {
         let response = try await call {
             try await client.prepareLocalRun(.with {
                 $0.repositoryID = repositoryID
-                $0.workflowID = workflowID
-                $0.jobID = jobID ?? ""
-                $0.event = event ?? ""
+                if let scenario {
+                    $0.scenario = .with {
+                        $0.kind = Self.map(scenario.kind)
+                        $0.target = scenario.target
+                    }
+                }
+                if let selection {
+                    $0.selection = selection.wire.map { workflow, jobs in
+                        .with {
+                            $0.workflowID = workflow
+                            $0.jobIds = jobs
+                        }
+                    }
+                }
+                $0.hostUnsandboxed = hostUnsandboxed
                 $0.useInstalledAct = useInstalledAct
                 if let limits {
                     $0.limits = .with {
@@ -1075,12 +1094,14 @@ struct GRPCCoreService: CoreServicing {
         )
     }
 
-    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String]) async throws -> CoreExecution {
+    func confirmLocalRun(confirmationID: String, secrets: [String: String], variables: [String: String],
+                         startedBy: String?) async throws -> CoreExecution {
         let response = try await call {
             try await client.confirmLocalRun(.with {
                 $0.confirmationID = confirmationID
                 $0.secrets = secrets
                 $0.variables = variables
+                $0.startedBy = startedBy ?? ""
             }, options: Self.options(Self.callTimeout))
         }
         return CoreExecution(id: response.execution.executionID, repositoryID: response.execution.repositoryID,
@@ -1109,9 +1130,8 @@ struct GRPCCoreService: CoreServicing {
     }
 
     func localRunOutput(executionID: String, after: UInt64) async throws -> CoreLocalRunOutput {
-        var options = Self.options(Self.callTimeout)
-        // 5,000 lines of up to 4 KiB each can exceed gRPC's 4 MiB default.
-        options.maxResponseMessageBytes = 32 << 20
+        // The Core gives at most 8 MiB of lines an answer (more_lines).
+        let options = Self.options(Self.callTimeout, receiving: 32 << 20)
         let response = try await call {
             try await client.getLocalRunOutput(.with {
                 $0.executionID = executionID
@@ -1129,8 +1149,11 @@ struct GRPCCoreService: CoreServicing {
         return CoreLocalRunOutput(
             executionID: response.executionID, repositoryID: response.repositoryID,
             state: Self.map(response.state), phase: phase,
-            lines: response.lines.map { CoreLocalRunLine(sequence: $0.sequence, jobID: $0.jobID, text: $0.text, isError: $0.error) },
-            discarded: response.discarded, lastSequence: response.lastSequence,
+            lines: response.lines.map { CoreLocalRunLine(sequence: $0.sequence, workflowID: $0.workflowID, jobID: $0.jobID, text: $0.text, isError: $0.error) },
+            discarded: response.discarded,
+            discardedJobs: response.discardedJobs.map { CoreLocalRunLineSource(workflowID: $0.workflowID, jobID: $0.jobID) },
+            lastSequence: response.lastSequence,
+            moreLines: response.moreLines,
             jobs: response.jobs.map { job in
                 let state: CoreLocalJobState = switch job.state {
                 case .waiting: .waiting
@@ -1143,7 +1166,7 @@ struct GRPCCoreService: CoreServicing {
                 case .notRun: .notRun
                 default: .unknown
                 }
-                return CoreLocalRunJobStatus(id: job.id, name: job.name, state: state, reason: job.reason,
+                return CoreLocalRunJobStatus(workflowID: job.workflowID, id: job.id, name: job.name, state: state, reason: job.reason,
                                              startedAt: job.hasStartedAt ? job.startedAt.date : nil,
                                              finishedAt: job.hasFinishedAt ? job.finishedAt.date : nil)
             },
@@ -1152,7 +1175,8 @@ struct GRPCCoreService: CoreServicing {
             finishedAt: response.hasFinishedAt ? response.finishedAt.date : nil,
             exitCode: response.exitCode < 0 ? nil : Int(response.exitCode),
             message: response.message.isEmpty ? nil : response.message,
-            cleanupProblem: response.cleanupProblem.isEmpty ? nil : response.cleanupProblem
+            cleanupProblem: response.cleanupProblem.isEmpty ? nil : response.cleanupProblem,
+            startedBy: response.startedBy.isEmpty ? nil : response.startedBy
         )
     }
 
@@ -1191,14 +1215,28 @@ struct GRPCCoreService: CoreServicing {
 
     static func map(_ plan: Runnir_Core_V1_LocalRunPlan) -> CoreLocalRunPlan {
         CoreLocalRunPlan(
-            workflowID: plan.workflowID, workflowName: plan.workflowName, events: plan.events, event: plan.event, jobID: plan.jobID,
-            jobs: plan.jobs.map { job in
-                let support: CoreLocalJobSupport = switch job.support {
-                case .supported: .supported
-                case .unsupported: .unsupported
-                default: .unknown
+            scenarios: plan.scenarios.compactMap(Self.map),
+            scenario: plan.hasScenario ? Self.map(plan.scenario) : nil,
+            lanes: plan.lanes.map { lane in
+                let kind: CoreLocalRunLaneKind = switch lane.kind {
+                case .chained: .chained
+                case .manual: .manual
+                case .outside: .outside
+                default: .direct
                 }
-                return CoreLocalRunJob(id: job.id, name: job.name, runsOn: job.runsOn, image: job.image, support: support, reason: job.reason)
+                return CoreLocalRunLane(
+                    workflowID: lane.workflowID, workflowName: lane.workflowName, kind: kind, event: lane.event, why: lane.why,
+                    skipped: lane.skipped, after: lane.after, selected: lane.selected, parseError: lane.parseError,
+                    jobs: lane.jobs.map { job in
+                        let support: CoreLocalJobSupport = switch job.support {
+                        case .supported: .supported
+                        case .unsupported: .unsupported
+                        case .host: .host
+                        default: .unknown
+                        }
+                        return CoreLocalRunJob(id: job.id, name: job.name, runsOn: job.runsOn, image: job.image, support: support,
+                                               reason: job.reason, needs: job.needs, selected: job.selected, skipped: job.skipped)
+                    })
             },
             images: plan.images.map { CoreLocalRunImage(reference: $0.reference, present: $0.present) },
             secrets: plan.secrets, variables: plan.variables, unnamedSecrets: plan.unnamedSecrets,
@@ -1207,7 +1245,8 @@ struct GRPCCoreService: CoreServicing {
             actVersion: plan.actVersion, installedAct: plan.installedAct, engineName: plan.engineName, engineContext: plan.engineContext,
             maxCPUs: Int(plan.maxCpus), maxMemoryBytes: plan.maxMemoryBytes, maxTimeoutSeconds: Int(plan.maxTimeoutSeconds),
             ownLimits: plan.ownLimits, limitWarnings: plan.limitWarnings, limitNote: plan.limitNote,
-            environment: plan.environment, environmentChoice: plan.environmentChoice, environments: plan.environments
+            environment: plan.environment, environmentChoice: plan.environmentChoice, environments: plan.environments,
+            hostJobs: plan.hostJobs, hostUnsandboxed: plan.hostUnsandboxed
         )
     }
 
@@ -1242,6 +1281,132 @@ struct GRPCCoreService: CoreServicing {
                 }
             }
             continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    // MARK: MCP
+
+    func mcpRequests() -> AsyncThrowingStream<CoreMcpRequest, any Error> {
+        let client = client
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    // A change of up to 100 values of 48 KiB is one message.
+                    try await client.subscribeMcpRequests(Runnir_Core_V1_SubscribeMcpRequestsRequest(),
+                                                          options: Self.options(nil, receiving: 16 << 20)) { response in
+                        for try await message in response.messages {
+                            continuation.yield(Self.map(message))
+                        }
+                    }
+                    continuation.finish(throwing: CoreServiceError.unavailable)
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: Self.map(error))
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    func claimMcpRequest(id: String) async throws {
+        _ = try await call {
+            try await client.claimMcpRequest(.with { $0.id = id }, options: Self.options(Self.callTimeout))
+        }
+    }
+
+    func answerMcpRequest(id: String, answer: CoreMcpAnswer) async throws {
+        _ = try await call {
+            try await client.answerMcpRequest(.with {
+                $0.id = id
+                switch answer {
+                case .sets(let sets): $0.sets = Self.message(sets)
+                case .saved(let saved): $0.saved = Self.message(saved)
+                case .refusal(let reason): $0.refusal = reason
+                case .workspaces(let workspaces): $0.workspaces = .with { $0.workspaces = workspaces.map(Self.message) }
+                case .workspace(let opened):
+                    $0.workspace = .with {
+                        $0.workspace = Self.message(opened.workspace)
+                        $0.repositoryID = opened.repositoryID
+                        $0.branch = opened.branch
+                    }
+                case .started(let started):
+                    $0.started = .with {
+                        $0.workspace = started.workspace
+                        $0.executionID = started.executionID
+                        $0.passed = started.passed
+                        $0.empty = started.empty
+                        $0.environment = started.environment ?? ""
+                    }
+                }
+            }, options: Self.options(Self.callTimeout))
+        }
+    }
+
+    static func map(_ request: Runnir_Core_V1_McpRequest) -> CoreMcpRequest {
+        let tool: CoreMcpTool = switch request.tool {
+        case .setValues: .setValues
+        case .listWorkspaces: .listWorkspaces
+        case .openWorkspace: .openWorkspace
+        case .startLocalRun: .startLocalRun
+        default: .listValueSets
+        }
+        var start: CoreMcpLocalRunStart?
+        if request.hasStart {
+            let asked = request.start
+            start = CoreMcpLocalRunStart(scenario: asked.hasScenario ? map(asked.scenario) : nil,
+                                         workflows: asked.workflows.map { ($0.workflow, $0.jobs) },
+                                         environment: asked.environment.isEmpty ? nil : asked.environment,
+                                         allowMissingValues: asked.allowMissingValues, macosWithoutSandbox: asked.macosWithoutSandbox)
+        }
+        return CoreMcpRequest(id: request.id, client: request.client, tool: tool, repository: request.repository, set: request.set,
+                              secrets: request.secrets.map { CoreMcpValue(name: $0.name, value: $0.value) },
+                              variables: request.variables.map { CoreMcpValue(name: $0.name, value: $0.value) },
+                              action: request.action, start: start,
+                              expiresAt: request.hasExpiresAt ? request.expiresAt.date : nil, withdrawn: request.withdrawn)
+    }
+
+    static func message(_ workspace: CoreMcpWorkspace) -> Runnir_Core_V1_McpWorkspace {
+        .with {
+            $0.name = workspace.name
+            $0.path = workspace.path
+            $0.workspaceID = workspace.workspaceID.uuidString.lowercased()
+            $0.open = workspace.open
+        }
+    }
+
+    static func message(_ sets: CoreMcpValueSets) -> Runnir_Core_V1_McpValueSets {
+        .with {
+            $0.workspace = sets.workspace
+            $0.sets = sets.sets.map { set in
+                .with {
+                    $0.name = set.name
+                    $0.stale = set.stale
+                    $0.names = set.names.map { name in
+                        .with {
+                            $0.name = name.name
+                            $0.secret = name.secret
+                            $0.state = switch name.state {
+                            case .saved: .saved
+                            case .fromRepository: .fromRepository
+                            case .missing: .missing
+                            case .notNeeded: .notNeeded
+                            }
+                            // A secret's value never leaves the app.
+                            if !name.secret, let value = name.value { $0.value = value }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    static func message(_ saved: CoreMcpSaved) -> Runnir_Core_V1_McpSavedValues {
+        .with {
+            $0.workspace = saved.workspace
+            $0.set = saved.set
+            $0.secrets = saved.secrets
+            $0.variables = saved.variables
         }
     }
 

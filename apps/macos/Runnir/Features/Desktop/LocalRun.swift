@@ -5,12 +5,82 @@ enum WorkspaceTab: Equatable {
     case editor, localRun
 }
 
-/// Asks for the Run Locally review of one workflow file.
+/// Asks for the Run Locally review: a scenario (nil: the branch's default)
+/// with the jobs ticked (nil: what the scenario starts that can run here).
 struct LocalRunRequest: Identifiable, Equatable {
     let id = UUID()
-    /// ".github/workflows/<name>", as the Core names workflows.
-    let workflowID: String
-    let jobID: String?
+    var scenario: CoreScenario?
+    var selection: CoreLocalRunSelection?
+
+    /// Review the run again: its scenario, its ticks.
+    static func again(_ plan: CoreLocalRunPlan) -> LocalRunRequest {
+        LocalRunRequest(scenario: plan.scenario, selection: LocalRunTicks.selection(of: plan.lanes))
+    }
+}
+
+/// Ticking jobs of a local run: a job brings the jobs it needs, and a job
+/// unticked takes the jobs that need it along. Jobs of different workflows
+/// never depend on one another here.
+enum LocalRunTicks {
+    enum State: Equatable { case on, mixed, off }
+
+    /// A job that can be ticked: one a local image or this Mac can run.
+    static func tickable(_ job: CoreLocalRunJob) -> Bool { job.support != .unsupported }
+
+    /// The jobs a workflow's checkbox ticks: those in a container, or, in a
+    /// workflow with none, those that run on this Mac.
+    static func boxed(_ lane: CoreLocalRunLane) -> [CoreLocalRunJob] {
+        let contained = lane.jobs.filter { $0.support == .supported || $0.support == .unknown }
+        return contained.isEmpty ? lane.jobs.filter { $0.support == .host } : contained
+    }
+
+    /// A lane that can be ticked: its file parses and a job can run here.
+    static func tickable(_ lane: CoreLocalRunLane) -> Bool {
+        lane.parseError.isEmpty && lane.jobs.contains(where: tickable)
+    }
+
+    /// `ticks` with the job and every job it needs, all the way down.
+    static func tick(_ id: String, in lane: CoreLocalRunLane, _ ticks: Set<String>) -> Set<String> {
+        var out = ticks
+        var queue = [id]
+        while let next = queue.popLast() {
+            guard !out.contains(next), let job = lane.jobs.first(where: { $0.id == next }) else { continue }
+            out.insert(next)
+            queue.append(contentsOf: job.needs)
+        }
+        return out
+    }
+
+    /// `ticks` without the job and every job that needs it, all the way up.
+    static func untick(_ id: String, in lane: CoreLocalRunLane, _ ticks: Set<String>) -> Set<String> {
+        var out = ticks
+        var queue = [id]
+        while let next = queue.popLast() {
+            guard out.remove(next) != nil else { continue }
+            queue.append(contentsOf: lane.jobs.filter { $0.needs.contains(next) }.map(\.id))
+        }
+        return out
+    }
+
+    static func state(of lane: CoreLocalRunLane, _ ticks: Set<String>) -> State {
+        let tickable = boxed(lane).map(\.id)
+        let on = tickable.filter(ticks.contains).count
+        if on == 0 { return ticks.isEmpty ? .off : .mixed }
+        return on == tickable.count ? .on : .mixed
+    }
+
+    /// The lane's checkbox: every job that can run here, or none.
+    static func toggle(_ lane: CoreLocalRunLane, _ ticks: Set<String>) -> Set<String> {
+        guard state(of: lane, ticks) == .off else { return [] }
+        return boxed(lane).reduce(into: Set<String>()) { out, job in out = tick(job.id, in: lane, out) }
+    }
+
+    /// The plan's ticks as a selection for the Core.
+    static func selection(of lanes: [CoreLocalRunLane]) -> CoreLocalRunSelection {
+        CoreLocalRunSelection(jobs: Dictionary(uniqueKeysWithValues: lanes.map { lane in
+            (lane.workflowID, Set(lane.jobs.filter(\.selected).map(\.id)))
+        }))
+    }
 }
 
 /// What to ask before quitting or closing a window stops local runs. The
@@ -53,26 +123,16 @@ struct LocalRunStopPrompt: Equatable {
         }
     }
 
-    /// The alert for the prompt. The stop button comes first and is marked
-    /// destructive, so macOS gives it no Return key; Cancel takes Escape and
-    /// the keyboard focus, so a stray Space keeps the run going.
-    @MainActor static func alert(for prompt: LocalRunStopPrompt) -> NSAlert {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = prompt.title
-        alert.informativeText = prompt.detail
-        let confirm = alert.addButton(withTitle: prompt.confirmTitle)
-        confirm.hasDestructiveAction = true
-        let cancel = alert.addButton(withTitle: "Cancel")
-        cancel.keyEquivalent = "\u{1b}"
-        alert.window.initialFirstResponder = cancel
-        return alert
+    /// The question in Runnir's own dialog: Cancel, then the stop, which is
+    /// red and takes no Return, so a stray key keeps the run going. Escape
+    /// cancels.
+    var question: DialogAsker.Question {
+        DialogAsker.Question(title: title, message: detail,
+                             choices: [DialogChoice(title: "Cancel"), DialogChoice(title: confirmTitle, kind: .destructive)], cancel: 0)
     }
 
-    /// Shows the prompt as an alert; true when the user chose to stop.
-    @MainActor static func ask(_ prompt: LocalRunStopPrompt) -> Bool {
-        alert(for: prompt).runModal() == .alertFirstButtonReturn
-    }
+    /// Whether the answer to `question` stops the run.
+    static func stops(_ answer: Int) -> Bool { answer == 1 }
 }
 
 /// The user's choice in Settings: run with the act installed on this Mac
@@ -88,15 +148,31 @@ enum LocalRunSettings {
 @MainActor
 @Observable
 final class LocalRunModel {
-    /// The app keeps as many lines as the Core does.
+    /// The app keeps as many lines as the Core does: the newest of each job,
+    /// and the newest of the whole run for All output.
     static let maxLines = 5000
+
+    /// The job a line is from.
+    struct JobKey: Hashable {
+        let workflowID: String
+        let jobID: String
+    }
 
     let executionID: String
     let workspaceID: UUID
+    /// The MCP client that started the run ("claude-code"); nil for the user.
+    private(set) var startedBy: String?
     private(set) var plan: CoreLocalRunPlan
+    /// The newest lines of the whole run.
     private(set) var lines: [CoreLocalRunLine] = []
-    /// Earlier output was dropped to stay within the bound.
+    /// Each job's newest lines, so a job that writes a lot, such as a matrix
+    /// of builds, never pushes out what another job wrote.
+    private(set) var jobLines: [JobKey: [CoreLocalRunLine]] = [:]
+    /// Earlier output of the whole run was dropped to stay within the bound.
     private(set) var discarded = false
+    /// Jobs whose earlier output was dropped, by the app or by the Core
+    /// before the app read it.
+    private(set) var discardedJobs: Set<JobKey> = []
     private(set) var jobs: [CoreLocalRunJobStatus]
     private(set) var state: CoreExecutionState = .queued
     private(set) var phase: CoreLocalRunPhase = .queued
@@ -109,31 +185,69 @@ final class LocalRunModel {
     private(set) var lostMessage: String?
     private(set) var stopRequested = false
     private(set) var stopError: String?
+    /// Set while reading the run from the Core keeps failing: what is shown
+    /// may be out of date.
+    private(set) var readProblem: String?
     /// The job whose output is shown; nil shows everything.
     var selectedJobID: String?
 
     @ObservationIgnored private var lastSequence: UInt64 = 0
+    /// The Core has more lines than its last answer held.
+    @ObservationIgnored private var linesPending = false
     @ObservationIgnored private var followTask: Task<Void, Never>?
     /// Called once when the Core reports the run finished.
     @ObservationIgnored var onFinish: (@MainActor (LocalRunModel) -> Void)?
     @ObservationIgnored private var reportedFinish = false
     @ObservationIgnored var pollInterval: Duration = .milliseconds(500)
+    /// Failed reads in a row; a few are a Core restarting or busy.
+    @ObservationIgnored private var failedReads = 0
+    static let failedReadsShown = 10
 
-    init(executionID: String, workspaceID: UUID, plan: CoreLocalRunPlan) {
+    init(executionID: String, workspaceID: UUID, plan: CoreLocalRunPlan, startedBy: String? = nil) {
         self.executionID = executionID
         self.workspaceID = workspaceID
+        self.startedBy = startedBy
         self.plan = plan
-        jobs = plan.jobs.map { job in
-            CoreLocalRunJobStatus(id: job.id, name: job.name, state: job.support == .unsupported ? .unsupported : .waiting, reason: job.reason)
+        jobs = plan.selectedLanes.flatMap { lane in
+            lane.jobs.filter(\.selected).map { job in
+                CoreLocalRunJobStatus(workflowID: lane.workflowID, id: job.id, name: job.name,
+                                      state: job.support == .unsupported ? .unsupported : .waiting, reason: job.reason)
+            }
         }
-        selectedJobID = plan.jobs.first { $0.support != .unsupported }?.id
+        selectedJobID = jobs.first { $0.state != .unsupported }?.id
     }
 
     var isFinished: Bool { phase == .finished || lostMessage != nil }
 
     var visibleLines: [CoreLocalRunLine] {
-        guard let selectedJobID else { return lines }
-        return lines.filter { $0.jobID == selectedJobID }
+        guard let key = selectedKey else { return lines }
+        return jobLines[key] ?? []
+    }
+
+    /// Earlier output of what is shown was dropped.
+    var visibleDiscarded: Bool {
+        guard let key = selectedKey else { return discarded }
+        return discardedJobs.contains(key)
+    }
+
+    private var selectedKey: JobKey? {
+        guard let selectedJobID, let job = job(selectedJobID) else { return nil }
+        return JobKey(workflowID: job.workflowID, jobID: job.jobID)
+    }
+
+    /// The output shown, as Copy puts it on the pasteboard.
+    var visibleText: String { visibleLines.map(\.text).joined(separator: "\n") }
+
+    /// The run's jobs under their workflows, in run order.
+    var lanes: [(lane: CoreLocalRunLane, jobs: [CoreLocalRunJobStatus])] {
+        plan.selectedLanes.map { lane in (lane, jobs.filter { $0.workflowID == lane.workflowID }) }
+    }
+
+    /// One line for the run: its workflow, or how many it has.
+    var title: String {
+        let lanes = plan.selectedLanes
+        if lanes.count == 1, let lane = lanes.first { return lane.title }
+        return "\(lanes.count) workflows"
     }
 
     func job(_ id: String) -> CoreLocalRunJobStatus? { jobs.first { $0.id == id } }
@@ -141,15 +255,33 @@ final class LocalRunModel {
     /// Merges what the Core reported after `lastSequence`.
     func apply(_ output: CoreLocalRunOutput) {
         if output.discarded { discarded = true }
+        // Only the jobs the Core dropped lines of, so a job that writes a lot
+        // does not make another's output look cut.
+        // Only what changed is set: every change redraws the run view.
+        let dropped = output.discardedJobs.map { JobKey(workflowID: $0.workflowID, jobID: $0.jobID) }
+        if !dropped.allSatisfy(discardedJobs.contains) { discardedJobs.formUnion(dropped) }
         let fresh = output.lines.filter { $0.sequence > lastSequence }
-        lines.append(contentsOf: fresh)
+        if !fresh.isEmpty { lines.append(contentsOf: fresh) }
         if lines.count > Self.maxLines {
             lines.removeFirst(lines.count - Self.maxLines)
             discarded = true
         }
+        var grown: Set<JobKey> = []
+        for line in fresh where !line.jobID.isEmpty {
+            let key = JobKey(workflowID: line.workflowID, jobID: line.jobID)
+            jobLines[key, default: []].append(line)
+            grown.insert(key)
+        }
+        for key in grown {
+            if let count = jobLines[key]?.count, count > Self.maxLines {
+                jobLines[key]?.removeFirst(count - Self.maxLines)
+                discardedJobs.insert(key)
+            }
+        }
         lastSequence = max(lastSequence, output.lastSequence, fresh.last?.sequence ?? 0)
+        linesPending = output.moreLines
         if !output.jobs.isEmpty { jobs = output.jobs }
-        plan = output.plan.workflowID.isEmpty ? plan : output.plan
+        plan = output.plan.lanes.isEmpty ? plan : output.plan
         state = output.state
         phase = output.phase
         exitCode = output.exitCode
@@ -157,31 +289,53 @@ final class LocalRunModel {
         cleanupProblem = output.cleanupProblem
         startedAt = output.startedAt ?? startedAt
         finishedAt = output.finishedAt
+        startedBy = output.startedBy ?? startedBy
         if phase == .finished, !reportedFinish {
             reportedFinish = true
             onFinish?(self)
         }
-        if selectedJobID == nil || job(selectedJobID ?? "") == nil {
+        // nil is All output and stays; a job the run no longer has gives way
+        // to the running one.
+        if let selected = selectedJobID, job(selected) == nil {
             selectedJobID = jobs.first { $0.state == .running }?.id ?? jobs.first { $0.state != .unsupported }?.id
         }
     }
 
-    /// Reads the run from the Core until it finishes or the Core forgets it.
+    /// Reads the run from the Core until it finishes and every line is
+    /// read, or the Core forgets it. Lines one answer does not hold are
+    /// asked for at once.
     func follow(hub: CoreHub) {
         followTask?.cancel()
         followTask = Task { [weak self, weak hub] in
-            while let self, let hub, !Task.isCancelled, !self.isFinished {
+            while let self, let hub, !Task.isCancelled, !self.isFinished || self.linesPending, self.lostMessage == nil {
                 do {
                     self.apply(try await hub.localRunOutput(executionID: self.executionID, after: self.lastSequence))
+                    self.failedReads = 0
+                    self.readProblem = nil
                 } catch CoreServiceError.notFound {
                     self.lostMessage = "Runnir Core stopped during this run, so its result is unknown. Runnir does not resume runs."
                 } catch {
-                    // The Core is restarting or busy; try again.
+                    // The Core is restarting or busy; try again, and say so
+                    // when it lasts.
+                    self.failedReads += 1
+                    if self.failedReads >= Self.failedReadsShown {
+                        self.readProblem = Self.readProblem(error)
+                    }
                 }
+                if self.linesPending, self.failedReads == 0 { continue }
                 if self.isFinished { break }
                 try? await Task.sleep(for: self.pollInterval)
             }
         }
+    }
+
+    /// What the run view says while the Core does not answer for the run.
+    static func readProblem(_ error: any Error) -> String {
+        let reason = switch error {
+        case CoreServiceError.remote(_, let message) where !message.isEmpty: message
+        default: CoreHub.describe(error)
+        }
+        return "Runnir can't read this run from Runnir Core, so what is shown may be out of date. Still trying. Reason: \(reason)"
     }
 
     func stopFollowing() {
@@ -202,17 +356,22 @@ final class LocalRunModel {
     }
 }
 
-/// The review before a local run (S10): the plan from the Core, the user's
-/// job and event choice, and the trust confirmation.
+/// The review before a local run (S10): the scenario, the workflows and
+/// jobs ticked, the plan from the Core and the trust confirmation.
 @MainActor
 @Observable
 final class LocalRunReviewModel {
     let workspaceID: UUID
-    let workflowID: String
-    let jobs: [CoreJob]
-    var jobID: String?
-    var event: String?
+    /// The scenario asked for; nil until the Core says the branch's default.
+    private(set) var scenario: CoreScenario?
+    /// The ticks the next plan is asked for; nil takes the scenario's.
+    private(set) var selection: CoreLocalRunSelection?
     var trusted = false
+    /// The user agreed that the ticked macOS jobs run on this Mac, not in a
+    /// container; asked again when they or the sandbox choice change.
+    var hostConfirmed = false
+    /// The macOS jobs run without the macOS sandbox, for this run only.
+    private(set) var hostUnsandboxed = false
     /// Values typed for this run, by name.
     var entered: [LocalRunValueKey: String] = [:]
     /// Save the typed values to the workspace when the run starts.
@@ -248,13 +407,12 @@ final class LocalRunReviewModel {
     @ObservationIgnored private var sources: [LocalRunValueKey: LocalRunValueKey] = [:]
     @ObservationIgnored private var generation = 0
 
-    init(workspaceID: UUID, workflowID: String, jobs: [CoreJob], jobID: String? = nil, hub: CoreHub,
+    init(workspaceID: UUID, scenario: CoreScenario? = nil, selection: CoreLocalRunSelection? = nil, hub: CoreHub,
          values: any LocalRunValueStoring = InMemoryLocalRunValueStore(),
          useInstalledAct: @escaping () -> Bool = { LocalRunSettings.useInstalledAct }) {
         self.workspaceID = workspaceID
-        self.workflowID = workflowID
-        self.jobs = jobs
-        self.jobID = jobID
+        self.scenario = scenario
+        self.selection = selection
         self.hub = hub
         self.values = values
         self.useInstalledAct = useInstalledAct
@@ -303,7 +461,7 @@ final class LocalRunReviewModel {
 
     var accessSummary: String {
         let keys = runKeys
-        if keys.isEmpty { return "None read by this workflow. GitHub token and host environment are not passed" }
+        if keys.isEmpty { return "None read by the ticked jobs. GitHub token and host environment are not passed" }
         let empty = missing.count
         return "\(keys.count - empty) passed, \(empty) empty. Workflow steps can read these values and send them over the network"
     }
@@ -341,22 +499,88 @@ final class LocalRunReviewModel {
         refused = refusedNow
     }
 
-    var canRun: Bool { prepared?.confirmationID != nil && trusted && !isPreparing && !isStarting }
+    var canRun: Bool {
+        prepared?.confirmationID != nil && trusted && (hostJobs.isEmpty || hostConfirmed) && !isPreparing && !isStarting
+    }
+
+    /// Ticked jobs that run on this Mac, not in a container.
+    var hostJobs: [String] { prepared?.plan.hostJobs ?? [] }
+
+    /// The planned run takes the macOS jobs out of the sandbox.
+    var runsUnsandboxed: Bool { prepared?.plan.hostUnsandboxed ?? false }
+
+    /// Runs the macOS jobs without the sandbox, or in it again: planned
+    /// again and confirmed again.
+    func setUnsandboxed(_ on: Bool) async {
+        guard on != hostUnsandboxed else { return }
+        hostUnsandboxed = on
+        hostConfirmed = false
+        await prepare()
+    }
+
+    /// The lanes as the review shows them: the plan's, with the ticks asked for.
+    var lanes: [CoreLocalRunLane] { prepared?.plan.lanes ?? [] }
+
+    /// The ticked jobs of a lane: those asked for while their plan is on its
+    /// way, else the plan's.
+    func ticks(_ lane: CoreLocalRunLane) -> Set<String> {
+        selection?.jobs[lane.workflowID] ?? Set(lane.jobs.filter(\.selected).map(\.id))
+    }
+
+    /// How many workflows and jobs are ticked.
+    var tickedSummary: (workflows: Int, jobs: Int) {
+        lanes.reduce(into: (0, 0)) { total, lane in
+            let count = ticks(lane).count
+            if count > 0 { total.0 += 1; total.1 += count }
+        }
+    }
+
+    /// Another scenario: its default ticks, planned again.
+    func choose(scenario: CoreScenario) async {
+        guard scenario != self.scenario else { return }
+        self.scenario = scenario
+        selection = nil
+        await prepare()
+    }
+
+    /// Ticks or unticks a job, with the jobs it needs or that need it.
+    func toggle(job: CoreLocalRunJob, in lane: CoreLocalRunLane) async {
+        let current = ticks(lane)
+        let next = current.contains(job.id) ? LocalRunTicks.untick(job.id, in: lane, current) : LocalRunTicks.tick(job.id, in: lane, current)
+        await select(next, in: lane)
+    }
+
+    /// The lane's checkbox: all its jobs that can run here, or none.
+    func toggle(lane: CoreLocalRunLane) async {
+        await select(LocalRunTicks.toggle(lane, ticks(lane)), in: lane)
+    }
+
+    private func select(_ ticks: Set<String>, in lane: CoreLocalRunLane) async {
+        var next = selection ?? LocalRunTicks.selection(of: lanes)
+        next.jobs[lane.workflowID] = ticks
+        selection = next
+        await prepare()
+    }
 
     /// Asks the Core for a fresh plan; an answer for an older choice is dropped.
     func prepare() async {
         generation += 1
         let current = generation
         isPreparing = true
-        let result = await hub.prepareLocalRun(workspaceID: workspaceID, workflowID: workflowID, jobID: jobID,
-                                               event: event, useInstalledAct: useInstalledAct(),
+        let result = await hub.prepareLocalRun(workspaceID: workspaceID, scenario: scenario, selection: selection,
+                                               hostUnsandboxed: hostUnsandboxed, useInstalledAct: useInstalledAct(),
                                                limits: askedLimits, resetLimits: resettingLimits)
         guard current == generation else { return }
         switch result {
         case .prepared(let prepared):
+            if prepared.plan.hostJobs != self.prepared?.plan.hostJobs || prepared.plan.hostUnsandboxed != self.prepared?.plan.hostUnsandboxed {
+                hostConfirmed = false
+            }
             self.prepared = prepared
             error = nil
-            if event == nil { event = prepared.plan.event.isEmpty ? nil : prepared.plan.event }
+            if scenario == nil { scenario = prepared.plan.scenario }
+            // The Core's ticks win: it adds the jobs ticked jobs need.
+            if selection != nil { selection = LocalRunTicks.selection(of: prepared.plan.lanes) }
             // Run waits for the saved values, so none is passed empty
             // because it was still being read.
             await loadSaved(for: runKeys, generation: current)
@@ -387,8 +611,15 @@ final class LocalRunReviewModel {
         await prepare()
     }
 
+    /// Ticks exactly these jobs and plans the run again.
+    func select(_ selection: CoreLocalRunSelection) async {
+        self.selection = selection
+        await prepare()
+    }
+
     /// Starts the reviewed run; nil and `error` when it did not start.
-    func run() async -> LocalRunModel? {
+    /// `startedBy`: the MCP client that starts it; nil for the user.
+    func run(startedBy: String? = nil) async -> LocalRunModel? {
         guard canRun, let prepared else { return nil }
         isStarting = true
         defer { isStarting = false }
@@ -408,7 +639,8 @@ final class LocalRunReviewModel {
                 return nil
             }
         }
-        switch await hub.startLocalRun(workspaceID: workspaceID, prepared: prepared, secrets: secrets, variables: variables) {
+        switch await hub.startLocalRun(workspaceID: workspaceID, prepared: prepared, secrets: secrets, variables: variables,
+                                       startedBy: startedBy) {
         case .started(let model):
             return model
         case .failed(let message):

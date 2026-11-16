@@ -20,6 +20,8 @@ import (
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
 	"runnir/core/internal/github"
 	"runnir/core/internal/localrun"
+	"runnir/core/internal/mcpbridge"
+	"runnir/core/internal/mcptools"
 	"runnir/core/internal/repository"
 	"runnir/core/internal/scanner"
 	"runnir/core/internal/tools"
@@ -70,6 +72,9 @@ type Options struct {
 	// AnalyticsFirstSend is how long after start the first send waits;
 	// 0 is one minute.
 	AnalyticsFirstSend time.Duration
+	// McpWait is how long an MCP client's call waits for the app; 0 is
+	// five minutes.
+	McpWait time.Duration
 }
 
 // Run serves gRPC on a Unix domain socket until ctx is cancelled, then stops
@@ -179,7 +184,10 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 		grpc.StreamInterceptor(authStream(options.ClientSecret)),
 	)
 	accounts := github.NewAccounts(options.GitHubBaseURL, buildinfo.Version)
-	corev1.RegisterRunnirCoreServer(grpcServer, &service{
+	// MCP clients reach the app's Core on mcp.sock (`runnir mcp`); the Core
+	// asks the app through the broker, on this socket's SubscribeMcpRequests.
+	mcpRequests := mcpbridge.NewBroker(options.McpWait)
+	core := &service{
 		repositories: repositories, events: bus, executions: executions, workspaces: workspaces,
 		accounts:         accounts,
 		watcher:          watch.New(accounts, workspaces, time.Now),
@@ -192,7 +200,10 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 		actCache:         actCache,
 		analytics:        ledger,
 		analyticsSending: sender.Enabled(),
-	})
+		mcp:              mcpRequests,
+	}
+	corev1.RegisterRunnirCoreServer(grpcServer, core)
+	stopMcp := startMcp(options.DataDir, mcptools.New(mcpCore{core}, mcpRequests, os.Stderr), os.Stderr)
 
 	done := make(chan error, 1)
 	go func() { done <- grpcServer.Serve(listener) }()
@@ -212,6 +223,8 @@ func RunWithOptions(ctx context.Context, socketPath string, options Options) err
 	executions.Shutdown(stopCtx)
 	stopCancel()
 	bus.Close()
+	stopMcp()
+	mcpRequests.Close()
 	if serverEnded {
 		return serveErr
 	}

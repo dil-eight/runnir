@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -151,9 +152,10 @@ func TestBundledActIsUsedWhenNoActIsInstalled(t *testing.T) {
 
 func TestOldInstalledActIsUnsupportedAndNewActIsUntested(t *testing.T) {
 	host := readyHost()
-	host.commands["act --version"] = "act version 0.2.45"
+	// Every run passes --concurrent-jobs, which act has had since 0.2.78.
+	host.commands["act --version"] = "act version 0.2.77"
 	report := host.detector().Check(context.Background(), false)
-	if report.InstalledAct.State != Unsupported || !strings.Contains(report.InstalledAct.Detail, "0.2.60") {
+	if report.InstalledAct.State != Unsupported || !strings.Contains(report.InstalledAct.Detail, "0.2.78") {
 		t.Fatalf("act = %+v", report.InstalledAct)
 	}
 	if _, source := report.Act(true); source != ActBundled {
@@ -368,5 +370,34 @@ func TestAnEngineCheckThatRunsOutOfTimeIsAFailedCheck(t *testing.T) {
 	report := d.Check(ctx, true)
 	if report.Engine.State != Failed {
 		t.Fatalf("engine = %+v", report.Engine)
+	}
+}
+
+// Node.js is looked for only for jobs that run on a Mac.
+func TestNodeIsFoundOnThePathOrInNvm(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("macOS jobs run on a Mac")
+	}
+	home := t.TempDir()
+	for _, version := range []string{"v18.20.4", "v24.13.1", "v9.11.2", "vnext"} {
+		bin := filepath.Join(home, ".nvm", "versions", "node", version, "bin")
+		if err := os.MkdirAll(bin, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(bin, "node"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	empty := t.TempDir()
+	if got := FindNode(home, empty); got != filepath.Join(home, ".nvm", "versions", "node", "v24.13.1", "bin", "node") &&
+		!strings.HasPrefix(got, "/opt/homebrew/") && !strings.HasPrefix(got, "/usr/local/") && !strings.HasPrefix(got, "/usr/bin/") {
+		t.Fatalf("node = %q", got)
+	}
+	onPath := t.TempDir()
+	if err := os.WriteFile(filepath.Join(onPath, "node"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := FindNode(home, onPath); got != filepath.Join(onPath, "node") {
+		t.Fatalf("node on the path = %q", got)
 	}
 }

@@ -138,7 +138,7 @@ func TestLocalRunsAreRecordedFromExecutionEvents(t *testing.T) {
 	m := newRuntimes(t, t.TempDir())
 	r, _ := m.Attach(wsA, "repo_1", fixedResolver(accounts, "o", "r"))
 	at := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
-	m.RecordLocalRun("repo_1", store.LocalRun{ExecutionID: "exec_1", WorkflowPath: ".github/workflows/ci.yml", StartedAt: at, State: store.LocalQueued})
+	m.RecordLocalRun("repo_1", store.LocalRun{ExecutionID: "exec_1", Workflows: []string{".github/workflows/ci.yml"}, StartedAt: at, State: store.LocalQueued})
 	m.ObserveExecution(events.Event{Type: corev1.CoreEventType_CORE_EVENT_TYPE_WORKFLOW_STARTED, RepositoryID: "repo_1", ExecutionID: "exec_1",
 		ExecutionState: corev1.ExecutionState_EXECUTION_STATE_RUNNING, At: at})
 	m.ObserveExecution(events.Event{Type: corev1.CoreEventType_CORE_EVENT_TYPE_WORKFLOW_FAILED, RepositoryID: "repo_1", ExecutionID: "exec_1",

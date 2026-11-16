@@ -346,7 +346,7 @@ struct GitHubRepositoriesView: View {
                 UnavailableFeature(title: "GitHub is not available", detail: "Runnir Core or the GitHub account is not set up in this build.", symbol: "exclamationmark.triangle")
             }
         }
-        .sheet(isPresented: $showingConnect) { if let github = desktop.github { GitHubConnectView(session: github) } }
+        .sheet(isPresented: $showingConnect) { if let github = desktop.github { GitHubConnectView(session: github).dropdownHost() } }
         // Registered clones are matched to GitHub repositories right away,
         // not only once they are opened.
         .task(id: "\(desktop.snapshot.workspaces.map(\.id))|\(coreReady)") { await desktop.findGitHubOrigins() }

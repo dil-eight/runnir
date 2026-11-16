@@ -572,9 +572,9 @@ struct RunWorkflowSheet: View {
         .frame(width: 540)
         .background(RunnirTheme.background)
         .foregroundStyle(RunnirTheme.foreground)
+        .githubAccessAlert(Binding(get: { model.accessHelp }, set: { model.accessHelp = $0 }), github: github)
         .dropdownHost()
         .task { await model.load() }
-        .githubAccessAlert(Binding(get: { model.accessHelp }, set: { model.accessHelp = $0 }), github: github)
         .countsUsage(.overlayRunsDispatch)
     }
 

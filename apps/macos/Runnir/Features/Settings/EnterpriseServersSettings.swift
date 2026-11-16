@@ -92,7 +92,7 @@ struct EnterpriseServersSection: View {
     let servers: EnterpriseServers
     let hub: CoreHub?
     @State private var adding = false
-    @State private var removing: EnterpriseServer?
+    @Environment(\.dialogAsker) private var asker
 
     var body: some View {
         Section("GitHub Enterprise") {
@@ -104,7 +104,7 @@ struct EnterpriseServersSection: View {
                             .font(.system(size: 11)).foregroundStyle(RunnirTheme.secondaryForeground)
                     }
                     Spacer()
-                    Button("Remove...") { removing = server }
+                    Button("Remove...") { confirmRemoving(server) }
                 }
             }
             if let problem = servers.problem {
@@ -120,15 +120,19 @@ struct EnterpriseServersSection: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .sheet(isPresented: $adding) {
-            if let hub { AddEnterpriseServerSheet(servers: servers, hub: hub) }
+            if let hub { AddEnterpriseServerSheet(servers: servers, hub: hub).dropdownHost() }
         }
-        .confirmationDialog("Remove \(removing?.name ?? "")?",
-                            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } })) {
-            Button("Remove", role: .destructive) {
-                if let removing { Task { await servers.remove(removing.id) } }
-            }
-        } message: {
-            Text("Runnir forgets this server and deletes its token from your Keychain. The token stays valid on the server until you revoke it.")
+    }
+
+    /// Asks in the window's dialog before the server and its token go.
+    private func confirmRemoving(_ server: EnterpriseServer) {
+        guard let asker else { return }
+        Task {
+            let question = DialogAsker.Question(
+                title: "Remove \(server.name)?",
+                message: "Runnir forgets this server and deletes its token from your Keychain. The token stays valid on the server until you revoke it.",
+                choices: [DialogChoice(title: "Cancel"), DialogChoice(title: "Remove", kind: .destructive)], cancel: 0)
+            if await asker.ask(question) == 1 { await servers.remove(server.id) }
         }
     }
 }

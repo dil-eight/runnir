@@ -24,13 +24,14 @@ import (
 // Version policy. Runnir drives act through its command line and its JSON
 // log format, which are not a stable API, so the app bundles the act version
 // local runs were verified with and uses it by default. An installed act is
-// an experimental opt-in: it must be at least MinActVersion, and newer
-// versions are labelled untested. Docker is used through long-stable CLI
+// an experimental opt-in: it must be at least MinActVersion (the first with
+// --concurrent-jobs, which every run passes), and newer versions are
+// labelled untested. Docker is used through long-stable CLI
 // commands; act negotiates the engine API itself, so the engine only needs
 // API 1.41 (Docker 20.10).
 var (
-	MinActVersion    = Version{0, 2, 60}
-	TestedActVersion = Version{0, 2, 89}
+	MinActVersion    = Version{0, 2, 78}
+	TestedActVersion = Version{0, 2, 97}
 	MinEngineAPI     = Version{1, 41, 0}
 )
 
@@ -579,4 +580,58 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 		}
 	}
 	return len(p), nil
+}
+
+// FindNode finds Node.js on this Mac for the JavaScript actions of jobs that
+// run here: on the search path, else nvm's newest version. Empty when there
+// is none.
+func FindNode(home, pathEnv string) string {
+	for _, dir := range SearchDirs(home, pathEnv) {
+		if candidate := filepath.Join(dir, "node"); isExecutable(candidate) {
+			return candidate
+		}
+	}
+	versions, _ := filepath.Glob(filepath.Join(home, ".nvm", "versions", "node", "v*", "bin", "node"))
+	newest, best := "", []int(nil)
+	for _, candidate := range versions {
+		version := nodeVersion(filepath.Base(filepath.Dir(filepath.Dir(candidate))))
+		if version != nil && isExecutable(candidate) && newer(version, best) {
+			newest, best = candidate, version
+		}
+	}
+	return newest
+}
+
+func isExecutable(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir() && info.Mode()&0o111 != 0
+}
+
+// nodeVersion reads "v24.13.1"; nil when it is not a version.
+func nodeVersion(name string) []int {
+	parts := strings.Split(strings.TrimPrefix(name, "v"), ".")
+	if len(parts) != 3 {
+		return nil
+	}
+	out := make([]int, 3)
+	for i, part := range parts {
+		n, err := strconv.Atoi(part)
+		if err != nil {
+			return nil
+		}
+		out[i] = n
+	}
+	return out
+}
+
+func newer(a, b []int) bool {
+	if b == nil {
+		return true
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return a[i] > b[i]
+		}
+	}
+	return false
 }

@@ -103,7 +103,7 @@ final class StorageSettingsModel {
 /// Settings › Storage: what each workspace keeps on this Mac.
 struct StorageSettingsSection: View {
     @State var model: StorageSettingsModel
-    @State private var confirming: Confirmation?
+    @Environment(\.dialogAsker) private var asker
 
     private enum Confirmation: Identifiable {
         case clear(StorageRow), clearAll, delete(StorageRow), stopKeepingLogs, clearIndex, deleteRecoveryCopies(StorageRow)
@@ -123,7 +123,7 @@ struct StorageSettingsSection: View {
         Section("Job Logs") {
             Toggle("Keep job logs on this Mac", isOn: Binding(
                 get: { model.keepJobLogs },
-                set: { keep in if keep { Task { await model.setKeepJobLogs(true) } } else { confirming = .stopKeepingLogs } })).handPointer()
+                set: { keep in if keep { Task { await model.setKeepJobLogs(true) } } else { confirm(.stopKeepingLogs) } })).handPointer()
             Text("Logs of finished jobs open offline and are not downloaded again. They can contain output your workflows print; they stay in Runnir's folder on this Mac, up to 100 MB per workspace.")
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
         }
@@ -141,16 +141,16 @@ struct StorageSettingsSection: View {
                                 Button("Show Recovery Copies") {
                                     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path, isDirectory: true)])
                                 }
-                                Button("Delete Recovery Copies\u{2026}") { confirming = .deleteRecoveryCopies(row) }
+                                Button("Delete Recovery Copies\u{2026}") { confirm(.deleteRecoveryCopies(row)) }
                             }
                             .controlSize(.small).padding(.top, 2)
                         }
                     }
                     Spacer()
                     if row.isRegistered {
-                        Button("Clear Cache…") { confirming = .clear(row) }.disabled(row.storage == nil)
+                        Button("Clear Cache…") { confirm(.clear(row)) }.disabled(row.storage == nil)
                     } else {
-                        Button("Delete…", role: .destructive) { confirming = .delete(row) }
+                        Button("Delete…", role: .destructive) { confirm(.delete(row)) }
                     }
                 }
             }
@@ -158,7 +158,7 @@ struct StorageSettingsSection: View {
                 Text("Clearing keeps local run history, presets, favorites and your sign-in. Saved activity downloads again when a workspace opens.")
                     .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                 Spacer()
-                Button("Clear All Caches…") { confirming = .clearAll }.disabled(model.rows.allSatisfy { $0.storage == nil })
+                Button("Clear All Caches…") { confirm(.clearAll) }.disabled(model.rows.allSatisfy { $0.storage == nil })
             }
         }
         .task { await model.load() }
@@ -170,48 +170,65 @@ struct StorageSettingsSection: View {
                         .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
                 }
                 Spacer()
-                Button("Clear Search Index\u{2026}") { confirming = .clearIndex }.disabled(model.indexedRuns == 0)
+                Button("Clear Search Index\u{2026}") { confirm(.clearIndex) }.disabled(model.indexedRuns == 0)
             }
             Text("The index keeps what Runnir has read of a repository's runs, so a search still finds runs that GitHub deleted or that fell out of the saved runs. Clearing the cache keeps it.")
                 .font(.system(size: 12)).foregroundStyle(RunnirTheme.secondaryForeground)
         }
-        .confirmationDialog(title, isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }), titleVisibility: .visible) {
-            switch confirming {
-            case .clear(let row): Button("Clear Cache") { Task { await model.clear([row.id]) } }
-            case .clearAll: Button("Clear All Caches") { Task { await model.clearAll() } }
-            case .delete(let row): Button("Delete", role: .destructive) { Task { await model.delete(row.id) } }
-            case .stopKeepingLogs: Button("Stop and Delete Logs", role: .destructive) { Task { await model.setKeepJobLogs(false) } }
-            case .clearIndex: Button("Clear Search Index", role: .destructive) { Task { await model.clearIndex([]) } }
-            case .deleteRecoveryCopies(let row):
-                Button("Delete Recovery Copies", role: .destructive) { Task { await model.deleteRecoveryCopies(row.id) } }
-            case nil: EmptyView()
-            }
-            Button("Cancel", role: .cancel) { confirming = nil }
-        } message: {
-            Text(message)
+    }
+
+    /// Asks in the window's dialog, then does what was asked.
+    private func confirm(_ confirmation: Confirmation) {
+        guard let asker else { return }
+        Task {
+            let question = DialogAsker.Question(title: title(for: confirmation), message: message(for: confirmation),
+                                                choices: [DialogChoice(title: "Cancel"), choice(for: confirmation)], cancel: 0)
+            if await asker.ask(question) == 1 { await perform(confirmation) }
         }
     }
 
-    private var title: String {
-        switch confirming {
+    /// The button that does what was asked: red when it deletes something
+    /// that does not come back by downloading again.
+    private func choice(for confirmation: Confirmation) -> DialogChoice {
+        switch confirmation {
+        case .clear: DialogChoice(title: "Clear Cache", kind: .action)
+        case .clearAll: DialogChoice(title: "Clear All Caches", kind: .action)
+        case .delete: DialogChoice(title: "Delete", kind: .destructive)
+        case .stopKeepingLogs: DialogChoice(title: "Stop and Delete Logs", kind: .destructive)
+        case .clearIndex: DialogChoice(title: "Clear Search Index", kind: .destructive)
+        case .deleteRecoveryCopies: DialogChoice(title: "Delete Recovery Copies", kind: .destructive)
+        }
+    }
+
+    private func perform(_ confirmation: Confirmation) async {
+        switch confirmation {
+        case .clear(let row): await model.clear([row.id])
+        case .clearAll: await model.clearAll()
+        case .delete(let row): await model.delete(row.id)
+        case .stopKeepingLogs: await model.setKeepJobLogs(false)
+        case .clearIndex: await model.clearIndex([])
+        case .deleteRecoveryCopies(let row): await model.deleteRecoveryCopies(row.id)
+        }
+    }
+
+    private func title(for confirmation: Confirmation) -> String {
+        switch confirmation {
         case .clear(let row): "Clear the cache of \(row.name)?"
         case .clearAll: "Clear every workspace's cache?"
         case .delete: "Delete this removed workspace's data?"
         case .stopKeepingLogs: "Stop keeping job logs?"
         case .clearIndex: "Clear the search index?"
         case .deleteRecoveryCopies(let row): "Delete the recovery copies of \(row.name)?"
-        case nil: ""
         }
     }
 
-    private var message: String {
-        switch confirming {
+    private func message(for confirmation: Confirmation) -> String {
+        switch confirmation {
         case .clear, .clearAll: "Saved runs, jobs, workflows and kept logs are deleted and download again. Local run history, presets, favorites and your sign-in stay."
         case .delete: "Its saved activity and local run history are deleted from this Mac. Nothing in any repository changes."
         case .stopKeepingLogs: "Logs kept so far are deleted from this Mac."
         case .clearIndex: "Runs that GitHub no longer has, or that the saved runs dropped, can no longer be found by search. Saved activity and everything else stay."
         case .deleteRecoveryCopies: "The damaged databases Runnir set aside are deleted from this Mac. The workspace's current data and local run history stay."
-        case nil: ""
         }
     }
 }

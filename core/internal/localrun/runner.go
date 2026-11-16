@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"runnir/core/internal/execution"
 )
@@ -52,6 +53,12 @@ type Spec struct {
 	// They reach act through pipes and are dropped when the run ends.
 	Secrets   map[string]string
 	Variables map[string]string
+	// HostNode is Node.js on this Mac, for JavaScript actions in jobs that
+	// run here; empty when none was found.
+	HostNode string
+	// ConcurrentJobs is how many jobs of a workflow run at once
+	// (HostConcurrentJobs); 0 leaves act's default.
+	ConcurrentJobs int
 }
 
 // Runner runs approved plans with act. It implements execution.Runner.
@@ -66,45 +73,223 @@ func NewRunner(outputs *Outputs) *Runner {
 	return &Runner{outputs: outputs, now: time.Now, grace: stopGrace}
 }
 
-// Run starts act and waits for it. Cancelling ctx interrupts act's process
-// group, kills it after a grace period and still removes the containers.
+// Run runs the plan's selected lanes one after another, one act each.
+// Cancelling ctx interrupts the current act's process group, kills it after
+// a grace period, still removes the containers and starts no other lane. A
+// chained lane runs only when the lane it follows succeeded; a failed lane
+// stops nothing else.
 func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 	spec, ok := job.Spec.(*Spec)
 	if !ok || spec == nil {
 		return execution.ErrEngineUnavailable
 	}
 	id := job.ExecutionID
-	scratch, err := os.MkdirTemp("", "runnir-act-")
+	root, err := os.MkdirTemp("", "runnir-act-")
 	if err != nil {
 		return fmt.Errorf("prepare the run: %w", err)
 	}
-	defer os.RemoveAll(scratch)
+	defer os.RemoveAll(root)
 	defer func() { spec.Secrets, spec.Variables = nil, nil }()
 	r.outputs.update(id, func(run *run) { run.masks = masksFor(spec.Secrets) })
 	defer r.outputs.update(id, func(run *run) { run.masks = nil })
-	if err := prepareScratch(scratch); err != nil {
-		return fmt.Errorf("prepare the run: %w", err)
-	}
 	if spec.CacheDir != "" {
 		if err := os.MkdirAll(spec.CacheDir, 0o700); err != nil {
 			return fmt.Errorf("prepare act's cache: %w", err)
 		}
 	}
 
+	lanes := spec.Plan.Selected()
+	selected := map[string]string{}
+	for _, lane := range lanes {
+		selected[lane.WorkflowID] = laneTitle(lane)
+	}
+	succeeded := map[string]bool{}
+	var failures []error
+	for i, lane := range lanes {
+		if ctx.Err() != nil {
+			break
+		}
+		if source, waits := selected[lane.After]; lane.Kind == Chained && waits && !succeeded[lane.After] {
+			r.outputs.skipLane(id, lane.WorkflowID, "Not run: "+source+" did not succeed")
+			continue
+		}
+		dir := filepath.Join(root, strconv.Itoa(i))
+		err := r.runWorkflow(ctx, spec, id, dir, lane)
+		r.outputs.finishLane(id, lane.WorkflowID, r.now())
+		switch {
+		case err == nil:
+			succeeded[lane.WorkflowID] = true
+		case ctx.Err() != nil:
+			return ctx.Err()
+		default:
+			failures = append(failures, err)
+		}
+	}
+	switch {
+	case ctx.Err() != nil:
+		return ctx.Err()
+	case len(failures) == 0:
+		return nil
+	case len(lanes) == 1:
+		return failures[0]
+	default:
+		return fmt.Errorf("%d of %d workflows failed", len(failures), len(lanes))
+	}
+}
+
+func laneTitle(lane Lane) string {
+	if lane.WorkflowName != "" {
+		return lane.WorkflowName
+	}
+	return filepath.Base(lane.WorkflowID)
+}
+
+// runWorkflow runs a lane within its time limit. In the macOS sandbox a
+// lane whose ticked jobs run both on this Mac and in containers runs as
+// several acts (Parts), so no act in the sandbox gets the container engine;
+// a job whose needs in an earlier act did not all succeed does not run.
+func (r *Runner) runWorkflow(ctx context.Context, spec *Spec, id, dir string, lane Lane) error {
 	timeout := spec.Plan.Limits.Timeout
 	if timeout <= 0 {
 		timeout = DefaultTimeout
 	}
-	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	deadline := time.Now().Add(timeout)
+	var parts []LanePart
+	if len(lane.HostLabels) > 0 && !spec.Plan.HostUnsandboxed {
+		parts = Parts(lane)
+	}
+	if len(parts) <= 1 {
+		return r.runLane(ctx, spec, id, dir, lane, deadline)
+	}
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		return fmt.Errorf("prepare the run: %w", err)
+	}
+	needs, ids := laneNeeds(lane), map[string]string{}
+	for _, job := range lane.Jobs {
+		ids[strings.ToLower(job.ID)] = job.ID
+	}
+	var failed error
+	for i, part := range parts {
+		keep, skipped := runnableJobs(part.Jobs, needs, ids, r.outputs.jobStates(id, lane.WorkflowID))
+		r.outputs.skipJobs(id, lane.WorkflowID, skipped)
+		if len(keep) == 0 {
+			continue
+		}
+		piece, err := lanePart(lane, keep, part.Host)
+		if err != nil {
+			return fmt.Errorf("prepare the run: %w", err)
+		}
+		err = r.runLane(ctx, spec, id, filepath.Join(dir, strconv.Itoa(i)), piece, deadline)
+		switch {
+		case ctx.Err() != nil:
+			return ctx.Err()
+		case errors.Is(err, ErrTimedOut):
+			return err
+		case err != nil && failed == nil:
+			failed = err
+		}
+	}
+	return failed
+}
+
+// runnableJobs is the part of an act that runs: without the jobs whose
+// needs in an earlier act did not all succeed, nor the jobs that need one
+// of those. skipped says why each of them does not run, by lower-cased key.
+func runnableJobs(part map[string]bool, needs map[string][]string, ids map[string]string, states map[string]JobState) (keep map[string]bool, skipped map[string]string) {
+	keep, skipped = map[string]bool{}, map[string]string{}
+	for key := range part {
+		keep[key] = true
+	}
+	for changed := true; changed; {
+		changed = false
+		for key := range keep {
+			for _, need := range needs[key] {
+				reason := ""
+				switch {
+				case skipped[need] != "" || (!part[need] && states[need] == JobNotRun):
+					reason = "Not run: " + ids[need] + " did not run"
+				case !part[need] && states[need] != JobSucceeded:
+					reason = "Not run: " + ids[need] + " did not succeed"
+				}
+				if reason != "" {
+					delete(keep, key)
+					skipped[key] = reason
+					changed = true
+					break
+				}
+			}
+		}
+	}
+	return keep, skipped
+}
+
+// lanePart is the lane as one of its acts runs it: only the jobs in keep
+// (lower-cased keys) ticked, the file's copy holding only them, and the
+// macOS labels only for an act on this Mac.
+func lanePart(lane Lane, keep map[string]bool, host bool) (Lane, error) {
+	part := lane
+	part.Jobs = append([]JobPlan(nil), lane.Jobs...)
+	for i := range part.Jobs {
+		part.Jobs[i].Selected = part.Jobs[i].Selected && keep[strings.ToLower(part.Jobs[i].ID)]
+	}
+	if !host {
+		part.HostLabels = nil
+	}
+	copied, err := Trim(lane.Copy, keep)
+	if err != nil {
+		return Lane{}, err
+	}
+	part.Copy = copied
+	return part, nil
+}
+
+// runLane runs act once for a lane, in its own scratch folder, until the
+// deadline, and removes the lane's containers afterwards.
+func (r *Runner) runLane(ctx context.Context, spec *Spec, id, dir string, lane Lane, deadline time.Time) error {
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		return fmt.Errorf("prepare the run: %w", err)
+	}
+	if err := prepareScratch(dir); err != nil {
+		return fmt.Errorf("prepare the run: %w", err)
+	}
+	if err := os.WriteFile(workflowCopy(dir, lane), lane.Copy, 0o600); err != nil {
+		return fmt.Errorf("prepare the run: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "event.json"), lane.Payload, 0o600); err != nil {
+		return fmt.Errorf("prepare the run: %w", err)
+	}
+	host := len(lane.HostLabels) > 0
+	sandboxed := host && !spec.Plan.HostUnsandboxed
+	cache := laneCache(spec, dir, host, sandboxed)
+	if err := os.MkdirAll(cache, 0o700); err != nil {
+		return fmt.Errorf("prepare act's cache: %w", err)
+	}
+	r.outputs.startLane(id, lane.WorkflowID, r.now())
+
+	runCtx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
 
-	cmd := exec.Command(spec.ActPath, Args(spec, id, scratch)...)
-	cmd.Dir = scratch // keeps act from reading an .actrc where the Core runs
-	cmd.Env = actEnv(spec, scratch)
+	cmd := exec.Command(spec.ActPath, Args(spec, lane, id, dir)...)
+	cmd.Env = actEnv(spec, dir, cache)
+	if host {
+		// Jobs on this Mac: act and everything it starts run in the macOS
+		// sandbox, with the shims first on the PATH; without it, as the
+		// user asked, only the sudo shim is there.
+		profile, err := prepareHost(spec, dir, cache, sandboxed)
+		if err != nil {
+			return fmt.Errorf("prepare the jobs on this Mac: %w", err)
+		}
+		if sandboxed {
+			cmd = exec.Command(SandboxExec, append([]string{"-f", profile, spec.ActPath}, Args(spec, lane, id, dir)...)...)
+		}
+		cmd.Env = hostEnv(actEnv(spec, dir, cache), dir, spec.HostNode, sandboxed)
+	}
+	cmd.Dir = dir // keeps act from reading an .actrc where the Core runs
 	setProcessGroup(cmd)
 	var feeds []*valueFeed
+	var err error
 	if PassesValues {
-		if feeds, err = attachValues(cmd, scratch, spec); err != nil {
+		if feeds, err = attachValues(cmd, dir, spec); err != nil {
 			return fmt.Errorf("prepare the run: %w", err)
 		}
 	}
@@ -142,7 +327,9 @@ func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 	case waitErr = <-waited:
 	case <-runCtx.Done():
 		stopped = true
-		r.outputs.update(id, func(run *run) { run.snap.Phase = PhaseStopping })
+		if ctx.Err() != nil {
+			r.outputs.update(id, func(run *run) { run.snap.Phase = PhaseStopping })
+		}
 		_ = interruptGroup(cmd)
 		select {
 		case waitErr = <-waited:
@@ -168,7 +355,9 @@ func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 	}
 	r.outputs.update(id, func(run *run) {
 		run.snap.ExitCode = exitCode
-		run.snap.Phase = PhaseCleaningUp
+		if run.snap.Phase != PhaseStopping {
+			run.snap.Phase = PhaseCleaningUp
+		}
 	})
 	problem := r.cleanup(spec, id)
 	if problem == "" && killed {
@@ -176,9 +365,14 @@ func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 		// act removes the others itself unless it is killed.
 		problem = "act had to be force-stopped. Containers it started for services or jobs with their own container image may remain; their names start with act-."
 	}
-	if problem != "" {
-		r.outputs.update(id, func(run *run) { run.snap.CleanupProblem = problem })
-	}
+	r.outputs.update(id, func(run *run) {
+		if problem != "" {
+			run.snap.CleanupProblem = problem
+		}
+		if run.snap.Phase == PhaseCleaningUp {
+			run.snap.Phase = PhaseRunning
+		}
+	})
 
 	switch {
 	case stopped && errors.Is(runCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil:
@@ -192,6 +386,12 @@ func (r *Runner) Run(ctx context.Context, job execution.Job) error {
 	default:
 		return errors.New("act stopped unexpectedly")
 	}
+}
+
+// workflowCopy is where a lane's copy of its workflow file goes: its own
+// name, so act names the workflow as the repository does.
+func workflowCopy(dir string, lane Lane) string {
+	return filepath.Join(dir, "workflows", filepath.Base(lane.WorkflowID))
 }
 
 func (r *Runner) read(wg *sync.WaitGroup, id string, stream io.Reader, stderr bool) {
@@ -208,7 +408,7 @@ func (r *Runner) read(wg *sync.WaitGroup, id string, stream io.Reader, stderr bo
 }
 
 func prepareScratch(dir string) error {
-	for _, sub := range []string{"home", "config"} {
+	for _, sub := range []string{"home", "config", "workflows"} {
 		if err := os.Mkdir(filepath.Join(dir, sub), 0o700); err != nil {
 			return err
 		}
@@ -218,14 +418,15 @@ func prepareScratch(dir string) error {
 
 // Args is act's full command line. Every value is fixed by Runnir or comes
 // from the approved plan; nothing from the repository adds flags.
-func Args(spec *Spec, executionID, scratch string) []string {
+func Args(spec *Spec, lane Lane, executionID, scratch string) []string {
 	plan := spec.Plan
 	empty := filepath.Join(scratch, "empty")
 	// Values are joined to their flags and the event follows "--", so no
 	// value can be read as a flag of its own.
 	args := []string{
-		"--workflows=" + filepath.Join(spec.RepositoryPath, filepath.FromSlash(plan.WorkflowID)),
+		"--workflows=" + workflowCopy(scratch, lane),
 		"--directory=" + spec.RepositoryPath,
+		"--eventpath=" + filepath.Join(scratch, "event.json"),
 		"--json",
 		// Remove containers and volumes even when a job fails.
 		"--rm",
@@ -236,6 +437,12 @@ func Args(spec *Spec, executionID, scratch string) []string {
 		"--network=bridge",
 		// The cache server would listen on a network address of this Mac.
 		"--no-cache-server",
+		// Remote actions come from a bare repository as the files of the
+		// commit their ref resolves to. act's other cache checks actions out
+		// in a folder that parallel jobs (a matrix) reset while another job
+		// copies it, which drops files from the copy; it also never moves a
+		// tag such as v7 once fetched.
+		"--use-new-action-cache",
 		// Never mount the engine's socket into job containers.
 		"--container-daemon-socket=-",
 		// Override act's defaults (.env, .secrets, .vars, .input in the
@@ -247,9 +454,6 @@ func Args(spec *Spec, executionID, scratch string) []string {
 		"--input-file=" + empty,
 		"--container-options=" + containerOptions(plan.Limits, executionID),
 	}
-	if plan.JobID != "" {
-		args = append(args, "--job="+plan.JobID)
-	}
 	labels := make([]string, 0, len(Platforms))
 	for label := range Platforms {
 		labels = append(labels, label)
@@ -258,10 +462,17 @@ func Args(spec *Spec, executionID, scratch string) []string {
 	for _, label := range labels {
 		args = append(args, "--platform="+label+"="+Platforms[label])
 	}
+	// macOS jobs run on this Mac itself, in the sandbox the lane runs in.
+	for _, label := range lane.HostLabels {
+		args = append(args, "--platform="+label+"=-self-hosted")
+	}
 	if spec.GitHubInstance != "" {
 		args = append(args, "--github-instance="+spec.GitHubInstance)
 	}
-	args = append(args, "--", plan.Event)
+	if spec.ConcurrentJobs > 0 {
+		args = append(args, "--concurrent-jobs="+strconv.Itoa(spec.ConcurrentJobs))
+	}
+	args = append(args, "--", lane.Event)
 	return args
 }
 
@@ -288,23 +499,55 @@ func containerOptions(limits Limits, executionID string) string {
 
 // actEnv gives act a private home and configuration directory, so neither
 // the user's nor the repository's act configuration or Docker credentials
-// apply, and no token from the Core's environment is passed on.
-func actEnv(spec *Spec, scratch string) []string {
-	env := []string{
+// apply, and no token from the Core's environment is passed on; cache is
+// act's cache folder (laneCache).
+func actEnv(spec *Spec, scratch, cache string) []string {
+	return []string{
 		"HOME=" + filepath.Join(scratch, "home"),
 		"XDG_CONFIG_HOME=" + filepath.Join(scratch, "config"),
+		"XDG_CACHE_HOME=" + cache,
 		"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
 		"LANG=C",
 		"TMPDIR=" + scratch,
 		"ACT_DISABLE_VERSION_CHECK=1",
 		"DOCKER_HOST=" + dockerHost(spec.DockerHost),
 	}
-	if spec.CacheDir != "" {
-		env = append(env, "XDG_CACHE_HOME="+spec.CacheDir)
-	} else {
-		env = append(env, "XDG_CACHE_HOME="+filepath.Join(scratch, "cache"))
+}
+
+// laneCache is act's cache folder for a lane: its clones of actions and,
+// for jobs on this Mac, the tool cache setup actions install into. A lane in
+// the macOS sandbox gets its workspace's own (sandboxedCache). act runs a
+// step on this Mac from a script in this folder and splits the script's
+// path at spaces, so a lane with jobs on this Mac whose cache folder has one
+// (the Caches folder of Runnir Dev or Runnir Local, a home folder with a
+// space) uses the run's own folder instead and fetches its actions again.
+func laneCache(spec *Spec, scratch string, host, sandboxed bool) string {
+	cache := spec.CacheDir
+	if sandboxed {
+		cache = sandboxedCache(spec)
 	}
-	return env
+	if cache == "" || (host && strings.IndexFunc(cache, unicode.IsSpace) >= 0) {
+		return filepath.Join(scratch, "cache")
+	}
+	return cache
+}
+
+// hostEnv is act's environment for a lane with jobs on this Mac: their
+// steps get it, with the shims and tools on the PATH and the scratch home
+// as Foundation's home too, so Xcode's DerivedData and caches stay in it. In
+// the sandbox it names no container engine: that act runs none.
+func hostEnv(env []string, dir, node string, sandboxed bool) []string {
+	out := make([]string, 0, len(env)+1)
+	for _, entry := range env {
+		if strings.HasPrefix(entry, "PATH=") {
+			entry = "PATH=" + hostPath(filepath.Join(dir, "bin"), node)
+		}
+		if sandboxed && strings.HasPrefix(entry, "DOCKER_HOST=") {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return append(out, "CFFIXED_USER_HOME="+filepath.Join(dir, "home"))
 }
 
 func dockerHost(endpoint string) string {

@@ -2,16 +2,29 @@ package localrun
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"runnir/core/internal/events"
 	corev1 "runnir/core/internal/gen/runnir/core/v1"
+
+	"google.golang.org/protobuf/proto"
 )
 
+// onePlan is a run of one lane, ci.yml, with every job given ticked.
+func onePlan(jobs ...JobPlan) Plan {
+	for i := range jobs {
+		jobs[i].Selected = true
+	}
+	return Plan{Lanes: []Lane{{WorkflowID: "ci.yml", Kind: Direct, Event: "push", Dispatchable: true, Jobs: jobs}}}
+}
+
+// newRun creates a run of ci.yml's lint and test, its lane started.
 func newRun(o *Outputs, id string) {
-	o.Create(id, "repo", Plan{Jobs: []JobPlan{{ID: "lint", Support: Supported}, {ID: "test", Support: Supported}}}, "0.2.89", false, "OrbStack")
+	o.Create(id, "repo", onePlan(JobPlan{ID: "lint", Support: Supported}, JobPlan{ID: "test", Support: Supported}), "0.2.89", false, "OrbStack")
+	o.startLane(id, "ci.yml", time.Now())
 }
 
 func TestOutputKeepsTheNewestLines(t *testing.T) {
@@ -35,6 +48,81 @@ func TestOutputKeepsTheNewestLines(t *testing.T) {
 	}
 }
 
+// A job that writes a lot, such as a matrix of builds, keeps its own newest
+// lines and never pushes out the output of a job that ended before.
+func TestEachJobKeepsItsOwnNewestLines(t *testing.T) {
+	o := NewOutputs()
+	newRun(o, "e1")
+	o.update("e1", func(r *run) {
+		for i := 1; i <= 3; i++ {
+			r.consume(fmt.Sprintf(`{"jobID":"lint","job":"CI/lint","msg":"lint %d"}`, i), time.Now(), false)
+		}
+		for i := 1; i <= MaxLines+10; i++ {
+			r.consume(fmt.Sprintf(`{"jobID":"test","job":"CI/test","msg":"test %d"}`, i), time.Now(), false)
+		}
+	})
+	snap, _ := o.Since("e1", 0)
+	if len(snap.Lines) != MaxLines+3 || !snap.Discarded || !slices.Equal(snap.DiscardedJobs, []LineSource{{Workflow: "ci.yml", JobID: "test"}}) {
+		t.Fatalf("lines=%d discarded=%v jobs=%v", len(snap.Lines), snap.Discarded, snap.DiscardedJobs)
+	}
+	var lint []string
+	for i, line := range snap.Lines {
+		if i > 0 && line.Sequence <= snap.Lines[i-1].Sequence {
+			t.Fatalf("line %d is out of order", i)
+		}
+		if line.JobID == "lint" {
+			lint = append(lint, line.Text)
+		}
+	}
+	if strings.Join(lint, ",") != "[CI/lint] lint 1,[CI/lint] lint 2,[CI/lint] lint 3" {
+		t.Fatalf("lint lines = %q", lint)
+	}
+	// Only the noisy job's lines were dropped: reading after them loses nothing.
+	later, _ := o.Since("e1", 3+10)
+	if len(later.Lines) != MaxLines || later.Discarded || later.DiscardedJobs != nil {
+		t.Fatalf("after the dropped lines = %d lines, discarded %v %v", len(later.Lines), later.Discarded, later.DiscardedJobs)
+	}
+}
+
+// The Core says whose lines were dropped after the sequence asked, so a job
+// that lost nothing is not said to: act's own messages count as a job with
+// no id, and a job of another workflow with the same id is another job.
+func TestDroppedLinesNameTheirJobs(t *testing.T) {
+	o := NewOutputs()
+	newRun(o, "e1")
+	o.update("e1", func(r *run) {
+		// act's own messages: 1 to MaxLines+2, the first 2 dropped.
+		for i := 1; i <= MaxLines+2; i++ {
+			r.consume(fmt.Sprintf("act %d", i), time.Now(), false)
+		}
+		// test: the next MaxLines+5, the first 5 dropped.
+		for i := 1; i <= MaxLines+5; i++ {
+			r.consume(fmt.Sprintf(`{"jobID":"test","job":"CI/test","msg":"test %d"}`, i), time.Now(), false)
+		}
+		r.consume(`{"jobID":"lint","job":"CI/lint","msg":"lint"}`, time.Now(), false)
+	})
+	o.startLane("e1", "release.yml", time.Now())
+	o.update("e1", func(r *run) {
+		r.consume(`{"jobID":"test","job":"Release/test","msg":"test"}`, time.Now(), false)
+	})
+	act, test := LineSource{Workflow: "ci.yml"}, LineSource{Workflow: "ci.yml", JobID: "test"}
+	for _, c := range []struct {
+		after uint64
+		want  []LineSource
+	}{
+		{0, []LineSource{act, test}},
+		{1, []LineSource{act, test}},
+		{2, []LineSource{test}},
+		{MaxLines + 6, []LineSource{test}},
+		{MaxLines + 7, nil},
+	} {
+		snap, _ := o.Since("e1", c.after)
+		if snap.Discarded != (c.want != nil) || !slices.Equal(snap.DiscardedJobs, c.want) {
+			t.Fatalf("after %d: discarded %v, jobs %v; want %v", c.after, snap.Discarded, snap.DiscardedJobs, c.want)
+		}
+	}
+}
+
 func TestLongLinesAreCutOnACharacterBoundary(t *testing.T) {
 	o := NewOutputs()
 	newRun(o, "e1")
@@ -46,6 +134,22 @@ func TestLongLinesAreCutOnACharacterBoundary(t *testing.T) {
 	}
 	if !strings.Contains(text, "é …") {
 		t.Fatal("cut inside a character")
+	}
+}
+
+// A line or a message that is not UTF-8 would make every later read of the
+// run fail to marshal, so the app could never learn that it finished.
+func TestOutputIsAlwaysValidUTF8(t *testing.T) {
+	o := NewOutputs()
+	newRun(o, "e1")
+	o.update("e1", func(r *run) { r.consume("act \xe2\x9c said", time.Now(), true) })
+	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_FAILED, Message: "failed \xff"})
+	snap, _ := o.Since("e1", 0)
+	if snap.Lines[0].Text != "act � said" || snap.Message != "failed �" {
+		t.Fatalf("line = %q, message = %q", snap.Lines[0].Text, snap.Message)
+	}
+	if _, err := proto.Marshal(&corev1.LocalRunLine{Text: snap.Lines[0].Text}); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -131,8 +235,9 @@ func TestOnlyErrorLinesOnStandardErrorAreErrors(t *testing.T) {
 
 func TestBilledMinutesRoundEachJobUp(t *testing.T) {
 	o := NewOutputs()
-	o.Create("e1", "repo", Plan{Jobs: []JobPlan{{ID: "lint", Support: Supported}, {ID: "test", Support: Supported},
-		{ID: "quick", Support: Supported}, {ID: "macos", Support: Unsupported}, {ID: "never", Support: Supported}}}, "0.2.89", false, "OrbStack")
+	o.Create("e1", "repo", onePlan(JobPlan{ID: "lint", Support: Supported}, JobPlan{ID: "test", Support: Supported},
+		JobPlan{ID: "quick", Support: Supported}, JobPlan{ID: "macos", Support: Unsupported}, JobPlan{ID: "never", Support: Supported}), "0.2.89", false, "OrbStack")
+	o.startLane("e1", "ci.yml", time.Now())
 	start := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
 	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_RUNNING})
 	o.update("e1", func(r *run) {
@@ -158,23 +263,72 @@ func TestBilledMinutesRoundEachJobUp(t *testing.T) {
 
 func TestSummaryOfAFinishedRun(t *testing.T) {
 	o := NewOutputs()
-	o.Create("e1", "repo", Plan{WorkflowID: ".github/workflows/ci.yml", Events: []string{"push", "workflow_dispatch"},
-		Jobs: []JobPlan{{ID: "lint", Name: "Lint", Support: Supported}}}, "0.2.89", false, "OrbStack")
+	plan := onePlan(JobPlan{ID: "lint", Name: "Lint", Support: Supported})
+	plan.Lanes = append(plan.Lanes,
+		Lane{WorkflowID: "core.yml", Kind: Direct, Event: "push", Jobs: []JobPlan{{ID: "lint", Name: "Lint", Support: Supported, Selected: true}, {ID: "slow", Support: Supported}}},
+		Lane{WorkflowID: "notify.yml", Kind: Chained, Event: "workflow_run", After: "core.yml", Jobs: []JobPlan{{ID: "tell", Support: Supported, Selected: true}}})
+	o.Create("e1", "repo", plan, "0.2.89", false, "OrbStack")
 	start := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
 	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_RUNNING})
+	o.startLane("e1", "ci.yml", start)
 	o.update("e1", func(r *run) {
 		r.consume(`{"jobID":"lint","msg":"start"}`, start, false)
 		r.consume(`{"jobID":"lint","jobResult":"success","msg":"done"}`, start.Add(90*time.Second), false)
 	})
+	o.finishLane("e1", "ci.yml", start.Add(95*time.Second))
+	o.startLane("e1", "core.yml", start.Add(100*time.Second))
+	o.update("e1", func(r *run) {
+		r.consume(`{"jobID":"lint","msg":"start"}`, start.Add(100*time.Second), false)
+		r.consume(`{"jobID":"lint","jobResult":"failure","msg":"done"}`, start.Add(130*time.Second), false)
+	})
+	o.finishLane("e1", "core.yml", start.Add(130*time.Second))
+	o.skipLane("e1", "notify.yml", "Not run: core.yml did not succeed")
 	if _, ok := o.Summary("e1"); ok {
 		t.Fatal("a run still going has a summary")
 	}
-	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_SUCCEEDED})
+	o.Observe(events.Event{ExecutionID: "e1", ExecutionState: corev1.ExecutionState_EXECUTION_STATE_FAILED})
 	s, ok := o.Summary("e1")
-	if !ok || s.WorkflowID != ".github/workflows/ci.yml" || !s.WholeWorkflow || !s.Dispatchable || len(s.Jobs) != 1 || s.Jobs[0].State != JobSucceeded {
+	if !ok || len(s.Lanes) != 2 {
 		t.Fatalf("summary = %+v, %v", s, ok)
+	}
+	ci, core := s.Lanes[0], s.Lanes[1]
+	if ci.WorkflowID != "ci.yml" || !ci.WholeWorkflow || !ci.Dispatchable || len(ci.Jobs) != 1 || ci.Jobs[0].State != JobSucceeded ||
+		ci.FinishedAt.Sub(ci.StartedAt) != 95*time.Second {
+		t.Fatalf("ci = %+v", ci)
+	}
+	// Jobs of the same id in two workflows are told apart.
+	if core.WorkflowID != "core.yml" || core.WholeWorkflow || core.Jobs[0].State != JobFailed {
+		t.Fatalf("core = %+v", core)
+	}
+	snap, _ := o.Since("e1", 0)
+	if snap.Jobs[2].Workflow != "notify.yml" || snap.Jobs[2].State != JobNotRun || snap.Jobs[2].Reason != "Not run: core.yml did not succeed" {
+		t.Fatalf("notify = %+v", snap.Jobs[2])
+	}
+	if snap.Lines[0].Workflow != "ci.yml" || snap.Lines[2].Workflow != "core.yml" {
+		t.Fatalf("lines = %+v", snap.Lines)
 	}
 	if BilledJobMinutes(90*time.Second) != 2 || BilledJobMinutes(0) != 1 || BilledJobMinutes(time.Minute) != 1 {
 		t.Fatal("billed job minutes do not round up to at least one")
+	}
+}
+
+// An agent's run keeps the agent's name, and Recent lists a repository's
+// runs newest first without their lines.
+func TestRecentRunsKeepWhoStartedThem(t *testing.T) {
+	o := NewOutputs()
+	newRun(o, "e1")
+	newRun(o, "e2")
+	o.Create("e3", "other", onePlan(JobPlan{ID: "lint", Support: Supported}), "0.2.89", false, "OrbStack")
+	o.MarkStartedBy("e2", "claude-code")
+	o.update("e1", func(r *run) { r.consume("line", time.Now(), false) })
+	recent := o.Recent("repo")
+	if len(recent) != 2 || recent[0].ExecutionID != "e2" || recent[1].ExecutionID != "e1" {
+		t.Fatalf("recent = %+v", recent)
+	}
+	if recent[0].StartedBy != "claude-code" || recent[1].StartedBy != "" || len(recent[1].Lines) != 0 || recent[1].LastSequence == 0 {
+		t.Fatalf("recent = %+v", recent)
+	}
+	if snap, _ := o.Since("e2", 0); snap.StartedBy != "claude-code" {
+		t.Fatalf("since = %+v", snap)
 	}
 }

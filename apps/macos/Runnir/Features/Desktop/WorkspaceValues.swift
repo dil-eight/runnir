@@ -2,7 +2,8 @@ import Foundation
 
 /// The Secrets and Variables section of one window (S16): the names the
 /// workspace's workflows read, which have saved values, and edits not saved
-/// yet. A saved secret's value is read only to show it after Touch ID.
+/// yet. A saved secret's value is read only to show or copy it after Touch
+/// ID, which holds for a minute.
 ///
 /// Values come in sets: the Repository's, which every job gets, and one per
 /// GitHub environment a local run can take (ListEnvironments), which a job
@@ -223,8 +224,38 @@ final class WorkspaceValuesModel {
     func reveal(_ key: LocalRunValueKey, workspaceID: UUID, store: any LocalRunValueStoring,
                 ask: @MainActor (String) async -> OwnerConfirmation) async {
         guard key.kind == .secret else { return }
-        guard case .confirmed = await ask("show the saved value of \(key.name)") else { return }
+        guard await confirm("show the saved value of \(key.name)", ask: ask) else { return }
         do { shown[key] = try await store.value(workspaceID: workspaceID, key: key) } catch { refused.insert(key) }
+    }
+
+    /// What a Copy button puts on the pasteboard: the field's value, else a
+    /// saved secret once the Mac's owner confirms; the secret stays hidden.
+    func valueToCopy(_ key: LocalRunValueKey, workspaceID: UUID, store: any LocalRunValueStoring,
+                     ask: @MainActor (String) async -> OwnerConfirmation) async -> String? {
+        let text = text(for: key)
+        if !text.isEmpty { return text }
+        guard key.kind == .secret, savedKeys.contains(key), !removals.contains(key) else { return nil }
+        guard await confirm("copy the saved value of \(key.name)", ask: ask) else { return nil }
+        do {
+            return try await store.value(workspaceID: workspaceID, key: key)
+        } catch {
+            refused.insert(key)
+            return nil
+        }
+    }
+
+    /// How long the owner's answer lets saved secrets be shown or copied
+    /// without asking again.
+    static let confirmationHolds: TimeInterval = 60
+    @ObservationIgnored var now: () -> Date = Date.init
+    @ObservationIgnored private var confirmedAt: Date?
+
+    /// Asks the Mac's owner unless they confirmed less than a minute ago.
+    private func confirm(_ reason: String, ask: @MainActor (String) async -> OwnerConfirmation) async -> Bool {
+        if let confirmedAt, now().timeIntervalSince(confirmedAt) < Self.confirmationHolds { return true }
+        guard case .confirmed = await ask(reason) else { return false }
+        confirmedAt = now()
+        return true
     }
 
     /// Hides revealed secrets, when the window loses focus or the section changes.

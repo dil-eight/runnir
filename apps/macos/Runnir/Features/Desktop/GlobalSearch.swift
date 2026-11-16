@@ -47,6 +47,10 @@ enum SettingsIndex {
         SettingsItem(id: "job-logs", section: .storage, title: "Keep job logs on this Mac",
                      detail: "Logs of finished jobs open offline and are not downloaded again",
                      keywords: ["logs", "offline", "disk", "100 MB", "output"]),
+        SettingsItem(id: "mcp", section: .mcp, title: "MCP clients",
+                     detail: "Let Claude Code or Codex read runs and logs, start local runs and act on GitHub; turn actions off",
+                     keywords: ["mcp", "model context protocol", "claude", "claude code", "codex", "agent", "secrets", "variables", "ai",
+                                "allow actions", "actions"]),
         SettingsItem(id: "clear-cache", section: .storage, title: "Clear cache of a workspace",
                      detail: "Delete saved activity that downloads again; local run history and presets stay",
                      keywords: ["storage", "disk", "delete", "workspace data", "saved runs", "reset"]),
@@ -367,10 +371,12 @@ final class GlobalSearchModel {
                                      destination: .workflow(path: workflow.path)))
         }
         for run in hits.localRuns {
-            let file = run.workflowPath.split(separator: "/").last.map(String.init) ?? run.workflowPath
+            let files = run.workflowPaths.map { $0.split(separator: "/").last.map(String.init) ?? $0 }
             let when = run.startedAt.map { $0.formatted(.relative(presentation: .numeric, unitsStyle: .narrow)) }
-            rows.append(SearchResult(id: "local-\(id)-\(run.executionID)", kind: .localRun, title: file + (run.jobID.isEmpty ? "" : " · " + run.jobID),
-                                     detail: [run.state.capitalized, run.message.isEmpty ? nil : run.message, when].compactMap { $0 }.joined(separator: " · "),
+            let title = files.count == 1 ? files[0] : files.isEmpty ? "Local run" : "\(files.count) workflows"
+            rows.append(SearchResult(id: "local-\(id)-\(run.executionID)", kind: .localRun, title: title,
+                                     detail: [run.scenario.isEmpty ? nil : run.scenario, run.state.capitalized, run.message.isEmpty ? nil : run.message, when]
+                                        .compactMap { $0 }.joined(separator: " · "),
                                      workspaceID: id, workspaceName: workspaceName, age: age, outcome: Self.outcome(ofLocal: run.state),
                                      destination: .localRuns))
         }

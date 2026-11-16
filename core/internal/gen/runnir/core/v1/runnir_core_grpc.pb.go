@@ -85,6 +85,9 @@ const (
 	RunnirCore_ParseEnvFile_FullMethodName              = "/runnir.core.v1.RunnirCore/ParseEnvFile"
 	RunnirCore_ListEnvFiles_FullMethodName              = "/runnir.core.v1.RunnirCore/ListEnvFiles"
 	RunnirCore_ListEnvironments_FullMethodName          = "/runnir.core.v1.RunnirCore/ListEnvironments"
+	RunnirCore_SubscribeMcpRequests_FullMethodName      = "/runnir.core.v1.RunnirCore/SubscribeMcpRequests"
+	RunnirCore_AnswerMcpRequest_FullMethodName          = "/runnir.core.v1.RunnirCore/AnswerMcpRequest"
+	RunnirCore_ClaimMcpRequest_FullMethodName           = "/runnir.core.v1.RunnirCore/ClaimMcpRequest"
 )
 
 // RunnirCoreClient is the client API for RunnirCore service.
@@ -291,6 +294,19 @@ type RunnirCoreClient interface {
 	// job may run in any of them. GitHub out of reach leaves its own out.
 	// NOT_FOUND for an unknown repository.
 	ListEnvironments(ctx context.Context, in *ListEnvironmentsRequest, opts ...grpc.CallOption) (*ListEnvironmentsResponse, error)
+	// The calls MCP clients make through McpBridge, for the app to answer
+	// (docs/superpowers/specs/2026-11-08-mcp-value-sets-design.md). One
+	// subscriber at a time; a new one replaces the previous. Secret values
+	// of a SET_VALUES request travel only on this authenticated socket.
+	SubscribeMcpRequests(ctx context.Context, in *SubscribeMcpRequestsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[McpRequest], error)
+	// The app's answer to one request. NOT_FOUND when the request no longer
+	// waits (answered, timed out or its client went away).
+	AnswerMcpRequest(ctx context.Context, in *AnswerMcpRequestRequest, opts ...grpc.CallOption) (*AnswerMcpRequestResponse, error)
+	// Before the app acts on a request the user answered (saves values,
+	// starts a run): the Core no longer lets the request expire and waits
+	// for the answer. NOT_FOUND when the request no longer waits, so the app
+	// never does what its client was told did not happen.
+	ClaimMcpRequest(ctx context.Context, in *ClaimMcpRequestRequest, opts ...grpc.CallOption) (*ClaimMcpRequestResponse, error)
 }
 
 type runnirCoreClient struct {
@@ -910,6 +926,45 @@ func (c *runnirCoreClient) ListEnvironments(ctx context.Context, in *ListEnviron
 	return out, nil
 }
 
+func (c *runnirCoreClient) SubscribeMcpRequests(ctx context.Context, in *SubscribeMcpRequestsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[McpRequest], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &RunnirCore_ServiceDesc.Streams[1], RunnirCore_SubscribeMcpRequests_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SubscribeMcpRequestsRequest, McpRequest]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RunnirCore_SubscribeMcpRequestsClient = grpc.ServerStreamingClient[McpRequest]
+
+func (c *runnirCoreClient) AnswerMcpRequest(ctx context.Context, in *AnswerMcpRequestRequest, opts ...grpc.CallOption) (*AnswerMcpRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AnswerMcpRequestResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_AnswerMcpRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnirCoreClient) ClaimMcpRequest(ctx context.Context, in *ClaimMcpRequestRequest, opts ...grpc.CallOption) (*ClaimMcpRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClaimMcpRequestResponse)
+	err := c.cc.Invoke(ctx, RunnirCore_ClaimMcpRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnirCoreServer is the server API for RunnirCore service.
 // All implementations must embed UnimplementedRunnirCoreServer
 // for forward compatibility.
@@ -1114,6 +1169,19 @@ type RunnirCoreServer interface {
 	// job may run in any of them. GitHub out of reach leaves its own out.
 	// NOT_FOUND for an unknown repository.
 	ListEnvironments(context.Context, *ListEnvironmentsRequest) (*ListEnvironmentsResponse, error)
+	// The calls MCP clients make through McpBridge, for the app to answer
+	// (docs/superpowers/specs/2026-11-08-mcp-value-sets-design.md). One
+	// subscriber at a time; a new one replaces the previous. Secret values
+	// of a SET_VALUES request travel only on this authenticated socket.
+	SubscribeMcpRequests(*SubscribeMcpRequestsRequest, grpc.ServerStreamingServer[McpRequest]) error
+	// The app's answer to one request. NOT_FOUND when the request no longer
+	// waits (answered, timed out or its client went away).
+	AnswerMcpRequest(context.Context, *AnswerMcpRequestRequest) (*AnswerMcpRequestResponse, error)
+	// Before the app acts on a request the user answered (saves values,
+	// starts a run): the Core no longer lets the request expire and waits
+	// for the answer. NOT_FOUND when the request no longer waits, so the app
+	// never does what its client was told did not happen.
+	ClaimMcpRequest(context.Context, *ClaimMcpRequestRequest) (*ClaimMcpRequestResponse, error)
 	mustEmbedUnimplementedRunnirCoreServer()
 }
 
@@ -1303,6 +1371,15 @@ func (UnimplementedRunnirCoreServer) ListEnvFiles(context.Context, *ListEnvFiles
 }
 func (UnimplementedRunnirCoreServer) ListEnvironments(context.Context, *ListEnvironmentsRequest) (*ListEnvironmentsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListEnvironments not implemented")
+}
+func (UnimplementedRunnirCoreServer) SubscribeMcpRequests(*SubscribeMcpRequestsRequest, grpc.ServerStreamingServer[McpRequest]) error {
+	return status.Error(codes.Unimplemented, "method SubscribeMcpRequests not implemented")
+}
+func (UnimplementedRunnirCoreServer) AnswerMcpRequest(context.Context, *AnswerMcpRequestRequest) (*AnswerMcpRequestResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AnswerMcpRequest not implemented")
+}
+func (UnimplementedRunnirCoreServer) ClaimMcpRequest(context.Context, *ClaimMcpRequestRequest) (*ClaimMcpRequestResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClaimMcpRequest not implemented")
 }
 func (UnimplementedRunnirCoreServer) mustEmbedUnimplementedRunnirCoreServer() {}
 func (UnimplementedRunnirCoreServer) testEmbeddedByValue()                    {}
@@ -2398,6 +2475,53 @@ func _RunnirCore_ListEnvironments_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnirCore_SubscribeMcpRequests_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeMcpRequestsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(RunnirCoreServer).SubscribeMcpRequests(m, &grpc.GenericServerStream[SubscribeMcpRequestsRequest, McpRequest]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RunnirCore_SubscribeMcpRequestsServer = grpc.ServerStreamingServer[McpRequest]
+
+func _RunnirCore_AnswerMcpRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AnswerMcpRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).AnswerMcpRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_AnswerMcpRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).AnswerMcpRequest(ctx, req.(*AnswerMcpRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnirCore_ClaimMcpRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClaimMcpRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnirCoreServer).ClaimMcpRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnirCore_ClaimMcpRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnirCoreServer).ClaimMcpRequest(ctx, req.(*ClaimMcpRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnirCore_ServiceDesc is the grpc.ServiceDesc for RunnirCore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2641,6 +2765,14 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ListEnvironments",
 			Handler:    _RunnirCore_ListEnvironments_Handler,
 		},
+		{
+			MethodName: "AnswerMcpRequest",
+			Handler:    _RunnirCore_AnswerMcpRequest_Handler,
+		},
+		{
+			MethodName: "ClaimMcpRequest",
+			Handler:    _RunnirCore_ClaimMcpRequest_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -2648,6 +2780,123 @@ var RunnirCore_ServiceDesc = grpc.ServiceDesc{
 			Handler:       _RunnirCore_SubscribeEvents_Handler,
 			ServerStreams: true,
 		},
+		{
+			StreamName:    "SubscribeMcpRequests",
+			Handler:       _RunnirCore_SubscribeMcpRequests_Handler,
+			ServerStreams: true,
+		},
 	},
+	Metadata: "runnir/core/v1/runnir_core.proto",
+}
+
+const (
+	McpBridge_CallTool_FullMethodName = "/runnir.core.v1.McpBridge/CallTool"
+)
+
+// McpBridgeClient is the client API for McpBridge service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Served only on mcp.sock in the data folder, for `runnir mcp`: the tools
+// of MCP clients (docs/superpowers/specs/2026-11-09-mcp-full-control-design.md).
+// The Core runs each tool, asking the app what only it knows. A tool's
+// refusal is a result with is_error; UNAVAILABLE says Runnir is not running.
+type McpBridgeClient interface {
+	CallTool(ctx context.Context, in *McpBridgeCallToolRequest, opts ...grpc.CallOption) (*McpBridgeCallToolResponse, error)
+}
+
+type mcpBridgeClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewMcpBridgeClient(cc grpc.ClientConnInterface) McpBridgeClient {
+	return &mcpBridgeClient{cc}
+}
+
+func (c *mcpBridgeClient) CallTool(ctx context.Context, in *McpBridgeCallToolRequest, opts ...grpc.CallOption) (*McpBridgeCallToolResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(McpBridgeCallToolResponse)
+	err := c.cc.Invoke(ctx, McpBridge_CallTool_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// McpBridgeServer is the server API for McpBridge service.
+// All implementations must embed UnimplementedMcpBridgeServer
+// for forward compatibility.
+//
+// Served only on mcp.sock in the data folder, for `runnir mcp`: the tools
+// of MCP clients (docs/superpowers/specs/2026-11-09-mcp-full-control-design.md).
+// The Core runs each tool, asking the app what only it knows. A tool's
+// refusal is a result with is_error; UNAVAILABLE says Runnir is not running.
+type McpBridgeServer interface {
+	CallTool(context.Context, *McpBridgeCallToolRequest) (*McpBridgeCallToolResponse, error)
+	mustEmbedUnimplementedMcpBridgeServer()
+}
+
+// UnimplementedMcpBridgeServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedMcpBridgeServer struct{}
+
+func (UnimplementedMcpBridgeServer) CallTool(context.Context, *McpBridgeCallToolRequest) (*McpBridgeCallToolResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CallTool not implemented")
+}
+func (UnimplementedMcpBridgeServer) mustEmbedUnimplementedMcpBridgeServer() {}
+func (UnimplementedMcpBridgeServer) testEmbeddedByValue()                   {}
+
+// UnsafeMcpBridgeServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to McpBridgeServer will
+// result in compilation errors.
+type UnsafeMcpBridgeServer interface {
+	mustEmbedUnimplementedMcpBridgeServer()
+}
+
+func RegisterMcpBridgeServer(s grpc.ServiceRegistrar, srv McpBridgeServer) {
+	// If the following call panics, it indicates UnimplementedMcpBridgeServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&McpBridge_ServiceDesc, srv)
+}
+
+func _McpBridge_CallTool_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(McpBridgeCallToolRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(McpBridgeServer).CallTool(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: McpBridge_CallTool_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(McpBridgeServer).CallTool(ctx, req.(*McpBridgeCallToolRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// McpBridge_ServiceDesc is the grpc.ServiceDesc for McpBridge service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var McpBridge_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "runnir.core.v1.McpBridge",
+	HandlerType: (*McpBridgeServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CallTool",
+			Handler:    _McpBridge_CallTool_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "runnir/core/v1/runnir_core.proto",
 }

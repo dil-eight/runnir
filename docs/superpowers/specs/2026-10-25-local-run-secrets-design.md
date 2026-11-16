@@ -30,7 +30,7 @@ Checked against act v0.2.89 (`cmd/root.go`, `cmd/secrets.go`):
 - Secret names are upper-cased (`readEnvsEx(..., true)`); variable names are not, but act's expression evaluator compares map keys with `strings.EqualFold`, so `vars.foo` finds `FOO`.
 - With no `GITHUB_TOKEN` among the secrets, act runs `gh auth token`. Today only the reduced `PATH` stops that; passing `GITHUB_TOKEN` always closes it.
 - act masks secret values in its output (`valueMasker`), including `--json` output. Variables are not masked, as on GitHub.
-- YAML secret, env and input files arrived in April 2023 (nektos/act#1733), before 0.2.60, the oldest installed act Runnir accepts; `--var-file` uses the same reader. No extra version check is needed for the experimental installed act.
+- YAML secret, env and input files arrived in April 2023 (nektos/act#1733), before 0.2.78, the oldest installed act Runnir accepts; `--var-file` uses the same reader. No extra version check is needed for the experimental installed act.
 
 ## Interface
 

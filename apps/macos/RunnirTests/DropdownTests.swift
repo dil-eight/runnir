@@ -23,6 +23,24 @@ import Testing
         #expect(DropdownPlacement.shift(button: left, panelWidth: 0, space: 1280, trailing: true) == 0, "a panel not measured yet stays put")
     }
 
+    /// A window's question shows in its root, or in a sheet over it while
+    /// the sheet is up, never under it.
+    @MainActor
+    @Test func aWindowsQuestionShowsInTheHostInFront() async {
+        let asker = DialogAsker()
+        let window = UUID(), sheet = UUID()
+        asker.appeared(window)
+        let answer = Task { await asker.ask(DialogAsker.Question(title: "Save?", message: "", choices: [DialogChoice(title: "Cancel")], cancel: 0)) }
+        while asker.question == nil { await Task.yield() }
+        #expect(asker.shows(in: window))
+        asker.appeared(sheet)
+        #expect(asker.shows(in: sheet) && !asker.shows(in: window))
+        asker.disappeared(sheet)
+        #expect(asker.shows(in: window))
+        asker.cancel()
+        #expect(await answer.value == 0 && !asker.shows(in: window))
+    }
+
     @Test func theAppUsesItsOwnDropdowns() throws {
         let sources = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("Runnir")
@@ -38,6 +56,35 @@ import Testing
             }
         }
         #expect(found.isEmpty, "System dropdowns where Runnir's own belong (DropdownMenu, DropdownPicker, .dropdown): \(found.sorted().joined(separator: ", "))")
+    }
+
+    @Test func theAppUsesItsOwnAlerts() throws {
+        let sources = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Runnir")
+        let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" && !$0.path.contains("/Generated/") }
+        var found: [String] = []
+        for file in files {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            for line in SystemAlertAudit.lines(in: source) {
+                found.append("\(file.lastPathComponent):\(line)")
+            }
+        }
+        #expect(found.isEmpty, "System alerts where Runnir's own dialog belongs (.dialog, DialogAsker): \(found.sorted().joined(separator: ", "))")
+    }
+
+    @Test func theAuditFindsSystemAlerts() {
+        let source = ##"""
+        content.alert(title, isPresented: $shown) { Button("OK") {} }
+        content.dialog(isPresented: $shown) { DialogPanel(title: "A", message: "B") { Button("OK") {} } }
+        // .alert("in a comment") is fine.
+            .alert(isPresented: $shown) { Alert(title: Text("A")) }
+            .confirmationDialog("Remove?", isPresented: $removing) { Button("Remove") {} }
+        let alert = NSAlert()
+        await asker.ask(question)
+        """##
+        #expect(SystemAlertAudit.lines(in: source) == [1, 4, 5, 6])
     }
 
     @Test func theAuditFindsSystemDropdowns() {
@@ -85,5 +132,22 @@ enum SystemDropdownAudit {
 
     private static func matches(_ expression: NSRegularExpression, _ text: String) -> Bool {
         expression.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
+    }
+}
+
+/// SwiftUI's alerts and confirmation dialogs and AppKit's NSAlert, which
+/// Runnir draws as its own dialog (`.dialog`, DialogAsker) over a dimmed
+/// window.
+enum SystemAlertAudit {
+    private static let alert = try! NSRegularExpression(pattern: #"\.alert\(|\.confirmationDialog\(|(?<![\w.])NSAlert\("#)
+
+    /// 1-based lines of system alerts.
+    static func lines(in source: String) -> [Int] {
+        source.components(separatedBy: "\n").enumerated().compactMap { index, line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.hasPrefix("//"),
+                  alert.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil else { return nil }
+            return index + 1
+        }
     }
 }

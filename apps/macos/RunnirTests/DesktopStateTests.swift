@@ -460,7 +460,7 @@ struct DesktopCoordinatorTests {
         let other = WorkspaceRecord(id: UUID(), path: fixture.relocated.path, name: "other", bookmark: Data(), lastOpenedAt: Date())
         try fixture.store.save(DesktopSnapshot(workspaces: [fixture.original, other]))
         let provider = FakeProvider()
-        let plan = CoreLocalRunPlan(workflowID: ".github/workflows/probe.yml", event: "push")
+        let plan = CoreLocalRunPlan.oneLane(".github/workflows/probe.yml", jobs: [CoreLocalRunJob(id: "probe", support: .supported, selected: true)])
         provider.core.preparedLocalRun = CorePreparedLocalRun(readiness: FakeCore.readyTools, plan: plan, confirmationID: "local_1", expiresAt: Date())
         provider.core.localOutputs = [CoreLocalRunOutput(
             executionID: "exec_1", repositoryID: "repo", state: .running, phase: .running, lines: [], discarded: false,
@@ -477,14 +477,15 @@ struct DesktopCoordinatorTests {
         coordinator.openRegistered(fixture.original)
         let window = try #require(factory.windows.first)
         _ = await eventually { hub.session(for: fixture.original.id)?.phase == .ready }
-        let review = LocalRunReviewModel(workspaceID: fixture.original.id, workflowID: plan.workflowID, jobs: [], hub: hub)
+        let review = LocalRunReviewModel(workspaceID: fixture.original.id, hub: hub)
         await review.prepare()
         review.trusted = true
         let run = try #require(await review.run())
 
         var asked: [LocalRunStopPrompt.Action] = []
-        coordinator.confirmStoppingLocalRuns = { asked.append($0.action); return false }
+        coordinator.confirmStoppingLocalRuns = { _, prompt, _ in asked.append(prompt.action); return false }
         coordinator.openRegistered(other, reuseWindowID: window.record.id)
+        _ = await eventually { !asked.isEmpty }
         #expect(asked == [.switchWorkspace])
         #expect(window.record.workspaceID == fixture.original.id)
         #expect(hub.session(for: fixture.original.id)?.localRun === run)
@@ -560,20 +561,42 @@ struct DesktopCoordinatorTests {
         window.unsaved = "ci.yml"
         var asked: [[String]] = []
         var answer = UnsavedChoice.cancel
-        coordinator.confirmUnsavedChanges = { asked.append($0); return answer }
+        coordinator.confirmUnsavedChanges = { _, files, _ in asked.append(files); return answer }
 
-        #expect(!coordinator.shouldClose(window.record.id))
+        #expect(!(await coordinator.confirmLeaving(window.record.id, action: .closeWindow)))
         #expect(coordinator.snapshot.windows.count == 1)
 
         answer = .save
-        #expect(!coordinator.shouldClose(window.record.id), "the window closes only after the save")
-        _ = await eventually { window.saveCalls == 1 }
+        #expect(await coordinator.confirmLeaving(window.record.id, action: .closeWindow), "the window closes once the file is saved")
+        #expect(window.saveCalls == 1)
 
+        // Closing waits for the answer, then closes with it.
         window.unsaved = "ci.yml"
         answer = .discard
-        #expect(coordinator.shouldClose(window.record.id))
+        #expect(!coordinator.shouldClose(window.record.id))
+        _ = await eventually { asked.count == 3 }
+        #expect(coordinator.snapshot.windows.count == 1)
+        #expect(coordinator.shouldClose(window.record.id), "the answer lets it close without asking again")
         #expect(coordinator.snapshot.windows.isEmpty)
         #expect(asked == [["ci.yml"], ["ci.yml"], ["ci.yml"]])
+    }
+
+    /// A window stays while its question is open; one that closes anyway
+    /// answers Cancel, so a quit waiting for it never hangs.
+    @Test func aQuestionInAWindowThatClosesIsCancelled() async throws {
+        let fixture = try CoordinatorFixture()
+        defer { fixture.remove() }
+        let factory = TestWindowFactory()
+        let coordinator = DesktopCoordinator(store: fixture.store, makeGrant: factory.makeGrant, makeWorkspaceWindow: factory.makeWindow)
+        await coordinator.loadSession()
+        coordinator.openRegistered(fixture.original)
+        let id = try #require(factory.windows.first).record.id
+        let question = DialogAsker.Question(title: "Quit?", message: "", choices: [DialogChoice(title: "Cancel"), DialogChoice(title: "Quit")], cancel: 0)
+        let answer = Task { await coordinator.ask(question, in: id) }
+        #expect(await eventually { coordinator.asker(for: id).question != nil })
+        #expect(!coordinator.shouldClose(id), "the window stays while it asks")
+        coordinator.didClose(id)
+        #expect(await answer.value == 0)
     }
 
     @Test func aSearchResultOpensItsWorkspaceAndGoesThere() async throws {
@@ -613,22 +636,25 @@ struct DesktopCoordinatorTests {
         coordinator.openRegistered(fixture.original)
         coordinator.openRegistered(fixture.original)
         var asked: [[String]] = []
-        coordinator.confirmUnsavedChanges = { asked.append($0); return .save }
-        #expect(coordinator.unsavedEditsQuitDecision() == .proceed)
+        coordinator.confirmUnsavedChanges = { _, files, _ in asked.append(files); return .save }
+        #expect(await coordinator.unsavedEditsQuitDecision() == .proceed)
         #expect(asked.isEmpty)
+        #expect(!coordinator.quitAsks)
 
         factory.windows[0].unsaved = "ci.yml"
         factory.windows[1].unsaved = "release.yml"
-        #expect(coordinator.unsavedEditsQuitDecision() == .saveFirst)
+        #expect(coordinator.quitAsks)
+        #expect(await coordinator.unsavedEditsQuitDecision() == .saveFirst)
         #expect(asked == [["ci.yml", "release.yml"]])
         factory.windows[1].saveSucceeds = false
         #expect(await coordinator.saveAllUnsavedWorkflows() == false)
         #expect(factory.windows[0].saveCalls == 1 && factory.windows[1].saveCalls == 1)
 
-        coordinator.confirmUnsavedChanges = { _ in .discard }
-        #expect(coordinator.unsavedEditsQuitDecision() == .proceed)
-        coordinator.confirmUnsavedChanges = { _ in .cancel }
-        #expect(coordinator.unsavedEditsQuitDecision() == .cancel)
+        coordinator.confirmUnsavedChanges = { _, _, _ in .discard }
+        #expect(await coordinator.unsavedEditsQuitDecision() == .proceed)
+        coordinator.confirmUnsavedChanges = { _, _, _ in .cancel }
+        #expect(await coordinator.unsavedEditsQuitDecision() == .cancel)
+        #expect(!(await coordinator.confirmQuitting()), "Cancel keeps Runnir open")
     }
 
     @Test func switchingAWindowWithUnsavedEditsAsksFirst() async throws {
@@ -642,12 +668,14 @@ struct DesktopCoordinatorTests {
         coordinator.openRegistered(fixture.original)
         let window = try #require(factory.windows.first)
         window.unsaved = "ci.yml"
-        coordinator.confirmUnsavedChanges = { _ in .cancel }
+        var asked = 0
+        coordinator.confirmUnsavedChanges = { _, _, _ in asked += 1; return .cancel }
         coordinator.openRegistered(other, reuseWindowID: window.record.id)
+        _ = await eventually { asked == 1 }
         #expect(window.record.workspaceID == fixture.original.id)
         #expect(factory.grants.last?.stopped == true)
 
-        coordinator.confirmUnsavedChanges = { _ in .save }
+        coordinator.confirmUnsavedChanges = { _, _, _ in .save }
         coordinator.openRegistered(other, reuseWindowID: window.record.id)
         _ = await eventually { window.record.workspaceID == other.id }
         #expect(window.saveCalls == 1)

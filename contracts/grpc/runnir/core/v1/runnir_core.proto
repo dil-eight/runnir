@@ -226,7 +226,197 @@ service RunnirCore {
   // job may run in any of them. GitHub out of reach leaves its own out.
   // NOT_FOUND for an unknown repository.
   rpc ListEnvironments(ListEnvironmentsRequest) returns (ListEnvironmentsResponse);
+  // The calls MCP clients make through McpBridge, for the app to answer
+  // (docs/superpowers/specs/2026-11-08-mcp-value-sets-design.md). One
+  // subscriber at a time; a new one replaces the previous. Secret values
+  // of a SET_VALUES request travel only on this authenticated socket.
+  rpc SubscribeMcpRequests(SubscribeMcpRequestsRequest) returns (stream McpRequest);
+  // The app's answer to one request. NOT_FOUND when the request no longer
+  // waits (answered, timed out or its client went away).
+  rpc AnswerMcpRequest(AnswerMcpRequestRequest) returns (AnswerMcpRequestResponse);
+  // Before the app acts on a request the user answered (saves values,
+  // starts a run): the Core no longer lets the request expire and waits
+  // for the answer. NOT_FOUND when the request no longer waits, so the app
+  // never does what its client was told did not happen.
+  rpc ClaimMcpRequest(ClaimMcpRequestRequest) returns (ClaimMcpRequestResponse);
 }
+
+// Served only on mcp.sock in the data folder, for `runnir mcp`: the tools
+// of MCP clients (docs/superpowers/specs/2026-11-09-mcp-full-control-design.md).
+// The Core runs each tool, asking the app what only it knows. A tool's
+// refusal is a result with is_error; UNAVAILABLE says Runnir is not running.
+service McpBridge {
+  rpc CallTool(McpBridgeCallToolRequest) returns (McpBridgeCallToolResponse);
+}
+
+message McpBridgeCallToolRequest {
+  // The MCP client's name from its initialize request.
+  string client = 1;
+  string tool = 2;
+  // The tool's arguments, a JSON object.
+  string arguments_json = 3;
+}
+
+message McpBridgeCallToolResponse {
+  string text = 1;
+  // The structured content, a JSON object; empty for none.
+  string structured_json = 2;
+  bool is_error = 3;
+}
+
+// What the Core asks the app for an MCP tool.
+enum McpTool {
+  MCP_TOOL_UNSPECIFIED = 0;
+  MCP_TOOL_LIST_VALUE_SETS = 1;
+  MCP_TOOL_SET_VALUES = 2;
+  // The registered workspaces.
+  MCP_TOOL_LIST_WORKSPACES = 3;
+  // A workspace ready to use: resolved, its window opened when none shows
+  // it, and opened in the Core.
+  MCP_TOOL_OPEN_WORKSPACE = 4;
+  // Start a local run as Run Locally does.
+  MCP_TOOL_START_LOCAL_RUN = 5;
+}
+
+message McpValue {
+  string name = 1;
+  string value = 2;
+}
+
+message SubscribeMcpRequestsRequest {}
+
+message McpRequest {
+  string id = 1;
+  string client = 2;
+  McpTool tool = 3;
+  string repository = 4;
+  string set = 5;
+  repeated McpValue secrets = 6;
+  repeated McpValue variables = 7;
+  // The tool changes something: refused while the user turned actions off.
+  bool action = 8;
+  // For START_LOCAL_RUN.
+  McpLocalRunStart start = 9;
+  // When the Core stops waiting and tells the client nothing happened,
+  // unless the app claimed the request first (ClaimMcpRequest).
+  google.protobuf.Timestamp expires_at = 10;
+  // Only says that the request with this id no longer waits: its client
+  // went away or it expired. The app takes down what asks about it.
+  bool withdrawn = 11;
+}
+
+message McpLocalRunStart {
+  // Unset: the branch's default scenario.
+  Scenario scenario = 1;
+  // The workflows to run, by path or name, each with the jobs to tick;
+  // no jobs ticks every job that can run here except macOS jobs. Empty:
+  // what the scenario starts that can run here.
+  repeated McpLocalRunWorkflow workflows = 2;
+  // Whose values the run takes when the plan leaves it to the user; empty
+  // is the Repository's.
+  string environment = 3;
+  // Start even when some of the run's secrets or variables have no value.
+  bool allow_missing_values = 4;
+  // Run the ticked macOS jobs without the macOS sandbox; the user confirms
+  // it in the workspace's window.
+  bool macos_without_sandbox = 5;
+}
+
+message McpLocalRunWorkflow {
+  string workflow = 1;
+  repeated string jobs = 2;
+}
+
+message McpWorkspace {
+  string name = 1;
+  string path = 2;
+  string workspace_id = 3;
+  // A window shows it.
+  bool open = 4;
+}
+
+message McpWorkspaces {
+  repeated McpWorkspace workspaces = 1;
+}
+
+message McpOpenedWorkspace {
+  McpWorkspace workspace = 1;
+  // The Core's id of its repository.
+  string repository_id = 2;
+  string branch = 3;
+}
+
+message McpLocalRunStarted {
+  string workspace = 1;
+  string execution_id = 2;
+  // Names given a value, and names left empty, upper-cased.
+  repeated string passed = 3;
+  repeated string empty = 4;
+  // The environment whose values the run takes before the Repository's.
+  string environment = 5;
+}
+
+enum McpValueState {
+  MCP_VALUE_STATE_UNSPECIFIED = 0;
+  // The set has its own value.
+  MCP_VALUE_STATE_SAVED = 1;
+  // An environment without its own value: its jobs get the Repository's.
+  MCP_VALUE_STATE_FROM_REPOSITORY = 2;
+  // Some job would get an empty value.
+  MCP_VALUE_STATE_MISSING = 3;
+  // No job needs a value here (every environment reading it sets its own).
+  MCP_VALUE_STATE_NOT_NEEDED = 4;
+}
+
+message McpValueName {
+  string name = 1;
+  bool secret = 2;
+  McpValueState state = 3;
+  // A saved variable's value; never a secret's.
+  string value = 4;
+}
+
+message McpValueSet {
+  // "Repository" or an environment's name.
+  string name = 1;
+  // An environment no run can take any more that still has saved values.
+  bool stale = 2;
+  repeated McpValueName names = 3;
+}
+
+message McpValueSets {
+  // The workspace's name.
+  string workspace = 1;
+  repeated McpValueSet sets = 2;
+}
+
+message McpSavedValues {
+  string workspace = 1;
+  string set = 2;
+  repeated string secrets = 3;
+  repeated string variables = 4;
+}
+
+message AnswerMcpRequestRequest {
+  string id = 1;
+  oneof answer {
+    McpValueSets sets = 2;
+    McpSavedValues saved = 3;
+    // Why not, said to the MCP client as it is.
+    string refusal = 4;
+    McpWorkspaces workspaces = 5;
+    McpOpenedWorkspace workspace = 6;
+    McpLocalRunStarted started = 7;
+  }
+}
+
+message AnswerMcpRequestResponse {}
+
+message ClaimMcpRequestRequest {
+  string id = 1;
+}
+
+message ClaimMcpRequestResponse {}
 
 message HealthCheckRequest {}
 
@@ -1372,6 +1562,9 @@ enum LocalJobSupport {
   LOCAL_JOB_SUPPORT_UNSUPPORTED = 2;
   // act decides when the job starts, for example runs-on set by an expression.
   LOCAL_JOB_SUPPORT_UNKNOWN = 3;
+  // A macOS runner on a Mac: act runs the job on this Mac itself, without a
+  // container and so without isolation. Never ticked by default.
+  LOCAL_JOB_SUPPORT_HOST = 4;
 }
 
 message LocalRunJob {
@@ -1381,7 +1574,15 @@ message LocalRunJob {
   // The image the job runs in.
   string image = 4;
   LocalJobSupport support = 5;
+  // Why it cannot run here, or what decides it.
   string reason = 6;
+  // The jobs it needs, by id.
+  repeated string needs = 7;
+  // Ticked: it runs.
+  bool selected = 8;
+  // Why the scenario skips it on GitHub (an if: that is false); empty when
+  // it runs there.
+  string skipped = 9;
 }
 
 message LocalRunImage {
@@ -1390,79 +1591,127 @@ message LocalRunImage {
   bool present = 2;
 }
 
-message LocalRunPlan {
+enum LocalRunLaneKind {
+  LOCAL_RUN_LANE_KIND_UNSPECIFIED = 0;
+  // The scenario's event starts it.
+  LOCAL_RUN_LANE_KIND_DIRECT = 1;
+  // workflow_run starts it after another lane.
+  LOCAL_RUN_LANE_KIND_CHAINED = 2;
+  // It starts only by hand.
+  LOCAL_RUN_LANE_KIND_MANUAL = 3;
+  // The scenario does not start it; `skipped` says why.
+  LOCAL_RUN_LANE_KIND_OUTSIDE = 4;
+}
+
+// One workflow of a local run: act runs it on its own, after the lanes
+// before it, with only its ticked jobs and the jobs they need.
+message LocalRunLane {
   // Path relative to the repository root, as in Workflow.id.
   string workflow_id = 1;
   string workflow_name = 2;
-  // The workflow's triggers; `event` is the one the run uses.
-  repeated string events = 3;
+  LocalRunLaneKind kind = 3;
+  // The event act gets for it.
   string event = 4;
-  // The chosen job, empty for every job; a chosen job brings the jobs it needs.
-  string job_id = 5;
-  repeated LocalRunJob jobs = 6;
-  repeated LocalRunImage images = 7;
+  // What starts it in the scenario: "pull_request · paths ✓".
+  string why = 5;
+  // Why the scenario does not start it, for an OUTSIDE lane.
+  string skipped = 6;
+  // The workflow path of the lane a CHAINED lane follows.
+  string after = 7;
+  // Some of its jobs are ticked.
+  bool selected = 8;
+  // Why the file does not parse; such a lane cannot be ticked.
+  string parse_error = 9;
+  repeated LocalRunJob jobs = 10;
+}
+
+message LocalRunPlan {
+  // The scenarios of the branch, the default first, and the one planned.
+  repeated Scenario scenarios = 1;
+  Scenario scenario = 2;
+  // Every workflow of the repository: the scenario's in run order, then
+  // those it does not start.
+  repeated LocalRunLane lanes = 3;
+  // Over the ticked jobs.
+  repeated LocalRunImage images = 4;
   // Secrets the run reads, upper-cased; the values the user sets are passed.
-  repeated string secrets = 8;
-  // Differences from a GitHub run worth knowing before starting.
-  repeated string notes = 9;
-  // Why the run cannot start now. A plan with blockers has no confirmation.
-  repeated string blockers = 10;
-  uint32 cpus = 11;
-  uint64 memory_bytes = 12;
-  uint32 timeout_seconds = 13;
-  // The act that runs it.
-  string act_version = 14;
-  bool installed_act = 15;
-  string engine_name = 16;
-  string engine_context = 17;
+  repeated string secrets = 5;
   // Variables (vars.X) the run reads, upper-cased.
-  repeated string variables = 18;
-  // The workflow reads secrets it does not name (toJSON(secrets), secrets:
+  repeated string variables = 6;
+  // A workflow reads secrets it does not name (toJSON(secrets), secrets:
   // inherit); only the listed ones can be passed.
-  bool unnamed_secrets = 19;
+  bool unnamed_secrets = 7;
+  // Differences from a GitHub run worth knowing before starting.
+  repeated string notes = 8;
+  // Why the run cannot start now. A plan with blockers has no confirmation.
+  repeated string blockers = 9;
+  // Each workflow's limits; the timeout is per workflow.
+  uint32 cpus = 10;
+  uint64 memory_bytes = 11;
+  uint32 timeout_seconds = 12;
+  // The act that runs it.
+  string act_version = 13;
+  bool installed_act = 14;
+  string engine_name = 15;
+  string engine_context = 16;
   // The most a run gets here: the engine's CPUs and memory (0 when it did
   // not say) and 6 hours.
-  uint32 max_cpus = 20;
-  uint64 max_memory_bytes = 21;
-  uint32 max_timeout_seconds = 22;
+  uint32 max_cpus = 17;
+  uint64 max_memory_bytes = 18;
+  uint32 max_timeout_seconds = 19;
   // The limits are the workspace's own, not the defaults; confirming the run
   // keeps them for the workspace.
-  bool own_limits = 23;
+  bool own_limits = 20;
   // What these limits risk on this engine; they never block the run.
-  repeated string limit_warnings = 24;
+  repeated string limit_warnings = 21;
   // A line worth reading without opening the limits: an engine smaller than
   // a default, or one that does not say what it has.
-  string limit_note = 25;
+  string limit_note = 22;
   // The environment whose values the run takes before the Repository's;
   // empty for the Repository's alone or when the user chooses.
-  string environment = 26;
-  // Why the user chooses whose values the run takes, when the workflow does
-  // not settle it: act gives every job of a run the same values, so a run
-  // of jobs in several environments, or in one an expression picks, could
-  // take any of them. Empty otherwise.
-  string environment_choice = 27;
+  string environment = 23;
+  // Why the user chooses whose values the run takes, when the jobs do not
+  // settle it: act gives every job the same values, so a run of jobs in
+  // several environments, or in one an expression picks, could take any of
+  // them. Empty otherwise.
+  string environment_choice = 24;
   // The environments to choose from (ListEnvironments), when
   // environment_choice is set. With none known the run takes the
   // Repository's values, a note says so and environment_choice is empty.
-  repeated string environments = 28;
+  repeated string environments = 25;
+  // Ticked jobs that run on this Mac without a container ("CI › build-ios"):
+  // their steps reach the user's files, Keychain and network, and CPU and
+  // memory limits do not apply. The app asks for a confirmation of its own.
+  repeated string host_jobs = 26;
+  // host_jobs run without the macOS sandbox, as asked: their steps reach
+  // everything the user can.
+  bool host_unsandboxed = 27;
+}
+
+// The jobs ticked in one workflow.
+message LocalRunSelection {
+  string workflow_id = 1;
+  repeated string job_ids = 2;
 }
 
 message PrepareLocalRunRequest {
   string repository_id = 1;
-  string workflow_id = 2;
-  // Empty runs every job of the workflow.
-  string job_id = 3;
-  // One of the workflow's triggers; empty picks push, pull_request or
-  // workflow_dispatch, in that order.
-  string event = 4;
+  // Unset: the branch's default scenario.
+  Scenario scenario = 2;
+  // The ticked jobs by workflow; a job brings the jobs it needs. Empty: what
+  // the scenario starts that can run here.
+  repeated LocalRunSelection selection = 3;
   // Experimental: run with the act installed on this computer when one is
   // usable, instead of the bundled act.
-  bool use_installed_act = 5;
+  bool use_installed_act = 4;
   // Limits asked for; unset: the workspace's, else the defaults. The Core
   // caps them at the engine and rounds them to their steps.
-  LocalRunLimits limits = 6;
+  LocalRunLimits limits = 5;
   // Plan with the defaults; confirming the run forgets the workspace's limits.
-  bool reset_limits = 7;
+  bool reset_limits = 6;
+  // Run the ticked macOS jobs on this Mac without the macOS sandbox, for this
+  // run only: they can then reach everything the user can.
+  bool host_unsandboxed = 7;
 }
 
 // CPUs, memory and timeout of a local run.
@@ -1488,6 +1737,8 @@ message ConfirmLocalRunRequest {
   // its environment, and are not logged or stored.
   map<string, string> secrets = 2;
   map<string, string> variables = 3;
+  // The MCP client that starts the run ("claude-code"); empty for the user.
+  string started_by = 4;
 }
 
 message ConfirmLocalRunResponse {
@@ -1516,6 +1767,8 @@ enum LocalJobState {
 }
 
 message LocalRunJobStatus {
+  // The workflow the job is in.
+  string workflow_id = 7;
   string id = 1;
   string name = 2;
   LocalJobState state = 3;
@@ -1528,8 +1781,17 @@ message LocalRunLine {
   uint64 sequence = 1;
   // Empty for act's own messages.
   string job_id = 2;
+  // The workflow of the job; empty for act's own messages.
+  string workflow_id = 5;
   string text = 3;
   bool error = 4;
+}
+
+// A job of a local run, whose newest lines the Core keeps on their own.
+message LocalRunLineSource {
+  string workflow_id = 1;
+  // Empty for act's own messages of the workflow.
+  string job_id = 2;
 }
 
 message GetLocalRunOutputRequest {
@@ -1546,8 +1808,15 @@ message GetLocalRunOutputResponse {
   repeated LocalRunLine lines = 5;
   // Lines after `after_sequence` were dropped to stay within the bound.
   bool discarded = 6;
-  // The highest sequence number so far.
+  // The jobs those dropped lines were from, by workflow and job id; a job
+  // that lost no lines after `after_sequence` is not listed.
+  repeated LocalRunLineSource discarded_jobs = 16;
+  // The highest sequence number so far; with more_lines, that of the last
+  // line given.
   uint64 last_sequence = 7;
+  // More lines follow than one answer holds: ask again at once, after
+  // last_sequence.
+  bool more_lines = 17;
   repeated LocalRunJobStatus jobs = 8;
   LocalRunPlan plan = 9;
   google.protobuf.Timestamp started_at = 10;
@@ -1558,6 +1827,8 @@ message GetLocalRunOutputResponse {
   string message = 13;
   // Set when containers of this run may still exist.
   string cleanup_problem = 14;
+  // The MCP client that started the run; empty for the user.
+  string started_by = 15;
 }
 
 message CancelExecutionRequest {
@@ -1895,9 +2166,10 @@ message SearchedPullRequest {
 // A local run as the workspace's history keeps it; its output is not kept.
 message SearchedLocalRun {
   string execution_id = 1;
-  string workflow_path = 2;
-  string job_id = 3;
-  string event = 4;
+  // The scenario's title: "Pull request → main".
+  string scenario = 2;
+  // The workflows it ran, in run order.
+  repeated string workflow_paths = 3;
   // "queued", "running", "succeeded", "failed", "cancelled" or "interrupted".
   string state = 5;
   string message = 6;
@@ -2156,6 +2428,7 @@ enum UsageEvent {
   USAGE_EVENT_ASYNC_NOTIFICATIONS_DELIVERED = 50;
   USAGE_EVENT_ASYNC_APP_CORE_RESTARTED = 51;
   USAGE_EVENT_OVERLAY_SETTINGS_ABOUT = 52;
+  USAGE_EVENT_OVERLAY_SETTINGS_MCP = 53;
 }
 
 message RecordUsageRequest {

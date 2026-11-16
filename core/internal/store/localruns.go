@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 )
 
@@ -20,11 +21,11 @@ const maxLocalRuns = 200
 
 // LocalRun is the summary of one local act run; its output is never stored.
 type LocalRun struct {
-	ExecutionID  string
-	WorkflowPath string
-	// JobID is the chosen job; empty ran every job.
-	JobID      string
-	Event      string
+	ExecutionID string
+	// Scenario is the scenario's title: "Pull request → main".
+	Scenario string
+	// Workflows are the paths of the workflows it ran, in run order.
+	Workflows  []string
 	StartedAt  time.Time
 	FinishedAt time.Time
 	State      string
@@ -44,19 +45,19 @@ func terminal(state string) bool {
 	return false
 }
 
-const localColumns = "execution_id, workflow_path, job_id, event, started_at, finished_at, state, message, act_version, engine"
+const localColumns = "execution_id, scenario, workflows, started_at, finished_at, state, message, act_version, engine"
 
 // RecordLocalRun adds a run. When an event already created its row, only
 // the details are filled in: the state and times events set are kept.
 func (s *Store) RecordLocalRun(ctx context.Context, r LocalRun) error {
 	_, err := s.db.ExecContext(ctx, `
 INSERT INTO local_runs (`+localColumns+`)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (execution_id) DO UPDATE SET
-	workflow_path = excluded.workflow_path, job_id = excluded.job_id, event = excluded.event,
+	scenario = excluded.scenario, workflows = excluded.workflows,
 	started_at = CASE WHEN local_runs.started_at = 0 THEN excluded.started_at ELSE local_runs.started_at END,
 	act_version = excluded.act_version, engine = excluded.engine`,
-		r.ExecutionID, r.WorkflowPath, r.JobID, r.Event, millis(r.StartedAt), millis(r.FinishedAt), r.State, r.Message, r.ActVersion, r.Engine)
+		r.ExecutionID, r.Scenario, joinWorkflows(r.Workflows), millis(r.StartedAt), millis(r.FinishedAt), r.State, r.Message, r.ActVersion, r.Engine)
 	if err != nil {
 		return err
 	}
@@ -106,9 +107,11 @@ func readLocalRuns(rows *sql.Rows) ([]LocalRun, error) {
 	for rows.Next() {
 		var r LocalRun
 		var started, finished int64
-		if err := rows.Scan(&r.ExecutionID, &r.WorkflowPath, &r.JobID, &r.Event, &started, &finished, &r.State, &r.Message, &r.ActVersion, &r.Engine); err != nil {
+		var workflows string
+		if err := rows.Scan(&r.ExecutionID, &r.Scenario, &workflows, &started, &finished, &r.State, &r.Message, &r.ActVersion, &r.Engine); err != nil {
 			return out, err
 		}
+		r.Workflows = splitWorkflows(workflows)
 		r.StartedAt, r.FinishedAt = fromMillis(started), fromMillis(finished)
 		out = append(out, r)
 	}
@@ -131,4 +134,14 @@ DELETE FROM dispatch_history WHERE id IN (
 		return err
 	}
 	return s.writeLocalBackup(ctx)
+}
+
+// Workflows are kept one path a line: a path has no line break.
+func joinWorkflows(paths []string) string { return strings.Join(paths, "\n") }
+
+func splitWorkflows(text string) []string {
+	if text == "" {
+		return nil
+	}
+	return strings.Split(text, "\n")
 }

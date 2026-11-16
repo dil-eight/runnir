@@ -164,6 +164,11 @@ struct WorkspaceValuesView: View {
                     ForEach(rows) { row in
                         WorkspaceValueRow(model: model, row: row, unused: unused) {
                             Task { await model.reveal(row.key, workspaceID: workspaceID, store: store, ask: OwnerConfirmation.ask(reason:)) }
+                        } copy: {
+                            guard let value = await model.valueToCopy(row.key, workspaceID: workspaceID, store: store,
+                                                                      ask: OwnerConfirmation.ask(reason:)) else { return false }
+                            ValuePasteboard.copy(value, secret: row.key.kind == .secret)
+                            return true
                         }
                         if row.id != rows.last?.id { Divider() }
                     }
@@ -241,6 +246,9 @@ private struct WorkspaceValueRow: View {
     let row: WorkspaceValuesModel.Row
     let unused: Bool
     let reveal: () -> Void
+    /// Puts the value on the pasteboard; false when it put nothing.
+    let copy: () async -> Bool
+    @State private var copied = false
 
     var body: some View {
         let key = row.key
@@ -261,17 +269,18 @@ private struct WorkspaceValueRow: View {
             } else {
                 field(key: key, missing: missing, edited: edited)
             }
-            Group {
+            HStack(spacing: 4) {
+                if !unused && !forgotten && (row.saved || edited) {
+                    copyButton(key: key, edited: edited)
+                }
                 if row.saved && forgotten {
                     Button("Undo") { model.undoForget(key) }
                 } else if row.saved {
                     Button { model.forget(key) } label: { Image(systemName: "trash") }
                         .help("Forget the saved value when you press Save")
-                } else {
-                    Color.clear
                 }
             }
-            .frame(width: 52)
+            .frame(width: 72, alignment: .trailing)
         }
         .buttonStyle(DesignButtonStyle(compact: true)).padding(.horizontal, 14).padding(.vertical, 10)
     }
@@ -280,9 +289,8 @@ private struct WorkspaceValueRow: View {
         let binding = Binding(get: { model.text(for: key) }, set: { model.setText($0, for: key) })
         let concealed = key.kind == .secret && model.shown[key] == nil
         let placeholder = concealed && row.saved ? "••••••••••••" : row.inherited && !row.saved ? "The Repository's value" : "Value"
-        HStack(spacing: 6) {
-            ValueField(placeholder: placeholder, text: binding, secure: concealed,
-                       border: missing ? RunnirTheme.warning : edited ? RunnirTheme.primary : nil)
+        ValueField(placeholder: placeholder, text: binding, secure: concealed,
+                   border: missing ? RunnirTheme.warning : edited ? RunnirTheme.primary : nil) {
             if key.kind == .secret && row.saved && !edited {
                 if model.shown[key] == nil {
                     Button(action: reveal) { Image(systemName: "eye") }.handPointer().buttonStyle(.borderless)
@@ -293,6 +301,24 @@ private struct WorkspaceValueRow: View {
                 }
             }
         }
+    }
+
+    /// Copies what the field holds, or a hidden saved secret after Touch ID;
+    /// a check mark says it is on the pasteboard.
+    private func copyButton(key: LocalRunValueKey, edited: Bool) -> some View {
+        let asks = key.kind == .secret && !edited && model.shown[key] == nil
+        return Button {
+            Task {
+                guard await copy() else { return }
+                copied = true
+                try? await Task.sleep(for: .seconds(1.5))
+                copied = false
+            }
+        } label: {
+            Image(systemName: copied ? "checkmark" : "doc.on.doc")
+        }
+        .help(asks ? "Copy the saved value (Touch ID or your password)" : "Copy the value")
+        .accessibilityLabel(copied ? "Copied" : "Copy the value")
     }
 
     private func caption(missing: Bool, edited: Bool, forgotten: Bool) -> String {
@@ -312,26 +338,176 @@ private struct WorkspaceValueRow: View {
 }
 
 /// A value input of Secrets and Variables and the Run Locally review: 32
-/// points high and monospaced, its border saying missing or edited.
-struct ValueField: View {
+/// points high and monospaced, its border saying missing or edited, with an
+/// optional button inside at its end.
+struct ValueField<Accessory: View>: View {
     let placeholder: String
     @Binding var text: String
     var secure = false
     var border: Color?
+    @ViewBuilder var accessory: Accessory
+    @State private var hidden = ValueInput.HiddenEnds()
+
+    /// How far the edge behind which a long value goes on fades out.
+    private static var fade: CGFloat { 14 }
 
     var body: some View {
-        Group {
-            if secure {
-                SecureField(placeholder, text: $text)
-            } else {
-                TextField(placeholder, text: $text)
-            }
+        HStack(spacing: 6) {
+            ValueInput(placeholder: placeholder, text: $text, secure: secure, hidden: $hidden)
+                // A secret shown after Touch ID is another kind of AppKit field.
+                .id(secure)
+                // AppKit shows an edited value 2 points past each side of
+                // the field; the mask keeps it inside, and where the value
+                // goes on out of sight it fades instead of cutting a
+                // character in half.
+                .mask {
+                    HStack(spacing: 0) {
+                        LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
+                            .frame(width: hidden.leading ? Self.fade : 0)
+                        Rectangle()
+                        LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                            .frame(width: hidden.trailing ? Self.fade : 0)
+                    }
+                }
+            accessory
         }
-        .textFieldStyle(.plain)
-        .font(.system(size: 13, design: .monospaced))
         .padding(.horizontal, 10)
         .frame(height: 32)
         .background(RunnirTheme.editor, in: RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(border ?? RunnirTheme.border))
+    }
+}
+
+extension ValueField where Accessory == EmptyView {
+    init(placeholder: String, text: Binding<String>, secure: Bool = false, border: Color? = nil) {
+        self.init(placeholder: placeholder, text: text, secure: secure, border: border) { EmptyView() }
+    }
+}
+
+/// The text input of a ValueField: an AppKit field, plain or secure, that
+/// says which end of its value is out of sight, at rest or scrolled while
+/// edited, so ValueField can fade that edge.
+struct ValueInput: NSViewRepresentable {
+    struct HiddenEnds: Equatable {
+        var leading = false
+        var trailing = false
+    }
+
+    let placeholder: String
+    @Binding var text: String
+    let secure: Bool
+    @Binding var hidden: HiddenEnds
+
+    static let font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeNSView(context: Context) -> NSTextField {
+        let field: NSTextField = secure ? NSSecureTextField() : NSTextField()
+        field.isBordered = false
+        field.isBezeled = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.font = Self.font
+        field.textColor = .labelColor
+        field.usesSingleLineMode = true
+        field.lineBreakMode = .byClipping
+        field.cell?.wraps = false
+        field.cell?.isScrollable = true
+        field.placeholderString = placeholder
+        field.stringValue = text
+        field.delegate = context.coordinator
+        context.coordinator.watch(field)
+        return field
+    }
+
+    func updateNSView(_ field: NSTextField, context: Context) {
+        context.coordinator.parent = self
+        // Disabled under a dialog, as the SwiftUI controls around it are.
+        if field.isEnabled != context.environment.isEnabled { field.isEnabled = context.environment.isEnabled }
+        if field.placeholderString != placeholder { field.placeholderString = placeholder }
+        if let editor = field.currentEditor() as? NSTextView {
+            if editor.string != text { editor.string = text }
+        } else if field.stringValue != text {
+            field.stringValue = text
+        }
+        DispatchQueue.main.async { context.coordinator.measure() }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSTextField, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? 120, height: NSLayoutManager().defaultLineHeight(for: Self.font))
+    }
+
+    @MainActor final class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: ValueInput
+        private weak var field: NSTextField?
+        private weak var clip: NSClipView?
+
+        init(_ parent: ValueInput) { self.parent = parent }
+
+        func watch(_ field: NSTextField) {
+            self.field = field
+            field.postsFrameChangedNotifications = true
+            NotificationCenter.default.addObserver(self, selector: #selector(changed), name: NSView.frameDidChangeNotification, object: field)
+            // Focus selects the value and a caret move may scroll it: the
+            // field editor says both by changing its selection.
+            NotificationCenter.default.addObserver(self, selector: #selector(selectionChanged),
+                                                   name: NSTextView.didChangeSelectionNotification, object: nil)
+        }
+
+        func controlTextDidChange(_ note: Notification) {
+            guard let field else { return }
+            if parent.text != field.stringValue { parent.text = field.stringValue }
+            watchEditor()
+            measure()
+        }
+
+        func controlTextDidEndEditing(_ note: Notification) { measure() }
+
+        @objc private func selectionChanged(_ note: Notification) {
+            guard let editor = field?.currentEditor(), (note.object as AnyObject?) === editor else { return }
+            watchEditor()
+            DispatchQueue.main.async { self.measure() }
+        }
+
+        @objc private func changed(_ note: Notification) { measure() }
+
+        /// The field editor scrolls in a clip view of its own.
+        private func watchEditor() {
+            guard let clip = field?.currentEditor()?.superview as? NSClipView, clip !== self.clip else { return }
+            if let old = self.clip { NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: old) }
+            clip.postsBoundsChangedNotifications = true
+            NotificationCenter.default.addObserver(self, selector: #selector(changed), name: NSView.boundsDidChangeNotification, object: clip)
+            self.clip = clip
+        }
+
+        func measure() {
+            guard let field else { return }
+            var ends = HiddenEnds()
+            if let editor = field.currentEditor() as? NSTextView, let clip = editor.superview as? NSClipView,
+               let layout = editor.layoutManager, let container = editor.textContainer {
+                ends.leading = clip.bounds.minX > 0.5
+                ends.trailing = layout.usedRect(for: container).maxX - clip.bounds.maxX > 0.5
+            } else {
+                // At rest the value is drawn from its start.
+                let drawn = field is NSSecureTextField ? String(repeating: "•", count: field.stringValue.count) : field.stringValue
+                let width = (drawn as NSString).size(withAttributes: [.font: ValueInput.font]).width
+                ends.trailing = width > (field.cell?.titleRect(forBounds: field.bounds).width ?? field.bounds.width)
+            }
+            if parent.hidden != ends { parent.hidden = ends }
+        }
+    }
+}
+
+/// Puts a copied value on the pasteboard. A secret also carries the
+/// concealed type (nspasteboard.org) that clipboard managers read as "do not
+/// keep in history".
+enum ValuePasteboard {
+    static let concealed = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
+
+    static func copy(_ value: String, secret: Bool, to pasteboard: NSPasteboard = .general) {
+        pasteboard.clearContents()
+        pasteboard.setString(value, forType: .string)
+        if secret { pasteboard.setString("", forType: concealed) }
     }
 }
