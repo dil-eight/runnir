@@ -123,6 +123,9 @@ func TestFailedPassesAreCountedOncePerOutcome(t *testing.T) {
 	counted := analytics.Counts{}
 	r := startRuntimeWith(t, t.TempDir(), fixedResolver(accounts, "o", "r"), nil, func(c *config) {
 		c.analytics = func(_ time.Time, counts analytics.Counts) {
+			// A slow ledger: a pass that let Refresh return before its
+			// count arrived would leave that count out of the check below.
+			time.Sleep(20 * time.Millisecond)
 			mu.Lock()
 			defer mu.Unlock()
 			for name, value := range counts {

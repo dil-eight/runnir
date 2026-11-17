@@ -281,11 +281,18 @@ func (r *Runtime) pass() {
 	if a, err := r.cfg.store.Activity(r.ctx, pageSize); err == nil {
 		active = isActive(a.Runs)
 	}
+	// Counted before the pass ends, outside the lock: a Refresh that waited
+	// for this pass returns with its outcome counted.
+	if target != nil {
+		r.mu.Lock()
+		previous := r.lastAccess
+		r.mu.Unlock()
+		r.countSyncOutcome(previous, corev1.GithubAccess(p.Access))
+	}
 
 	r.mu.Lock()
 	r.syncing = false
 	r.finished++
-	previous := r.lastAccess
 	r.lastAccess, r.lastRetry = corev1.GithubAccess(p.Access), p.RetryAfter
 	r.lastServer, r.hasServer = "", false
 	if target != nil {
@@ -303,9 +310,6 @@ func (r *Runtime) pass() {
 	close(r.passDone)
 	r.passDone = make(chan struct{})
 	r.mu.Unlock()
-	if target != nil {
-		r.countSyncOutcome(previous, corev1.GithubAccess(p.Access))
-	}
 	r.publish()
 }
 
