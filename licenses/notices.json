@@ -378,9 +378,9 @@
         },
         {
           "name": "golang.org/x/sync",
-          "version": "v0.24.0",
+          "version": "v0.25.0",
           "license": "BSD-3-Clause",
-          "source": "https://proxy.golang.org/golang.org/x/sync/@v/v0.24.0.zip",
+          "source": "https://proxy.golang.org/golang.org/x/sync/@v/v0.25.0.zip",
           "texts": [
             "22975ebe4136"
           ]
