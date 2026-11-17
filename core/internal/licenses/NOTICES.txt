@@ -918,8 +918,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ================================================================================
-modernc.org/libc v1.79.0 (BSD-3-Clause AND MIT)
-  Source: https://proxy.golang.org/modernc.org/libc/@v/v1.79.0.zip
+modernc.org/libc v1.80.1 (BSD-3-Clause AND MIT)
+  Source: https://proxy.golang.org/modernc.org/libc/@v/v1.80.1.zip
 --------------------------------------------------------------------------------
 Copyright (c) 2017 The Libc Authors. All rights reserved.
 
@@ -950,8 +950,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ================================================================================
-modernc.org/libc v1.79.0 (BSD-3-Clause AND MIT)
-  Source: https://proxy.golang.org/modernc.org/libc/@v/v1.79.0.zip
+modernc.org/libc v1.80.1 (BSD-3-Clause AND MIT)
+  Source: https://proxy.golang.org/modernc.org/libc/@v/v1.80.1.zip
 --------------------------------------------------------------------------------
 # Third-Party Software Notices
 
@@ -1391,8 +1391,8 @@ modernc.org/memory v1.12.1 (BSD-3-Clause)
 https://commons.wikimedia.org/wiki/File:Memory_infra_logo.png
 
 ================================================================================
-modernc.org/sqlite v1.61.1 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
-  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.1.zip
+modernc.org/sqlite v1.62.0 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
+  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.62.0.zip
 --------------------------------------------------------------------------------
 SQLite Is Public Domain
 
@@ -1421,8 +1421,8 @@ public domain dedications on file. So the SQLite code base is clean and is
 uncontaminated with licensed code from other projects.
 
 ================================================================================
-modernc.org/sqlite v1.61.1 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
-  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.1.zip
+modernc.org/sqlite v1.62.0 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
+  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.62.0.zip
 --------------------------------------------------------------------------------
 MIT License
 
@@ -1447,8 +1447,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ================================================================================
-modernc.org/sqlite v1.61.1 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
-  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.1.zip
+modernc.org/sqlite v1.62.0 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
+  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.62.0.zip
 --------------------------------------------------------------------------------
 # Third-Party Licenses
 
@@ -1495,7 +1495,7 @@ and license texts it points at are the ones you have to carry with you.
 | [Go](https://github.com/golang/go) | -- | BSD-3-Clause | modernc.org/libc | [N1](#N1) |
 | [go-netdb](https://github.com/dominikh/go-netdb) | -- | MIT | modernc.org/libc | [N1](#N1) |
 | [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys) | v0.49.0 | BSD-3-Clause | github.com/google/pprof, github.com/mattn/go-isatty, modernc.org/libc, modernc.org/memory, `go.mod` | [L3](#L3) |
-| [modernc.org/libc](https://pkg.go.dev/modernc.org/libc) | v1.79.0 | BSD-3-Clause | `go.mod` | [L4](#L4) |
+| [modernc.org/libc](https://pkg.go.dev/modernc.org/libc) | v1.80.1 | BSD-3-Clause | `go.mod` | [L4](#L4) |
 | [modernc.org/mathutil](https://pkg.go.dev/modernc.org/mathutil) | v1.7.1 | BSD-3-Clause | modernc.org/fileutil, modernc.org/libc, modernc.org/memory, `go.mod` | [L4](#L4) |
 | [modernc.org/memory](https://pkg.go.dev/modernc.org/memory) | v1.12.1 | BSD-3-Clause, attribution reference | modernc.org/libc, `go.mod` | [L4](#L4), [L2](#L2), [L5](#L5), [L6](#L6) |
 | [musl libc](https://musl.libc.org/) | -- | MIT | modernc.org/libc | [N1](#N1) |
@@ -1540,8 +1540,8 @@ this one.
 | [golang.org/x/mod](https://pkg.go.dev/golang.org/x/mod) | v0.42.0 | BSD-3-Clause | modernc.org/libc | [L3](#L3) |
 | [golang.org/x/sync](https://pkg.go.dev/golang.org/x/sync) | v0.24.0 | BSD-3-Clause | modernc.org/libc | [L3](#L3) |
 | [golang.org/x/tools](https://pkg.go.dev/golang.org/x/tools) | v0.52.0 | BSD-3-Clause | modernc.org/libc | [L3](#L3) |
-| [modernc.org/cc/v4](https://pkg.go.dev/modernc.org/cc/v4) | v4.30.3 | BSD-3-Clause | modernc.org/libc | [L4](#L4) |
-| [modernc.org/ccgo/v4](https://pkg.go.dev/modernc.org/ccgo/v4) | v4.37.0 | BSD-3-Clause | modernc.org/libc | [L4](#L4) |
+| [modernc.org/cc/v4](https://pkg.go.dev/modernc.org/cc/v4) | v4.30.6-0.20261101114202-1b9d1a076f6b | BSD-3-Clause | modernc.org/libc | [L4](#L4) |
+| [modernc.org/ccgo/v4](https://pkg.go.dev/modernc.org/ccgo/v4) | v4.38.1 | BSD-3-Clause | modernc.org/libc | [L4](#L4) |
 | [modernc.org/gc/v2](https://pkg.go.dev/modernc.org/gc/v2) | v2.6.5 | BSD-3-Clause | modernc.org/libc | [L16](#L16) |
 | [modernc.org/gc/v3](https://pkg.go.dev/modernc.org/gc/v3) | v3.2.0 | BSD-3-Clause | modernc.org/libc | [L16](#L16) |
 | [modernc.org/goabi0](https://pkg.go.dev/modernc.org/goabi0) | v0.2.0 | BSD-3-Clause | modernc.org/libc | [L17](#L17) |
@@ -3066,8 +3066,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ---
 
 ================================================================================
-modernc.org/sqlite v1.61.1 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
-  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.1.zip
+modernc.org/sqlite v1.62.0 (Apache-2.0 AND BSD-3-Clause AND LicenseRef-Public-Domain AND MIT AND MPL-2.0)
+  Source: https://proxy.golang.org/modernc.org/sqlite/@v/v1.62.0.zip
 --------------------------------------------------------------------------------
 Copyright (c) 2017 The Sqlite Authors. All rights reserved.
 
