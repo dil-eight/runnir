@@ -6,7 +6,7 @@ require (
 	github.com/rhysd/actionlint v1.7.12
 	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/sync v0.25.0
-	golang.org/x/sys v0.49.0
+	golang.org/x/sys v0.50.0
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
 	modernc.org/sqlite v1.62.0
